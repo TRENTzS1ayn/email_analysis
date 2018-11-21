@@ -1,0 +1,80 @@
+docno="lists-045-4119244"
+received="Sat Apr 14 19:12:43 2001"
+isoreceived="20010414231243"
+sent="Sat, 14 Apr 2001 16:12:09 -0700"
+isosent="20010414231209"
+name="Brian LaMacchia"
+email="bal@microsoft.com"
+subject="ds:CryptoBinary vs. base64Binary"
+id="BCDB2C3F59F5744EBE37C715D66E779CEAB659@red-msg-04.redmond.corp.microsoft.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+Cc:"Joseph M. Reagle Jr."<reagle@w3.org>
+
+Folks,
+
+After we decided to keep CryptoBinary around, Joseph asked me to take a
+look at all the elements that are currently specified as CryptoBinary
+and determine whether they really should be.  Currently, we've denoted
+each of the following elements as CryptoBinary:
+
+SignatureValue
+DigestValue
+
+X509Data/X509SKI
+X509Data/X509Certificate
+X509Data/X509CRL
+
+PGPKeyData/PGPKeyPacket
+
+SPKIData/SPKISexp
+
+RSAKeyValue/Modulus
+RSAKeyValue/Exponent
+
+DSAKeyValue/P
+DSAKeyValue/Q
+DSAKeyValue/G
+DSAKeyValue/Y
+DSAKeyValue/J
+DSAKeyValue/Seed
+DSAKeyValue/PgenCounter
+
+However, I believe that the only ones that we can guarantee should
+always be CryptoBinary are the RSAKeyValue and DSAKeyValue ones.  The
+rest should be converted back to base64Binary.  This is because
+CryptoBinary implies that the encoded quantity is a bignum and cannot
+have leading zero bytes, and this isn't true for the other types:
+
+1) SPKISexp, PGPKeyPacket, X509Certificate and X509CRL are binary
+structures, not bignums, so they should never be typed as
+CryptoBinaries, even though we could probably prove that no encoding of
+these types could ever have leading zeros and thus would be valid.  
+
+2) X509SKI also needs to be base64Binary because in PKIX Part 1 it is
+specified simply as an OCTET STRING, not an INTEGER, and thus could have
+leading zero bytes (in fact, this would occur on average 1/256th of the
+time if method (1) of PKIX Part 1 Section 4.2.1.2 was used to generate
+the value).
+
+3) DigestValue, being the hash value of a transformed reference, will
+also have a leading zero byte on average 1/256th of the time if the hash
+value is uniform.
+
+4) SignatureValue's format depends on the signature algorithm being
+used.  If the signature algorithm is RSA or DSA then SignatureValue
+represents a bignum and could be CryptoBinary.  However, if HMAC-SHA1 is
+used then SignatureValue is the output of a hash function and could have
+leading zero bytes.  Thus SignatureValue also needs to be just
+base64Binary.
+
+So, I propose that we change the schema types back for everything except
+the RSAKeyValue and DSAKeyValue components.
+
+--bal
+
+
+

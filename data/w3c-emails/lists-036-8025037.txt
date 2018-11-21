@@ -1,0 +1,91 @@
+docno="lists-036-8025037"
+received="Wed Jun 11 15:31:48 2003"
+isoreceived="20030611193148"
+sent="Wed, 11 Jun 2003 12:31:42 -0700"
+isosent="20030611193142"
+name="Rob Cameron"
+email="cameron@cs.sfu.ca"
+subject="Re: [uri] &lt;none&gt;"
+id="200306111231.42386.cameron@cs.sfu.ca"
+charset="iso-8859-1"
+inreplyto="ABDC07A4-9AD0-11D7-AC96-000393753936&#64;apache.org"
+expires="-1"
+
+To:"Roy T. Fielding"<fielding@apache.org>,"Mark Thomson"<marktt@excite.com>
+Cc:uri@w3.org
+
+
+
+On June 9, 2003 04:18 pm, Roy T. Fielding wrote:
+> > "A path is always defined for a URI, though the defined path may be
+> > empty (zero length) or opaque (not containing any "/" delimiters)"
+> >
+> > The production for net-path says that abs-path is optional, so for a
+> > URI like http://ABCD?query, we have both abs-path and rel-path
+> > undefined and not empty and therefore path would be undefined. Do we
+> > still have to assume that path is empty even when both abs-path and
+> > rel-path are undefined ? or is the above statement from the draft
+> > incorrect ?
+>
+> Bummer.  The statement is correct, but I'll need to fix the ABNF so
+> that it always ends up with a matching production.
+>
+> Thanks for the report,
+>
+> ....Roy
+
+I've been playing with an experimental grammar modification that
+addresses this problem and also addresses the following 
+additional wrinkle:   http://ABCD+y is a legal URI according to
+the ABNF (as translated to regexps by abnf2re).
+
+>>> parseURI('http://ABCD+y')
+('http', None, '//ABCD+y', None, None)
+
+That is, because ABCD+y is not  a legal authority, the
+regular expression matching rules for http://ABCD+y backtrack
+to accept //ABCD+y as a path.    
+
+To address both the problem reported by Mark and the
+problem above, I have found that there may be merit
+to simplifying the URI production to directly reflect the
+opening statement of section 3:
+
+"The generic URI syntax consists of a hierarchical sequence of
+components referred to as the scheme, authority, path, query, and
+fragment."
+
+URI  = scheme ":" ["//" authority] path [ "?" query ] [ "#" fragment ]
+
+This rule reflects the five-component structure and the statement
+that a path always exists, even if it is empty.   It can be made
+to work with either of the two following definitions of path:
+
+path = abs-path / rel-path
+path = segment *( "/" segment )
+
+Running a parser based on either of these changes with
+all the test cases listed in section 5.4 (both normal and 
+abnormal examples) gives precisely the same results as 
+with the grammar of bis-02 or bis-03.   (By the way, it
+might be good to have some IPv6 literals in the test
+examples.)
+
+On the problem case of http://ABCD+y, the following results.
+>>> parseURI('http://ABCD+y')
+('http', 'ABCD', '+y', None, None)
+
+Arguably, this is a better parse if http://ABCD+y is to be 
+accepted as a URI.   It is also a better parse if http://ABCD+y
+is to be ruled out by the extra-grammatical restriction: "when
+an authority exists, the path must either be empty or an
+abs-path."  (Alternatively, "when an authority exists, the 
+first segment of the path must be empty.")   
+
+Overall, I think the theme of grammar simplification reflected in the
+change from bis02 to bis03 is a good idea.   One other
+area that could use some attention is the grammar of IPv6
+literals.    
+
+
+

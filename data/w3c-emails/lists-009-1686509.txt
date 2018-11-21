@@ -1,0 +1,156 @@
+docno="lists-009-1686509"
+received="Mon Dec 19 12:42:55 1994"
+isoreceived="19941219174255"
+sent="Mon, 19 Dec 1994 14:39:33 0600 (CST)"
+isosent="19941219203933"
+name="John Franks"
+email="john@math.nwu.edu"
+subject="Re: Connection Header"
+id="9412192039.AA01409@hopf.math.nwu.edu"
+charset="USASCII"
+inreplyto="9412191152.aa03549&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@blanche.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+According to Roy T. Fielding:
+> 
+> 8) There is no such thing as a bloody MGET proposal, because no one
+>    has ever attempted to specify it beyond some vague notion, let alone
+>    actually implement the sucker.  I don't want to hear any more arguments
+>    about how much *more* efficient this method is until someone gets up
+>    the gumption to specify exactly what the beastie will entail. 
+
+Here is a proposal I circulated a month or two ago.  It was on
+www-talk.  I have made a one minor addition reflecting the recent
+discussions here.  This is far from a careful specification, but it is
+more than I have seen concerning SESSION and Connection: headers.
+
+Proposal for an HTTP MGET Method
+ 
+   A much discussed pressing need for HTTP is a mechanism for the client
+   to request and the server to deliver multiple files in a single
+   transaction. The primary (but not sole) motivation is the need to
+   improve efficiency of downloading an HTML file and multiple inline
+   images for that file. Here is a concrete proposal for the addition of
+   an MGET method to HTTP to meet this need.
+   
+   _Design Objectives_
+
+    1. The number of transactions to download an HTML file with inline
+       images should be minimized.
+    2. The client should have the option of downloading all, some or none
+       of the inline images. It should be able to request some or all
+       files with an "If-Modified-Since:" header.
+    3. Additions to the protocol should be simple to implement for
+       servers and browsers.
+    4. The statelessness of the server should be preserved.
+    5. New client / old server and old client / new server transactions
+       should work as should new client / old proxy etc.
+    6. The server must be able to transmit the multiple files "on the
+       fly" without knowing their size in advance and without making a
+       copy of the whole package before transmission.
+    7. The server must have the option of returning some of the requested
+       files while denying access or reporting an error for others. In
+       particular, it must return a separate status header for each
+       requested file.
+   
+   
+   In order to achieve the second objective above a minimum of two
+   transactions will be required. In the first transaction the client
+   receives the base HTML document (this is a GET transaction and should
+   be identical to HTTP/1.0). The client is then in a position to decide
+   which inline images to request. It may want all, some, or none, as it
+   may have some cached or it may be incapable of displaying images.
+   
+   The second transaction is an MGET transaction. The client lists the
+   URIs it wants each followed by an "Accepts:" header applicable to that
+   URI alone. The client can also provide an "If-Modified-Since:" header
+   for any of the requested files which should work like it does in
+   HTTP/1.0 The server returns the files with a packet transfer-content
+   encoding beginning each packet with the exact number (in ASCII) of
+   bytes in that packet and an empty packet (size -1) to indicate end of
+   file. Here is an example of a client server exchange.
+   
+
+
+        C: GET /foo.html HTTP/2.0<CRLF>
+           Accept: text/html, text/plain<CRLF>
+        S: HTTP/2.0 200 Success<CRLF>
+           Content-Type: text/html<CRLF>
+   Accept: GET, MGET, POST, HEAD, MHEAD<-- see note (*) below
+           ...<other headers>
+           <CRLF>
+           <sends file>
+           < closes connection>
+
+
+  [This was a GET request, identical to HTTP/1.0 except for the additional
+  header line "Accept: MGET..." from the server.  The second request uses
+  MGET.]
+
+        C: MGET HTTP/2.0<CRLF>
+           URI: /images/bar1.gif<CRLF>
+           If-Modified-Since: Saturday, 29-Oct-94 20:04:01 GMT
+           Accept: image/gif, image/x-xbm<CRLF>
+           URI: /images/bar2.gif<CRLF>
+           If-Modified-Since: Saturday, 29-Oct-94 20:04:01 GMT
+           Accept: image/gif, image/x-xbm<CRLF>
+           URI: /images/bar3.gif<CRLF>
+           Accept: image/gif, image/x-xbm<CRLF>
+           URI: /images/bar4.gif<CRLF>
+           Accept: image/gif, image/x-xbm<CRLF>
+           <CRLF>
+
+        S: HTTP/2.0 200 Success<CRLF>
+           URI: /images/bar1.gif<CRLF>
+           Content-Type: image/gif<CRLF>
+           Content-Transfer-Encoding: packet<CRLF>
+           <CRLF>
+           8000<CRLF>
+           ... 8000 bytes of image data first packet...
+           2235<CRLF>
+           ... 2235 bytes of image data completing file...
+           -1<CRLF>
+           <CRLF>
+           HTTP/2.0 304 Not Modified<CRLF>
+           URI: /images/bar2.gif<CRLF>
+           Expires: Saturday, 29-Oct-95 20:04:01 GMT
+           <CRLF>
+           HTTP/2.0 403 Forbidden
+           URI: /images/bar3.gif<CRLF>
+           <CRLF>
+           HTTP/2.0 200 Success<CRLF>
+           URI: /images/bar4.gif<CRLF>
+           Content-Type: image/gif<CRLF>
+           Content-Transfer-Encoding: packet<CRLF>
+           <CRLF>
+           150213<CRLF>
+           ... 150213 bytes of image data (complete file)...
+           -1<CRLF>
+           <CRLF>
+         S: <closes connection>
+
+
+   
+   
+   This seems to me to meet all the objectives listed above. Comments are
+   welcome.
+
+   Note (*):  This line was added as a result of recent discussions on
+   the http-wg mailing list.  The presence of MGET notifies the client
+   that the server will accept the MGET method.  This should be ignored
+   if the client is communicating with a proxy, because the proxy might
+   not be MGET capable.  Perhaps a new proxy should add an additional
+   header like "Proxy-Allow: MGET etc..." if it wishes to allow the
+   client to use MGET.
+
+
+
+John Franks Dept of Math. Northwestern University
+john@math.nwu.edu
+
+
+

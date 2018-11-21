@@ -1,0 +1,185 @@
+docno="lists-048-1145853"
+received="Wed Nov  7 05:33:00 2001"
+isoreceived="20011107103300"
+sent="Wed, 07 Nov 2001 09:13:56 +0000"
+isosent="20011107091356"
+name="Graham Klyne"
+email="Graham.Klyne@MIMEsweeper.com"
+subject="Bags (was: closing semantic issues)"
+id="5.1.0.14.2.20011107084307.040480d0@joy.songbird.com"
+charset="us-ascii"
+inreplyto="p05101042b80e1ff5e0e2&#64;[65.212.118.166]"
+expires="-1"
+
+
+To: Pat Hayes<phayes@ai.uwf.edu>
+Cc:"Peter F. Patel-Schneider"<pfps@research.bell-labs.com>, Dan Connolly<connolly@w3.org>,w3c-rdfcore-wg@w3.org
+
+At 05:35 PM 11/6/01 -0600, Pat Hayes wrote:
+>>If RDF is going to have something called rdf:Bag, then its *RDF* semantics
+>>should conform to the generally-accepted meaning of bags, and not to some
+>>other meaning.
+>
+>I disagree. rdf:Bag is a class, is all. RDF is no more obliged to say 
+>precisely what it means than it is for any other class.
+
+In view of your recent comments about bags and entailments I was wondering 
+if *any* of the current container frameworks adequately capture the 
+"generally-accepted" meaning of bags; e.g. (using {* ... *} to enclose 
+members of a bag):
+
+     {* a, a, b *}  being the same bag as  {* a, b, a *}
+
+The problem you mentioned with ordinal member properties is that RDF 
+inference doesn't provide for the retraction of statements.  In 
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2001Nov/0150.html you 
+said, in response to DanC:
+
+[[[
+DanC:
+>         _:b rdf:type rdf:Bag.
+>         _:b rdf:_1 "abc".
+>         _:b rdf:_2 "def".
+>
+>entails
+>
+>         _:b rdf:type rdf:Bag.
+>         _:b rdf:_2 "abc".
+>         _:b rdf:_1 "def".
+>
+>and generally: the _n arcs of a bag can be permuted.
+
+PatH:
+
+That doesn't work. If it entails that, then it must also entail:
+
+         _:b rdf:type rdf:Bag.
+         _:b rdf:_1 "abc".
+         _:b rdf:_2 "def".
+         _:b rdf:_2 "abc".
+         _:b rdf:_1 "def".
+
+so just saying 'can be permuted' isn't enough. The fact is that we really 
+shouldn't have indexed selectors on things that are supposed to be bags, 
+since once you use those selectors once, the bag is ordered, whether you 
+like it or not. You can only 'permute' it if you have state, and RDF has no 
+states to permute over. Monotonic inference only adds conclusions, it can't 
+do things like permutation.
+]]]
+
+I was thinking that a bag represented using a list-type expression might 
+have the same problem:
+
+Can:
+       _:a list:head "abc" .
+       _:a list:tail _:a1 .
+       _:a1 list:head "def" .
+       _:a1 list:tail list:Nil .
+
+entail:
+       _:a list:head "def" .
+       _:a list:tail _:a2 .
+       _:a2 list:head "abc" .
+       _:a2 list:tail list:Nil .
+
+without also entailing:
+       _:a list:head "abc" .
+       _:a list:head "def" .
+       _:a list:tail _:a1 .
+       _:a list:tail _:a2 .
+       _:a1 list:head "def" .
+       _:a1 list:tail list:Nil .
+       _:a2 list:head "abc" .
+       _:a2 list:tail list:Nil .
+
+which looks to me like an ill-formed list.
+
+...
+
+One thought I has was a bag representation sort-of like a set but also 
+having a repeat count for each member:
+
+     _:a bag:contains _:a1 .
+     _:a bag:contains _:a2 .
+     _:a1 bag:value "abc" .
+     _:a1 bag:count "1" .
+     _:a1 bag:value "def" .
+     _:a1 bag:count "1" .
+
+No entailment is needed to represet the equivalkent of permutation.  I 
+think other entailments here work fine;  consider {* _:b1, _:b2 *}:
+
+     _:a bag:contains _:a1 .
+     _:a bag:contains _:a2 .
+     _:a1 bag:value _:b1 .
+     _:a1 bag:count "1" .
+     _:a2 bag:value _:b2 .
+     _:a2 bag:count "1" .
+
+if we then learn that _:b1 and _:b2 are equivalent, this could be said to 
+entail:
+
+     _:a bag:contains _:a1 .
+     _:a1 bag:value _:b1 .
+     _:a1 bag:count "2" .
+
+but without retracting other statements, I think the following is also 
+entailed, without problem:
+
+     _:a bag:contains _:a1 .
+     _:a bag:contains _:a2 .
+     _:a1 bag:value _:b1 .
+     _:a1 bag:count "1" .
+     _:a1 bag:count "2" .
+     _:a2 bag:value _:b2 .
+     _:a2 bag:count "1" .
+
+(i.e. all orginal statements still present), provided we are content to say 
+that bag:count indicates that the bag contains *at least* the indicated 
+number of given member value;  thus, for all _:ai :
+     _:ai bag_count "2"
+entails
+     _:ai bag_count "1"
+
+...
+
+Another thought I had was to back of from direct entailment.  Returning to 
+Dan's original formulation:
+
+[[[
+>         _:b rdf:type rdf:Bag.
+>         _:b rdf:_1 "abc".
+>         _:b rdf:_2 "def".
+>
+>entails
+>
+>         _:b rdf:type rdf:Bag.
+>         _:b rdf:_2 "abc".
+>         _:b rdf:_1 "def".
+]]]
+
+to say instead that:
+
+        ex:subj ex:prop _:b1.
+         _:b1 rdf:type rdf:Bag.
+         _:b1 rdf:_1 "abc".
+         _:b1 rdf:_2 "def".
+
+entails:
+
+        ex:subj ex:prop _:b2.
+         _:b2 rdf:type rdf:Bag.
+         _:b2 rdf:_1 "def".
+         _:b2 rdf:_2 "abc".
+
+#g
+
+
+------------------------------------------------------------
+Graham Klyne                    MIMEsweeper Group
+Strategic Research              <http://www.mimesweeper.com>
+<Graham.Klyne@MIMEsweeper.com>
+------------------------------------------------------------
+
+
+

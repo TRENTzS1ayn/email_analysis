@@ -1,0 +1,93 @@
+docno="lists-011-15471170"
+received="Tue Jan 20 18:00:17 1998"
+isoreceived="19980120230017"
+sent="Tue, 20 Jan 1998 17:55:27 0800 (PST)"
+isosent="19980121015527"
+name="David W. Morris"
+email="dwm@xpasc.com"
+subject="Re: Digest and pipelining"
+id="Pine.GSO.3.96.980120173302.1221E100000@shell1.aimnet.com"
+charset="USASCII"
+inreplyto="5CEA8663F24DD111A96100805FFE6587203991&#64;red-msg51.dns.microsoft.com"
+expires="1"
+
+To: Paul Leach<paulle@microsoft.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+
+
+On Tue, 20 Jan 1998, Paul Leach wrote:
+
+> If we can rely on requests being delivered in order, then I have a simple
+> algorithm to do replay prevention with pipelining.
+> 
+> 1. The server sends a nonce which is a random number cocatenated with a
+> timestamp. It sends an "opaque" value (part of) which is a "client ID".
+> 1. The client uses a nonce which is the concatentation of the nonce the
+> server sent it and a 3 digit count (mod 1000) of the number of requests it
+> has sent to the server, plus a client chosen random string (this last
+> prevents dictionary attacks). It sends back the 3 digits plus the client
+> chosen random string.
+> 2. The server uses (part of) the opaque field to identify the client, and
+> concatenates the nonce it keeps associated with the opaque field with the
+> nonce sent by the client to get the complete nonce that it uses to check the
+> client's request. It keeps a counter of the requests associated with the
+> client ID; this count and that received from the client must match; after
+> matching it is incremented by one. The timestamp is checked to make sure it
+> isn't too old. When it expires, the association between the client ID and
+> the nonce and count can be discarded.
+> 
+> Can we depend on the requests being in order?
+
+
+Order can only be depended upon if the client ONLY uses a single
+connection at a time to connect with a server. Irrespective of whether
+that connection is persistent or uses pipelining.
+
+
+> 
+> If we can't, then the server would need to keep a (say) 64 bit mask plus a
+> base count, and check that the count in the request hasn't been seen before;
+> when the count gets to be 0 mod 32, then the base count gets bumped by 32
+> and the mask gets shifted right by 32 bits. This would handle requests as
+> long as they weren't too out of order.
+
+This algorithm will break as soon as request#32 arrives while #29 
+is pending. The algorithm I think would work if the increment rule is
+that slots 0-31 have been used, then increment the base and shift...
+
+But given a web page as complex as some from a representative site
+such as Microsoft where I've counted more than 30 requests as a
+result of a single user URL click, and given 4 persistent connections,
+I'd have a hard time accepting a very small limit like 32 on the
+order of randomness. Perhaps 128 (with 256 bits in the mask)  would work
+for the near term but even that seems like a poor protical choice.
+
+Instead limit the scope of counter derrived nonce usage to insure
+that requests are seen in order:
+
+Require re-authentication by the client for each parallel connection. Each
+persistent connection would thus get a unique client ID and hence nonce
+sequence.
+ 
+In the case of multiple connections for single requests,
+the client may use a counter nonce IFF all requests have completed and
+the counter-nonce is derrived from the parallel connection with the
+most recent Date: header. Or because of the complexity of this approach,
+don't support sequencial nonces outside of a single persistent connection.
+
+BUT ... I'm not sure this is an improvement on the suggestion from
+someone (JohnF or BenL?) that each sequencial nonce be computed from
+the previous nonce by rehashing the prior nonce and shared secret, perhaps
+with a counter.
+
+Of course, this all becomes a delightful challenge when a proxy gets in
+the middle and doesn't maintain a one-one relationship between client and
+server connections. This would raise havoc with order expectations as
+well.
+
+Dave Morris
+
+
+

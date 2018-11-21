@@ -1,0 +1,160 @@
+docno="lists-011-11103001"
+received="Tue Nov 18 15:48:25 1997"
+isoreceived="19971118204825"
+sent="Tue, 18 Nov 97 15:41:48 PST"
+isosent="19971118234148"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: new editorial issue RANGE_WITH_CONTENTCODING"
+id="9711182341.AA00759@acetes.pa.dec.com"
+inreplyto="3.0.3.32.19971117123414.00af5500&#64;localhost"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+I am generally pursuaded that Roy is right, that we should
+be using both Content-Encoding and Transfer-Encoding, and
+that Range selections should be applied after Content-Encoding
+and before Transfer-Encoding.  I also think that Henrik's
+proposal for Accept-Transfer is generally a good one.
+
+But there are still a few loose ends to tie up.
+
+First of all, Henrik wrote (regarding Transfer-Encoding):
+
+    1) They don't have the same scope - one is end-to-end and the other is
+    hop-by-hop. As the message length changes, it can only be used through
+    proxies that know about that particular encoding. In other words: the
+    stupidest link in the chain decides the encoding.
+
+More specifically, because Transfer-Encoding and Accept-Transfer are
+hop-by-hop fields, a response that flows through an HTTP/1.0 proxy
+can't have a Transfer-encoding (such as on-the-fly compression)
+for the two hops that involve that proxy.
+
+This is sad, but it does avoid a big problem with the use of new
+compression algorithms (or other codings): the possibility that such
+responses might be improperly cached by an HTTP/1.0 shared cache, and
+then delivered to a client that doesn't understand them.  It might
+also provide some incentive for people to upgrade their 1.0 proxies
+to 1.1, since it's usually the proxy operator who is paying for
+the bandwidth on at least one side of the proxy.
+
+However, there is (at least) one more slight problem with the
+hop-by-hop nature of Transfer-Encoding.  Section 15.1.1 (End-to-end
+and Hop-by-hop Headers) currently says:
+
+            For the purpose of defining the behavior of caches and non-
+            caching proxies, we divide HTTP headers into two categories:
+               . End-to-end headers, which must be transmitted to the
+                 ultimate recipient of a request or response. End-to-end
+                 headers in responses must be stored as part of a cache
+                 entry and transmitted in any response formed from a
+                 cache entry.
+               . Hop-by-hop headers, which are meaningful only for a
+                 single transport-level connection, and are not stored
+                 by caches or forwarded by proxies.
+
+            The following HTTP/1.1 headers are hop-by-hop headers:
+               . Connection
+               . Keep-Alive
+               . Public
+               . Proxy-Authenticate
+               . Transfer-Encoding
+               . Upgrade
+
+[NOTE TO JIM GETTYS: the "must"s in that passage should be MUSTs,
+right?]
+
+The most simplistic interpretation of the phrase "Hop-by-hop headers
+... and are not stored by caches or forwarded by proxies" implies
+that a transfer-encoding has to be removed by a proxy cache before
+the response is stored.
+
+Clearly, if a proxy supports a transfer-coding, and both the
+inbound server and the outbout client also support the same coding,
+then it would be a real waste of CPU time to do this for compressed
+transfer-codings.  So I think that after
+
+               . Hop-by-hop headers, which are meaningful only for a
+                 single transport-level connection, and are not stored
+                 by caches or forwarded by proxies.
+
+we should add:
+
+  Note: a proxy or cache need not actually delete a
+  hop-by-hop header in a case where its external
+  behavior would be equivalent to deleting the header
+  and then adding it again.  For example, a proxy
+  receiving a response with a non-identity
+  transfer-coding need not remove that coding, and the
+  corresponding Transfer-Encoding header field, unless
+  the response is being sent to a client that has not
+  sent an appropriate Accept-Transfer header.
+
+--------
+
+The other problem that we may need to clarify is that if
+a transfer-coding (e.g., "compress") is used with a Range response
+containing multiple ranges, then should the transfer-coding apply
+to the entire "multipart/byteranges" body, or just to the
+parts individually?
+
+It seems possible to leave this up to the server, and let the
+server choose the most appropriate option for a given response,
+rather than to try to embed the choice in the protocol specification.
+But this means that a client sending both a multi-part Range
+request and a non-identity "Accept-Transfer:" would have to be
+able to grok two different forms of response.
+
+E.g., combining the example in 19.2 with "compress", the client might get
+
+       HTTP/1.1 206 Partial content
+       Date: Wed, 15 Nov 1995 06:25:24 GMT
+       Last-modified: Wed, 15 Nov 1995 04:58:08 GMT
+       Content-type: multipart/byteranges; boundary=THIS_STRING_SEPARATES
+
+       --THIS_STRING_SEPARATES
+       Content-type: application/pdf
+       Content-range: bytes 500-999/8000
+       Transfer-Encoding: compress
+
+       ...the first range..., compressed
+       --THIS_STRING_SEPARATES
+       Content-type: application/pdf
+       Content-range: bytes 7000-7999/8000
+       Transfer-Encoding: compress
+
+       ...the second range, compressed
+       --THIS_STRING_SEPARATES--
+
+or it might get
+
+       HTTP/1.1 206 Partial content
+       Date: Wed, 15 Nov 1995 06:25:24 GMT
+       Last-modified: Wed, 15 Nov 1995 04:58:08 GMT
+       Content-type: multipart/byteranges; boundary=THIS_STRING_SEPARATES
+       Transfer-Encoding: compress
+       
+       .... compressed form of the multipart/byteranges type .....
+
+Note that section 3.7.2 (Multipart Types) seems to allow the first
+form:
+           In HTTP, multipart body-parts MAY contain header fields
+            which are significant to the meaning of that part.
+
+If this makes sense to people, then I would add this paragraph to the
+end of section 3.7.2 (Multipart Types).
+
+If a client has indicated its acceptance of one or more
+non-identity transfer-codings (using the Accept-Tranfser
+header, section XXX) and it is otherwise appropriate to use a
+multipart type, the server MAY either apply a transfer-coding
+to the entire message-body, and MAY apply a transfer-coding to
+one or more of the individual body-parts.
+
+-Jeff
+
+
+

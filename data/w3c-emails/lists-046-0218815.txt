@@ -1,0 +1,121 @@
+docno="lists-046-0218815"
+received="Fri May 24 13:48:14 2002"
+isoreceived="20020524174814"
+sent="Fri, 24 May 2002 18:47:57 +0100"
+isosent="20020524174757"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: Interop and c14n(x) != c14n(c14n(x))"
+id="20020524174757.AFA0D4432D@yog-sothoth.ie.baltimore.com"
+inreplyto="38429498.1022264983&#64;crypto"
+expires="-1"
+
+To: Christian Geuer-Pollmann<geuer-pollmann@nue.et-inf.uni-siegen.de>
+Cc:reagle@w3.org, Gregor Karlinger<gregor.karlinger@iaik.at>,w3c-ietf-xmldsig@w3.org
+
+
+
+Hi Christian,
+
+There are at least two problems I see with your c14n:
+  ...
+  <ds:Reference URI="#object1">
+  <ds:Transforms>
+  <ds:Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+  <ds:XPath>self::node()[local-name()='included']</ds:XPath>
+  </ds:Transform>
+  </ds:Transforms>
+  ...
+  <ds:Object Id="object1">
+  <included xml:lang="de">
+  <notIncluded>
+  <notIncluded xml:lang="uk">
+  <included>
+  </included>
+  </notIncluded>
+  </notIncluded>
+  </included>
+  </ds:Object>
+  ...
+
+Your c14n is:
+
+<included xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xml:lang="de"><included xml:lang="uk"></included></included>
+
+1) Your XPath does not include any nodes from the namespace
+axis, so xmlns:ds="http://www.w3.org/2000/09/xmldsig#" should
+not be emitted. You probably want an XPath of this form (I
+haven't thought much about it):
+  count(ancestor-or-self::included) >
+    count(ancestor-or-self::notIncluded[1]/ancestor::included)
+This will include xml:lang="de" which you may or may not want;
+tweak as necessary.
+
+If you want a detailed discussion of the disconnect between
+the XPath info set concept of the namespace axis and DOM,
+look back at some of the threads from one or two years ago.
+I know I contributed my confusion to some of them.
+
+2) xml:lang="de" is not defined in the ancestor axis of the
+first included element, and is not included in the node set,
+so should not be emitted.
+
+While I'm not convinced that there is a requirement that
+c14n(X) == c14n(c14n(X)) - c14n produces the canonical form of
+a node set, and the output of c14n is not the same node set
+as the input, so there is not a claim that the outputs should
+necessarily be the same - I think in fact that property may
+hold true.
+
+Can you send a clearer counterexample in-line, even just
+in pseudo XML?
+
+Merlin
+
+r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.05.24/18:29:44
+>> Yes, *and* when you do copy all the xml:* from the ancestors because of a
+>> missing parent element you go *all* the way up to the root, not just up
+>> to  the next ancestor element in the subset. Counter-intuitive but the
+>> spec is  clear once you get over your intuitions -- I had the same
+>> problem! [1]
+>
+>First, here is my example on c14n and exclC14n. Maybe others can validate? 
+>Thanks. (secret key for hmac is six octets of "secret").
+>
+>
+>This weird behaviour of c14n of document subsets leads to a very strange 
+>result. Till today, my understanding of c14n was that given some input 'X', 
+>the c14n algorithm can be applied multiple times without changing the 
+>result. But now, I see that
+>
+>1.) Given a document subset 'X' with a form that the above rule comes to 
+>play.
+>
+>2.) Then we see that
+>
+>        c14n(X) != c14n(c14n(x))
+>
+>I included a sample for this (the last three references) in the interop.
+>
+>
+>
+>Regards,
+>Christian
+
+
+-----------------------------------------------------------------------------
+The information contained in this message is confidential and is intended
+for the addressee(s) only.  If you have received this message in error or
+there are any problems please notify the originator immediately.  The 
+unauthorised use, disclosure, copying or alteration of this message is 
+strictly forbidden. Baltimore Technologies plc will not be liable for
+direct, special, indirect or consequential damages arising from alteration
+of the contents of this message by a third party or as a result of any 
+virus being passed on.
+
+This footnote confirms that this email message has been swept for Content
+Security threats, including computer viruses.
+http://www.baltimore.com
+
+
+

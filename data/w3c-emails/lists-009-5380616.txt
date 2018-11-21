@@ -1,0 +1,96 @@
+docno="lists-009-5380616"
+received="Sun Jul 23 10:36:58 1995"
+isoreceived="19950723143658"
+sent="Sun, 23 Jul 1995 00:03:39 0400"
+isosent="19950723040339"
+name="Roy Fielding"
+email="fielding@beach.w3.org"
+subject="Content-TransferEncoding &quot;packet&quot;"
+id="199507230403.AAA10044@beach.w3.org"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Hi all,
+
+To get the ball rolling again on the features of HTTP/1.1,
+I'd like to get a firm definition of the packetized transfer
+encoding.  The packet CTE will be used to safely delimit the
+size of dynamically generated response messages and (if the
+server is known to be 1.1 or above) requests with content.
+
+The last time I posted my notes regarding the format, I referred
+to it as being basically the same as that proposed by Dan Connolly
+way back in<9409271503.AA27488@austin2.hal.com> on www-talk.
+I'd like to change that now, before we get products out on the
+street that use the sucker.
+
+After investigating the needs of the security/authentication folks
+regarding the desire to sign the content of a message after it
+is generated, Phill Hallam-Baker has proposed adding a footer to
+the format that would contain post-generation Entity-Header fields.
+
+Also, I've been playing around with various formats and have
+found that the optimum for most transfers uses a simple one-byte
+prefix to encode the length of each packet, with a zero byte
+indicating end-of-packets.
+
+So, without further ado, here's the format:
+
+Content-Transfer-Encoding: packet
+
+    Entity-Body = *( packet ) NUL
+                  footer
+                  CRLF
+
+    NUL         = <octet 0>
+
+    packet      = packet-size packet-data
+
+    packet-size = <OCTET, excluding octet 0, representing
+                   the unsigned integer (1-255)>
+
+    packet-data = packet-size(OCTET)
+
+    footer      = *( Entity-Header )
+
+Note that the footer is terminated by an empty line (just like the
+headers) and is optional.  The semantics of a footer are as if the
+given Entity-Header fields are part of the message headers.
+
+The un-packetizer algorithm is fairly simple.
+
+    length := 0
+    packet-size := read-byte
+    while (packet-size > 0) do
+    {
+        read input until amt-read == packet-size
+        write buffer to BODY
+        length := length + packet-size
+        packet-size := read-byte
+    }
+    line := read-line
+    while (line is not empty) do
+    {
+        process Entity-Header
+        append header to HEADERS
+    }
+    replace Content-Length value with length.
+
+In other words, the result looks like a normal message, with
+the Content-Length computed by the unpacketizer.  In actuality,
+it is often faster to read packet-size + 1 bytes, slurping in
+the next packet-size as part of the prior packet read.
+
+So, is that enough detail for discussion?  I will try to get
+the updated 1.0 spec done this week, with the 1.1 spec soon
+after that.
+
+
+ ....Roy T. Fielding  Department of ICS, University of California, Irvine USA
+                      Visiting Scholar, MIT/LCS + World-Wide Web Consortium
+                      (fielding@w3.org)                (fielding@ics.uci.edu)
+
+
+

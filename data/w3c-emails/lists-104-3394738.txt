@@ -1,0 +1,140 @@
+docno="lists-104-3394738"
+received="Thu Nov  1 21:53:45 2001"
+isoreceived="20011102025345"
+sent="Thu, 1 Nov 2001 20:53:32 -0600"
+isosent="20011102025332"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: DOM Xpath comments"
+id="001701c16349$8fd38110$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="013001c16338$1cb18940$23ef42d5&#64;kermit"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+> Actually EntityReferences doesn't exist in the XPath data model, so I
+think
+> it's puposly left out. However the entityreferences children are inlined
+> (and merged with andjecent textnodes) so _they_ still exist in the tree.
+The
+> EntityReference it self doesn't exist though.
+
+Entity References are normalized out (as are CDATASections) of the XPath
+data model, but they may be represented as distinct nodes in a DOM.  If I
+have a fragment like:
+
+<Description>&boilerplate;<!CDATA[[ >>>]]>Some Text</Description>
+
+and entity references and CDATASections are not normalized, then I don't
+have a single node that corresponds to Description/text(), so DOM XPath
+allows any of child nodes of Description to represent the entire XPath text
+node.  However, Entity Reference's were not listed in the list of acceptible
+context nodes, so if you passed descriptionElement.firstChild as the context
+node, the query would execute if entity references were expanded, but fail
+if they were preserved.
+
+> This is exactly how TransforMiiX is designed (the XSLT/XPath engine used
+in
+> mozilla). We have one common interface similar to XPathResult and separate
+> implementations for each result type.
+>
+> What we have had to do (Peter van der Beken has made a preliminary
+> implementation of DOM XPath) is to have a wrapper that holds an internal
+> object which can be of any result type. However this defeats the entire
+> purpose of reuse it's only the wrapper that gets reused, the internal
+object
+> is dropped and recreated on every evaulation.
+>
+> One way to help this situation without dropping support for reuseing of
+> XPathResult objects would be to allow the implementations to return a new
+> XPathResult if it is not able to reuse the supplied XPathResult. OTOH this
+> might create interopability problems.
+
+I've just got to think that the true performance benefit of explicit
+XPathResult recycling is either negligible or imaginary.
+
+If you have a preliminary implementation, we could look at starting the test
+suite.  Is it accessible from ECMAScript in your experiemental build.
+
+> I think that this sounds like a really good idea. We are just about to
+make
+> our XPath engine to produce sorted nodeset instead of unsorted ones, since
+> much time can be saved if the nodeset is sorted during evaluation rather
+> then after. This save would be totally lost if we are not told if the
+> nodeset is to be sorted until after evaluation.
+
+The ORDERED / UNORDERED were about preserving document order in a query
+since fabricating a document order in a datastore that doesn't have a
+structural order (like a query against a database) might be expensive or
+multiple threads could be querying the tree and the first found might not be
+the first in document order.
+
+I had mentioned in an earlier post but forgotten that a sort parameter
+(along the lines of xsl:sort) in an XPathExpression would be greatly
+desired.  If such a sort parameter were added, then UNORDERED would skip
+evaluation of the sort clause.
+
+> While I don't like the getSetIterator or getSetSnapshot functions either,
+I
+> don't think putting it all in the same interface is ideal either. I
+propose
+> that XPathSetSnapshot and XPathSetIterator iterator inherit XPathResult:
+
+There seemed to be a design philosophy to avoid interface coersion, hence
+the putting all the result types in one monolythic XPathResult set.  If
+avoiding interface casting was not a design goal, then the appropriate
+approach is to put all type specific functions into distinct interfaces,
+like :
+
+interface XPathResult
+{
+readonly attribute short       type;
+}
+
+interface XPathResultNumber : XPathResult
+{
+readonly attribute double numberValue;
+}
+
+interface XPathResultString : XPathResult
+{
+readonly attribute DOMString stringValue;
+}
+
+interface XPathResultBoolean : XPathResult
+{
+readonly attribute boolean booleanValue;
+}
+
+> interface XPathSetIterator : XPathResult {
+>   Node               nextNode()
+>                                         raises(DOMException);
+     readonly attribute boolean valid;
+> };
+>
+> interface XPathSetSnapshot : XPathResult {
+>   Node               item(in unsigned long index);
+>   readonly attribute unsigned long   length;
+> };
+
+It seems like an interface coercion has to be cheap compared to an XPath
+evaluation, so the desire to have one big interface may be misguided.
+
+>
+> On a separate issue, I think that XPathSetIterator need some way to detect
+> if it still is valid without causing an exception to to be thrown. I
+propose
+> that an isStillValid() function is added to the iterator. The function
+> returns a boolean indicating if the nodeset is still valid. The function
+> returns false if a call to nextNode() would throw an INVALID_STATE_ERR
+> exception. The function does not indicate if a subsequent call to
+nextNode()
+> would return a non-null value or not.
+
+I'd agree on that, though probably a "valid"  boolean attribute on
+XPathSetIterator would be better than a method.
+
+
+

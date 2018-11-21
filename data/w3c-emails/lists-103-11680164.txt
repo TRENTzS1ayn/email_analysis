@@ -1,0 +1,111 @@
+docno="lists-103-11680164"
+received="Fri Apr 20 17:23:34 2001"
+isoreceived="20010420212334"
+sent="Fri, 20 Apr 2001 15:21:16 -0600"
+isosent="20010420212116"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: Node synchronization [was RE: Node identity comparisons on TS  list]"
+id="B2C1451A181BD411B88A00E018C1C19C08ABE4@THOR"
+charset="iso-8859-1"
+inreplyto="Node synchronization [was RE: Node identity comparisons on TS  list]"
+expires="-1"
+
+
+To:"'www-dom-ts@w3.org'"<www-dom-ts@w3.org>,"'www-dom@w3.org'"<www-dom@w3.org>
+
+>Every time the DOM has looked at the idea of requiring that 
+> implementations
+> be inherently threadsafe, we seem to come back to the same 
+> conclusions.
+> This can be a lot of overhead in applications which don't 
+> need it, and is
+> insufficient in applications which do need it since the 
+> conceptual unit is
+> often several DOM operations so they'd still have to 
+> implement threadsafety
+> at the higher level... which would make protecting the DOM itself of
+> negligable value.
+
+Definitely agreed.  Basically the same lesson learned on the Vector class,
+make the base implementation unsynchonized and allow either the app or
+a wrapper to synchronize access.  I wasn't suggesting making the methods
+synchronous.
+
+What I was saying that using "synchronized(node)" blocks is a de-facto
+method of accomplishing DOM synchronization externally, however that
+depends on an potentially unsafe assumption that accessing the same
+node returns the same object.  It seems like an "attractive nuisance"
+and that needs to have explicit warnings that you ignore at your peril
+(which may already be there, sorry I haven't seriously read the DOM specs).
+It would seem that if you put any explanatory text on about isSameNode()
+then a warning about synchronizing on nodes would probably fit in there
+too.
+
+In some ways, it is like some of the other acceptible variations in the
+DOM spec, such as whether to expand entities.  If you can determine 
+or specify through some other means (such as JAXP), that you consistently
+get the same object for a particular node, then you can synchronize on nodes,
+otherwise you need to keep a map of nodes and corresponding mutex objects 
+(which would require the isSameNode() function to avoid depending on object
+identity).
+
+>If someone can find a Really Useful Low Cost Portable Solution in this
+>space, I'd be delighted. Suprised, but delighted. Until then, you'll have
+>to handle threadsafety at the application or implementation-dependent
+>level.
+
+
+Maybe one way to enable (and only just enable) synchronization to be done
+would be to add a getUserObject() and setUserObject
+to Node (similar to those in DefaultMutableTreeNode) 
+which would allow the client to
+associate one object with the underlying node.
+
+In Java, this could be used to do really "safe" external synchronization with code like:
+
+Object getSynchObject(Node node) {
+    Object userObj = node.getUserObject();
+    if(userObj == null) {
+userObj = new Object();
+node.setUserObject();
+    }
+    return userObj;
+}
+
+void someMethod(Node node) {
+    synchronized(getSynchObject(node)) {
+//
+//
+okay, no other code that was synchronized on the same node could execute
+    }
+}
+
+On other languages, you could create your own mutex object and do whatever is
+appropriate, maybe:
+
+IMyMutex* SomeClass::getSynchObject(IDOMNode* node) {
+IMyMutex mutex = node->get_userObject();
+if(mutex == NULL) {
+mutex = //  some creation code
+node->set_userObject(mutex);
+}
+return mutex;
+}
+
+void SomeClass::someMethod(IDOMNode* node) {
+IMyMutex* mutex = getSynchObject(node);
+mutex->Lock();
+//
+//   do something
+mutex->Unlock();
+mutex->Release();
+}
+
+Though, it would be useful for synchronization, it could be used for quite a few
+other things.  The only requirement for the DOM is that is that if you use setUserObject()
+on a node, then a getUserObject() on the same node should return an object
+that has the same object identity.
+
+
+

@@ -1,0 +1,110 @@
+docno="lists-009-16342739"
+received="Mon Mar 11 18:49:47 1996"
+isoreceived="19960311234947"
+sent="Mon, 11 Mar 96 18:37:44 PST"
+isosent="19960312023744"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Cache validators"
+id="9603120237.AA08695@acetes.pa.dec.com"
+inreplyto="9603102028.aa22202&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    >>    However, I am willing to give-in to that notion IF the opaque
+    >>    validator is sufficiently useful to cover the cost of sending it.
+    >>    That is, the opaque validator must be generally interoperable with
+    >>    existing systems and carry sufficient semantics for use for things
+    >>    other than cache updates.
+    > 
+    > First of all, the generally understood meaning of the word "opaque"
+    > is "has no meaning to clients", and therefore if you want the
+    > validator to carry other semantics, you're not talking about an
+    > "opaque" validator.
+    
+    Actually, it means "can't see through it" -- it does not mean that
+    the string cannot hold a given set of semantics.
+
+In the sense that the word "opaque" is usually employed when discussing
+data types in type-safe programming languages, it means "the client
+is not aware of the internal details of the implementation of the
+data type."  In this context, it seems most natural to use "opaque"
+to mean "the client is not aware of any internal structure of the
+string of octets used as the validator."
+
+Another example: the "file handle" data type in NFS is meant to
+be opaque; clients are not allowed to make any assumptions about
+how to parse it.  I'll admit to some sinning in this regard, since
+I once wrote a "file handle parser" for use in the "nfswatch" program.
+Because of this (i.e., the utility of parsing file handles for
+debugging NFS problems), I would have preferred a not-entirely-opaque
+file handle format.  However, I'm not sure that there is an analogous
+situation with validators; NFS file handles are more like URLs, and
+we've already pretty much given up on the myth that the suffixes
+of URLs are entirely opaque.
+
+    A validator is
+    worthless if it doesn't require some mechanism for comparing its
+    value independent of the source (e.g., byte-equality), since the
+    source cannot be contacted for all comparisons.
+
+Yup, byte-equality is what makes sense.  Anything more elaborate
+is a potential can o' worms.
+    
+    >>    In order to provide that additional usefulness, we need three things:
+
+    > Not necessarily.
+    
+    I said "additional usefulness".
+    
+Sorry, I misread that.  (Reading 500 email messages in 8 hours
+does that to me.)
+
+    The particular additional
+    usefulness I have in mind is for a basic indicator of change which
+    would be usable for preconditions [i.e., the most often used
+    precondition is "don't do this if a change has already been made
+    that I don't know about"].  Dual application reduces the cost of
+    implementing both, and I personally need this functionality more
+    than I need transparent caching.
+
+Can you provide a concrete example of what this would be useful
+for, including the requests and responses that you would employ?
+
+    Since it is unlikely that anyone will ever implement a system which
+    only changes the validator for "significant" changes, I think it
+    would be silly to lose the additional functionality gained from a
+    guaranteed change indicator.
+
+Well, here's one example: supposing that a busy site with
+slowly-varying content wants to maintain a hit-count image on
+its home page.  (Whether you yourself think this is something worth
+doing, clearly a lot of people want to do it.)  It's probably not
+all that important if a user sees a hit-count that is slightly
+inaccurate, nor is it worth using up a lot of network bandwidth
+to provide accurate hit counts.
+
+So supposing that the server constructed an opaque validator
+for a hit-count GIF that is simply an encoding of the hit-counter
+mod 10 (or mod 100, or mod 128, or whatever).  Then a large
+fraction of the GET+If-Valid: requests on this GIF would return
+304 Not Modified, even though the count might have increased
+slightly.
+
+This seems to be a nice alternative to giving the GIF image
+a moderately long expiration time, since it may not be possible
+to know in advance just how fast the counter is increasing.  I.e.,
+using a long expiration time bounds the untimeliness of the cached
+copies, but fails to bound their numeric inaccuracy.
+
+I think one could apply the same technique to other gradually-changing
+resources where small differences between versions are inherently
+insignificant, but the versions don't change smoothly with time.
+
+-Jeff
+
+
+

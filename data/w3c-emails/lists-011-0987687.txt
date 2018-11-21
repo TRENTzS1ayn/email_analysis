@@ -1,0 +1,103 @@
+docno="lists-011-0987687"
+received="Mon Mar 31 20:16:48 1997"
+isoreceived="19970401011648"
+sent="Mon, 31 Mar 1997 23:11:46 0500"
+isosent="19970401041146"
+name="Henrik Frystyk Nielsen"
+email="frystyk@w3.org"
+subject="Re: pipelining vs. deferred content"
+id="3.0.1.32.19970331231146.009b0d10@pop.w3.org"
+charset="usascii"
+inreplyto="9703272157.AA29930&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: Jeffrey Mogul<mogul@pa.dec.com>,http-wg@cuckoo.hpl.hp.com
+
+At 01:57 PM 3/27/97 PST, Jeffrey Mogul wrote:
+
+>If we ignore the issue of compatibility with HTTP/1.0 clients (just
+>for the sake of this particular speculation), I don't think the
+>implementation of my "503 + Retry-After" approach would be so bad.
+
+Assuming that in HTTP/1.0 with multiple connections, the client has no or
+very little control over the serialization of the requests as this is a
+function of how fast the TCP connections gets established and what
+scheduling mechanism the server is using.
+
+Using pipelining over a single TCP connection has changed this
+significantly as all requests now are explicitly serialized. As far as I
+can see the trick we are looking for is a mechanism for the server to break
+the serialization. This is also important to proxies, for example, where
+some of the responses may be server out of the cache and some have to be
+retrieved over the network. Using a "503 Retry After" allows this but has a
+couple of drawbacks:
+
+1) It does not provide the client with a mechanism to forbid the server to
+break the serialization
+
+2) Using a time out period will in most cases be empirical and may force
+the client to try multiple times and in effect to do a polling on the
+resource before it can be returned
+
+Another mechanism would be to let the client indicate whether the server
+can play games with the serialization or not. In order not to confuse old
+proxies, I guess that it is safest to make it a Connection header token:
+
+GET /image_1 HTTP/1.1
+Host: microscape
+Connection: order=mixed
+
+GET /image_2 HTTP/1.1
+Host: microscape
+Connection: order=mixed
+
+The server can then in the response indicate the order relative to the
+implicit order indicated in the requests
+
+HTTP/1.1 200 OK
+Connection: order=2
+Content-Type: image/png
+...
+
+<image_2>
+
+HTTP/1.1 200 OK
+Connection: order=1
+Content-Type: image/png
+...
+
+<image_1>
+
+However, there is a problem with this - the Connection header can't have
+this type of tokens. Section 14.10 says:
+
+The Connection header has the following grammar:
+       Connection-header = "Connection" ":" 1#(connection-token)
+       connection-token  = token
+
+I believe it should be
+
+connection-token = token [ "=" ( token | quoted-string ) ]
+
+Maybe a nwe point for the issues list.
+
+There may be an upper limit to this approach where if the server does not
+expect to be able to produce a reply then a "503 Retry After" would be more
+appropriate.
+
+In practice I don't think this will have a large impact for now as all Web
+servers as far as I know only accept requests serially on an incoming TCP
+connection. However, changing this may in some cases lead to significant
+performance improvements.
+
+Thanks,
+
+Henrik
+--
+Henrik Frystyk Nielsen, <frystyk@w3.org>
+World Wide Web Consortium, MIT/LCS NE43-348
+545 Technology Square, Cambridge MA 02139, USA
+
+
+

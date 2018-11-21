@@ -1,0 +1,150 @@
+docno="lists-045-14732095"
+received="Thu Dec 20 11:33:25 2001"
+isoreceived="20011220163325"
+sent="Thu, 20 Dec 2001 10:32:54 -0600"
+isosent="20011220163254"
+name="Cherian, Sanjay"
+email="Sanjay_Cherian@stercomm.com"
+subject="About whitespace in ds:SignedInfo"
+id="40AC2C8FB855D411AE0200D0B7458B2B04D636BD@scidalmsg01.csg.stercomm.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'w3c-ietf-xmldsig@w3.org'"<w3c-ietf-xmldsig@w3.org>
+Cc:"'galvin@eListX.com'"<galvin@eListX.com>,"'david@drummondgroup.com'"<david@drummondgroup.com>,"Damodaran, Suresh"<Suresh_Damodaran@stercomm.com>
+
+Hi,
+
+This could likely be a problem that has been debated a lot in the past but I
+would appreciate if someone explained
+(or pointed to a previous explanation on the mailing list or elsewhere) what
+the current thinking is regarding this.
+
+The ebXML Messaging Services Specification (
+http://www.ebxml.org/specs/ebMS.pdf ) uses XMLDSIG to sign portions
+of the ebXML message (an XML structure based on SOAP) and the ds:Signature
+element is embedded into the signed
+ebXML message.
+
+The signed ebXML message is subject to modification, passing through a
+sequence of intermediary SOAP and ebXML
+processors before reaching the ultimate recipient, which also validates the
+signature. One such modification that is difficult
+to predict is change in whitespace (indentation, CRLF characters) in the
+ebXML message. The ds:SignedInfo element
+is itself subject to such modification (being part of the ebXML message).
+
+A proposed modification to the ebXML Messaging Specification suggests this
+XSL transform in the ds:Reference element:
+
+    <Transform Algorithm="http://www.w3.org/TR/1999/REC-xslt-19991116">
+      <xsl:stylesheet version="1.0"
+xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+        <xsl:strip-space elements='*'/>           <!-- Strip trivial
+whitespace in all elements. -->
+        <xsl:template match='node()|@*'>       <!-- Identity transform. -->
+          <xsl:copy>
+            <xsl:apply-templates select='@*'/>
+            <xsl:apply-templates/>
+          </xsl:copy>
+        </xsl:template>
+      </xsl:stylesheet>
+    </Transform>
+
+the signature has been made robust to changes in trivial whitespace in the
+ebXML message but outside the embedded
+ds:SignedInfo elements. However, because the ds:SignedInfo elements are not
+processed by any XSL transform (but by
+the algorithm specified in ds:CanonicalizationMethod, for which we are using
+http://www.w3.org/TR/2001/REC-xml-c14n-20010315 ), changes in trivial
+whitespace in ds:SignedInfo invalidates the
+signature.
+
+To give some context on how ebXML Messaging uses XMLDSIG, I have included an
+sample signature element (taken from
+an ebXML example in the ebXML specification), later in this email.
+ 
+The first guess would be that by using a 'smarter' canonicalization
+algorithm for the ds:SignedInfo element, the ds:SignedInfo
+element can also be made robust to changes in trivial whitespace.  Rather
+than use the schema-unaware canonicalization
+algorithm ( http://www.w3.org/TR/2001/REC-xml-c14n-20010315 ), it would seem
+that a different canonicalization algorithm
+could be written which, being aware of the XMLDSIG schema, could do a better
+job of eliminating trivial whitespace.
+
+This 'smarter' CanonicalizationMethod algorithm might certainly not be smart
+enough to always know whether a particular
+whitespace character is significant or not. However, if such an algorithm
+was created that simply removed all whitespace where
+an element has textual content consisting entirely of whitespace (the kind
+xsl:strip-space would remove), people that don't have
+very sophisticated Transform elements (that could get mangled) would be able
+to benefit from it.
+
+In other words, a 'smarter' XMLDSIG schema-aware CanonicalizationMethod
+algorithm could be published with the caveat that
+changes in whitespace in descendants of ds:SignedInfo would become
+irrelevant.  In situations where this might be a problem,
+the earlier schema-unaware canonicalization algorithm could be used instead.
+
+Just as an example, the stylesheet presented earlier, which is a parameter
+to the ds:Transform element does not contain any
+whitespace that needs to be preserved and so a CanonicalizationMethod
+algorithm that removed all trivial whitespace would not
+hurt us but actually benefit us a lot.
+
+Here is a typical Signature element, as it is used by the ebXML Messaging
+Specification.
+
+<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+<SignedInfo>
+<CanonicalizationMethod
+Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+<SignatureMethod
+Algorithm="http://www.w3.org/2000/09/xmldsig#dsa-sha1"/>
+<Reference URI="">
+<Transforms>
+<Transform
+Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+<Transform
+Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+<XPath>
+not(ancestor-or-self::()[@SOAP:actor=
+
+&quot;urn:oasis:names:tc:ebxml-msg:actor:nextMSH&quot;]
+
+| ancestor-or-self::()[@SOAP:actor=
+
+&quot;http://schemas.xmlsoap.org/soap/actor/next&quot;])
+</XPath>
+</Transform>
+<Transform
+Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+</Transforms>
+<DigestMethod
+Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+<DigestValue>...</DigestValue>
+</Reference>
+<Reference URI="cid://blahblahblah/">
+<DigestMethod
+Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+<DigestValue>...</DigestValue>
+</Reference>
+</SignedInfo>
+<SignatureValue>...</SignatureValue>
+<KeyInfo>...</KeyInfo>
+</Signature>
+
+I was just trying to convey my thoughts on this matter.  Thanks for taking
+the time to read this email.
+
+Regards,
+
+Sanjay J. Cherian
+Sterling Commerce
+Irving, TX
+
+
+

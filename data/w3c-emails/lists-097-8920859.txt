@@ -1,0 +1,107 @@
+docno="lists-097-8920859"
+received="Fri Aug 24 13:43:56 2001"
+isoreceived="20010824174356"
+sent="Fri, 24 Aug 2001 12:43:53 -0500"
+isosent="20010824174353"
+name="Aaron Swartz"
+email="aswartz@upclink.com"
+subject="scribe bot diffs: threading"
+id="200108241747.f7OHl5c02976@theinfo.org"
+charset="us-ascii"
+expires="-1"
+
+
+Cc: www-archive+scribe@w3.org
+To: Dan Connolly<connolly@w3.org>
+
+$ cvs diff
+? httpAsync.pyc
+? ircAsync.pyc
+cvs server: Diffing .
+Index: ircAsync.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/ircAsync.py,v
+retrieving revision 1.8
+diff -r1.8 ircAsync.py
+27,29c27
+<
+<
+<
+---
+ > import threading
+74a73
+ >         threading.Thread(target=doStuff).start()
+125c124
+<     def bind(self, thunk, command, textPat=None, doc=None):
+---
+ >     def bind(self, thunk, command, textPat=None, doc=None, 
+threadSafe=0):
+137c136
+<         self._dispatch.append((command, textPat, thunk))
+---
+ >         self._dispatch.append((command, textPat, thunk, threadSafe))
+145c144
+<         for cmd, pat, thunk in self._dispatch:
+---
+ >         for cmd, pat, thunk, threadSafe in self._dispatch:
+151c150,154
+<                         thunk(m, origin, args, text)
+---
+ >                         if threadSafe:
+ >                               thunk(m, origin, args, text)
+ >                         else:
+ >                               self.tell(replyTo(self.nick, 
+origin, args), "Hold on a sec...")
+ >                               stuffToDo.append([thunk, m, 
+origin, args, text])
+153c156,160
+<                     thunk(None, origin, args, text)
+---
+ >                       if threadSafe:
+ >                               thunk(None, origin, args, text)
+ >                       else:
+ >                           self.tell(replyTo(self.nick, origin, 
+args), "Hold on a sec...")
+ >                           stuffToDo.append([thunk, None, 
+origin, args, text])
+169a177,184
+ >
+ > stuffToDo = []
+ > def doStuff():
+ >       while 1:
+ >               if len(stuffToDo):
+ >                       d = stuffToDo.pop()
+ >                       apply(d[0], d[1:])
+ >
+Index: rdfn3chat.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/rdfn3chat.py,v
+retrieving revision 1.11
+diff -r1.11 rdfn3chat.py
+46c46
+< sys.path.append("/home/connolly/w3ccvs/WWW/2000/10/swap") #@@
+---
+ > sys.path.append("/Users/aaronsw/Projects/cwm/swap") #@@
+52d51
+<
+69c68
+<         self.bind(self.doHelp, ircAsync.PRIVMSG, "help")
+---
+ >         self.bind(self.doHelp, ircAsync.PRIVMSG, "help", threadSafe=1)
+71c70
+<         self.bind(self.doInvite, ircAsync.INVITE)
+---
+ >         self.bind(self.doInvite, ircAsync.INVITE, threadSafe=1)
+100c99
+<                    "to dismiss me from a channel"])
+---
+ >                    "to dismiss me from a channel"], threadSafe=1)
+257c256
+<
+---
+ >
+338a338
+ >
+
+
+

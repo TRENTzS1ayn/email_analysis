@@ -1,0 +1,187 @@
+docno="lists-053-12777289"
+received="Tue Sep  9 05:37:01 2003"
+isoreceived="20030909093701"
+sent="Tue, 09 Sep 2003 10:10:52 +0100"
+isosent="20030909091052"
+name="Graham Klyne"
+email="gk@ninebynine.org"
+subject="Re: I18N Issue alternative: collapsing plain and xml literals"
+id="5.1.0.14.2.20030909095250.02e3c000@127.0.0.1"
+charset="us-ascii"
+inreplyto="3F5C6314.5020408&#64;hplb.hpl.hp.com"
+expires="-1"
+
+
+To: Brian McBride<bwm@hplb.hpl.hp.com>, rdf core<w3c-rdfcore-wg@w3.org>
+Cc: Martin Duerst<duerst@w3.org>,"Richard Ishida"<ishida@w3.org>, i18n<w3c-i18n-ig@w3.org>
+
+
+Brian,
+
+As I understand it, this proposal could break existing RDF data.  E.g.
+
+   <rdf:Description>
+     <eg:prop>foo &lt; bar</eg:prop>
+   </rdf:Description>
+
+would no longer be valid RDF.  Currently, I think it describes the graph:
+
+   _:a eg:prop "foo < bar" .
+
+[[[Hmmm... The RDF validator service says it maps to:
+
+   _:a eg:prop "foo &lt; bar" .
+
+That doesn't seem right to me.  Did we really decode that?  If I add the 
+parsetype=literal, I get the same thing with the XML literal datatype 
+added.  RDF validator bug report submitted.]]]
+
+A similar proposal I have is to make the effect of parseType=Literal purely 
+syntactic, in that it modifies the handling of literal test in RDF/XML, so 
+that '&' and tags are effectively uninterpreted in the translation to graph 
+form.  (I had thought of proposing something similar earlier, but was wary 
+of adding more strands to the debate, but now we're there...)
+
+Then:
+
+<rdf:Description>
+   <eg:prop>foo &lt;br /&gt; bar</eg:prop>
+</rdf:Description
+
+parses to:
+
+   _:a eg:prop "foo <br /> bar" .
+
+and
+
+   <rdf:Description>
+     <eg:prop rdf:parseType="Literal"><br /></eg:prop>
+   </rdf:Description>
+
+parses to:
+
+   _:a eg:prop "foo <br></br> bar" .
+
+I think there remains a question:  can parseType=Literal be used in 
+conjunction with rdf:datatype=...?   I see no reason why not.  Then the 
+current functionality of XML literals is possible without making it part of 
+the RDF core specification;  e.g.
+
+   <eg:prop rdf:parseType="Literal" rdf:datatype="foo:XMLLiteral">
+      The <em>best</em> solution?
+   </eg:prop>
+
+(Note:  I expect that rdf:datatype continues to ignore language 
+information, so the above example would not be sensitive to language tagging.)
+
+I think this approach has similar advantages to what you propose, without 
+some of the disadvantages, also separates XML syntax issues from datatype 
+issues, which I think is a distinct improvement, and remains fully backward 
+compatible with (my understanding of) existing RDF.
+
+
+At 12:08 08/09/03 +0100, Brian McBride wrote:
+>After discussing this informally over lunch, Danbri asked me to send it to 
+>the list to make our consideration of it explicit.
+>
+>This is an alternative design for literals.  The  idea is to drop the 
+>rdf:XMLLiteral datatype and allow plain literals to contain markup.  Two 
+>test cases illustrate:
+>
+><rdf:Description>
+>   <eg:prop>foo &lt;br /&gt; bar</eg:prop>
+></rdf:Description
+>
+>parses to:
+>
+>_:a eg:prop "foo &lt;br /&gt; bar" .
+>
+><rdf:Description>
+>   <eg:prop rdf:parseType="Literal"><br /></eg:prop>
+></rdf:Description>
+>
+>parses to:
+>
+>_:a eg:prop "foo <br></br> bar" .
+>
+>The definition of a plain literal changes.  The lexical space of plain 
+>literal becomes the lexical space of rdf:XMLLiteral, i.e. is restricted to 
+>(the unicode representation of) canonicalised well formed balanced xml 
+>markup.  The denotation of a plain literal remains - it is a sequence of 
+>unicode characters - permitting string comparison for equality testing.
+
+Testing this proposal on your criteria:
+
+>Advantages:
+>
+>I think this provides everything that Martin has been asking for:
+>
+>   - no discontinuity between plain and xml literals
+
+Yes (where s/xml literals/literals containing XML markup/
+
+>   - lang on mixed content
+
+Yes (where that content is textual, as opposed to some datatype)
+
+>   - no use of datatypes
+
+Yes (though remains compatible with use datatypes)
+
+
+>Disadvantages:
+>
+>- a bigger change than alternatives
+
+Yes, though I think mine is a less-big change
+
+>- builds XML into the core of the RDF model
+
+My proposal does not:  parseType=Literal applies only to the XML syntax.
+
+>- breaks current implementations (but see below)
+
+I believe my proposal does not.
+
+>Ameliorating the Disadvantages - implementation strategy
+>
+>The above design says that e.g. "<" is not in the lexical space of plain 
+>literals, and many (all?) current implementations will store
+>"<" in their representation of a graph.  The point to note is that 
+>implementations are free to represent literals any way they please. Thus 
+>"<" is just the way this implementation represents the literal "&lt;".
+
+I think this is a significant (maybe fatal) problem.
+
+>The implementation does need to distinguish between markup and plain 
+>text.  To do this, it adds a single bit to literals to indicate whether 
+>they are stored in escaped or unescaped form.  The above example was in 
+>unescaped form, which cannot represent markup.  To represent markup, the 
+>literal must be be stored in escaped form.
+
+This seems to be purely an implementation choice.  I don't believe an 
+implementation *needs* to do anythiong of the kind, though it may make life 
+easier in some cases.
+
+>Literal comparison becomes more complex - literals stored in unescaped 
+>form should first be escaped and then canonicalized.  Various optimization 
+>strategies can be employed here.
+
+Again, implementation detail.  By comparison, though, I think my proposal 
+doesn't introduce this complication.
+
+>By this strategy, It may be possible to argue that this approach does not 
+>break current implementations of plain literals.  It simply makes clearer 
+>what xml literals are.
+
+Hmmm... sounds more like redefinition of lirterals to me.
+
+#g
+
+
+------------
+Graham Klyne
+GK@NineByNine.org
+
+
+

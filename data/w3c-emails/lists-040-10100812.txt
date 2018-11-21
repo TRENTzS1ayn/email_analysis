@@ -1,0 +1,66 @@
+docno="lists-040-10100812"
+received="Wed Jan 10 02:39:44 2001"
+isoreceived="20010110073944"
+sent="Tue, 9 Jan 2001 23:39:54 -0800"
+isosent="20010110073954"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: Office 2000 read-only"
+id="20010109233954.O4640@lyra.org"
+charset="us-ascii"
+inreplyto="AMEPKEBLDJJCCDEJHAMIMEBMCHAA.ejw&#64;cse.ucsc.edu"
+expires="-1"
+
+To: Jeremy Bach<jeremy@io.mds.rmit.edu.au>,w3c-dist-auth@w3.org
+
+
+On Tue, Jan 09, 2001 at 05:44:38PM -0800, Jim Whitehead wrote:
+> Hi Jeremy,
+> 
+> Well, I took a quick look at your protocol trace, and nothing obvious
+> immediately jumps out at me.  Your lock timout value seems a little high,
+> but is less than 2^32-1, which is around 4 billion, if memory serves me
+> well.  It's possible Office doesn't like the timeout value to be too far off
+> the 120 seconds it requests (although I doubt it, since I have heard of
+> other people changing this timeout value without any trouble).
+
+mod_dav has a feature to create a minimum value for the timeout. We've
+generally recommended about 10 minutes for the value (and it works fine).
+That is nowhere near the 2^32-1, though.
+
+BIG NOTE: Office waits until almost exactly the time specified in the
+timeout before refreshing the lock. If Office loses the lock due to a
+timeout, then it will *completely* break. The next PUT will pass an If:
+header asserting the lock (which is gone), and the PUT will fail with a 412.
+Office doesn't know how to recover (e.g. take out a lock again, verify the
+etag, etc). The only solution is to have the server say "you time out in N
+minutes" but give the app N+M minutes before the real timeout occurs.
+mod_dav gives a two minute "fudge factor" for the client to refresh within
+the timeout period.
+
+> You're also
+> not using a status phrase (the "OK" in "HTTP/1.1 200 OK") in the lock
+> response, but this also shouldn't make any difference. One grasping straw
+> idea is perhaps Office defaults to read-only if the <isreadonly/> property
+> isn't set (you're returning 404 for them).  But then why would Office try to
+> lock the document in the first place?
+
+Office locks the document when you open it, then unlocks when you close it.
+In between, each "save" does a PUT.
+
+It wouldn't be related to the 404 for isreadonly, cuz mod_dav also 404's
+that property.
+
+> Anyone have any ideas on Jeremy's problem?
+
+Nope. I know that mod_dav works, but I've never done a trace. So... I don't
+know what the difference would be.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

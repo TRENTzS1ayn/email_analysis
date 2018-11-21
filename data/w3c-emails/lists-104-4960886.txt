@@ -1,0 +1,103 @@
+docno="lists-104-4960886"
+received="Tue Apr  2 16:58:18 2002"
+isoreceived="20020402215818"
+sent="02 Apr 2002 16:58:05 -0500"
+isosent="20020402215805"
+name="Philippe Le Hegaret"
+email="plh@w3.org"
+subject="Re: XPath DOM and XPath 2.0"
+id="1017784686.6599.42.camel@jfouffa"
+inreplyto="OF26CB697F.5CF663A6-ON85256B8B.007CE9F6&#64;pok.ibm.com"
+expires="-1"
+
+To: Joe Kesselman<keshlam@us.ibm.com>
+Cc: Ray Whitmer<rayw@netscape.com>,michael.h.kay@ntlworld.com, WWW DOM<www-dom@w3.org>
+
+
+Here is my understanding of Michael's suggestion:
+
+interface XPathResult {
+ const unsigned short SINGLETON = 0;
+ const unsigned short SEQUENCE  = 1;
+
+ readonly attribute unsigned short type;
+
+ readonly attribute XPathSingletonResult singletonResult;
+ readonly attribute XPathSequenceResult  sequenceResult;
+ 
+}
+
+interface XPathSingletonResult : XPathResult {
+  const unsigned short NUMBER  = 0;
+  const unsigned short BOOLEAN = 1;
+  const unsigned short STRING  = 2;
+  const unsigned short NODE    = 3;
+
+  readonly attribute unsigned short  resultType;
+
+  readonly attribute double          numberValue;
+  readonly attribute DOMString       stringValue;
+  readonly attribute boolean         booleanValue;
+  readonly attribute Node            nodeValue;
+}
+
+interface XPathSequenceResult : XPathResult {
+  const unsigned short      UNORDERED_VALUE_ITERATOR_TYPE   = 0;
+  const unsigned short      ORDERED_VALUE_ITERATOR_TYPE     = 1;
+  const unsigned short      UNORDERED_VALUE_SNAPSHOT_TYPE   = 2;
+  const unsigned short      ORDERED_VALUE_SNAPSHOT_TYPE     = 3;
+  const unsigned short      ANY_UNORDERED_VALUE_TYPE        = 4;
+  
+  readonly attribute unsigned short  sequenceResultType;
+
+  readonly attribute boolean         invalidIteratorState;
+  readonly attribute unsigned long   snapshotLength;
+
+  XPathSingletonResult               iterateNext();
+  XPathSingletonResult               snapshotItem(in long index);
+}
+
+modulo:
+- with or without unsigned as suggested by Curt
+- we can make one interface instead of 3 as we did for the current
+  XPathResult
+- various exceptions
+
+XPathSingletonResult is an XPath 1.0 singleton. We might add SINGLETON2
+for XPath 2.0 or extend the interface XPathSingletonResult (XPath 2.0
+need support for XML Schema types).
+
+In XPath 1.0, you assume that all sequences will nodes:
+
+XPathSequenceResult mySequence =
+   XPathEvaluator.evaluate(".//html:div", myContextNode, myResolver,
+                        XPathSequenceResult.ORDERED_VALUE_ITERATOR_TYPE,
+                           null);
+
+while ((singleton = mySequence.iterateNext()) != null) {
+      Node myNode = singleton.nodeValue;
+      // do something
+}
+
+instead of (as currently supported in the draft):
+
+XPathResult mySequence =
+   XPathEvaluator.evaluate(".//html:div", myContextNode, myResolver, 
+                           XPathResult.ORDERED_NODE_ITERATOR_TYPE,
+                           null);
+
+while ((myNode = mySequence.iterateNext()) != null) {
+      // do something
+}
+
+The XPathSingletonResult interface forces the implementation to
+encapsulate the Node into an object ... unless the Node implementation
+supports the XPathSingletonResult interface (and I'm not sure we want to
+implement the DOM that way :). So I certainly see this encapsulation as
+a drawback for XPath 1.0 implementers and the XPathSingletonResult will
+not be enough for XPath 2.0 anyway and will need to be revised.
+
+Philippe
+
+
+

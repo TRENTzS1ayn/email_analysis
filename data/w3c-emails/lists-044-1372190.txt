@@ -1,0 +1,150 @@
+docno="lists-044-1372190"
+received="Wed Nov 17 17:32:51 1999"
+isoreceived="19991117223251"
+sent="Wed, 17 Nov 1999 14:29:52 -0800"
+isosent="19991117222952"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="RE: Omitting Location and Transforms from SignedInfo"
+id="NDBBLAOMJKOFPMBCHJOIIEDJCCAA.jboyer@uwi.com"
+charset="iso-8859-1"
+inreplyto="6B962A1EE646D31193270008C7A4BAB5381EA3&#64;mail.paymentnet.com"
+expires="-1"
+
+To:"Greg Whitehead"<gwhitehead@signio.com>,"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Greg,
+
+I apologize for the delay; I've had a lot of work to overcome recently.
+
+I almost agree with your entire analysis.
+
+Basically, in order to hijack the signature, it seems that you would have to
+create a SignedInfo transform that omits itself as well as does the
+interesting things you described.  By contrast, I rather assumed that we
+would create a bottom turtle (to borrow one of Rohit's favorite phrases, and
+also to follow the irony that the problem comes from self-reference, a
+favorite of Russell's).
+
+By bottom turtle I mean that SignedInfo should include its Transforms in its
+text to be hashed even if the Transforms say to omit themselves.  I faced
+this problem two years ago in XFDL, and the solution was to disregard the
+filters if they tried to filter themselves out of the message to be
+digested.  Actually, we do have a larger problem now because of that awful
+XSLT transform.  I only want the transforms for the xpath transform because
+I only want keep/omit abilities on the given markup, not the ability to turn
+it into Mohawk.
+
+Anyway, my point is that I agree with your analysis as given, but the
+problem is the result of differing assumptions.  I assume that the
+SignedInfo transforms are automatically covered by the SignatureValue and
+hence are not modifiable.  Under that assumption, the security problem
+vanishes before it gets started.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+
+<Greg/>
+
+Forget that, however, and consider this!
+
+You sign object x without specifying any transform over SignedInfo (the
+signature includes all SignedInfo elements):
+
+<Signature>
+<SignedInfo>
+...
+<ObjectReference location="x">
+...
+<DigestValue>xxx</DigestValue>
+</ObjectReference>
+</SignedInfo>
+...
+</Signature>
+
+I modify your signature to refer to object y and I introduce a transform
+that undoes this change (restores the original contents of the SignedInfo):
+
+<Signature>
+<SignedInfo>
+<Transforms>
+<Transform>
+replace SignedInfo with original contents
+</Transform>
+</Transforms>
+...
+<ObjectReference location="y">
+...
+<DigestValue>yyy</DigestValue>
+</ObjectReference>
+</SignedInfo>
+
+As I understand the proposed verification logic, I have now hijacked your
+signature. Specifically, we will first go find object y and verify that its
+digest is yyy. We will then apply the transformation to SignedInfo, which
+will restore it to what you originally signed. We will then verify your
+signature of the transformed SignedInfo, which will succeed (implying that
+you signed y).
+
+You can't solve this problem by suggesting that verification of digest
+values should take place after the transformations are applied, since you
+are proposing to drop information like location.
+
+Getting back to the need to drop location at all, your objection to
+application specific object location logic is that it can't be cleanly
+integrated with the core signature verification mechanism.  I don't buy
+that.  It's a lot cleaner to use a callback to locate objects than to rely
+on re-writing the ObjectReferences within the signature.
+
+-Greg
+
+-----Original Message-----
+From: John Boyer [mailto:jboyer@uwi.com]
+Sent: Friday, November 12, 1999 10:05 AM
+To: Greg Whitehead; DSig Group
+Subject: RE: Omitting Location and Transforms from SignedInfo
+
+
+Hi Greg,
+
+This is not the only concrete example.  If you go back to the letter I sent
+(or indeed my IETF presentation conclusion) you will find that it is not
+only possible for transforms to reduce security but also to obliterate it
+entirely.  Rather than omitting the SignatureMethod, simply omit the
+DigestValue from ObjectReferences, which disconnects the signer from the
+signed.
+
+Still, no application is going to create such signatures precisely because
+they will make such newsworthy fodder for the Bruce Schneier types of the
+world.
+
+Essentially, signing SignedInfo is an implied ObjectReference.  Whatever
+fears we have about omission from SignedInfo are precisely the same fears
+for omission from referenced objects.  It is a dangerous but necessary
+feature (and yes I can explain why (again) in painstaking detail for those
+who require it, or you could just come to heckle my presentation of the
+material at RSA2000).
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+I just thought of a concrete example:
+
+SignatureMethod is included in SignedInfo to protect against a downgrade
+attack, should one of the currently approved signature methods be broken.
+
+Allowing arbitrary transformation of SignedInfo could potentially defeat
+this protection by allowing an attacker to introduce a transformation that
+substitutes in a broken SignatureMethod along with a reference to a modified
+object and other changes (exploiting the broken signature method to produce
+the original SignatureValue over the modified SignedInfo).
+
+-Greg
+
+
+

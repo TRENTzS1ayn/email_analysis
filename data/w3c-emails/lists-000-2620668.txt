@@ -1,0 +1,108 @@
+docno="lists-000-2620668"
+received="Sun Aug 15 08:37:17 1999"
+isoreceived="19990815123717"
+sent="Sun, 15 Aug 1999 13:40:14 +0100 (GMT Daylight Time)"
+isosent="19990815124014"
+name="Dave Raggett"
+email="dsr@w3.org"
+subject="Re: 7-Jul-99 bug: Possible bad pointer when moving &lt;b&gt; inside of   &lt;li&gt;"
+id="Pine.WNT.4.10.9908151335340.-308917@hazel.hpl.hp.com"
+charset="US-ASCII"
+inreplyto="l03130302b3c9679a66dd&#64;[17.219.105.239]"
+expires="-1"
+
+To: Terry Teague<teague@mailandnews.com>
+cc:html-tidy@w3.org
+
+
+On Sat, 31 Jul 1999, Terry Teague wrote:
+
+> At 6:26 PM -0600 7/22/99, Randy Waki wrote:
+> >Thanks for Tidy!  It's proving invaluable.
+> >
+> >I have some apparent bugs to report (in this and subsequent messages).
+> >
+> >The HTML document below has a <b> outside of an <li> rather than inside it.
+> >I think this is causing 7-Jul-99 Tidy to dereference a bad pointer in
+> >istack.c, InsertedToken(), line 235:
+> >
+> >    istack = lexer->insert;
+> >
+> >Symptoms seem to vary depending on the contents of memory.  One (much
+> >longer) incarnation of this example document caused Tidy to generate the
+> >invalid start tag "<\0x18\0x0d\0x0a\0x30>" along with the corresponding end
+> >tag.  Also, Andy Quick's 7-Jul-99 Java Tidy throws an
+> >ArrayIndexOutOfBoundsException every time (which is what leads me to suspect
+> >the above mentioned line).
+> >
+> >-------- Example HTML document --------
+> ><html>
+> >  <head>
+> >    <title>x</title>
+> >  </head>
+> >  <body>
+> >    <ul>
+> >      <li>item 1</li>
+> >      <b><li>item 2</li></b>
+> >    </ul>
+> >  </body>
+> ></html>
+> >---------------------------------------
+> 
+> I can confirm on another platform (Mac OS) that there is a bug
+> here (still in the 26th July 99 version). In my case, it appears
+> that infinite recursion is probably occurring, and would have
+> likely crashed had I not stopped it. I was getting the following
+> error output on the above test case
+
+The fix is to insert the following code snippet into parser.c at
+line 1179 in ParseList()
+
+       if (node->tag && node->tag->model & CM_INLINE)
+       {
+            ReportWarning(lexer, list, node, DISCARDING_UNEXPECTED);
+            PopInline(lexer, node);
+            FreeNode(node);
+            continue;
+       }
+
+
+The code should then look lik:
+
+   /* 
+     if this is the end tag for an ancestor element
+     then infer end tag for this element
+   */
+   if (node->type == EndTag)
+   {
+       if (node->tag == tag_form)
+       {
+           lexer->badForm = yes;
+           ReportWarning(lexer, list, node, DISCARDING_UNEXPECTED);
+           continue;
+       }
+
+       if (node->tag && node->tag->model & CM_INLINE)
+       {
+           ReportWarning(lexer, list, node, DISCARDING_UNEXPECTED);
+           PopInline(lexer, node);
+           FreeNode(node);
+           continue;
+       }
+
+      for (parent = list->parent;
+           parent != null; parent = parent->parent)
+
+      ...
+
+The new code makes sure that the inline stack is popped and
+the endtag ignored. I will include this in the next release.
+
+Regards,
+
+-- Dave Raggett <dsr@w3.org> http://www.w3.org/People/Raggett
+phone: +44 122 578 2984 (or 2521) +44 385 320 444 (gsm mobile)
+World Wide Web Consortium (on assignment from HP Labs)
+
+
+

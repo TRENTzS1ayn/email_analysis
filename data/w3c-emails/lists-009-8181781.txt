@@ -1,0 +1,145 @@
+docno="lists-009-8181781"
+received="Thu Aug 17 12:16:55 1995"
+isoreceived="19950817161655"
+sent="Thu, 17 Aug 95 12:10:58 MDT"
+isosent="19950817181058"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="A modest proposal"
+id="9508171910.AA03141@acetes.pa.dec.com"
+inreplyto="199508171515.AA294242517&#64;hplb.hpl.hp.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+There has been a lot of somewhat repetitive debate on this mailing
+list over the last few days.  I suspect that some of the confusion
+stems from a lack of a shared set of goals and principles.  Maybe
+we should settle on those first, before trying to design or tweak
+mechanisms to implement caching?
+
+Hence this message.  I'm going to pretend that we are designing
+a new protocol, not changing an existing one, to avoid confusing
+the issue with debates about broken implementations or minimal
+changes.  Until we can agree on what we want the protocol to do, it's
+pointless to argue over how it does it.
+
+Let's assume that the HTTP 1.1 spec, and all subsequent ones,
+explicitly state the tautology that "an implementation not conforming
+to this specification does not conform to this specification."  Any
+"broken" browsers, servers, or clients will simply not be able to claim
+conformance to HTTP 1.1, so it is not necessary to write that spec to
+allow non-conforming implementations.  At the same time, the robustness
+principle applies:  we should not write a spec that leads to a
+"fragile" system.
+
+Time for a Principle:
+    Principle #1 of caching:
+Caches should never introduce undetectable incorrectness.
+Correctness always takes precedence over performance.
+
+If we can't agree on this one, then we will never reach consensus
+about a caching design.
+
+The main lesson I draw from this principle is "when in doubt,
+don't cache".  This is also a version of the robustness principle.
+In practical terms: a client or proxy, when trying to decide
+whether or not to cache something, should do all feasible sanity checks
+and not cache the object if a check fails.
+
+The other lesson is that a server needs a foolproof mechanism to
+tell the client (or proxy) not to cache an object.  This cannot
+be an "optional" feature of the protocol, and it should not be
+based on any client/proxy algorithm that could get a wrong answer.
+
+So how would I design HTTP 1.1, if I were in charge?
+
+(1) Servers may send a header field explictly controlling
+caching.  The spec could either be simple, something like
+Dont-Cache-This-ever:
+or a little more complicated:
+Caching-allowed: [never | always | byClient | byProxy]
+to allow for unanticipated future developments.
+
+(2) Clients and proxies need a foolproof way to validate cache
+entries.  "If-modified-since" seems to be of questionable
+reliability.  I suggest we use an "opaque version ID" approach:
+    o   For any cachable object, the server must generate a
+    unique version ID.  This could be constructed from
+a timestamp, but only if the server is able to
+guarantee uniqueness of the timestamp.  A server
+without a synchronized clock may use any other scheme
+it wants, including (for example) generation of a
+random number so large that the chances of collision
+are effectively zero.
+    oClients and proxies caching an object must store this
+version string as part of the caching data.
+    o   To validate a cached object, a client or proxy presents
+    its version string to the server, along with the URL.
+The server checks to see if the version string is
+still valid for the URL.
+    o   Clients and proxies must not do anything with a version
+string except store it and present it to the server for
+validity checking.
+
+A server must have a way of deciding if the version string is valid for
+a given object, but the protocol specification need not concern itself
+with how this is done.  There are several ways to do this, including
+using file modification dates + "epoch numbers" (every time you do
+something major to the system clock, you increment the epoch number)
+or adjunct databases.  If a server is unable to generate useful version
+strings, it can still conform to the spec but it must specify that
+the objects it returns are uncachable.
+
+I know that some people will object that this makes life hard for
+servers implemented on underpowered machines.  Tough.  It really does
+not take a lot of CPU cycles or storage to get this right.   If you
+can't handle the load, buy a faster server.
+
+This approach decouples cache validity checking and expiration, and so
+removes any dependency on synchronized clocks from the cache validity
+protocol.  What about expiration?
+
+The issue with expiration is how to deal with clock skew.  We can
+probably learn something from the work done on clock synchronization
+protocols.  Here's a first cut at a proposal:
+
+(3) Servers may send Expiration information for cachable
+objects.  (Expiration is not meaningful for noncachable
+objects.)  Prior to the expiration time, a client or proxy
+need not validate the cached object with the server, but
+MUST provide a means for the user to request validation.
+
+The Expiration header looks like this:
+      Expiration-info: Expires-time server-current-time
+The values are:
+    o   Expires-time
+    Time at which the object expires.
+    oserver-current-time
+    Server's current idea of what time it is
+Clients and proxies would set the expiration time for a cached
+object to the Expires-time value, after correcting for the
+worst-case error.  There are a number of ways to compute this,
+but a simple technique would be something like this:
+    Tc = client's clock
+    Ts = server-current-time
+    Tr = round-trip-time measured for this request
+    Te = Expires-time
+then
+    actual-expiration-time = Tc + (Te - Ts) - Tr/2
+
+Clients and proxies MUST NOT cache any object whose computed
+actual-expiration-time is highly suspect (for example, Te < Ts
+or Te < Tc, or |Tc - Ts| >> Tr.)
+
+A server may send an "Expires-time" of "infinity", indicating
+that the object will never change (although the user must
+still be able to request that client/proxy validate the object,
+just in case).  The "infinity" value is not subject to bogosity
+checking.
+
+-Jeff
+
+
+

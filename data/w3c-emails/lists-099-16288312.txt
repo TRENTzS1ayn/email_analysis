@@ -1,0 +1,265 @@
+docno="lists-099-16288312"
+received="Tue Mar 30 03:35:02 2004"
+isoreceived="20040330083502"
+sent="Tue, 30 Mar 2004 11:27:59 +0300"
+isosent="20040330082759"
+name="Patrick Stickler"
+email="patrick.stickler@Nokia.com"
+subject="Re: version for review"
+id="2701919C-8224-11D8-BB53-000A95EAFCEA@nokia.com"
+charset="US-ASCII"
+inreplyto="40633602.6050804&#64;hplb.hpl.hp.com"
+expires="-1"
+
+
+Cc:www-archive@w3.org, ext Chris Bizer<chris@bizer.de>, Pat Hayes<phayes@ihmc.us>
+To:"ext Jeremy Carroll"<jjc@hplb.hpl.hp.com>
+
+
+
+On Mar 25, 2004, at 21:41, ext Jeremy Carroll wrote:
+
+>
+> This is the main version for review, it's intended as nearly finished 
+> as far as Chris and I go ... I have marked a few things that remain to 
+> do and there are some obvious things like missing references etc.
+>
+> The main doubts are:
+> + are the semantics any good?
+> + does my treatment of B-nodes as graph names work - I think so, but 
+> Pat thought it was too hard; there were some subtleties that end up in 
+> the footnotes.
+
+I think it's OK for bnodes to name graphs, but not for
+bnode graph names to span graphs.
+
+See comments below...
+
+>
+> I am not at all adverse to Pat saying, "oh no I had better write the 
+> semantics"
+>
+> (Also section 9.5 needs something doing to it, which isn't marked 
+> in-line. It basically starts up on another paper, and so needs to be 
+> trimmed down to size)
+>
+> The zip file is of the latex sources, there's no need to look at it 
+> for simple review; but if you want to send an update please do ...
+>
+> Jeremy
+>
+>
+
+Credits:
+
+As I mentioned earlier, I'm happy to have my name last (which is
+in any case the proper place for it to be).
+
+--
+
+Section 2, para 1:
+
+I think we need to constrain bnode graph names to statements
+occurring within that particular graph itself. I.e., if you
+need to make statements about a graph in *another* graph, you
+must use a URI.
+
+Your examples in section 8 have statements where the subject
+is the bnode label of another graph, and I don't think that's
+valid (or should be valid) because it suddenly turns bnodes
+into global identifiers just like URIs when they are used
+as graph names.
+
+--
+
+Section 4: "using the URL from which an RDF/XML file is retrieved
+as a name for the graph"
+
+Perhaps it would be better to use the xml:base, if defined, thus
+avoiding some of the problems where the same document may be
+returned as a representation when resolving various URIs which
+may not in fact denote the graph in question. ???
+
+--
+
+Section 4: use of parentheses
+
+Perhaps we should use curly brackets rather than parentheses
+to be more compatible with N3/Turtle, which use parentheses
+for collections.
+
+--
+
+Section 6:
+
+Not that we need to mention this in the paper along with the plug
+for TriQL (though feel free to do so if you like ;-) ... but
+
+The definition for RDFQ [1] also now supports named graphs (or
+will, once I get around to updating it ;-)
+
+[1] http://sw.nokia.com/rdfq/RDFQ.html
+
+The rdfq:Query instance can have any number of rdfq:graph's
+defined, which constitute a form of "pre-query" to identify
+all graphs which match any of the specified templates, after
+which, the target templates are applied to the set of matched
+graphs. I.e.
+
+rdfq:inGraph a rdf:Property;
+    rdfs:domain rdfq:Query;
+    rdfs:range rdfg:Graph;
+    rdfs:comment "A template constraining the query to only matching 
+graphs.".
+
+[a rdfq:Query;
+    rdfq:graph  [a rdfq:Graph; swp:assertedBy [a swp:Warrant; 
+swp:authority [foaf:email <mailto:john.doe@example.org]]];
+    rdfq:graph  [a rdfq:Graph; swp:assertedBy [a swp:Warrant; 
+swp:authority [foaf:email <mailto:mary.smith@example.org]]];
+    rdfq:target [a rdfq:Target; dc:created [a rdfq:Value; rdfq:lt 
+"2004-02-02"^^xsd:date]]].
+
+or minimally
+
+[:graph  [swp:assertedBy [swp:authority [foaf:email 
+<mailto:john.doe@example.org]]];
+  :graph  [swp:assertedBy [swp:authority [foaf:email 
+<mailto:mary.smith@example.org]]];
+  :target [dc:created [:lt "2004-02-02"^^xsd:date]]].
+
+I.e. find resources created before 2004-02-02 from graphs asserted by 
+either John Doe
+or by Mary Smith.
+
+There can be any number of graphs specified, and for those that match 
+the specified
+criteria, the templates are then applied only to statements in those 
+graphs. I.e. first
+identify all matching graphs, then all matching targets within those 
+graphs.
+
+If no graph is specified, then the templates are applied to all/any 
+graphs.
+
+If one is able to infer class membership of graphs as trusted and 
+asserted, then one
+can qualify all queries easily as:
+
+[a rdfq:Query;
+    rdfq:graph [a x:TrustedAssertedGraph];
+    rdfq:target [a rdfq:Target; dc:created [a rdfq:Value; rdfq:lt 
+"2004-02-02"^^xsd:date]]].
+
+or minimally
+
+[:graph [a x:TrustedAssertedGraph]; :target [dc:created [:lt 
+"2004-02-02"^^xsd:date]]].
+
+I.e., find resources created before 2004-02-02 according to claims made 
+in trusted,
+asserted graphs.
+
+If one simply wants all of the dc:title values for such resources, 
+rather than
+complete descriptions of the matched target resources, the property 
+rdfq:select
+can be used, and the results are expressed as variable bindings using 
+the
+Result Set Vocabulary:
+
+
+[:select ( "title" );
+  :graph  [a x:TrustedAssertedGraph];
+  :target [dc:created [:lt "2004-02-02"^^xsd:date];
+           dc:title   [:id "title"]]].
+
+One of the nice things about the way RDFQ handles this in vocabulary is 
+that
+the actual syntax of RDF/XML, N3/Turtle does not have to change in 
+order to
+express graph-specific queries.
+
+--
+
+Section 7:
+
+The example should be terminated with an extra statement in
+graph G5 so that the provenance chain is bounded:
+
+G5 (...
+     G5 dc:creator Peter .)
+
+--
+
+Section 8.1: bnode graph names
+
+As mentioned above, you have bnode bindings spanning multiple graphs,
+which I don't think should be valid. The use of _:g1 in graph _:h
+should have no meaning outside of graph _:h and thus does not in
+fact refer to graph _:g1 since the bnodes of graph _:h are disjunct
+from the bnodes of graph _:g1.
+
+A bnode graph name is only relevant to statements within that graph, 
+IMO.
+
+Better to just use URIs in these examples. In fact, I think we should
+consider it a best practice to use URIs to name graphs rather than
+bnodes.
+
+Thus:
+
+G, G1 (...)
+
+H (...
+    G1 swp:quotedBy _:w2 .
+    ...)
+
+--
+
+Section 8.1: "We require [the value of the swp:signatureMethod property]
+to be a literal URI, which can be dereferenced on the Web..."
+
+Question, what is the difference between a URI and a literal URI? Do
+you mean rdfs:range xsd:AnyURI?
+
+Also, while requiring the signature method to be denoted by a URI,
+I don't think we need to go so far as to require that the URI be
+web-dereferencable. It's *convenient* if it is dereferencable, and
+it's probably a "best practice" for it to be dereferencable, but
+I don't see it as an actual requirement. As long as the publisher
+and consumer understand the URI in the same way, that's all that
+counts.
+
+--
+
+Section 8.2, last para, last sentence:
+
+Consider changing "...some of their RDF does include its own assertion"
+to "...some of their graphs do include their own assertion", which
+I think is what you mean and what we want to say. "their RDF" is
+pretty broad...
+
+--
+
+Section 10:
+
+I'm OK with your proposal to delete and address elsewhere.
+
+--
+
+That's all. The rest reads pretty good to me. I especially appreciated
+the use case of syndication showing where assertion vs. quoting is
+useful.
+
+Patrick
+
+
+--
+
+Patrick Stickler
+Nokia, Finland
+patrick.stickler@nokia.com
+
+
+

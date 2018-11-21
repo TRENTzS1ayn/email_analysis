@@ -1,0 +1,155 @@
+docno="lists-010-6518644"
+received="Thu Aug  8 17:09:03 1996"
+isoreceived="19960808210903"
+sent="Thu, 08 Aug 96 20:11:46 0400"
+isosent="19960809001146"
+name="hallam@etna.ai.mit.edu"
+email="hallam@etna.ai.mit.edu"
+subject="Re: Sticky stuff."
+id="9608090011.AA03584@Etna.ai.mit.edu"
+inreplyto="9608082055.AA07581&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: Jeffrey Mogul<mogul@pa.dec.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:hallam@etna.ai.mit.edu
+
+ 
+>Actually, headers are the predominant source of data bytes flowing
+>from client to server (i.e., in the request direction), at least as
+>far as I am aware.  This is not such a significant fraction of the
+>bytes on the Internet backbone, perhaps, but when people are using
+>low-bandwidth links, the request-header-transmission delays
+>directly contribute to the user's perceived response time, and
+>reducing them would seem valuable.  Also, if the home market becomes
+>widely served by asymmetric-bandwidth systems (such as Hybrid
+>Network's product; see http://hybrid.com/), then request-header
+>bytes become proportionally more expensive.
+
+Granted, but is that the determining factor with respect to speed 
+of response?
+
+Because the number of bytes sent by the client to the server is a 
+small proportion of the number comming the other way I'm 
+wondering if we are optimising a feature that will not have
+a significant impact.
+
+If we have pipelining then the sequence of messages in time would 
+be something like:
+
+
+c->s Request#1
+s->c Reply-Headers#1 + 500bytes-entity#1
+c->s Request#2} Overlapping
+s->c 700bytes-entity#1}
+c->s Request#3
+s->c 700bytes-entity#1
+s->c Reply-Headers#2 + entity#2
+s->c Reply-Headers#3 + entity#3
+
+In other words I don't think that the client headers are currently 
+on the critical path. 
+
+Asymmetric bandwidth changes this but only slightly. Consider the
+two main asymmetric supply routes, Satelite and Cable. For satelite
+there is a latency issue. The content arrives after a lag. I have 
+to construct the Request#2 frame after I have started recieiving
+the first entity body because I need to see the <IMG> tag before
+I know what to load. Now Request #2 will only be sent faster if the
+compression is going to bring it bellow the IP frame size. 
+
+[First piece of data required, plot of message size vs time to
+complete  transmission. I suspect that this has the following
+form (approximating the slow start factor for the moment) :
+
+t = a*[s/p] + b*s + c
+
+Where:
+
+s = Size of the message
+p = the packet size
+
+a = routing delay parameter
+b = transmission bandwidth
+c = constant term dependent on connection establishment delay.
+[Slow start could be modelled by making this term
+more complex]
+
+My guess is that for all but connections from a dialup client to
+a server on the dialup host that the a and c factors are the
+dominant terms. Ie compressing message size matters little unless
+you can save a packet. That at least was the operating assumption
+for HTTP in the early days. 
+
+I haven't measured these recently and I think that empirical
+measurements of these parameters would be a very good thing
+to have if we are going to try optimisation.]
+
+
+>    3) Section 2.2 asserts that proxies typically multiplex server
+>    connections across multiple clients. Is this in fact the case?
+>
+>(Almost?) nobody yet uses proxies that support persistent connections.
+>So it's hard to provide data from experience.  At least, I have not
+>seen any.
+
+My impression as well. I think that the idea that HTTP messages 
+should be interleavable in this manner is a very bad idea. It
+is a very large cost overhead for not such a great return - unless 
+its done to prevent abusive clients.
+
+I would like to suggest that we consider making HTTP a non-idempotent
+protocol and introduce methods to provide transaction semantics.
+E.g. :-
+
+START - Begin a transaction operation 
+COMMIT- Commit a transaction
+ROLLBACK- Undo a transaction
+
+Alternatively we could provide a LOCK method which would acquire
+a lock on a resource. There are obvious semantics that can then 
+be attached to connections - loose the connection before the 
+Commit is recieved and you do a rollback. 
+
+Quibbles about whether a client knows about whether a 
+connection has completed or not are not particularly relevant.
+Either the client can reconnect to the server and ask if a
+transaction completed or the client is never going to find
+out - tough!
+
+There are many databases that provide these facilities and 
+even operating systems that provide them as low level 
+primitives. I think we should exploit them where possible.
+
+So as I say I don't accept that we should allow the hypothetical
+multiplexing proxy to limit the protocol. I think that it is 
+a corner optimisation that gives practically no benefit. It
+makes significant restrictions on the future direction of HTTP.
+
+The only place where I do see an argument for supporting 
+a muxing type proxy is that it might be handy for a proxy to be
+able to do connection reuse in the same way that clients
+routinely do ftp and news connection reuse. this is easier
+to support because it simply requires a facility to flush the
+state of the connection in its entirety. This is much easier to 
+support than the synchronous case.
+
+>How so? A second context is created just like the first one, with the
+>addition of specifying the context number.
+
+Its easy for the client to support but much harder for the server
+which has to keep track of multiple sessions and match them in
+an efficient manner.
+
+>I don't think so -- the authentication should be applied before the
+>sticky compression. Maybe I just don't understand this point.
+
+The point is that if the authentication is going to protect against
+a replay attack it has to be dependent on the message and vary with 
+each message and thus one has to send out a new one with each message.
+
+
+Phill
+
+
+

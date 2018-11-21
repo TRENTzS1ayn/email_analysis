@@ -1,0 +1,197 @@
+docno="lists-051-13369276"
+received="Mon Sep 23 04:35:16 2002"
+isoreceived="20020923083516"
+sent="Mon, 23 Sep 2002 10:35:03 +0200"
+isosent="20020923083503"
+name="Jeremy Carroll"
+email="jjc@hplb.hpl.hp.com"
+subject="RE: DECIDED: untidy semantics"
+id="BHEGLCKMOHGLGNOKPGHDOEEDCAAA.jjc@hpl.hp.com"
+charset="us-ascii"
+inreplyto="Pine.GSO.4.44.0209221237090.20899-100000&#64;mail.ilrt.bris.ac.uk"
+expires="-1"
+
+To:"Jan Grant"<Jan.Grant@bristol.ac.uk>,"Jos De_Roo"<jos.deroo.jd@belgium.agfa.com>
+Cc:"w3c-rdfcore-wg"<w3c-rdfcore-wg@w3.org>
+
+
+
+Summary: No API changes etc are needed for syntactic RDF manipulation for
+semantic untidiness.
+
+Jan:
+>
+> However, while it's not overly onerous to implement in every case
+> (although it might be in many implementations), the resulting API was an
+> absolute fag to code to; small experiments quickly descended into
+> graph-grovelling.
+>
+
+I am finding the API and syntactic discussions very hard to understand.
+
+I am seeing it differently from many of the other implementors.
+The decision we made was about semantics not syntax, so why do we need to
+make the syntax more difficult.
+
+I'll try and explain how I see it with a test case:
+
+<rdf:Description>
+  <eg:a>10</eg:a>
+  <eg:b>10</eg:b>
+  <eg:c>10</eg:c>
+</rdf:Description>
+
+There are three literals in the XML here, "10" "10" and "10".
+Logically there seem to be five possibilities:
+(A)  all three map to one node.
+(B,C,D) the three literals in the XML map to two nodes (three different
+choices of the odd one out)
+(E) the three literals in the XML map to three different nodes.
+
+I do not believe that there has been anyone who has advocated the *two node*
+options (B,C,D) here.
+I believe that with appropriate range constraints the untidy semantic
+decision may be understood as enabling say the first two to have the same
+value and the third to have a different value; but that is at the semantic
+level not the syntactic level.
+
+I have understood that there is no enthusiasm for my proposed tidy syntax
+with untidy semantics. This rules out the first option (A).
+Thus we are left with option (C).
+
+Jan:
+> Incidentally, the test cases are going to be somewhat delayed since we
+> no longer have any way of comparing ntriples-expressed graphs for
+> equality, so parser tests are (for the moment, at least) impossible to
+> automate.
+
+Thus the ntriples (with qnames) for this is unambiguously:
+
+_:b eg:a "10".
+_:b eg:b "10".
+_:b eg:c "10".
+
+And the two documents represent the same graph using exactly the same code
+as we have being running for over a year now.
+
+We may need minor changes to the documentation:
+
+e.g.
+[[
+  equals(RDFGraph a,RDFGraph b)
+
+Graph a is isomorphic to Graph b as defined in the first RDF Concepts and
+Abstract Data Model WD.
+]]
+changes to
+[[
+  equals(RDFGraph a,RDFGraph b)
+
+Graph a is isomorphic to Graph b as defined in the second RDF Concepts and
+Abstract Data Model WD.
+]]
+but no code changes.
+
+Moreover, we have not seen anyone wishing to express the B,C,or D options in
+RDF/XML and so there is no need to put these options into the abstract
+syntax. Hence my proposal to restrict untyped literals in the abstract
+syntax to occurring in precisely one triple, and committing the abstract
+syntax to option E.
+
+So in terms of API changes, some are needed, but these are for support of
+datatyping and semantics in general, not for syntactic changes.
+
+e.g.
+
+Add methods:
+  sameValueAs()
+  sameLabelAs()
+to Literals.
+
+Modify documentation of equals on Literal
+
+  equals(Literal a, Literal b)
+
+Reports true if the two literal nodes have the same label.
+
+Triples too, then have syntactic equality and semantic equality
+(sameValueAs). I do not believe that we have yet resolved the issue of
+whether two syntactically identical triples (with Literal objects) can have
+different semantics.
+
+The test case is the dc example:
+
+<eg:Document rdf:ID="doc">
+  <dc:Creator>J. Smith</dc:Creator>
+  <dc:Creator>J. Smith</dc:Creator>
+</eg:Document>
+
+My understanding is that this only ever produced one triple, and so I would
+want it to still produce one triple, which restricts the Literal 2 Value
+mapping to depend on the literal, property and subject of the triple and
+nothing else.
+
+(Contrast with)
+<eg:Document rdf:ID="doc">
+  <dc:Creator eg:name="J. Smith"/>
+  <dc:Creator eg:name="J. Smith"/>
+</eg:Document>
+
+which produces two triples but is entailed by and entails the one triple
+case;
+or with
+
+<eg:Document rdf:ID="doc">
+  <dc:Creator eg:name="J. Smith" eg:sex="Male"/>
+  <dc:Creator eg:name="J. Smith" eg:sex="Female"/>
+</eg:Document>
+
+which finally has a document with two authors.
+
+
+Jan:
+>
+> PS. On the untidyness of literals: I'm still not certain why untidy
+> literals are tagged with what PS calls "system IDs" as opposed to
+> bnodes, the space of which may intersect with non-literal-labelling
+> bnodes.
+
+The decision on Friday was about the semantics (of RDF/XML). I think the
+space of how we get those semantics is still open; we could do the sort of a
+literal is a bnode and a triple approach that Pat suggested in
+simpledatatypes2. (Occam-slashed datatypes)
+
+http://www.coginst.uwf.edu/users/phayes/simpledatatype2.html
+
+Or alternatively by use of tidy syntax and tidy semantics at the abstract
+level and a simple transform to add the bnode as we read the RDF/XML (from
+my ...)
+
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2002Jan/0369.html
+[[[
+Match:
+  ?x  ?y ?z
+  where ?y != rdf:value and
+        ?z a literal node
+
+  replace with
+  ?x ?y NewNode
+  NewNode rdf:value ?z
+
+  where NewNode is a newly minted bNode.
+
+For example:
+
+<a> <foo> "ss" .
+
+is transformed to
+
+<a> <foo> _:b.
+_:b <rdf:value> "ss".
+]]]
+
+
+Jeremy
+
+
+

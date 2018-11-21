@@ -1,0 +1,187 @@
+docno="lists-103-15447975"
+received="Tue Mar 20 16:14:33 2001"
+isoreceived="20010320211433"
+sent="Tue, 20 Mar 2001 21:14:01 -0000"
+isosent="20010320211401"
+name="Peter Meyer"
+email="petermeyer99@hotmail.com"
+subject="Re: Type-safe iteration over the DOM in DOM 2 &amp; 3?"
+id="F1427WD84jBtwuieeh500006516@hotmail.com"
+inreplyto="Type-safe iteration over the DOM in DOM 2 &amp; 3?"
+expires="-1"
+
+To:keshlam@us.ibm.com,www-dom@w3.org
+
+
+See below, as always :-)
+
+>
+> >I am not sure I agree with that. As soon as an application uses a class
+> >factory to create subclasses at runtime, I do not necessarily know the
+> >classes that I need to react on.
+>
+>Same problem exists with Visitor, though. A Visitor requires a callback
+>method for every different response that accept() might want to issue. This
+>means that every time you add a new response you must update all your
+>Visitors to be able to handle it -- or do runtime type matching on the
+>Visitor to determine whether or not it can support this case, and figure
+>out what to do if it doesn't. To me that's much the same coding problem,
+>merely redistributed somewhat.
+>
+
+
+Somewhat... Of course the visitors need new action routines for classes that 
+have specific activities, although many operations on a composite pattern 
+are actually the same for many classes in the composite, and therefore do 
+not require specific methods in each visitor.
+Encapsulation of model and behavior to me seems easier in the visitor model. 
+Generally, in the object models we are using, it is much easier to group the 
+class factories that generate classes in the composite and their associated 
+visitors together. The class-dependent changes are therefore very well 
+encapsulated.
+
+
+
+>
+> >The main advantage, as I see it, of the visitor pattern is to use
+> >actual object type at runtime
+>
+>Note that object _type_ may not be the right thing to test -- see past
+>discussion of why RTTI is not reliable/portable for distinguishing node
+>types.
+>
+
+
+Agreed with respect to type. ALthough the language polymorphism tends to 
+work quite fine :-)
+
+
+
+>Note too that if you start adding your own nodeTypes to the DOM you've
+>stepped out of the space defined by the spec and all bets are off. So this
+>set of constants is, in fact, well defined at compile time for a compliant
+>DOM.
+>
+
+
+I see... the ability to use a class factory to subclass DOM node classes is 
+not part of the spec?
+
+
+>Visitor does allow you to use the "actual object role", admittedly. If
+>which callback you were making depended not only on the nodetype but also
+>the namespace and localname, subclassing the node and defining the visitor
+>pattern's accept() method appropriate might indeed yield faster code than
+>testing all of these each time. But see the first point above; you now need
+>a visitor which knows about additional callbacks, which means you aren't
+>interoperable with visitors which know only about the basic DOM, which in
+>turn seems to me to defeat much of the purpose of abstract Visitors in the
+>first place.
+>
+
+I am actually much less interested in speed of execution (I don't think the 
+difference is so significant in the two cases we discussed) then in the 
+safeness and maintainability of the design. If you for example have an MVC 
+architecture, you generally want to avoid that the Model has to know about 
+the view details, so you create visitors as a sort of bridge classes that 
+are sent to traverse the model and then operate on a view. As a result, 
+cross-dependencies are very well isolated in one spot, which is a huge 
+advantage, once you have a really large app. I concede entirely that the 
+visitors you have have to match the classes of your model up to a certain 
+point. This, in my view, is a small evil compared to the advantages of 
+encapsulation in a large scale design.
+
+
+
+
+>I can see doing this as an implementation-specific optimization; I'm not
+>sure I see it as something which is really general enough that it belongs
+>in the standard DOM spec.
+>
+
+Pleeeeease :-) Actually, I think it would add a lot of power to the DOM with 
+respect of reusability for other than the originally anticipated use with 
+very little cost - nobody who prefers the other use has to use it, and it's 
+just one little function definition in the Node class :-) Note that I do not 
+advocate the definition and implementation of a whole zoo of visitors in the 
+DOM. All I ask for is the addition of the accept method to the node 
+interface and a corresponding basic visitor interface. Applications 
+developers then have the hooks to do as they please, even crazy ones like me 
+:-)
+
+
+>[Re Visitor versus Traverse-and-dispatch:]
+> >I am not sure I understand you here. Do you refer to dispatch in node
+> >classes with children to be pre- or postorder traversal?
+>
+>Traversal abstracts what group of nodes should examined, in what order,
+>which we agree is half the role of Visitor. My point is that by having the
+>loop doing the traversal also do the dispatching, you have the ability to
+>do very different dispatching off the same object tree - whereas if you
+>build the dispatch into the objects via accept(), you have to do a
+>significant amount of kluging if the distribution of responses desired for
+>this particular task doesn't match the distribution hard-coded into the
+>nodes.
+>
+
+
+As I argued before, the GoF book proposes two ways to implement the actual 
+traversal:
+In the node class, where a node would pass the visitor to its children 
+before or after calling its execute method on itself, or in the visitor. 
+Both methods are equally valid, and I believe that the flexibility you 
+desire could easily be achieved by handing the responsibility for traversal 
+to the visitor and only implement accept(Visitor v) as follows in the first 
+concrete subclass of node:
+accept(Visitor v)
+{
+    v.execute(this);
+}
+
+These would be all changes required to the DOM spec and implementation.
+
+Application developers that decide to use the visitor hook now can write 
+visitors that do iterate over the children of node subclasses visited. This 
+can be done in a base class, so without adding load on programming of all 
+the visitors an app needs.
+
+Footnote: Furthermore, if an app really desires to subclass the DOM heavily, 
+it could actually override the accept method in the subclasses, so that such 
+classes would take care of their own traversal. Not that this adds a lot of 
+value, but still, it showa that there is a lot of flexibility in this 
+approach, with minimal changes to both DOM spec and implementation.
+
+
+
+
+> >The main use case I am interested is DOM-based applications where the DOM
+> >classes are subclassed heavily to provide application-specific
+> >functionality. In this case, I believe, the case for visitors is very
+>strong
+>
+>I think I really need something specific to look at, to compare with the
+>Traverse-and-dispatch case; the examples I've come up with so far seem
+>pretty evenly matched between the two.
+>
+>
+> >This is aggravated in situations where the DOM engine in my application
+>does
+> >not know about the classes it might encounter at runtime, because they 
+>are
+> >generated by a class factory, and they may even be supplied by plugin
+>
+>That seems to be in the Embedded DOM space rather than Core DOM behavior.
+>But your milage may vary.
+>
+
+Is the embedded DOM spec up on the site? I must have overlooked that one, 
+sorry...
+
+
+Thanks again for your extensive answers.
+
+_________________________________________________________________________
+Get Your Private, Free E-mail from MSN Hotmail at http://www.hotmail.com.
+
+
+

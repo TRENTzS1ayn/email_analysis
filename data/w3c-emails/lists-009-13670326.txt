@@ -1,0 +1,69 @@
+docno="lists-009-13670326"
+received="Mon Dec 11 10:44:01 1995"
+isoreceived="19951211154401"
+sent="Mon, 11 Dec 95 10:33:15 PST"
+isosent="19951211183315"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 'PUT' transaction reconsidered (was Re: twophase send concerns )"
+id="9512111833.AA14231@acetes.pa.dec.com"
+inreplyto="95Dec10.203244pst.2733&#64;golden.parc.xerox.com"
+expires="1"
+
+
+To: Larry Masinter<masinter@parc.xerox.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    I'm becoming more and more convenced that single-exchange PUT is
+    unworkable. That is, PUT might have to happen in two steps:
+    
+    1. client: wanna PUT this file of this size of this media type 
+       in this location with these PERMS with
+       this validator 
+    2. server: OK, send file (or permission denied)
+    3. client: OK, here's the file.
+    4. server: OK, got the file
+
+Two questions:
+
+(1) What is the purpose of the validator in this example?  If you
+mean "cache validator", then presumably this is a token that the
+client has obtained from the server which can be used to decide
+if the client's cached version of the file is still valid.  This
+might be useful if we want to ensure that some other client doesn't
+come along midway through this exchange (i.e., between steps 2 and
+3) and update the same file.  But if we want to make this work,
+then we need to be honest about supporting atomic transactions.
+
+For example, in this case if the server "locks" the file against
+updates from other clients, what happens if the client then crashes
+before step 3?  How long does the lock persist?
+
+If we are going to introduce transaction semantics, let's do that
+directly, not with some half-way approach.
+
+(2) Someone else (sorry, I forgot who) has already pointed out
+that this adds at least one RTT of latency.  As with my comments
+on the two-phase send mechanism, I'd ask: what is the common
+case, and can we optimize for it?
+
+I would assume that the common case is that the server accepts
+the PUT (otherwise, people would soon stop doing it).  So to me
+this implies that the protocol should avoid extra RTTs if the
+PUT succeeds, even if that means a certain amount of messy
+state reconstruction if the PUT fails.  I think this is another
+argument in favor of the "optimistic two-phase" approach that
+I outlined last week: try doing the PUT in a single step, and
+then if it fails for any reason (e.g., the server closes the
+connection prematurely), try again with the cautious two-phase
+method.
+
+Of course, a client that manages to read the server's error
+code before the first connection is aborted can optimize
+out the second attempt, if the error code is definitive
+(e.g., permission denied).
+
+-Jeff
+
+
+

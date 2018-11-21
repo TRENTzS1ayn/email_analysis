@@ -1,0 +1,184 @@
+docno="lists-100-15377354"
+received="Mon Jul  9 03:04:45 2001"
+isoreceived="20010709070445"
+sent="Mon, 9 Jul 2001 02:04:44 -0500"
+isosent="20010709070444"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Automated download of NIST tests, fixup, generation and build"
+id="001501c10845$6edd0a30$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+
+I got to spend some more time on the ant build file this weekend and fixed up some code generation problems.  Unfortunately, I had some problems accessing the CVS at the W3C and I've passed along the details and hopefully can put this all in the W3C CVS sometime soon, but I've just put it in the xmlconf www-dom-ts CVS for the moment.
+
+I've added the folloing targets to the build.xml file:
+
+get-nist-level-1-code: 
+
+Downloads DOM Level 1 core tests that appear in the test matrix from the NIST site to the nist/level-1/core subdirectory
+
+get-nist-level-1-html
+
+Same thing for DOM Level 1 tests mentioned in the test matrix, but they aren't actually available on the NIST suite
+
+get-nist-level-2-core
+
+Same thing for DOM Level 2 Core tests, again not actually available
+
+patch-nist-level-1-core
+
+This runs SED (Stream EDitor) to make global changes to the NIST tests.  The  output files are stored in the tests/level-1/core directory.  The end of this target shows a list of files that were in the test matrix but weren't actually on the NIST server.  The global changes are in the file nistfix.sed
+
+The preceding targets will disappear since the NIST tests will eventually get published in the W3C CVS with corrections.
+
+dom1-core-gen-java:
+
+Generates Java code for all tests in the tests/level-1/core directory.  The generated Java files go in build/java/org/w3c/domts/level1/core.  (May require you to manually run dom1-dtd to build dom1.dtd and copy into the test directory).
+
+dom1-core-java
+
+Compiled files in the build/java/org/w3c/domts/level1/core directory and the org/w3c/dom/testing directory (abstract interfaces and support classes).
+
+clean
+
+removes the generated Java sources, DTD's, schemas and compiled binaries
+
+--------------------
+
+nistfix.sed contains a series of SED commands that are applied to the downloaded NIST tests:
+s/DOCTYPE testcases/DOCTYPE test/
+
+Changes <!DOCTYPE testcases...> to <!DOCTYPE test ...>
+
+
+s/xw2k.sdct.itl.nist.gov\/brady\/w3c-dom\/xml/www.w3.org\/2001\/DOM-Test-Suite\/level-1\/core/
+
+Changes the targetURI from a NIST URL to a W3C URL
+
+
+s/xmlconf.sourceforge.net\/domunit\/2001-05-17/www.w3.org\/2001\/DOM-Test-Suite\/Level-1/
+
+Changes the namespace from a xmlconf namespace to a W3C namespace
+
+
+s/xmlns:rdf.* //
+
+Removes xmlns:rdf="...", prefix not used in document
+
+
+s/xmlns:xsd.* //
+
+Removes xmlsn:xsd="...", prefix not used in document
+
+
+s/net.sourceforge.xmlconf.domunit.dom1/org.w3c.domts.level1.core/
+
+Changes package name from xmlconf to W3C
+
+
+s/<member>/<member>"/
+s/<\/member>/"<\/member>/
+
+Add quotes around members
+
+----------------------------
+
+I was able to fix up quite a few errors in the test-to-java.xsl transform, however now it seems that 
+most of the errors are due to problems in the test definition.  The common errors seem to be:
+
+1. Missing symbols
+
+A variable name misspelled or omitted
+
+2. Using a string variable for getNodeType()
+
+3. Missing class name
+
+4. Misuse of collection and list equality assertion
+
+assertEquals can assert that two collections or lists are equivalent doing either order-significant or
+order-insignificant comparision.  The intent was to allow it be to easy to assert, for example,
+that all of the following attribute names appear in a collection, but without having to write
+a lot of logic in the test.
+
+It was not intended to be used to combine the results for several different types of calls with 
+their expected results.  Multiple assertions should be used in that case.
+
+For example, here is the content of nodeCloneNodeFalse.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE test SYSTEM "dom1.dtd">
+<test xmlns="http://www.w3.org/2001/DOM-Test-Suite/level-1/Test-Definition" name="nodeCloneNodeFalse">
+<var name="doc" type="Document"/>
+<var name="elementList" type="NodeList"/>
+<var name="employeeNode" type="Node"/>
+<var name="clonedNode" type="Node"/>
+<var name="cloneName" type="String"/>
+<var name="cloneChildren" type="NodeList"/>
+<var name="length" type="int"/>
+<var name="result" type="List"/>
+<var name="expectedResult" type="List">
+<member>"employee"</member>
+<member>"0"</member>
+</var>
+<load var="doc" href="staff.xml" willBeModified="false"/>
+<getElementsByTagName interface="Document" obj="doc" tagname='"employee"' var="elementList"/>
+<item interface="NodeList" obj="elementList" index="1" var="employeeNode"/>
+<cloneNode obj="employeeNode" deep="false" var="clonedNode"/>
+<nodeName obj="clonedNode" var="cloneName"/>
+<append collection="result" obj="cloneName"/>
+<childNodes obj="clonedNode" var="cloneChildren"/>
+<length interface="NodeList" obj="cloneChildren" var="length"/>
+<append collection="result" obj="length"/>
+<assertEquals actual="result" expected="expectedResult" id="nodeCloneNodeFalseAssert1" ignoreCase="false"/>
+</test>
+
+The test initializes a collection members "employee" and "0" (quotes were added by SED) and then compares it with a collection built by appending the results of getNodeName() and getLength().
+
+A better way of writing the test would be:
+
+ 
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE test SYSTEM "dom1.dtd">
+<test xmlns="http://www.w3.org/2001/DOM-Test-Suite/level-1/Test-Definition" name="nodeCloneNodeFalse">
+<var name="doc" type="Document"/>
+<var name="elementList" type="NodeList"/>
+<var name="employeeNode" type="Node"/>
+<var name="clonedNode" type="Node"/>
+<var name="cloneName" type="String"/>
+<var name="cloneChildren" type="NodeList"/>
+<var name="length" type="int"/>
+<load var="doc" href="staff.xml" willBeModified="false"/>
+<getElementsByTagName interface="Document" obj="doc" tagname='"employee"' var="elementList"/>
+<item interface="NodeList" obj="elementList" index="1" var="employeeNode"/>
+<cloneNode obj="employeeNode" deep="false" var="clonedNode"/>
+<nodeName obj="clonedNode" var="cloneName"/>
+<assertEquals expected='"employee"' actual="cloneName" id="nodeName" ignoreCase="false"/>
+<childNodes obj="clonedNode" var="cloneChildren"/>
+<length interface="NodeList" obj="cloneChildren" var="length"/>
+<assertEquals expected="0" actual="length" id="nodeListLength"/>
+</test>
+
+There really needs to be some sort of iterative loop to justify the use of collection comparision.
+
+---------------------
+
+ANT setup:
+
+On Windows, the new modifications to build.xml require downloading a SED implementation and placing it on your path before running ant.  As before, running ant to build this project requires a nightly build for Ant 1.4, replacing jaxp.jar and crimson.jar with xalan and xerces.jar from Xalan 2.1 (?) release and having patch (part of CVS) on the classpath.
+
+I used GNU sed v3.02.80.
+
+    GNU sed v3.02.80
+   32-bit binaries and docs, using DJGPP compiler. For details on new
+   features, see Unix section, above.
+      http://www.cornerstonemag.com/sed/sed3028a.zip     # DOS binaries
+
+
+SED is part of most Linux installations.  The project may work on Linux, but I haven't tested it.
+
+
+

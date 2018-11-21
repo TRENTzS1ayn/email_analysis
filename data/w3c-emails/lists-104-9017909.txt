@@ -1,0 +1,269 @@
+docno="lists-104-9017909"
+received="Sat Mar 30 00:55:51 2002"
+isoreceived="20020330055551"
+sent="Sat, 30 Mar 2002 17:07:43 +1100"
+isosent="20020330060743"
+name="Rick Jelliffe"
+email="ricko@allette.com.au"
+subject="Abstract Schemas, Schematron and Information Item declarations. Re: [xml-dev] RE: DOM AS and RELAX"
+id="037001c1d7b1$3497a060$4bc8a8c0@AlletteSystems.com"
+charset="iso-8859-1"
+inreplyto="4D62A7266F41D611B92C00E018C1C19C0DD4EA&#64;thor.aeathtl.com"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+Cc:<xml-dev@lists.xml.org>
+
+This post deals with two related issues:
+  A) Abstract Schemas
+  B) Information Item declarations
+and in relates two two non-W3C technologies: Schematron and Topologi's <informationItem>
+schema. It then gives the suggestions which I think flow-on in 
+  C) Practical Suggestions for DOM AS
+
+A) Abstract Schemas
+-------------------------
+The DOM AS draft should not define an abstract schema. It defines a minimal grammar.
+
+An abstract schema would have to, by plain language, abstract the common features of all 
+schema languages and  paradigms in some way. So the name is quite misleading. I am
+sure the Schema WG is aware of this, I hope they will look at this again.
+
+An abstract schema language would have to provide all of
+ 1) a context traversal policy (e.g. traverse the document in document order)
+ 2) an abstract context selection mechanism (e.g. select each element, or select
+    the element but use the form attribute value instead of the name if Architectural
+    Forms are being used) 
+ 3) a context-sensitive validator state function (e.g. grammar based validators
+     traverse through a content model so that x in one context has different
+    followers than in another)
+ 4) a validation-rule traversal policy (e.g. validate attributes early, elements on exit)
+ 5) an abstract validation mechanism (e.g. children and attributes for grammars)
+ 6) error-handling policy
+ 7) create emergent properties for subsequent passes
+ 
+We can use these three things to categorize various schema languages abstractly:
+   
+Schematron is multiple invocations of (for each active pattern)
+   1) any traversal policy
+   2) an XPath
+   3) no state
+   4) apply assertions in any order
+   5) an XML expression
+   6) implementation specific, but node-based invalidation or branch invalidation is OK
+   7) N/A
+
+DTDs are
+   1) Document order
+   2) Select current node
+   3) grammar state (plus inclusion context in the case of SGML)
+   4) not defined
+   5) children content model, for attributes check tokenizing, ID uniqueness
+   6) fail 
+   7) extract IDs and IDREFs for IDREF checking
+
+then we can say that the IDREF checking is a subsequent kind of schema.
+
+XML Schemas is something like
+  1) Document order
+  2) Select current node
+  3) grammar state, including local elements
+  4) validate laxly etc
+  5) complex and simple content, children and attributes, and uniqueness
+  6) fail with particular reports 
+  7) extract context for Key and Keyref checking
+
+It seems that the DOMs AS mechanism abstracts away 1) and 2).
+By not providing 3) an element can only be queried "are your contents valid?" 
+but not "are you valid?"
+ 
+B) Information Item Declarations
+----------------------------------------
+
+The AS mixes two things:
+  1) declarations for document integrity
+  2) constraints for validation.
+
+I believe it would be better for these to be treated distrinctly.  In Topologi's
+editor, we provide a file which provides basic declarations
+for sets of information item declarations. This file can be sent in an XAR
+application archive. Here is a reduced version.
+
+<!-- A DTD for declaring sets of information item names.
+       2002 (C) Topologi, Pty, Ltd
+       Rick Jelliffe, ricko@topologi.com
+      The top-level element is information item.
+-->
+<!ELEMENT informationItems
+    ( elementSets?, attributeSets?, entitySets?, processingSets?, commentSets?,
+    notationSets) >
+
+<!ELEMENT elementSets  (elementSet+)>
+<!ELEMENT attributeSets (attributeSet+) >
+<!ELEMENT entitySets (entitySet+) >
+<!ELEMENT processingSets (processingSet+) >
+<!ELEMENT commentSets (commentSet+) >
+<!ELEMENT notationSets (notationSet+) >
+
+<!ELEMENT elementSet  (element+)>
+<!ELEMENT attributeSet (attribute+) >
+<!ELEMENT entitySet (entity+) >
+<!ELEMENT processingSet (pi+) >
+<!ELEMENT commentSet (comment+) >
+<!ELEMENT notationSet (notation+) >
+
+<!ATTLIST elementSet 
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST attributeSet
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST entitySet
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST processingSet
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST commentSet
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST notationSet
+    name NMTOKEN #REQUIRED
+    prefix NMTOKEN #IMPLIED
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+
+<!ELEMENT element  ANY >
+<!ELEMENT attribute  ANY >
+<!ELEMENT entity  ANY >
+<!ELEMENT pi   ANY >
+<!ELEMENT comment  ANY >
+<!ELEMENT notation ANY >
+
+<!ATTLIST element 
+    name NMTOKEN #REQUIRED
+    status ( deprecate | unused | neutral | new ) "neutral" 
+    content ( element | mixed | empty | pcdata | cdata | rcdata | default ) "default"
+    help CDATA #IMPLIED
+>
+<!ATTLIST attribute
+    name NMTOKEN #REQUIRED
+    status ( deprecate | unused | neutral | new ) "neutral" 
+    help CDATA #IMPLIED
+>
+<!ATTLIST entity
+    name NMTOKEN #REQUIRED
+    status ( deprecate | unused | neutral | new ) "neutral" 
+    content ( xml | sgml | dtd | ndata | cdata)     -- cdata means "text", ndata means "binary" --
+    sysid  CDATA       #IMPLIED
+    pubid  CDATA      #IMPLIED
+    help CDATA #IMPLIED
+>
+<!ATTLIST pi
+    name NMTOKEN #REQUIRED
+    status ( deprecate | unused | neutral | new ) "neutral" 
+    help CDATA #IMPLIED
+>
+<!ATTLIST comment
+    name NMTOKEN #REQUIRED
+    status ( deprecate | unused | neutral | new ) "neutral" 
+    help CDATA #IMPLIED
+>
+<!ATTLIST notation
+   name NMTOKEN #REQUIRED
+   status ( deprecate | unused | neutral | new ) "neutral" 
+   help CDATA #IMPLIED
+>
+
+For example, an elementSet gives all the elements in a namespace.  
+Note that there are no schematic rules here: which attributes belong to
+which elements, or which data types anything can have. 
+
+An example of a processingSet might be "the PIs that Arbortext
+Publisher uses". An example of a commentSet might be "Editor
+comments".  (In the Topologi editor, defining these sets allows
+validation of PIs and comments, which then allows the documents
+to be robust enough for friendlier automated tools.)
+
+I think it is useful to consider this kind of declaration in the light
+of, for example, James Clark's advocacy against DTDs. As the
+HTML and MathML working group has discovered, it is not enough
+merely to make a schema language, all the rest has to be considered
+too.  
+
+In the <informationItem> configuration files, we achieve several
+goals for Topologi system integrators:
+  1) We define a namespace (a list of names of elements or attributes)
+  2) We bring comments and PIs to be first-class information items
+  3) We relieve the schema language from having to worry about
+   entity declarations 
+  4) We expose notations which can be used for any datatypes
+     that cannot be fitted into the schema language (or for xsi:type)
+  5) By defining all namespace names, we make "open" schema
+   languages even more useful: Schematron rules do not have to
+   enumerate every possible element, but just concentrate on
+   relationships. 
+  6) The contents of the lowest-level elements contains (undisclosed)
+   instantiation information for elements: default values etc.
+
+If this <informationItems> system were used by DOM, the Sets
+would be a hashtable and each Set would be a hashTable, and
+each item would have a standard interface of its name, some
+help text, and its status to a system.  
+
+C) Practical Suggestions for DOM AS
+---------------------------------------------
+
+1) The DOM ASModel should be reworked into two separate interfaces:
+       ASNamedInformationItems
+       ASConstraintSets
+ 
+2) The ASNamedInformationItems  interface should expose sets of sets of declarations.
+These sets should allow various naming methods as appropriate. The declarations
+should be minimal and be for elements, attributes, PIs, comments, entities, and notations.
+The use case should be to expose all the information in a Topologi <informationItem>
+configuration file, which we would contribute as part of the effort if desired.
+
+3) The ASConstraintSet interface should expose a list of  ASConstraints objects.
+Each ASConstraints object corresponds to a particular schema paradigm:
+I think there are only three really:
+   grammatical constraint, 
+   datatype constraints, 
+   path-based constraints
+Each ASConstraints can have more than one ASConstraint object. 
+
+The grammars in the current DOM AS draft are examples of these, but there
+could be different ones, e.g. RELAX.  Perhaps in order to cop with RELAX NG,
+the WG should at least provide a content model of "extension" which allows
+any element in it in any order and occurrence: this would cope with interleave
+and minimally validate many other things that might come along. 
+
+Cheers
+Rick Jelliffe
+www.topologi.com
+
+
+

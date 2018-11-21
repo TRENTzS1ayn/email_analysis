@@ -1,0 +1,240 @@
+docno="lists-064-0698345"
+received="Fri Jun 30 01:11:06 2000"
+isoreceived="20000630051106"
+sent="Fri, 30 Jun 2000 01:11:06 -0400 (EDT)"
+isosent="20000630051106"
+name="Charles McCathieNevile"
+email="charles@w3.org"
+subject="screen reader friendly output from cal command (fwd)"
+id="Pine.LNX.4.20.0006300110380.21550-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To: WAI ER group<w3c-wai-er-ig@w3.org>
+
+
+Thought this might be of nterest - calendars are one of the tricky table-type
+cases.
+
+Cheers
+
+Charles
+
+--
+Charles McCathieNevile    mailto:charles@w3.org    phone: +61 (0) 409 134 136
+W3C Web Accessibility Initiative                      http://www.w3.org/WAI
+Location: I-cubed, 110 Victoria Street, Carlton VIC 3053
+Postal: GPO Box 2476V, Melbourne 3001,  Australia 
+
+---------- Forwarded message ----------
+Date: Thu, 29 Jun 2000 15:45:31 -0400 (EDT)
+From: A. R. Vener <salt@aero-vision.com>
+Reply-To: blinux-list@redhat.com
+To: blinux-list@redhat.com
+Subject: screen reader friendly output from cal command
+Resent-Date: 29 Jun 2000 19:45:39 -0000
+Resent-From: blinux-list@redhat.com
+Resent-cc: recipient list not shown: ;
+
+
+Hi list,
+I wrote the following perl program to provide a nice 
+screen reader friendly output for the cal program.
+
+I'm enclosing it here as is for the benefit of anyone who may want
+it.
+
+Rudy Vener
+--------------------------cut here----------------------------------
+#!/usr/local/bin/perl
+
+#  bcal - screen reader friendly cal front end
+#
+#   Copyright  June 2000 by Rudy Vener
+#  
+#  This program is made available under terms identical to those of
+#  the GNU Public License. Since the terms are readily available I 
+#  will not repeat them here.
+#
+# Author: Rudy Vener
+# Name:  bcal - a calendar front end formatter for the Unix cal program
+# Purpose: to reformat the output of the cal program into something meaningful
+# to screen reader users and to provide additional constraints to allow 
+# customized reduction and formatting of the output.
+#
+# Modify the next line if needed, according to the location of your cal
+# program.
+$calcmd = "/usr/bin/cal";
+
+
+@monthlist = ('january', 'february', 'march', 'april', 'may',
+'june', 'july', 'august', 'september', 'october', 'november',
+'december');
+
+@ordlist = ( 'first1st','second2nd','third3rd','fourth4th','fifth5th');
+
+@daylist = ('sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 
+'friday', 'saturday');
+
+%cal = {
+'sunday' => '',
+'monday' => '',
+'tuesday' => '',
+'wednesday' => '',
+'thursday' => '',
+'friday' => '',
+'saturday' => ''
+};
+
+# first check for help option
+if ($ARGV[0] eq "-?" or $ARGV[0] eq "-help" )
+{
+  help_msg();
+  exit;
+}
+# parse the arguments
+parse_args(@ARGV);
+
+
+  open (CAL,"$calcmd $month $year |") or die "Cannot execute the cal command\n";
+  # get and hold first two lines
+  $line1 = <CAL>;
+  $line2 = <CAL>;
+  $idx = 0;
+# get the calendar dates formatted grid
+  while (<CAL>)
+  {
+     chomp $_;
+     $_ =~ s/  */ /g;
+     @days = reverse(split(" ",$_)); 
+    $line[$idx] = join(" ",@days);
+    $idx++;
+  }
+  close (CAL);
+  $linecount = $idx - 2;
+# now reformat according to the day of the week
+$idx = 0;
+foreach $key (reverse(@daylist))
+{
+  $dtmp = "";
+  foreach (@line)
+  {
+     @tmp = split(" ", $_); 
+     $idx <= $#tmp and $dtmp = join(" ",($dtmp, $tmp[$idx]));
+   } 
+   $cal{$key} = $dtmp; 
+   $idx++;
+}
+
+# now print it out in a way that makes sense over a screen reader
+# Here is where we use any constraining arguments to limit and format
+# the output
+
+foreach $day (@daylist) 
+{
+   if (defined $dayname and defined $ordval) 
+   {
+     if (index($day, $dayname) == 0) {
+       @dates = split(" ",$cal{$day});
+       $ordval <= @dates or die "No $ordname $day in $monthlist[$month -1]  $year\n";
+       print "$day $monthlist[$month - 1] $dates[$ordval - 1] \n";
+     }
+   }
+   elsif (defined $dayname) 
+   {
+    index($day, $dayname) == 0 and   print "$day $cal{$day} \n";
+   }
+   else
+   {
+    print "$day $cal{$day} \n";
+   }
+}
+
+exit;
+
+  
+
+
+sub parse_args()
+{
+    local ($tmp);
+   
+  foreach $arg (@_)
+  {
+    $tmp = $arg;
+    $tmp =~ y/A-Z/a-z/;
+    
+    $tmp > 12 and $tmp <= 9999 and $year = $tmp;
+    if (length($tmp) > 2)
+    {
+      $idx = 1;
+      if (! defined $month) {
+      foreach (@monthlist) {
+        index($_,$tmp) == 0 and $month = $idx;
+        $idx++;
+        defined $month and last;
+      }
+      }
+      if (! defined $dayname) {
+      foreach (@daylist) {
+        index($_,$tmp) == 0 and $dayname = $_;
+        defined $dayname and last;
+      }
+      }
+      $idx = 1;
+      if (! defined $ordval) {
+      foreach (@ordlist) {
+        index($_,$tmp) >= 0 and $ordval = $idx and $ordname = $tmp;
+        $idx++;
+        defined $ordval and last;
+      }
+      }
+    }
+  }
+# make up for missing arguments
+  defined $year or   $getyr  = `date "+\%Y"`;
+  defined $getyr and $getyr >= 1999 and $getyr <= 9999 and $year = $getyr;
+  defined $month or $getmonth = `date "+\%m"`;
+  defined $getmonth and $month = $getmonth * 1;
+  
+
+  defined $year or die "Invalid year \n";
+  defined $month or die "Invalid month \n";
+}
+
+sub help_msg()
+{
+print "
+
+Usage: bcal <arglist>
+
+arglist may contain arguments in any order. Arguments 
+may include
+
+month - either by name january to december or value from 1 to 12. Case 
+   insensitive and only first three letter of the name are required.
+year  - numerical from 1 to 9999
+day -- by name, limiting output to dates for that day. First three letter
+   of the name are required, case insensitive.
+date ordination -  from first to fifth by name or numerical abbreviation.
+          E.g. first, second, 3rd, 5th, etc.
+
+examples:
+  bcal  # with no arguments returns all dates for current month and year in 
+      screen reader frendly format
+   bcal first thurs july  2001
+    returns:  thursday july 6
+
+    
+";
+}
+
+---
+Send your message for blinux-list to blinux-list@redhat.com
+Blinux software archive at ftp://leb.net/pub/blinux
+Blinux web page at http://leb.net/blinux
+To unsubscribe send mail to blinux-list-request@redhat.com
+with subject line: unsubscribe
+
+
+

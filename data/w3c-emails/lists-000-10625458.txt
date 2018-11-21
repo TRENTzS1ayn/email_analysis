@@ -1,0 +1,81 @@
+docno="lists-000-10625458"
+received="Fri Mar 24 12:46:23 2000"
+isoreceived="20000324174623"
+sent="Fri, 24 Mar 2000 11:45:24 -0600"
+isosent="20000324174524"
+name="html-tidy@war-of-the-worlds.org"
+email="html-tidy@war-of-the-worlds.org"
+subject="Even numbers of nested CM_INLINE tags get removed (both)"
+id="OF668E7336.8F60B17E-ON8625685D.007BF95F@rfdinc.com"
+charset="us-ascii"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+
+Anyone else notice that HTML Tidy is removing paired instances of nested
+presentational style tags (CM_INLINE)?  E.g.
+
+<HTML>
+<HEAD>
+<TITLE>Paired nested inline styles lost</TITLE><BODY>
+<DL>
+<DT>Bold test (other CM_INLINE tags affected)</DT><B>This is bold</B><BR>normal<BR><B><B><B><B>This is 4x bold</B></B></B></B> which becomes normal
+</DD>
+
+<DT>BIG test (also exists with SMALL)</DT>Normal size text (size = 3)<BR><BIG><BIG>2x big text (size = 5)</BIG></BIG> which becomes normal size
+(3)<BR>becomes big
+(size 4)<BR>6)</BIG></BIG></BIG></BIG> which
+becomes normal size (3)
+</DD>
+</DL>
+</BODY>
+</HTML>
+
+It doesn't matter whether the tags are directly nested or not.
+
+I have a partial patch for this.  In parser.c function ParseInline, if you
+replace the cited if with:
+
+         /* <u>...<u>  map 2nd <u> to </u> if 1st is explicit */
+        /* otherwise emphasis nesting is probably unintentional */
+        if (node->type == StartTag
+            && IsPushed(lexer, node)
+            && node->tag && (node->tag->model & CM_INLINE)
+            && node->tag != tag_a
+            && node->tag != tag_font
+            && node->tag != tag_big   /* big has a cumulative effect */
+            && node->tag != tag_small /* small has cumulative effect */
+        {
+
+in html.h, add:
+
+extern Dict *tag_big;
+extern Dict *tag_small;
+
+and in tags.c, add:
+
+Dict *tag_big;
+Dict *tag_small;
+
+and, again in tags.c, in InitTags, add:
+
+    tag_big = lookup("big");
+    tag_small = lookup("small");
+
+and that will address the issue of removal of BIG and SMALL tags (which, as
+commented, have a cumulative effect, so their being repeated may not be a
+mistake, only bad style, more efficiently replaced with, e.g. FONT SIZE of
+appropriate relative adjustment according to level of nesting), but not the
+erroneous removal of even numbers of the other CM_INLINE tags when nested.
+--
+         ,=<#)-=#  <http://www.war-of-the-worlds.org/>
+    ,_--//--_,
+ _-~_-(####)-_~-_  "Did you see that Parkins boy's body in the tunnels?"
+"Just
+(#>_--'~--~`--_<#)  the photos.  Worst thing I've ever seen; kid had no
+face."
+
+
+

@@ -1,0 +1,259 @@
+docno="lists-009-12153031"
+received="Thu Nov 16 05:58:19 1995"
+isoreceived="19951116105819"
+sent="Thu, 16 Nov 1995 14:52:29 +0100 (MET)"
+isosent="19951116135229"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="More notes on content negotiation"
+id="199511161352.NAA00966@wswiop05.win.tue.nl"
+charset="USASCII"
+inreplyto="199511132303.XAA08032&#64;wswiop05.win.tue.nl"
+expires="1"
+
+
+To: Koen Holtman<koen@win.tue.nl>
+Cc:fielding@avron.ICS.UCI.EDU,koen@win.tue.nl,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+As promised, here are some more notes on content negotiation.  The
+text below assumes that you know what a `negotiation port' and
+`variant set' is, see my previous message.
+
+Reactive negotiation
+--------------------
+
+There are two possible forms of two-round-trip reactive negotiation.
+They start out the same:
+
+1) Client sends a request with some small set of accept headers X
+   to a negotiation port on URI P
+
+2) Server calculates the quality values for its variants, but has
+   insufficient information in the headers X to determine which
+   variant would match best to the client capabilities.  Server
+   responds with a 300 Multiple Choices or 406 None Acceptable
+   response containing an encoding of the variant set V bound to P,
+   also listing some of the properties of the variants.
+
+First form: early reactive negotiation (as in the v10-spec-01 text)
+
+3A) Client chooses the URI U with the highest quality from the variant
+    set V and issues a request for the contents of U
+
+4A) Server sends back the contents of U
+
+I call this _early_ reactive negotiation because the variant selection
+is done early, in step 3A.
+
+Second form: late reactive negotiation (new, proposed)
+
+3B) Client sends a new request on the negotiation port P with
+    _different_ accept headers Y. The headers Y are 
+      i) for naive clients: headers containing all configured MIME
+         types, languages, etc.
+     ii) for sophisticated clients: headers containing a subset of the
+         configured MIME types, languages, etc. constructed by looking
+         at the variant properties in the variant set returned in 
+         step 2): the headers Y would allow the server to
+         unambiguously select the variant with the best quality.
+    The client also sends a special `you-choose-one' flag that will
+    force the server to choose and send back one of the variants in
+    its variant set.  If the `you-choose-one' flag is present, the
+    server may not send a 300 Multiple Choices or 406 None Acceptable
+    response, even if the accept headers still give an ambiguous match
+    to the variant set.
+
+4B) The server selects the response with the highest quality based on
+    the accept headers Y and sends it back.
+
+I call this _late_ reactive negotiation because the variant selection
+is done late, in step 4B.
+
+The only thing that is needed to add late reactive negotiation to the
+protocol would be the introduction of the `you-choose-one' flag.  We
+may want to introduce such a flag anyway to make 1.0->1.1 request
+translation in proxies easier.  I propose to introduce such a flag.
+
+Using the `vary' fields in the URI header, proxies can safely cache
+all transactions in the two kinds of reactive negotiation described
+above.
+
+If late reactive negotiation is added to the protocol, making a
+minimal implementation of a negotiation conformant client is very
+simple, because the client would not have to have a `variant selection
+engine' that matches up a user agent profile with a variant set to
+determine the best variant.
+
+Also, if early reactive negotiation is taken out of the protocol,
+`variant selection engines' are only needed in proxies and origin
+servers, not in user agents.  That could make it a lot less painful to
+introduce new variant selection engine functionality in subsequent
+protocol versions.
+
+Instead of taking early reactive negotiation out completely, we could
+also define circumstances under which a client side `variant selection
+engine' would produce a `cannot determine which variant is best'
+result, which would cause late reactive negotiation to be used.  One
+of those circumstances could be that the client side `variant
+selection engine' has a lower `engine version number' than the
+required version number attached to the variant set.  Again, this
+would allow smooth upgrades to higher levels of engine complexity.
+
+Perhaps even more importantly, having a safe way to disable the
+client/proxy side `variant selection engine' would allow service
+providers to use special purpose variant selection algorithms that
+cannot be `run' on client-side `variant selection engines'.  One
+example of such a special purpose algorithm is negotiation around
+known bugs in user agents based on the user-agent header.
+
+
+User-agent header based negotiation
+-----------------------------------
+
+One of the requirements I have for HTTP/1.1 content negotiation is
+that variant selection based on the contents of the User-Agent header
+sent by the user agent is efficient.  In my opinion, the v10-spec-01
+negotiation text does not satisfy this requirement.
+
+In a typical example, the origin server has 3 different versions of a
+HTML page under negotiation port URI /some/report:
+
+  /some/report.html.1 : HTML page without tables
+  /some/report.html.2 : HTML page with tables and tables-in-tables
+  /some/report.html.3 : HTML page with tables but no tables-in-tables, 
+                 because they would trigger a bug in user agent X.
+  /some/report.dvi    : document in dvi file format
+
+The origin server would use some specialized variant selection rules,
+e.g. based on a database of client capabilities at the server side, to
+select the proper version of the HTML page if the client has no dvi
+viewer capabilities (with a high enough quality).  Proxy caches and
+user agents have no hope of doing this negotiation on behalf of the
+origin server.
+
+In the case of user agents, this shows that `variant selection
+engines' in user agents _must_ have the option of saying `cannot
+determine which variant is best' and delegate the decision to the
+origin server (as in late reactive negotiation).  The alternative
+would be for origin servers to 1) never combine user-agent negotiation
+with other negotiation, so that it can always be done preemptively or
+2) tailor variant sets sent in URI headers for each user agent, so
+that the client side variant selection engines can never select the
+wrong variant. But then you get into problems with proxy caches that
+serve more than one kind of user agent, so you would have to disallow
+caching.
+
+Suppose that a proxy cache serving a large number of different user
+agents already has the /some/report variants /some/report.html.1 and
+/some/report.html.2 already in cache.
+
+Now, suppose that the proxy gets a request for /some/report from a user
+agent with a user-agent string X it has not yet seen in earlier
+requests for /some/report. It will then need to relay the request to the
+origin server, and the origin server will (either immediately or in a
+reactive negotiation response) send a reply with the correct variant,
+which happens to be variant 2, to the proxy.  But this is wasteful,
+the proxy already had variant 2 in cache memory.
+
+I therefore propose a new GET request header:
+
+  Send-no-body-for: <list of variant URIs> ,
+
+which would cause a server serving a GET request on a negotiation port
+to omit sending back the body of the selected variant if the
+(Location) URI of that variant is in the list.
+
+For the example above, the GET request would look like:
+
+ GET /some/report HTTP/1.1
+ User-Agent: X
+ Accept: <something indicating that the user agent cannot
+          handle dvi files>
+ Send-no-body-for: /some/report.html.1 /some/report.html.2
+ ....
+
+and the response would be
+
+ 20x No Body
+ Location: http://blah.com/some/report.html.2
+ ....
+ (no response body here)
+
+If we have this header, it is not that bad if the `variant selection
+engine' in the proxy is unable to select the appropriate variant for a
+previously unseen combination of varying request headers.  Being
+unable to select would cost time because the origin server has to be
+contacted, but it would hardly cost any bandwidth.
+
+Thus, if we have this header, there is a lot less pressure on `variant
+selection engines' in proxies and user agents to always produce a
+definite result.  Producing a `cannot determine which variant is best'
+would only cause an overhead comparable to a conditional GET request.
+This lack of pressure would allow the `variant selection engine' we
+need to standardize in the HTTP protocol to be simple, which is a good
+thing.
+
+We could even decide to do away with `variant selection engines' in
+proxies and user agents altogether, and use late reactive negotiation
+only.
+
+
+Summary of requirements mentioned in these notes
+------------------------------------------------
+
+- We need a `superstructure' to the content negotiation headers to
+allow these headers to be discussed and defined more easily.
+
+- The content negotiation mechanism should allow a clear presentation
+of all available variants to the end user.
+
+- The mechanism should allow negotiation based on the User-Agent
+header to be efficient.
+
+- The mechanism should not put too much pressure on client side
+`variant selection engines' to always produce a definite result.
+
+- There should be a way to bypass client side `variant selection
+engines' to allow use of variant selection algorithms not (yet)
+supported by those engines.
+
+
+Summary of proposals in these notes
+-----------------------------------
+
+For meeting these requirements in HTTP/1.1, I propose that
+
+1) there should be a negotiation model like the `negotiation port
+model'.
+
+2) for each response header in a negotiated response, it should be
+defined whether it applies to the the variant set bound to the
+negotiation port, the variant chosen, or the response as a whole.
+
+3) The exact semantics of Expires headers and conditional GETs for
+negotiated URIs need to be defined.
+
+4) there should be a `you-choose-one' flag in requests to force a
+server to select one variant.  This allows for safe late reactive
+content negotiation and may also be nice for 1.0->1.1 gateways.
+
+5) there should be a Send-no-body-for: <list of variant URIs> request
+header to make content negotiation more efficient and take some
+pressure off the requirements for client-side `variant selection
+engines'.
+
+6) Client side `variant selection engines' must have the option of
+saying `cannot determine which variant is best' and leaving the
+variant selection to the server.
+
+7) To allow service providers to bypass client side `variant selection
+engines' when implementing a negotiation algorithm that cannot be
+`run' on such engines, the protocol must define at least one situation
+in which the client side `variant selection engine' must take itself
+out of the loop and leave the variant selection to the server.
+
+Koen.
+
+
+

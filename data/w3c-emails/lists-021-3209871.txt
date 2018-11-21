@@ -1,0 +1,123 @@
+docno="lists-021-3209871"
+received="Wed Nov  5 14:29:28 2003"
+isoreceived="20031105192928"
+sent="Wed, 5 Nov 2003 21:29:50 +0200"
+isosent="20031105192950"
+name="Dmitry Borodaenko"
+email="d.borodaenko@sam-solutions.net"
+subject="Ruby RDF API proposal (Was: Re: rubyrdf)"
+id="20031105192950.GA8485@sam-solutions.net"
+charset="us-ascii"
+inreplyto="1063320437.6697.10.camel&#64;mizar.nbtsc.org"
+expires="-1"
+
+To: RDF-Ruby list<public-rdf-ruby@w3.org>
+
+
+
+Late is better than never... :)
+
+On Thu, Sep 11, 2003 at 04:47:18PM -0600, Aredridel wrote:
+> > One thing in particular I would like to see is decoupling of all
+> > these components and development of a common RDF API for Ruby. And
+> > then have different projects such as RubyRdf, Redland, Samizdat, map
+> > to different parts of this API.
+> I, too, would like to see this. 
+> 
+> The OO Graph/Statement/Node approach is a good start.  Being able to say
+> RedlandStore.new("file.rdf").store(Samizdat.ask(nil, nil, nil)) 
+> 
+> or equivalent would be killer -- common APIs for Node and Statement
+> enough that perhaps only Graph is implementation specific, and even
+> that would have enough of a common API that pretending they're the
+> same would work.
+
+I was reading "Enabling Semantic Web Programming by Integrating RDF and
+Common Lisp" by Ora Lassila and thought that similar approach should
+work in Ruby. That is:
+
+class Node
+    def initialize(uri=nil)
+        @uri = uri
+    end
+
+    def [](property)
+        node = Dictionary[property] if
+            property.class != Node and property =~ URI::REGEXP::URI_REF
+        triple = db[ Triple.new(node, self, nil) ]
+        triple.object
+    end
+end
+
+class Dictionary
+    include Singleton
+
+    def initialize
+        @dict = {}
+        @ns = {}
+    end
+
+    attr_reader :ns
+
+    def [](uri)
+        @dict[ ns_expand(uri) ]
+    end
+end
+
+class Triple
+    def initialize(p, s, o, source=nil)
+    end
+
+    attr_accessor :predicate, :subject, :object, :source
+end
+
+class DB
+    def initialize(db=SamizdatRDF.new(nil))
+        @db = db
+    end
+
+    def [](pattern, limit=nil)
+        case pattern
+        when Triple   # single-triple pattern
+when Array   # multi-triple pattern
+        when SquishQuery   # parsed Squish query
+        when String   # non-parsed Squish query
+        end
+    end
+
+    def []=(pattern, values)
+    end 
+end
+
+I hope there are no objections to the proposed (ab)use of square
+brackets :)
+
+Most controversial part of this proposal is the ordering of (predicate,
+subject, object). It seems to be more popular to put predicate in the
+middle, but I like the (p, s, o) order used in Squish better: prefix
+notation is more widespread in computer languages, and it reflects that
+p is more restricted than s, which in turn is more restricted than o (in
+non-reified statement, p is restricted to uriref, while s can also be a
+blank node, and o can also be a literal).
+
+How to deal with extensions of RDF concepts such as Triple#source and
+Dictionary#ns ? This begs for an optional part of API, but it can get
+really complicated to track all possible cases of when these optional
+features are or aren't implemented.
+
+Behaviour of DB#[] and DB#[]= is not as obvious as the rest of the API.
+I am in favor of following DQL (DAML Query Language) semantics as the
+most consistent abstract RDF query specification out there. Are there
+any other suggestions?
+
+And I don't like Ora's use of DB class name: I would rather leave DB for
+SQL databases, and have this class named RDF, or KB (knowledge base), or
+something else. As Matz says in his excellent talk at OSCON, choosing
+right names is very important. What name would unambiguously pin down
+this concept?
+
+-- 
+Dmitry Borodaenko
+
+
+

@@ -1,0 +1,143 @@
+docno="lists-026-3714695"
+received="Thu May 22 09:38:26 2003"
+isoreceived="20030522133826"
+sent="Thu, 22 May 2003 14:37:51 +0100"
+isosent="20030522133751"
+name="Mark Little"
+email="mark.little@arjuna.com"
+subject="Re: Co-ordination protocol and BPEL"
+id="000701c32067$57a13990$b596f080@exhp"
+charset="iso-8859-1"
+inreplyto="221369570DEDF346AE42821041345E89194D88&#64;exchange1.corp.choreology.com"
+expires="-1"
+
+
+To:"Furniss, Peter"<Peter.Furniss@choreology.com>,"Assaf Arkin"<arkin@intalio.com>,"Ricky Ho"<riho@cisco.com>
+Cc:<public-ws-chor@w3.org>
+
+
+> For the sequence case, unless the first message is explicitly defined as
+> being the first of a conversation, and that definition says that a
+> context on it is implicit to the rest of the conversation, I'd kind of
+> assume that each message has it's own context.
+
+Agreed and there are systems out there that do this by making context a
+first-class entity that can be shipped around without an explicit
+application message. Obviously you need an equivalent of "close", though
+this can be implicit (if you receive another context) or could be on
+transaction termination.
+
+> Of course, these could
+> always be the same context, meaning each of them are part of the same
+> transaction.
+>
+
+[stuff deleted]
+
+> Shouldn't the receiver/participant trust the "someone" to mean what they
+> say too ? If they said commit in relation to the context they sent, then
+> they want a commitment on what they've asked for so far. If the receiver
+> can do that to be internally consistent, it should vote commit. It's up
+> to the other end to decide what the totatlity is.
+
+I agree and think "autonomous" commitment is important. Why rollback the
+transaction if the ultimate result of the transaction is to commit anyway?
+
+> > Since you haven't yet completed the sequence you can't compensate for
+> > it. Instead you get a terminate fault and handle it. However,
+> > since you
+> > already did some activities you may have nested scopes with their own
+> > compensation handlers which you would invoke from the event
+> > handler of
+> > the sequence.
+>
+> what you do to undo things is surely implementation detail - of no
+> concern to the top-end, and not needing to be distinguished in the
+> coordination protocol (contra ws-t). "cancel", "compensate" and
+> "rollback" all mean "make it not so". The receiver must know its own
+> state and work out how to revert, to the best of its ability.
+>
+>
+> >
+> > > 4) What if the second <receive> pass in a different context ?  (the
+> > > only way to prevent this happening is to use the context
+> > itself as the
+> > > correlation set)
+> >
+> > Good question.
+>
+> if it was sent in a different context, it was meant in a different
+> context (as Arkin says, you must mean what you say). If the receiver
+> can't do the work separately, (and the requestor doesn't shortly confirm
+> the first transaction), then this use isn't going to work. But generally
+> it would be quite reasonable to do things step by step, confirming each
+> one. And, depending what this is, it could be just as reasonable to send
+> a sequence then confirm the effects of 1, 3 and 6 but cancel 2,4 and 5.
+> (or as the requestor pleases).
+
+Being able to run concurrent units of work and then confirm or cancel them
+is certainly important.
+
+>
+>
+>
+> > In EJB if you have a session bean and you call it twice in
+> > two different
+> > transactions then the access would be serialized or you would get an
+> > error. I don't exactly remember which case is true, but you won't get
+> > two invocations from two transactions for the same bean if one
+> > transaction has not completed yet.
+> >
+> > So I would tend to believe that the rule should be that all incoming
+> > messages should either be part of the same scope, part of a
+> > child scope
+> > (if that activity is defined as part of a child scope), or not
+> > associated with any scope. But it can't be part of a different scope
+> > unless it observes a parent-child relationship.
+>
+> Parent-child would be common, but again, if the application+coordination
+> protocol combination allows the sender to communicate a different wish,
+> it is possible to obey it.
+>
+>
+> > > Lets say I'm an airline company.  I don't want to reserve
+> > the seat for
+> > > a lengthy period and later cancel it when the passenger change his
+> > > mind.  So my strategy is to only book the seat when the customer
+> > > commits its purchase.  After that, I don't refund (so not
+> > > compensatable from the passenger's perspective).
+> > > The original state of the seat is "available".  When the passenger
+> > > invoke my "TicketBookingService", the seat is marked
+> > > "potentially-booked".  When the transaction commit
+> > successfully, the
+> > > seat status to be "booked".  After that, it is non-compensatable.
+> > >
+> > > How do I achieve this if I only have the CompensationHandler ?
+>
+> excellent example - you are getting pushed out of shape by a protocol
+> that thinks it knows how the world always works, and this bit doesn't.
+>
+> The general case is
+> perform provisional work such that you can later:
+>
+> make it not so, if so instructed
+> make it finally so, if so instucted
+>
+> (slot in as many synonyms for provisional, make it not so, make it so as
+> you please)
+>
+> so, I agree, you need at least two "handlers". Whether these are defined
+> as mainstream and exception, or both as event handlers is mostly a
+> matter of how the language works, I think.
+
+I'm not convinced you need at least two: one definitely - the ability to
+undo. If you talk to companies that do long running work and have done so
+for years you'll find that that vast majority of work is never cancelled and
+they use a very optimistic approach - the work is done and 1% of the time it
+is compensated. However, I suppose a two handler approach would still fit
+this since the confirm would be a  null-op in this case.
+
+Mark.
+
+
+

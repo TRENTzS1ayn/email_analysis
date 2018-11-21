@@ -1,0 +1,163 @@
+docno="lists-039-0798770"
+received="Sat May  1 13:20:58 1999"
+isoreceived="19990501172058"
+sent="Sat, 1 May 1999 13:20:54 -0400"
+isosent="19990501172054"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="A proposal for Advanced Collection binding semantics"
+id="9905011720.AA05533@tantalum"
+inreplyto="85256764.00093110.00&#64;D51MTA07.pok.ibm.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+I've modified my proposal for advanced collection bindings semantics
+based on the recent DELETE thread.  I'll attach what I've currently got.
+
+Cheers,
+Geoff
+
+----------------------------------------------------------------
+
+- Advanced Collections and Bindings
+
+The state of an advanced collection includes a set of "bindings".  A
+binding is an association of a name (a string) with a resource.  A
+legal binding name must satisfy the constraints for a URL path segment,
+as defined by section 3.3 of RFC 2396.  (Note: if the definition of
+"internal member name" is fixed in RFC 2518, we can just use that as
+the binding name).
+
+If a server maps a URL, "/xxx/" to an advanced collection resource R1,
+a URL "/xxx/yyy" is an internal member of R1 if and only if the state
+of R1 includes a binding of "yyy" to some resource.  Thus the bindings
+of a collection effectively enumerate the internal members of the
+collection.  All operations that add or delete internal members of an
+advanced collection modify the bindings of that advanced collection.
+
+For example, suppose http:/host/path/ is mapped to an advanced
+collection resource R1, and http://host/path/index.html is not
+mapped to a resource.  Then:
+
+  PUT http://host/path/index.html HTTP/1.1
+
+creates a new resource, R2, and adds a binding in R1 of "index.html"
+with R2.
+
+
+- The BIND method
+
+The new BIND method is provided to allow direct manipulation of
+bindings.  In particular, BIND can be used to create a new binding to
+an existing resource, or to modify an existing binding (by associating
+it with a different resource).
+
+For example, suppose http://host/path/ is mapped to an advanced
+collection resource R1, and R1 contains a binding of "index.html" with
+resource R2, then the request:
+
+  BIND http://host/path/index.html
+  Destination: http://host/path/dummy.html
+
+will add to R1 a binding of "dummy.html" with R2.  Note that this
+results in two bindings to the same resource in the same collection.
+If http://host/public/ is mapped to an advanced collection resource R3,
+and R3 contains a binding of "test.html" with resource R4, then
+the request:
+
+  BIND http://host/path/index.html
+  Destination: http://host/public/test.html
+
+will change R3 by deleting the binding of "test.html" with R4 and adding
+the binding of "test.html" with R2.
+
+
+- Bindings vs. URL-Mappings
+
+It is important to distinguish a "binding" provided by an advanced
+collection from a "URL-mapping" provided by a web server.  In
+particular, a binding is the part of the state of an advanced
+collection that associates a a URL segment with a resource, while a
+URL-mapping is maintained by a server from a URL to a resource.
+
+The two concepts are related in that bindings induce URL-mappings.  In
+particular, if there is a URL-mapping from a URL to an advanced
+collection, then for each binding in that advanced collection, the
+server MUST provide a URL-mapping from the URL extended by the binding
+name to the resource associated with the binding.
+
+But the inverse does not hold, namely, the fact that the server maps
+two URL's to the same resource doesn *not* imply that this resource
+must be an internal member of an advanced collection, *nor* does it
+imply that there must be two bindings to that resource.  For example,
+if the server maps http://host/todays-weather.html to the same
+resource as http://host/5-1-1999-weather.html, this does not imply
+that http://host is an advanced collection, nor that there are two
+bindings to this resource.
+
+
+- DELETE of an Advanced Collection Internal Member
+
+To "delete" a resource, R1, that is an internal member of an advanced
+collection, R2, means to remove the binding with R1 from the set of
+bindings in R2.
+
+Since there can be multiple bindings to a resource in the same or in
+different advanced collections, the binding to be removed is
+determined from the URL to which the DELETE request is applied.  In
+particular, in the request "DELETE /xxx/yyy", then the binding that is
+removed is the binding named "yyy" in the advanced collection to which
+the server maps the URL "/xxx/".
+
+For example, suppose http://host/public/ maps to a collection resource
+R1, and R1 contains a binding of "index.html" with resource R2, then
+the request:
+
+  DELETE http://host/public/test.html HTTP/1.1
+
+removes from R1 the binding of "test.html" with R2.
+
+Note: This definition of delete is compatible with RFC-2068, but is
+not compatible with wording in RFC-2518.  I support Jim Whitehead's
+proposal that the wording in RFC-2518 be modified in order to allow
+this definition of delete.
+
+
+- MOVE of an Advanced Collection Internal Member
+
+The move of a resource to an advanced collection creates a new binding
+in that advanced collection to that resource.  The move of a resource
+from an advanced collection deletes it from that advanced collection.
+
+For example, suppose http://host/path/ is mapped to an advanced
+collection resource R1, R1 contains a binding of "index.html" with
+resource R2, http://host/public/ is mapped to an advanced collection
+resource R3, and R3 contains a binding of "test.html" with resource
+R4.  Then the request:
+
+  MOVE http://host/path/index.html HTTP/1.1
+  Destination: http://host/public/foo.html
+
+removes from R1 the binding of "index.html" with R2, and creates a new
+binding in R3 of "foo.html" with R2.
+
+- Implementor's Note
+
+If the binding with the existing resource cannot be made in the
+destination advanced collection (such as when the destination
+collection is on another server), a server can achieve the effect of a
+MOVE by creating a new resource R5 which is a copy of R2, deleting the
+binding of "index.html" with R1, fixing up all other bindings with R1
+to be bindings with R5, and then creating a new binding in R3 of
+"foo.html" with R4.  With this approach, if the bindings cannot be
+fixed up, the MOVE request MUST fail.
+
+Since most servers do not support cross-server bindings, a client
+should expect a request for a cross-server MOVE of a resource with
+multiple bindings to fail.
+
+
+

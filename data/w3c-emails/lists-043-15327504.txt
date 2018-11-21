@@ -1,0 +1,246 @@
+docno="lists-043-15327504"
+received="Tue Oct 12 16:07:27 1999"
+isoreceived="19991012200727"
+sent="Tue, 12 Oct 1999 16:07:20 -0400"
+isosent="19991012200720"
+name="Lightning"
+email="lightning@pacificcoast.net"
+subject="[Moderator Action] Re: First draft of Section 7.6 and proposed   sections 4.3.1 and 4.3.3"
+id="3.0.5.32.19991012160720.00938430@localhost"
+charset="us-ascii"
+expires="-1"
+
+
+To:"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+
+Hi Donald,
+
+Great feedback.  Here are some points of agreement and some points of
+consideration (though I find your points amenable).
+
+=====================================
+Regarding the addition of fragments to Location:
+
+I was also quite troubled by not being able to do a simple ID reference in
+the Location.  Either way this ends up going, it shouldn't impact a lot of
+the material in 7.6.  However, I did do a fair amount of background reading
+through many of the specs (which is why it took me so long to write, even
+though for the sake of terseness it doesn't necessarily come across).
+According to RFC2396, the fragment part after URI# is not assumed to be an
+ID reference into XML.  "It is a property of the data resulting from a
+retrieval action, regardless of the type of URI used in the reference.
+Therefore, the format and interpretation of fragment identifiers is
+dependent on the media type [RFC2046] of the retrieval result".  So, if we
+follow the consistency angle to the end, it seems that we have to be
+prepared for someone putting a full-blown XPointer after the URI#, or for
+that matter any document-specific, arbitrarily complicated reference
+expression after the URI#.
+
+Actually, this isn't overly troublesome since applications will still have
+the Type information (Section 4.3.2) to help decide which parser to run on
+the material after the # (or if the application can process the fragment at
+all).  The parts that are a little more troublesome are as follows:
+
+1) It is not possible to distinguish between XPath and XPointer in Location
+whereas it is possible under the current formulation of section 7.6.  Aside
+from inconsistency, this actually could be useful for those who are in those
+constrained situations and feel that XPath support is sufficient whereas
+XPointer is too burdensome.
+
+2) Applications would need two quite different algorithms for determining
+whether they could support partial document signatures.
+
+To be honest, I like using a URI-reference rather than a URI in Location,
+and would be fine with seeing it in both places.  I just wanted you to know
+that it wasn't a spur-of-the-moment recommendation.  These are the issues I
+came up with, and they seemed important enough to put forward for
+consideration.  Hopefully we can discuss this at the next teleconference and
+decide how it should be.  I'll be happy to reword the sections in accordance
+with the decisions made.
+
+===============================================
+Regarding default canonicalization versus no Transformations
+
+>I believe consensus was no transformation.  If some default
+>canonicalization was applied, it would have to be data type dependent
+>since even minimal canonicalization doens't make much sense for, say,
+>a JPEG file.
+
+I agree wholeheartedly and will be quite happy (relieved in fact) to change
+this.  The comment was actually copied from the existing spec.  Given the
+other changes I recommended, perhaps it would've been wiser to recommend
+changing that too.  However, I assumed the default would end up being null
+c14n anyway.  It seems best to leave the data alone unless an 'explicit'
+statement of Transformation is made.
+
+==================================
+Regarding Handling of Encoding Information
+
+>><p>The <code>Transformations</code> element contains an ordered list
+>>of <code>Transformation</code> elements.  The output of each
+>><code>Transformation</code> serves as input to the next
+>><code>Transformation</code>.  The input to the first
+>><code>Transformation</code> is the raw data result of obtaining the
+>>resource given by <code>Location</code>.
+>>The output from the last <code>Transformation</code> is the input for the
+>>digest algorithm.</p>
+>
+>I believe that encoding information should be input to the first
+>transformation and passed along, possibly changed by some
+>transformations.
+
+I don't understand. The two places where encoding comes into play are 1)
+encoding the actual Transformation element's content, and 2) Encoding of the
+object indicated by Location, which will be decoded by some Transformation.
+
+In the former case it is obvious that encoding information should not be
+passed along since it applies only to the immediate transform, which must be
+decoded so we can find out what the transform is supposed to do (e.g. a Java
+class for decompression).  In the latter case, it seems neither necessary
+nor always feasible to pass encoding information along.  Suppose an
+application puts some base64 encoded data into an element as follows:
+
+<MyData id="Data1">
+    asdfasdfasdfasdfasdfasdfadsf
+</MyData>
+
+If they wanted to mark Data1 as base64 encoded, they would have to use *our*
+base64 encoding marker (currently urn:dsig:base64) rather than there own.
+This is why I thought it would be best to denote the encoding in one of
+*our* elements (namely, a Transformation that brings about base64 decoding).
+Furthermore, this means that the decoding can be preceded by other
+transformations.  For example, to meet requirement 3.1.7, the necessary
+transformation sequence for recovering the original data out of Data1 is
+
+<Transformations>
+    <Transformation
+Algorithm="urn:dsig:xpointer">id("Data1")/descendant::text()</Transformation
+>
+    <Transformation Algorithm="urn:dsig:base64"/>
+</Transformations>
+
+or, if one allows fragments in Location
+
+<Location>#Data1</Location>
+<Type>text/xml</Type>
+<Transformations>
+    <Transformation
+Algorithm="urn:dsig:xpath">descendant::text()</Transformation>
+    <Transformation Algorithm="urn:dsig:base64"/>
+</Transformations>
+
+Either way, it seems that the easiest way for an application to indicate
+that the content was base64 encoded is to put a base64 decoding
+transformation at the appropriate place in the list rather than having an
+attribute on MyData that must be passed through the descendant::text()
+transform (despite the intended semantic of throwing out the start and end
+tags and the attributes).
+
+=================================
+Regarding Parameterization of Transforms
+
+I am glad you also like the view that the transformation element content is
+opaque to us if the Transform is not one of the defined algorithms.
+
+========================================
+Regarding Stating Recommendations in the Positive
+
+Quite true, it reads a lot better that way.  Applications should use the
+enumerated algorithms in Section 7.6 whenever possible.  I'll be happy to
+change that immediately.
+
+======================
+Regarding These Comments
+
+
+These were copied from the current spec.  I can reword the first, and Dave
+can move and/or reword the second.
+
+>><p class="comment">Implementation Comment: When transformations are
+applied
+>>the signer is
+>>not signing the native (original) document but the resulting (transformed)
+>>document that
+>>is not captured explicitly in the signature syntax. Where transformation
+>>processes are
+>>well known and widely implemented an application might include native
+>>content and specify
+>>transformations by reference. Otherwise, an application may perform
+>>transformations on the
+>>content itself and use the resulting content within the signature. </p>
+
+>I think I know what you are trying to say but I'm not sure it quite
+>says it.  For example, the base64 of an "original" binary MPEG might
+>be included and the Transform used to retore it to its original form.
+
+
+>><p class="comment">Security Comment: Applications are recommended to
+ensure
+>>signers
+>>understand the actual resulting content that is being signed after
+>>transformations are
+>>applied. Users should not be tricked into signing a native content that is
+>>transformed
+>>into something that the user would not have signed otherwise. This
+>>recommendation applied
+>>to transformations specified in the signature block, as well as
+>>transformations found
+>>within the document itself. </p>
+
+>Comments along this line are definitely needed but should be in the
+>Security Considerations section.  A reference to that section could be
+>included here.
+
+
+
+
+=====================================
+Regarding  the Canonicalization Transformation
+
+>
+>I think there will be few enough standard canonicalization algorithms
+>that they can have different algorithm values.
+>
+>Null, Minimal, DOMcanon, W3Ccannon.  DOMcanon might take a parameter
+>or have versions to determin (1) if it discards comments and (2) if
+>it discards Processing Instructions.
+>
+
+I agree that there are few c14n algorithms, but we already enumerate them in
+the c14nalg element (or whatever it will end up being called).  It would be
+fine with me if we wanted to enumerate them again as Algorithm values for
+Transformation elements, but it seemed more appropriate at the time of the
+first draft to reuse the existing markup definitions in Sections 4.1 and 7.5
+so that changes to those sections would not imply changes to sections 4.3.3
+and 7.6.
+
+
+====================================
+Regarding the XPath Transformation Algorithm
+
+
+>
+>The above it not enough to specify how the output is formed.  Are
+>there any new lines?
+>
+
+I believe the statement I gave is precisely what is required, though I could
+explain more about my readings of the XPath spec, which could be helpful to
+readers of the dsig spec.  The linefeeds are in the XPath node-set if the
+XPath specifies them as being in the node set.  They are represented by text
+nodes just like all the other text in the document.  Actually, they do not
+appear as separate text nodes if there is other text in the element.  So, if
+your character sequence is
+
+<Parent>\n\t<Child>multiline\ncontent</Child>\n</Parent>
+
+Then you would have three text nodes, one for the "\n\t", one for
+"multiline\ncontent" and one for "\n".
+
+Thanks,
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Commerce Company
+
+
+

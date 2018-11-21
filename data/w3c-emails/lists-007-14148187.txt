@@ -1,0 +1,187 @@
+docno="lists-007-14148187"
+received="Tue Dec  4 10:52:22 2001"
+isoreceived="20011204155222"
+sent="Tue, 4 Dec 2001 08:19:47 +0000"
+isosent="20011204081947"
+name="John Ibbotson"
+email="john_ibbotson@uk.ibm.com"
+subject="Re: Requirements for reliable message delivery"
+id="OF92D04574.6EE6CC94-ON80256B18.002DB91F@portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="Requirements for reliable message delivery"
+expires="-1"
+
+To:discuss@apps.ietf.org
+
+
+                                                                                                              
+                    John Ibbotson                                                                             
+                                         To:     Graham Klyne <GK@ninebynine.org>                             
+                    12/04/2001           cc:                                                                  
+                    08:17 AM             From:   John Ibbotson/UK/IBM@IBMGB                                   
+                                         Subject:     Re: Requirements for reliable message delivery(Document 
+                                         link: John Ibbotson)                                                 
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+                                                                                                              
+
+
+
+Graham,
+Some comments inline:
+John
+
+XML Technology and Messaging,
+IBM UK Ltd, Hursley Park,
+Winchester, SO21 2JN
+
+Tel: (work) +44 (0)1962 815188        (home) +44 (0)1722 781271
+Fax: +44 (0)1962 816898
+Notes Id: John Ibbotson/UK/IBM
+email: john_ibbotson@uk.ibm.com
+
+
+
+                                                                                                              
+                    Graham Klyne                                                                              
+                    <GK@ninebynine       To:     John Ibbotson/UK/IBM@IBMGB                                   
+                    .org>                cc:     Brian E Carpenter <brian@hursley.ibm.com>, Discuss Apps      
+                                          <discuss@apps.ietf.org>, Richard P King/Watson/IBM@IBMUS            
+                    11/26/2001           Subject:     Re: Requirements for reliable message delivery          
+                    11:15 AM                                                                                  
+                                                                                                              
+                                                                                                              
+
+
+
+
+John,
+
+Thanks for your clarifications, though I must confess I am still struggling
+to understand the rationale for what you seem to be describing:
+
+(1) Complexity of distributed commit:  it seems to me that the simplest
+option would be if the "reliable message transfer" were just a single
+end-to-end hop, without the issues of cascading.  This suggests that
+intermediate hops may be best effort if the message-passing endpoint has
+the recovery logic.
+
+<JBI> Sure, If life was so simple :-) Most B2B types of transfer assume an
+application generating a message <JBI> sits within some firewall and is
+communicating with another application within some other business <JBI>
+<JBI> firewall. That immediately gives three hops App1 -> gateway1 ->
+gateway2 -> App2 (I'm assuming the App <JBI> talks to some messaging
+middleware maybe via JMS). The internal messaging middleware in each
+business <JBI> infrastructure may be different so that adds the complexity
+of different transports to the equation. If <JBI> you now consider a
+transaction from App1 to App2, then resources have to be locked over the
+<JBI> <JBI> <JBI> request/response path between App1 and App2 to ensure
+correct commit/rollback. This is not what we want. <JBI> The Business
+hosting App2 does not want its resources locked by a supplier or purchaser
+running App1. <JBI> That's why breaking the transaction down to smaller
+units of work at the messaging level simplifies <JBI> matters. Now the
+business hosting App2 only has to consider transactions scoped between its
+gateway and <JBI> applications - much more manageable.
+
+(2) Achieving reliability:  it is my view that reliability is mostly
+achieved by strong implementation and operational deployment, not protocol
+design.  But however good a system is, there is still a possibility of
+failure.  I think the challenge for protocol design is to make the
+behaviour deterministic, in the sense that the sender of a message has a
+reliable indication of the eventual outcome of message transfer (or, in a
+transactional context, I suppose it would be better to say that the two
+endpoints have a reliable way to synchronize their record of state).
+
+<JBI> No matter how robust the implementation and deployment is, there will
+still be failures. A reliable <JBI> protocol design will provide
+deterministic behaviour as seen by an application that uses the reliable
+<JBI> delivery service defined by the protocol.
+
+I see a problem with this scenario, which I must assume you've considered,
+so I hope it will flush out any misunderstandings:
+
+      +------+     +------------+     +--------+
+      |Sender|-->--|Intermediary|-->--|Receiver|
+      +------+     +------------+     +--------+
+
+   (a) First hop:  sender hands off to intermediate.
+       On completion, assumes that delivery is (or will be) done.
+<JBI> No - it is known that delivery is done since the protocol tells him
+that it has been done. Suppose
+<JBI> message M1 is to be sent. There is a stored copy of M1 at the sender.
+The sender sends M1 to the
+<JBI> Intermediary which stores it persistently. Persistently means that
+the copy will survive a recycling of <JBI> the intermediary so the message
+has to be stored on disk (database, filesystem etc). The intermediary <JBI>
+then responds to the Sender telling it that M1 has been stored. The Sender
+can then delete its local <JBI> copy of M1. In the case of the intermediary
+failing before M1 is stored, the sender will not be told <JBI> that the
+intermediary copy of M1 is stored. Therefore the transaction of sending M1
+is in doubt. It can <JBI> then resynchronise with the intermediary and
+resend M1.
+
+   (b) Intermediary falls over.  Message (or record of state) held at
+intermediary is lost.
+<JBI> The Intermediary MUST make a local copy of the message. If it then
+falls over, it can recover. If it <JBI> falls over before storing it, there
+is a local copy still at the sender and the endpoints can still <JBI>
+recover and resend the message.
+   (c) Sender and Receiver are now out of sync, with no outstanding
+unresolved state
+<JBI> First hop actions are repeated between the intermediary and reveiver
+for reliable delivery.
+
+(3) You talk about transferring state information with the message;  it
+seems to me that such state information can only ever be partial with
+respect to whatever function it is that the endpoint applications are
+trying to perform.  So the need for some kind of end-to-end synchronization
+doesn't go away.
+<JBI> Hopefully, what I've described above shows how the end-to-end
+synchronisation can be implemented using
+<JBI> cascaded single hops. There are still end-to-end issues such as
+authentication, non-repudiation etc that <JBI> are the responsibility of
+the business process using the  reliable delivery. I believe those kinds of
+<JBI> issues are strictly the responsibility of the business applications
+and not the messaging layer.
+#g
+--
+
+
+At 03:27 PM 11/22/01 +0000, John Ibbotson wrote:
+> >From our experience with reliable transactional messaging, we believe
+that
+>a single hop approach is the starting point. Certainly end-to-end
+>reliability is required at an application level, but we believe this
+should
+>be built on a single-hop model with multiple hops being considered as
+>cascaded single hops. An important consideration here is transactionality.
+>The complexity of distributed 2 phase commit can be simplified by adopting
+>the single hop model. A unidirectional message over a single hop can be
+>managed as a single unit of work with commit/rollback being applied when a
+>message is reliably delivered to the endpoint. Therefore in an
+asynchronous
+>request/response single hop model, there are three units of work - the
+>request, the processing and the response. This extends to the multi hop
+>case so for N hops, there are 2N +1 units of work. Issues such as
+>end-to-end security, authentication, non-repudiation etc can then be
+>implemented at the application layer on top of the messaging.
+>
+>A reliable messaging protocol requires the definition of "state machines"
+>at the endpoints of the single hop together with state information
+>transferred as part of the message between the endpoints. These may be
+>abstracted to a set of operations that we have briefly described in the
+>requirements document. Separation of the state machines from the state
+>information means that alternative bindings of the state information to
+>different transports can be implemented.
+[...]
+
+
+------------
+Graham Klyne
+GK@NineByNine.org
+
+
+

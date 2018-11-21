@@ -1,0 +1,76 @@
+docno="lists-040-9321829"
+received="Thu Jun 28 12:38:55 2001"
+isoreceived="20010628163855"
+sent="Thu, 28 Jun 2001 09:36:44 -0700"
+isosent="20010628163644"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="RE: Status code for creating lock-null resource"
+id="HPELJFCBPHIPBEJDHKGKMEBECIAA.lisa@xythos.com"
+charset="US-ASCII"
+inreplyto="20010628155606.B16339&#64;io.mds.rmit.edu.au"
+expires="-1"
+
+To:"Alan Kent"<ajk@mds.rmit.edu.au>,<w3c-dist-auth@w3.org>
+
+
+Alan wrote:
+> What about the case
+> where an application wants to create a temporary file with a new unique
+> file name. It does a 'LOCK' on a name. If it fails, it trinother
+> unique name. It keeps trying until it succeeds.
+>
+> Without the current LOCK semantics, you would have to do a PUT to
+> create an empty file and then LOCK it. Does PUT have an OVERWRITE Y/N
+> flag? (I dont have the spec handy). If it always overwrites, then
+> there is the potential for a race condition.
+
+In a sense, PUT does have overwrite semantics.  You can use the
+"If-None-Match: *" header to make sure that there are no entity tags at the
+URL destination.  We might want to mention it so (a) servers know they must
+support it and (b) clients know they can use it, and what for.  RFC2616 does
+state it quite clearly though (section 14.26): "It is also used to prevent a
+method (e.g. PUT) from inadvertently modifying an existing resource when the
+client believes that the resource does not exist."
+
+Let's assume the "If-None-Match: *" feature can reliably be used, though I'd
+want to check that before setting anything in stone.  Can we just remove the
+lock-null feature?  Some useful interactions would still be lost:
+ - A client can be the creator of a file which they subsequently lose
+control of.  This is because they would have to create the file with PUT
+then set permissions, leaving a window where the file is unlocked and some
+other user can set ACLs before the first user has a chance to prevent.
+ - A client can PUT a file and then find themselves unable to LOCK it if
+somebody else has locked it.  They can't create the body, change properties,
+or delete it.  They may not be able to unlock it.  What kind of problems
+might this present to a user interface client?
+ - Similar scenarios with MKCOL.
+
+So let's imagine we could transform lock-null resources into locked empty
+resources -- the only requirement on the server would now be that the server
+would allow the creation of an empty resource through use of the LOCK
+request.  With a locked empty resource, it's a regular resource, it appears
+in listings, and it doesn't magically go away if no PUT request is received
+before UNLOCK.  Would this help us out?
+
+A locked empty resource as I described would solve the PUT-control problem,
+but not the MKCOL problem, unless the server were required to be able to
+support MKCOL on a locked empty resource.  So if I have write and
+permissions access to a repository where other users have write and
+permissions access, I could create a directory called "lisa" - and there's a
+risk that somebody else can change permissions before I have a chance to.
+The malicious user could lock me out of my own directory.  On the other
+hand, presumably the malicious user could create a directory called "lisa"
+in the first place and not have to worry about waiting for me to create it.
+
+Some servers will solve this problem by assigning special permissions to the
+creator of a resource, however I don't think we can rely on this being
+always the case. There are certainly use cases for other permissions models.
+We would want to think about whether it's valid for a server to grant
+permissions permission on newly created resources to principals that did not
+either create the new resource, or own the parent resource.
+
+lisa
+
+
+

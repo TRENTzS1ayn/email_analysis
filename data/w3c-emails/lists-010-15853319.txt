@@ -1,0 +1,276 @@
+docno="lists-010-15853319"
+received="Thu Mar 20 05:22:32 1997"
+isoreceived="19970320102232"
+sent="Thu, 20 Mar 1997 08:22:34 0500"
+isosent="19970320132234"
+name="KCompton@continental.com"
+email="KCompton@continental.com"
+subject="RE: 305 Use proxy"
+id="c=US%a=_%p=Continental%l=NEEXCH02-970320132234Z681@neexch01.continental.com"
+charset="usascii"
+inreplyto="305 Use proxy"
+expires="1"
+
+
+To:josh@netscape.com,http-wg@cuckoo.hpl.hp.com
+
+How about a way to indicate that the client should access the origin 
+server directly, i.e., should not use a proxy at all?
+
+Thanks,
+Kip
+
+-----Original Message-----
+From:Josh Cohen [SMTP:josh@netscape.com]
+Sent:Tuesday, March 18, 1997 6:30 PM
+To:http-wg@cuckoo.hpl.hp.com
+Subject:305 Use proxy
+
+Below are notes and discussion points on 305 use proxy,
+please read at your convenience, and voice your opinions..
+
+This is a work item for memphis
+
+------
+Comments, flames, death threats welcome..
+305 Use Proxy Response
+
+After some discussions, here are some thoughts and suggestions
+on the use and implementation of the 305 use proxy response.
+
+Overview of suggestion:
+
+(For the example, Ill assume set-proxy: as the header name)
+(no bnf, Im going for concept... that can be discussed later )
+
+set-proxy : proxy-url scope=scopePrefix
+type= once
+| forever
+| hits count=hitcount
+| lifetime=seconds
+
+for GET http://www.foo.com/services/index.html HTTP/1.1
+
+example response:
+HTTP/1.1 305 Use Proxy
+set-proxy : http://proxy1.foo.com:8080/ 
+scope=http://www.foo.com/services/
+
+Suggested rules:
+Origin servers may NOT send 305, only proxies may send them.
+The set-proxy header is HOP BY HOP, not end to end.
+
+On scope:
+  If the returned scope is 'wider' that the request minus the part
+of the path to the right of the final slash, the header should be
+rejected or the user should be queried at the least.
+
+Example:
+for the above request ( http://www.foo.com/index.html )
+ scope=http://www.foo.com/services/ VALID
+ scope=http://www.foo.com/         INVALID
+
+So basically:
+for a client: ( depending on level of paranoia )
+ (A)  if the scope is 'wider' than the requested URL, the user
+is queried.
+ (B) if the scope is wider than the requested URL, and the 
+destination
+proxy is not in the same domain, query the user
+
+Notes on discussions:
+
+Cases for use:
+1. An origin server wishes to redirect a client to use a proxy
+to access its resources
+
+2. A proxy server wishes to redirect a client to another proxy.
+(the client can be another proxy )
+
+The Current spec:
+10.3.6 305 Use Proxy
+
+The requested resource MUST be accessed through the proxy given by 
+the
+Location field. The Location field gives the URL of the proxy. The
+recipient is expected to repeat the request via the proxy.
+
+
+Issues:
+1) scope:
+Does this apply to only this exact URL or any others
+
+2) validity time:
+Should the client use this proxy for this or these resources
+forever, or for how long, or how many transactions?
+
+3) Loops / hop counts
+What happens if proxy A redirects the client to proxy B which
+redirects it back to A?
+
+4) is Location: header enough?
+Does the location allow enough flexibility to express some or
+all of these?
+
+Im impartial on the new header / extend location header issue,
+However, the security implications make the new header a
+probable choice, IMHO.
+
+5) Security
+If the scope is 'wide' ie for all HTTP transactions or even
+just for one domain, how does the client know to trust that the
+response was not from a malicious server.
+
+Possible solutions:
+
+Scope:
+The redirecting host should be able to indicate a mask
+for urls which are to be redirected to this proxy.
+Naturally, this has security implications, ie an origin server
+which tells a client to redirect to an evil proxy for ALL urls.
+A safe suggestion I think it that that scope can be a prefix
+which may only affect 'less significant URLS'..
+Example:
+  Client requests http://www.ups.com/services/index.html
+  Server redirects to proxy1.ups.com
+allowed scope: http://www.ups.com/services/*
+    not allowed scope: http://www.ups.com/*
+    not allowed scope: http://www.mcom.com/*
+
+Validity Lifetime:
+We couldnt come to a unanimous consenses here, except for
+the fact that the current spec doesnt state anything about it.
+
+The main ideas are:
+1) use this redirection forever ( or until the client is restarted )
+2) use this redirection just once, and come back the next time
+3) use this redirection for a specified amount of time
+4) use this redirection for a specified amount of transactions
+
+While its hard to come up with useful examples for all the cases,
+I beleive that a format which is flexible enough to allow any of them
+to be expresses is smartest.
+
+While caching and proxies have been in use for a non trivial amount of 
+time,
+complex, hierarchical cache systems are only starting to be deployed. 
+Because of this early stage, I feel that its best to keep as many
+options open as possible, and give an much flexibility to 
+administrators
+as possible.
+
+Loops:
+Overall, this should be a solveable problem.  Intelligent
+ICP type protocols should be able to avoid loops, but the idea
+of some sort of 'redirected via' flag/signal/indicator isnt 
+unreasonable.
+
+Location: header.
+If people feel that we need to express a scope and a lifetime,
+we'll need to either extend the Location: header or create a new one.
+
+extending Location:
+Presently, Location is defined as
+
+    Location       = "Location" ":" absoluteURI
+
+which leaves it open for extensions, it doesnt clobber
+anything else.  The question is, though, will existing servers and 
+clients
+choke on additional fields..
+
+A new header:
+A new header gives us the most flexibility, not having to worry
+as much about the installed base.
+
+Security Implementation:
+Depending on your security stance, the implementation of this
+response could be considered unimplementable.  Its clear that this 
+needs
+to be a hop-by-hop header, but that alone doesnt make the security 
+problems
+go away.  Since most proxies will forward any header to the client,
+the client has no way to discern where the set-proxy header came 
+from.
+
+If the 305 is used by proxies to load balance, distribute cache, or 
+failover,
+wide scopes are most beneficial, ie for ALL HTTP URLs or ALL URLS
+use xyz proxy.  Unfortunately security implications make scope 
+restriction
+necessary.  Even if the 1.1 spec is modified to make set-proxy a
+hop-by-hop header, its easy for a malicious server to take advantage.
+
+Without the scope restrictions, a malicious server can simply reply
+with a 1.1 header, including a wide scope.  A 1.1 compliant proxy
+should reject or supress this header, but an existing 1.0 or older
+proxy will happily forward this header to the 1.1 client.
+This client would have no way of knowing if the 305 came from the
+proxy or the malicious origin server.
+
+Unfortunately, this makes the scope restrictions necessary.  At the
+same time, it makes large scale load balancing or failover difficult,
+since the a proxy can use this response to redirect a scope wider
+than one host to another proxy.
+
+Reasons for expressing scope, type and lifetime.
+
+scope:
+It is wise to allow 305 to affect more than one single resource.
+If not, a redirect would have to be sent for every subsequent request
+to a site.
+
+lifetime:
+The rationale for expressing a lifetime, expressed in hits or
+time, for a redirect's validity is in dispute.  As stated earlier,
+large cache hierarchies arent widespread, so its difficult to come
+up with real world examples.  I welcome discussion on this.
+However, I will cite an example where it is useful.
+
+Imagine a large organization with a complicated, multi-level cache
+hierarchy.  Client A normally talks to proxy A which is 
+geographically
+close to it.  Proxy A has some intelligence, lets say ICP, to route 
+up
+the proxy hierarchy through a few other proxies, and out to the 
+origin
+server.
+Proxy A finds itself unable to contact its parent, or has stopped 
+operating
+due to cache garbage collection, or is for some reason, unable to 
+help
+the client.  Rather than stop all web traffic in proxy A's 
+'jurisdiction',
+proxy A uses the 305 to redirect client A to proxy B, which is far 
+away
+and across a slow pipe.  This allows client A to continue to access
+web based resources, but at a slower rate.
+
+Without a lifetime associated with the redirect, it would be either
+one-shot, or forever.  If it was one-shot, every client talking to 
+proxy A
+would attempt to retreive via proxy A and get redirected every time.
+If it was a 'forever' then those clients would continue to use
+the slow link and proxy forever, or at least until they restarted 
+their
+client and reverted to defaults.
+
+By associating a lifetime, a proxy can say "Im in trouble, go use 
+this
+other area proxy for 10 minutes, then check back with me.  If Im 
+still
+in trouble, Ill redirect you again".
+
+
+-----------------------------------------------------------------------  
+------
+Josh Cohen        Netscape Communications Corp.
+Netscape Fire Department
+Server Engineering
+josh@netscape.com 
+                      http://home.netscape.com/people/josh/
+-----------------------------------------------------------------------  
+------
+
+
+

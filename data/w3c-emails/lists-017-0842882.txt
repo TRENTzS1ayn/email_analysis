@@ -1,0 +1,254 @@
+docno="lists-017-0842882"
+received="Thu Feb 19 01:01:56 2004"
+isoreceived="20040219060156"
+sent="Thu, 19 Feb 2004 06:01:54 +0000"
+isosent="20040219060154"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: uri handling of hosts is too restrictive"
+id="20040219060154.GE24395~@nicemice.net"
+charset="usascii"
+inreplyto="4.2.0.58.J.20040218185541.060f9ee8&#64;localhost"
+expires="1"
+
+To:uri@w3.org,public-iri@w3.org
+
+
+
+Martin Duerst <duerst@w3.org> wrote:
+
+> > First, percent-encoding would always be allowed in all components of
+> > all IRIs;
+>
+> It's currently not, in particular in the 'scheme' component.
+
+That's fine.  The rule can be: percent-encoding is allowed everywhere
+except the scheme, and individual schemes cannot make exceptions to this
+rule.
+
+> And it's not really IRIs that should need percent-encoding, although
+> you need it in some cases, if characters are not encoded as UTF-8 in
+> the corresponding URI.
+
+Percent-encoding could also be useful for displaying an IRI when
+the local charset is not Unicode, or when the available fonts are
+insufficient.  If an IRI contains many non-ASCII characters that are
+displayable, plus one character that's not displayable, it might be
+nice to use percent-encoding only for the oddball and display the
+rest intelligibly, rather than convert the entire IRI to a URI.  If
+that displayed IRI is cut & pasted or manually retyped into another
+application, it should be handled properly.
+
+> > Second, if an individual scheme restricts a component to contain
+> > only a certain subset of Unicode characters (for example, the ASCII
+> > subset), scheme-specific IRI consumers would be required to check
+> > the component before using it, and fail gracefully if any characters
+> > are found outside the subset.
+
+That paragraph of mine started off more focused, then I generalized it,
+and now I think I'd like to return to the more focused version:
+
+If an individual scheme restricts a component to contain only ASCII
+characters, then scheme-specific IRI consumers would be required
+to check the component before using it, and fail gracefully if any
+non-ASCII characters are found.
+
+That's much simpler, requiring only one bit of knowledge about the
+syntax of the component (whether it allows non-ASCII).
+
+> What do you mean by 'fail gracefully'?
+
+If the component is supposed to be a Foo, and a Foo is supposed to be
+ASCII, and the component contains non-ASCII, then you must not use
+the component as a Foo (whatever that means).  If you were about to
+do something that entailed using the component as a Foo (for example,
+passing it to something that takes a Foo as an argument), then you
+must abort the attempt, and the error is something like "invalid Foo
+(non-ASCII)".
+
+> And why would that have to be checked before use?  Why could it not
+> simply be the result of actual use?
+
+Because the original Foo spec might be old (even if the IRI scheme
+containing a Foo component is more recent), and might have its own
+installed base of stuff that does not behave interoperably when
+presented with a non-ASCII Foo, and therefore it might have needed to
+introduce a client-side downgrading operation in order to safely extend
+the syntax.  If the IRI consumer blindly tries to use the Foo component
+as a Foo without performing the downgrading operation, the result will
+be unpredictable.  Maybe there will be a misleading error message like
+"Foo xyz not found" even though xyz actually exists, or maybe the
+mangled request will map onto some other Foo by coincidence or malice.
+
+Ideally, the Foo spec should have specified what to do whenever you
+encounter a syntactically invalid Foo, so that Foo implementations bear
+full responsibility for interoperability as the Foo syntax is extended,
+and nothing about the Foo syntax need be known at the IRI-processing
+layer.  But there is one kind of syntax extension where neglect has
+been the rule rather than the exception: the extension from ASCII to
+non-ASCII.  Because it has been so common for protocols to assume ASCII
+without saying enough about how to react to non-ASCII, and because
+the ASCII-to-non-ASCII transition is the same one being made by the
+introduction of IRIs, and because IRIs are uniquely positioned as a
+narrow interface between a wide range of protocols and a wide range of
+applications (sort of like IP is a narrow interface between a wide range
+of networks and a wide range of applications), IRIs are a good place to
+interpose a simple type-safety check.
+
+The check would serve the same purpose as the scheme component itself.
+If you try to use a URI/IRI with an unknown scheme, the results are
+very predictable: you get a graceful failure, "unknown scheme".  The
+scheme acts as a type tag to prevent operations from being misapplied
+to the wrong type of data (with unpredictable results).  Including
+the suggested ASCII-component-check in IRI processing would allow the
+presence of non-ASCII characters to serve as a type tag, to prevent
+legacy ASCII-assuming operations from being misapplied to non-ASCII data
+(with unpredictable results).
+
+> > (That would prevent IRIs from suffering some of the problems we are
+> > now seeing with URIs.  In URIs, percent-encoding was prohibited
+> > in the host component, and non-ASCII was prohibited in the host
+> > component, and there was no requirement telling URI consumers
+> > what to do if they should find either of those things in the host
+> > component, so now we have different implementations behaving
+> > differently when they encounter such things.)
+>
+> Well, yes.  But that's just a result of how things are implemented,
+> not a problem in the specification, I guess.
+
+I think it's a problem in the specification.  I think we've learned the
+hard way that specs need to say what to do when you encounter unexpected
+syntax, otherwise it's difficult to ever extend the syntax.
+
+RFC-2396 said the host component does not contain percent-escapes, but
+didn't say what to do if it did contain them, so some implementations
+decode the escapes, and some don't, and neither group is wrong.
+RFC-1123 said that host names were ASCII, and didn't say what to do if
+you encountered a non-ASCII host name, so some implementations might
+reject it, some might pass it to DNS without doing transcoding, some
+might pass it to DNS after transcoding, or who knows what else.  So the
+situation now is that using percent-encoding in the host field of a URI
+can lead to any number of unpredictable outcomes.
+
+Similarly, the IP spec and the TCP spec both said that certain flag
+bits in their headers were reserved and must be zero, but they did not
+clearly say what you should do if they're not zero.  Years later, a good
+idea for an extension comes along, Explicit Congestion Notification
+(ECN), which uses some of those flag bits, and its deployment is being
+greatly hampered by machines that drop packets or TCP connections that
+have those bits set.  (For example, when I enable ECN on my machine,
+I cannot access one of my bank web sites.)  ECN would be completely
+backward-compatible if all hosts ignored incoming reserved flag bits,
+which perhaps they would do if the specs had clearly stated that
+requirement.
+
+As another example, RFC-822 said that mail headers are ASCII, but didn't
+say what to do if you encountered bytes outside 0..127 in a header.  Now
+we have implementations that remove 128..160 (sendmail), interpret the
+bytes using the local charset, and who knows what else.  This makes it
+very difficult to extend the standard to define a meaning for bytes
+128..255 in mail headers.
+
+> > 1) If you recognize the scheme, then verify that no component
+> > contains characters that it's not supposed to contain.
+>
+> Again, why check before use? Of course if the IRI or URI is actually
+> used, there will naturally be some things that don't work out.  But
+> why should we e.g. check that a domain name doesn't contain a $, when
+> it's just as easy to let this try and resolve and not be found?
+
+Yes, I guess checking for $ is probably getting too nosey into the
+internal syntax of the component.  But I think a simple check for ASCII
+vs. non-ASCII would be valuable and not too nosey.
+
+> We already made an exception for domain names.  I don't want to make
+> any other exceptions.  The goal is not a hodgepodge of scheme-specific
+> conventions, but to take advantage of the fact that many URI schemes
+> already are based on UTF-8, many others allow UTF-8 to be used (in
+> many parts at least) and UTF-8 is also the recommendation for new
+> schemes.
+
+I agree with those goals, but there is a distinct possibility that an
+ACE will be defined for email local parts, in which case IRI-to-URI
+converters with knowledge of mailto: will want to use the ACE for
+compatibility with existing mailto: resolvers.  Maybe there are
+other ASCII-only components lurking in existing URI schemes facing
+backward-compatibility challenges similar to those of domain names, and
+maybe they will likewise find it necessary to use the ACE approach to
+internationalization.
+
+The IRI spec would not need to mention any of the individual
+scheme-specific exceptions.  It mentions the IDN exception because ihost
+is a potential component of IRIs in general, and domain names are used
+in a great many schemes, but those reasons wouldn't apply to any other
+exceptional components (like email local parts).
+
+> > 2) If the verification failed, or if you didn't recognize the
+> > scheme, then perform the generic conversion to percent-encoded UTF-8
+> > as described in the IRI draft, and prepend the prefix i- to the
+> > scheme.
+>
+> Why should i- be prepended?
+
+Because URI processing does not include the ASCII-component-check
+(whereas IRI processing, being a new spec, could include the check).
+Blindly dumping non-ASCII characters (even percent-encoded ones) into
+a URI would bypass the check.  If the URI contains a component that
+used to be limited to ASCII, legacy implementations might behave in
+unpredictable ways when that component contains (percent-encoded)
+non-ASCII.
+
+Whereas IRIs can use the presence of non-ASCII as a type tag (if IRI
+processing includes the check), URIs cannot (because URI processing
+does not include the check).  The i- prefix would serve as a type tag
+for URIs, indicating that the URI contains unchecked components.  It
+would prevent legacy implementations from misapplying ASCII-assuming
+operations to non-ASCII data, because legacy implementations would not
+recognize the scheme.
+
+Basically, i-foo: means "this identifier was blindly converted from a
+foo: IRI without foo-specific knowledge, so it does not necessarily
+conform to foo: URI syntax, but it does conform to generic URI syntax,
+and you can certainly recover the foo: IRI".
+
+Another answer to your question ("Why should i- be prepended?") is:  So
+that the IRI spec does not invite applications to violate the IDNA spec.
+The ireg-name component is an IDN-aware slot in schemes that use domain
+names there (because the IRI draft invites the usage of non-ASCII domain
+names there and cites IDNA).  The corresponding reg-name slot in the
+URI is IDN-unaware.  To convert a foo: IRI to a foo: URI, IDNA requires
+ToASCII to be applied.  But when the application doesn't know the
+scheme, the IRI draft invites the application to use percent-encoding
+instead, disregarding the IDNA requirement.
+
+I see no way for an application lacking scheme-specific knowledge to
+convert a foo: IRI to a foo: URI without violating the IDNA spec.  But
+the application can convert any IRI to *some* URI, using the i- prefix.
+That works because an i-*: URI is really an IRI semantically, and a URI
+syntactically.  Therefore the domain name slots in an i-*: URI are still
+IDN-aware, so the percent-encoded form is okay there.
+
+> New schemes can be designed so that they fit together well with IRIs
+> (if the relevant BCP guidelines are used, that will be the case
+> automatically).
+
+The resolvers of those new schemes can simply strip off the i- prefix if
+they know that the generic IRI-to-URI conversion is sufficient for those
+schemes.  That could be mentioned in the IRI spec and in the guidelines
+for creating new schemes.
+
+By the way, I should insert a rule 0 in my proposed IRI-to-URI
+conversion:
+
+0) If the IRI contains no non-ASCII characters (not even percent-encoded
+ones) then stop; it's already a URI.
+
+(Without this rule, if the scheme was unknown, the only effect of the
+other rules would be to prepend the i- prefix, which would be protecting
+nothing.)
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

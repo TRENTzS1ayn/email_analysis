@@ -1,0 +1,249 @@
+docno="lists-056-12509638"
+received="Tue May 27 10:33:54 1997"
+isoreceived="19970527143354"
+sent="Tue, 27 May 97 15:33:47 BST"
+isosent="19970527143347"
+name="Henry S. Thompson"
+email="ht@cogsci.ed.ac.uk"
+subject="A modest namespace proposal, in some detail."
+id="1866.199705271433@grogan.cogsci.ed.ac.uk"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+There follows a quite simple proposal for namespaces, lighter weight
+than those seen heretofore, but admittedly NOT valid SGML as things
+stand.  I think its light weight, flexibility and functionality
+commend it.  What follows is free-form XML, there's also an HTML
+version produced therefrom with DSSSL available at
+
+  http://www.cogsci.ed.ac.uk/~ht/namespaces.html
+
+ht
+--------------
+<?XML version='1.0'?>
+<doc>
+<head>
+<title>A Proposal for Namespaces in XML</title>
+<author>Henry S. Thompson</author>
+<address>Language Technology Group</address>
+<address>HCRC</address>
+<address>2 Buccleuch Place</address>
+<address>Edinburgh EH8 9LW</address>
+<address>Scotland</address>
+</head>
+<body>
+<div>
+<title>Introduction</title>
+<p>
+I want to include material from a document whose DTD I
+don't control into a document whose DTD I control, <emph>and</emph> be able to
+point to identifiers in the included material.  I agree with Tim's
+principle of element-centering, and I think Martin's proposal is
+basically on the right lines, but a bit too inflexible in being
+focussed on external entities with particular public identifiers.
+</p>
+<p>
+The proposal which follows has two components:  an explicit, prolix
+syntax based on marked sections, and an element-centred short form.
+</p>
+</div>
+<div>
+<title>New Syntax Part I:  Namespace Sections</title>
+<p>I propose to add a single new production:
+</p>
+<p>
+<code>
+<![CDATA[
+namespaceSection ::= '<!NS[' %Name '[' (%markupdecl*|%content*) ']]>]]&gt;'
+</code>
+</p>
+<p>
+Existing productions would need to be changed to allow
+<name>namespaceSection</name> in expansions of <name>markupdecl</name>
+and <name>content</name>.
+</p>
+<p>
+The intent is that for something like
+</p>
+<p>
+<code><![CDATA[
+  <!NS[ some-identifier [
+
+  . . . arbitrary XML . . .
+
+  ]]>]]&gt;</code>
+</p>
+<p>
+the syntax is meant to be very similar to e.g. an INCLUDE marked
+section, but has the additional impact that every <name>Name</name>
+which appears inside it (i.e. element GIs, attribute names,
+identifiers, enumerated types) is particular to the namespace
+identified by 'some-identifier'.  The consequence of this <emph>inside</emph> the
+namespace section is zero.  The consequences of this <emph>outside</emph>
+are 2:
+<ol>
+<li>apparently identical names are not actually identical, e.g. in
+<p><code><![CDATA[
+  <book id=b1>Troilus and Cressida</book>
+  <!NS[ excelbooks [
+  <book id=b1><sheet>....</book>
+  ]]>]]&gt;
+</code></p>
+not only are the two IDs not in conflict, the two books are different
+element types as well.
+</li>
+<li>
+From outside a namespace section, you can (only) refer to
+<name>Names</name> inside a namespace section via a fully
+qualified name, e.g.
+<p><code><![CDATA[
+    excelbooks:b1
+]]></code></p>
+</li>
+</ol>
+Note that following the consensus position on the list lately, I've
+used colon (':') as the name qualification character.
+</p>
+<p>
+Here's an extended example, which uses two namespace sections, one to
+declare element types etc. and one to use them:
+</p><p><code><![CDATA[
+Full example:
+
+Target doc't:
+
+  <!doctype target SYSTEM "[sysid1]" [
+  <!entity body SYSTEM "[sysid2]">
+  ]>
+  &body;
+
+Matrix doc't
+
+  <!doctype matrix ... [
+  <!NS[ target [
+  <!entity % targdtd SYSTEM "[sysid1]">
+  %targdtd;
+  ]]>]]&gt;<![CDATA[
+  <!element embed - - (target:body)>
+  ]>
+  <matrix>
+  . . .
+  <embed>
+  <!NS[ target [
+  &body;
+  ]]>]]&gt;<![CDATA[
+  </embed>
+  . . .
+  <xref refid=target:id7>
+  . . .
+  </matrix>
+]]></code></p><p>
+</p>
+<p>
+I think I agree with Andrew Layman that you should <emph>only</emph> be able to refer to a <name>Name</name> inside a
+namespace section from outside with qualified <name>Name</name>, even if the <name>Name</name> is
+not defined in the referring context, because that's non-monotonic in
+an unreasonable way, i.e. the referent of an IDREF might change simply
+because you add some new text to your document.
+</p>
+<p>On the other hand I think it <emph>might</emph> be sensible to
+allow reference <emph>out</emph> of an namespace section to the
+<scare>unmarked</scare> enclosing document with a null prefix,
+e.g. <code>:higherId</code>, but it's not clear that would be very
+sensible or useful.
+</p>
+</div>
+<div>
+<title>Element-based namespace scoping</title> <p>The overhead, both
+conceptual and literal, of using namespace sections within a document
+instance is acceptable for importing a single large sub-document as in
+the example above.  It becomes less acceptable in the case of DTD
+fragment use, as exemplified in a number of recent examples from
+Andrew Layman, Martin Bryan and others.
+</p>
+<p>
+If we assume that the documents we have in mind to construct using DTD
+fragments are to be valid(atable), then I claim <emph>no</emph>
+additional syntax is required, and all that is necessary is to define
+validity in terms of automatic namespace scoping within explicitly
+qualified element GIs and attribute names.  That is, formally
+<blockquote>
+The namespace of an element node is the namespace of its
+<name>gi</name>.  The namespace of an attribute assignment node is the
+namespace of its <name>name</name>.  The namespace for resolving the
+reference of unqualified <name>Names</name> is the namespace of the
+<name>origin</name> node of that <name>Name</name>.
+</blockquote>
+What this means in practice is that fully qualified names pass their
+namespaces to their descendants.
+</p>
+</div>
+<div><title>Differences between this Proposal and CONCUR-based
+Proposals</title>
+<p>
+As I see it the crucial difference is that neither authors nor parsers
+need to worry about marking namespaces on every element and attribute,
+and that document modifications are monotonic, that is, you can't
+break existing documents by simply <emph>adding</emph> things to their
+DTD.  This is an acceptable price to pay, in my view, for losing local
+transparency.  That is, in isolation you can't tell
+what the namespace of a node is, you need to be able to check its ancestors.
+</p>
+<p>Note further that this approach has the nice property that Martin's does of
+allowing multiple (e.g. CALS) fragments to be imported into the
+<emph>same</emph> namespace.</p>
+</div>
+<div><title>One Thing That's Still Missing</title>
+<p>
+If I just want namespaces to allow me to reuse simple IDs, I have to
+go to a lot of trouble.  This is not a bit deal, it's just a matter of
+elegance.  Suppose I want to tokenise all the paragraphs in a
+document, using the same IDs repeatedly.  Namespaces nearly, but not
+quite, do what I want:
+</p><p><code><![CDATA[
+<p>
+<!NS[ P1 [
+<w id=w1>Now</w>
+<w id=w2>is</w>
+. . .
+<w id=w16>party</w>
+]]>]]&gt;<![CDATA[
+</p>
+<p>
+<!NS[ P2 [
+<w id=w1>We</w>
+<w id=w2>have</w>
+<w id=w3>nothing</w>
+. . .
+<w id=w8>itself</w>
+]]>]]&gt;<![CDATA[
+</p>
+]]></code></p><p>
+This isn't actually valid, alas, if all I have in the DTD is
+<code><![CDATA[<!element p (w*)>
+]]></code>
+because <code>P1:W</code> and <code>P2:W</code>, which are the GIs
+which really occur in the instance, are not allowed in <code>P</code>.  <emph>Either</emph> I have to include a disjunction over all the qualified forms
+of <code>W</code> I intend to use, <emph>or</emph> I have to use
+<code>:W</code> everywhere instead of <code>W</code>.
+</p>
+<p>I think this is marginal enough a need that the second workaround
+is acceptable, which is to say I haven't thought of a hack to address
+it which I think I can sell :-)</p>
+</div>
+<div>
+<title>Conclusion</title>
+<p>
+I recognise that this really breaks SGML.  If there's <emph>any</emph>
+chance that WG8 will grandfather this, I think it's worth it.  To me,
+going the CONCUR route just for compatibility is not worth it, I'd
+rather have no official namespace mechanism at all than that one.
+</p>
+</div>
+</body>
+</doc>
+
+
+

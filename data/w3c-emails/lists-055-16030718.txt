@@ -1,0 +1,151 @@
+docno="lists-055-16030718"
+received="Tue Jun 10 20:50:21 1997"
+isoreceived="19970611005021"
+sent="Tue, 10 Jun 97 19:00:56 CDT"
+isosent="19970611000056"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.UIC.EDU"
+subject="rationales for TEI extended-pointer keywords"
+id="199706110050.UAA18150@www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+Some time ago, James Clark asked why the full array of tree-walking
+keywords from the TEI extended-pointer notation was needed for XML
+linking, and I was asked by the ERB to provide some account of why I
+thought they were desirable.
+
+I should note first that strictly speaking the 'functionality' of
+extended pointers -- pointing at SGML elements or spans within SGML
+documents -- is completely covered by the DESCENDANT keyword, with a
+single numeric parameter.  DESCENDANT 42878 refers to the 42,878th
+element in the document (the one with the 42,878th start-tag), and if we
+limit ourselves to pointing at elements or pointing at spans that begin
+and end with elements, everything else is syntactic sugar.  Byte offset
+is also sufficient, as far as that goes -- in fact, byte offset is more
+powerful than DESCENDANT because it handles sub-element addressing.
+
+So no argument for *any* of the keywords can show that any of the
+keywords adds new functionality; the TEI keywords that do, namely
+PATTERN, TOKEN, STR, SPACE, FOREIGN, have all already been omitted.
+
+On the other hand, no one is arguing for byte offset.  Why?  It's (a)
+fragile, (b) opaque, and (c) given to silent failures.  We want
+something better than byte offset or DESCENDANT with one argument
+(which suffers from the same problems), because we want pointers that
+
+  - are easy to understand / comprehensible / expressive
+  - survive changes to the target document as well as possible
+  - show signs of failure when they fail
+
+All of the keywords in question (ID, CHILD, DESCENDANT, ANCESTOR,
+PREVIOUS, NEXT, PRECEDING, FOLLOWING) serve substantially these same
+purposes.
+
+When using natural language to point at texts, we routinely use typed
+and untyped counts:  the third paragraph of the second chapter, or page
+232.  Allowing restriction of the tree-traversal keywords by means of GI
+and attribute-value pairs as well as counting means that the pointer is
+clearer (the second quotation in German, or the second quotation after
+the beginning of page 232, is clearer than "the 82305th sentence of the
+text") and more robust:  a byte offset is broken if even one byte is
+added or deleted before the target; a pointer to the second quotation
+after the beginning of page 232 is broken only if a Q element is added
+between the page boundary and the current second Q -- if the pointer
+restricts by language as well, only a new quotation in German will break
+the pointer.
+
+No pointer is guaranteed safe forever when it's pointing at a changing
+document.  But restriction by GI and attribute value, and being able to
+traverse the tree in any desired direction, from any point chosen for
+its relative stability (page 232 is *not* a good choice in this regard!)
+provides much more robust pointers than counters without facilities for
+such restrictions.
+
+Counters by themselves are hopelessly fragile.
+
+Why so many ways to walk the tree, though?  Well, primarily because in
+general the best approach to pointing into changing read-only material
+appears to be to point at some stable point and work from there.  The
+stable point may be the end of a section, or the beginning; it may be an
+element with an ID.  There is no good way to guarantee that the fixed
+point will always be above the target resource in the tree, so CHILD and
+DESCENDANT aren't enough; you need ANCESTOR.  It's not plausible to
+assume that the fixed point is always to the left of the target --
+sometimes it will be to the right, so if you have NEXT, you need PREVIOUS.
+
+Some of the keywords are conservative (CHILD, NEXT, PREVIOUS) and are
+useful for catching typos (a pointer to NEXT(82) is an error if there
+aren't 82 younger siblings of the current location source); I suspect
+that for stable documents it might be plausible to work exclusively with
+these and ANCESTOR.
+
+But if I want to point at the material on page 23 in a transcription of
+Lachmann's edition which is currently being prepared, the most reliable
+way to do it is to say "find the first <PB N='23' ED='La'> and go till
+you reach the next <PB ED='La'>" -- it's more convenient, as well as
+more robust, not to have to know exactly how many generations down in
+the tree these milestone elements are.  A project I am working on
+now is preparing documents in a data capture DTD and will translate
+them automatically into an archival DTD later; at that time the nesting
+level of virtually everything in the documents will change, since the
+whole point of the data capture DTD is to have fewer levels and exploit
+some regularities in the data.  I think it's a strong argument *for*
+the TEI keywords that
+
+  <xptr xml-link='simple'
+        href="descendant(1,pb,n,23,ed,La)..ditto()following(1,pb,ed,La)"/>
+
+will survive that transition, whereas the obvious choice using a
+smaller set of keywords
+
+  <xptr xml-link="simple"
+        href="child(2)(1)(1)(3)..root()child(2)(1)(2)(2)"/>
+
+is almost certain to break; if we add GIs to the parameters we will
+hear about the breakage, but it will still break.
+
+To make extended pointers robust, you need keywords that are *not*
+limited to single-generation jumps or sibling searches:  you need
+DESCENDANT, PRECEDING, and FOLLOWING.  (Note to those who don't want
+to have to look this up:  descendant finds elements at any level of
+containment; PRECEDING and FOLLOWING search left and right across the
+entire tree -- unlike NEXT and PREVIOUS they are *not* limited to the
+siblings of their location source.  Yes, I know, there's no way to
+remember which is PREVIOUS and which is PRECEDING -- better names would
+be welcome.)  Both functions are needed:  PREVIOUS for the case of
+pointing into a relatively stable document where you *want* the more
+restricted method of counting, to trap errors, and PRECEDING for being
+able to cross container boundaries.
+
+I had hoped to produce more concrete examples, but I am running late and
+have to curtail this message.  So I'll leave it with the page-reference
+example:  find, at any depth, the first PB with N=23 and ED=La, then
+take everything up to the next PB from that edition.  Note that the next
+PB is not guaranteed to have N=24:  page 24 could easily be blank and
+not marked with a PB.  How do you do this reliably in a target document
+subject to change without DESCENDANT, DITTO, and FOLLOWING?
+
+I hope this helps clarify why I want a full set of tree-traversal
+keywords.  Maybe James is right, and this is sort of a poor-folk's
+query language.  If so, I suspect it's smaller and easier to implement
+than any of the Rich Folk's query languages, and to a really
+surprising degree it does get the job done.
+
+
+-C. M. Sperberg-McQueen
+ ACH / ACL / ALLC Text Encoding Initiative
+ University of Illinois at Chicago
+ tei@uic.edu
+
+All opinions expressed in this note (except those I have quoted from
+other authors) are mine.  They are not necessarily those of the Text
+Encoding Initiative, its executive committee or other participants, its
+sponsors, or its funders.  Ditto for the Model Editions Partnership
+and the University of Illinois, and the XML Editorial Review Board.
+Anyone who says otherwise is itching for a fight.
+
+
+

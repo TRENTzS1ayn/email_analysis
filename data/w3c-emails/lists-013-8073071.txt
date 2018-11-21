@@ -1,0 +1,153 @@
+docno="lists-013-8073071"
+received="Mon Mar 15 14:07:45 2004"
+isoreceived="20040315190745"
+sent="Mon, 15 Mar 2004 19:07:42 +0000"
+isosent="20040315190742"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Re: Can the response entity be transmitted before all the request entity has been read?"
+id="20040315190742.GD9731@mail.shareable.org"
+charset="usascii"
+inreplyto="Pine.BSF.4.58.0403151022260.17944&#64;measurementfactory.com"
+expires="1"
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+Cc: HTTP WG<ietf-http-wg@w3.org>
+
+
+
+Alex Rousskov wrote:
+> You seem to be developing an HTTP-to-application proxy rather
+> than a pure origin server.
+
+It's not really any different to other well known origin servers.
+
+It is structured like a server+CGI, or Apache+mod_perl.  I used the
+term "server application" to indicate that there's a server component
+and another component which communicates with the server in a simple
+way: reading request entity, and writing response entity
+
+> In that case, the most reliable strategy in the presence of
+> questionable traffic is often to switch to a tunnel behavior and
+> terminate the connection as soon as the response is sent.
+
+I see that is the most common strategy :).  It seems a bit dubious,
+though, because it's easy to imagine application code like this:
+
+     write "Status: 200\n\n";
+     write "Thank you for your submission.\n";
+
+     while ($x = read (...)) { store ($x) }
+
+     write "Great, all done.\n";
+
+As you say, there are theoretical and practical requirements for
+talking to real HTTP clients and proxies.  One of them may well be
+that the response shouldn't be sent before the request is read.
+
+I'd rather put the hard requirements, and every feature that will help
+with robustness, in the _server_, rather than document it as a
+requirement that applications have to follow.  It's the server's job
+to keep the communication good as reliable as possible, insulating the
+application.
+
+> It may be a design mistake to give applications control knobs that
+> depend on proper HTTP/1.1 support in clients.
+
+Exactly.  You see in the above example, _not_ giving the application a
+control knob implies that the server reads the whole request before
+sending any of the application's response, or refuses to let the
+application read anything after any response has been sent.
+
+That's contrary to most server implementations: they do give the
+application control over when to read and write, which is the opposite
+of what you're suggesting here.
+
+> Give your applications just the basic knobs that minimize the amount
+> of guess work on the proxy. If an application requires fine control
+> of 100-Continue or status code sending time, the application will
+> not work reliably on top of HTTP. Do not do anything "unusual" or
+> border-line, and do not expose HTTP knobs that allow your
+> applications to involve your proxy in such "unusual" or border-line
+> behavior.
+
+I agree.  I wish the application to do just the basic things people
+expect:
+
+    a function to set the status code + response headers
+    ability to write the response entity
+    ability to read the request entity
+    no special requirement on when the request entity is read
+
+> More specifically, do not expect clients to receive or support
+> 100-Continue by default.
+
+Ok.  I am so far following the advice in RFC 2616, which is to send
+100-Continue if Expect: 100-continue is received and it's HTTP/1.1 or
+greater, or if it's HTTP/1.1 (exactly that version) and it's POST or PUT.
+
+Is that advice good?
+
+Not sending 100-Continue is always safe, but may introduce delays.
+
+> Do not expect clients to be able to recover from receiving responses
+> prior to them sending complete requests.
+
+That's a crucial question.  Should I either enforce that in the server,
+by insisting on reading the whole request before allowing any text of
+a non-error response to be sent (error can be sent immediately), or
+document it as an application requirement: that the application must
+do all its reading before it writes anything?
+
+It seems that existing servers, e.g. Apache, thttpd and all the others
+don't do either: they allow request to be read by the application when
+it likes, the response to be sent before all the request is read if
+the application likes, and don't document this as a problem.  It's for
+application writers to be aware of it.
+
+Yet, I want to document it if it's a real practical issue, because I
+can see good uses for sending response before the request is all read:
+a translation or file format server, which writes part of the
+translation before all the text is uploaded, and an upload meter,
+which writes some text as a large upload progresses, perhaps showing
+thumbnails of the uploaded files as each one arrives too.
+
+If these things are not possible, or if they have to be implemented in
+other ways such as multiple frames so that uploads are separate
+requests from the progressive display, or if they work with most
+clients and there are a few known ones where it must be prevented,
+then I accept that.
+
+I'd simply like to know whether it's best to program the server to
+enforce that, knowing it's a common/rare client weakness, or to not
+enforce it but recommend it in the application interface
+documentation, or to permit it if it actually works in practice.
+
+> Do not spend time deciding when to close a connection in the
+> presence of strange traffic: close as soon as you can, usually right
+> after sending the final response (erroneous or otherwise).
+
+My strategy is to copy Apache's well-tested "lingering close":
+shutdown(fd,SHUT_WR) followed by reading everything for up to 30
+seconds, or until 2 seconds passes with no incoming data, then the
+full close().  Immediately fully closing the socket is known to cause
+client problems for good reasons.
+
+The other part of my strategy, based on what people have said here, is
+to ensure I read the whole request if sending a non-error response,
+but not if sending an error response - then I can just follow it with
+lingering close.
+
+> This subjective advice is based on testing actual HTTP
+> implementations. YMMV.
+
+Your advice is very welcome!  Thank you!  I find it surprising that
+response-during-request-upload isn't mentioned in any guidelines that
+I've seen as either ok or a problem.  If there is knowledge about this
+working or not working with common browser clients, I'd like to know
+more.  Maybe I'm one of very few people to consider it :/
+
+-- Jamie
+
+
+

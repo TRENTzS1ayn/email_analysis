@@ -1,0 +1,79 @@
+docno="lists-006-4569454"
+received="Tue Jan 16 13:34:43 2001"
+isoreceived="20010116183443"
+sent="Tue, 16 Jan 2001 13:33:47 -0500 (EST)"
+isosent="20010116183347"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: is this example valid?"
+id="200101161833.NAA17509@tantalum.atria.com"
+inreplyto="20010116095137.A7070&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   Sorry, I realized this after I sent the message. I want to do:
+
+     CHECKOUT /the/baseline/selector/some/file.c
+     Label: which-baseline
+       <DAV:apply-to-version>
+
+A baseline selector is not a collection ... it is just a resource that
+you can checkout and checkin to create new baselines.
+
+Many baseline implementations will be things like "an internal label"
+or "a list of version URL's", which do not directly provide
+collection semantics.
+
+   Thus, getting a working resource for "file.c" from baseline
+   "which-baseline".  This is premised on the fact that a
+   baseline-selector operates just like a regular VCR, but that it
+   sets up the children to come from a particular baseline.  Does this
+   sound right?
+
+A baseline-selector acts just like a regular vcr (i.e. you can
+check it in and check it out), but it is not a collection so it
+has no children.
+
+   If not, then is there a way to do this? Would I have to create a new
+   baseline selector, UDPATE it, then CHECKOUT/apply-to-version?
+
+Almost.  You can create a new collection (reasonably enough, since you
+do want a collection :-), and then put it under baseline control, i.e.:
+
+MKCOL /collection/for-baseline/foo
+BASELINE-CONTROL /collection/for-baseline/foo
+  <DAV:baseline> /baseline/xyz34
+CHECKOUT /collection/for-baseline/foo/some/file.c
+  <DAV:apply-to-version>
+
+Note that you can continue to use /my/collection for all your subsequent
+checkouts against baseline foo ... so you only have to do the
+BASELINE-CONTROL once for any checkout against that baseline.
+
+  (I hope not because that doesn't scale as well)
+
+For many implementations (such as the very common label-based baseline
+implementation), that is the only way it will scale well, because it
+tells the server when to "cache" a traversable form of the baseline,
+and when to empty that "cache" (i.e. when /my/collection is deleted).
+
+In subversion, the BASELINE-CONTROL is a trivial operation, because
+your baselines are already in traversable form.  So the cost to you is
+that protocol asks you to "publish" important baselines in the form of
+baseline-controlled collections, i.e. give them human meaningful
+URL's.
+
+I agree that the intermediate BASELINE-CONTROL step is not optimized
+towards your implementation (which does not need it), but it is
+needed for interoperability with most other baseline implementations.
+
+Cheers,
+Geoff
+
+
+

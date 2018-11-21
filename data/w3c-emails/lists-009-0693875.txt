@@ -1,0 +1,116 @@
+docno="lists-009-0693875"
+received="Tue Dec 13 15:34:18 1994"
+isoreceived="19941213203418"
+sent="Tue, 13 Dec 94 14:55:20 PST"
+isosent="19941213225520"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: HTTP Caching Model?"
+id="9412132255.AA28028@acetes.pa.dec.com"
+inreplyto="9412121759.AA05404&#64;ulua.hal.com"
+expires="1"
+
+
+To:"Daniel W. Connolly"<connolly@hal.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com,mogul@pa.dec.com
+
+You point out a problem with a naive approach to proxy (relay) caching:
+
+>On a server S, a document D is available as plain text, HTML, or
+>postscript.  Client C1 is configured to only accept HTML. This client
+>requests document http://S/D via proxy P as:
+>GET http://S/D HTTP/1.0
+>Accept: text/html
+>Proxy P connects to S, requests the document, caches it, and returns
+>it to C1.
+>
+>Client C2 is configured to accept postscript and HTML, and to prefer
+>postscript over HTML. It requests the same document through the same
+>proxy:
+>GET http://S/D HTTP/1.0
+>Accept: text/html; q=0.5
+>Accept: application/postscript; q=1.0
+>Proxy P receives the request, and notices that it has http://S/D in its
+>cache, so it returns the cached copy.  Note that had C2 requested the
+>document straight from S, it would have got postscript. But it got HTML
+>from the proxy.
+>
+>To me, this looks like the caching performed by P is not transparent,
+>and hence violates the protocol.
+
+The problem here is that the "cache tag" kept by P is insufficient.
+You can't just use the URL.  But if the "tag" includes an encoding
+of the Accept: headers, then P's caching could be "correct" in the
+sense that it never returns the wrong format of the document.  (We
+still have to worry about returning the wrong version, but cache
+consistency protocols are another can of worms entirely.)
+
+Consider what would happen in this case if P entered the document
+in its cache with this tag, constructed from C1's request:
+URL: http://S/D
+Accepts: text/html
+Cached-format: text/html
+Then when C2 makes its GET request, P can see that the cached document
+might not be sufficient, because P never asked S for a postscript
+file, and C2 prefers postscript to text.
+
+Now, consider the scenario when the requests are done in the opposite
+order, and with S only holding the HTML form of the document.  C2 makes
+its request, S responds with html, and P caches the document with this tag:
+URL: http://S/D
+Accept: text/html; q=0.5
+Accept: application/postscript; q=1.0
+Cached-format: text/html
+Now, if the next request is either from C1 with "Accept: text/html"
+or C2, P can tell from this tag that it already has what the client
+wants (provided that S has not subsequently added a postscript file
+to its repertoire; this is the cache-consistency problem again).  I.e.,
+P can see that because the "strictest" request asked for postscript
+in preference to HTML, and no postscript is cached, then it must not
+be available.  P's behavior is entirely correct.
+
+Finally, consider the scenario when S has both HTML and Postscript,
+and C1 and C2 have both made requests.  P will end up with both forms
+in its cache, with this tag:
+URL: http://S/D
+Accept: text/html; q=0.5
+Accept: application/postscript; q=1.0
+Cached-format: text/html
+Cached-format: application/postscript
+rom this point, P can respond to requests for either Postscript or
+HTML, since it has them both cached.
+
+Now consider what happens when P has to remove some items from its
+cache, due to lack of space.  Suppose it removes the Postscript version.
+It then has to change its tag either to say:
+URL: http://S/D
+Accept: text/html; q=0.5
+Accept: application/postscript; q=1.0
+Cached-format: text/html
+Previously-Cached-format: application/postscript
+or to say
+URL: http://S/D
+Accept: text/html; q=0.5
+Cached-format: text/html
+That is, either it must remember that it had a postscript version
+cached at one point, or it must forget that some client had asked it
+for postscript.  I would suggest doing the former, because it preserves
+more information.  For example, if S does not have the postscript file,
+C2 issues its usual request and P uses the former model, then it knows
+if postscript is available from S or not.  But if P uses the latter
+model, then it must re-request the postscript file from S, even if at
+one point it know that S didn't have the postscript.
+
+Assuming that I haven't made some fatal logical error in this analysis,
+it should be possible for a caching proxy to
+(1) provide correct (transparent) behavior
+(2) do the minimal number of server accesses
+without any HTTP protocol changes, simply by recording as much information
+as possible about the requests that caused cache entries to be created.
+
+Always ignoring the consistency problem, of course.
+
+-Jeff
+
+
+

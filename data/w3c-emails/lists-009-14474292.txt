@@ -1,0 +1,81 @@
+docno="lists-009-14474292"
+received="Wed Dec 27 12:32:34 1995"
+isoreceived="19951227173234"
+sent="Wed, 27 Dec 1995 12:27:48 0800"
+isosent="19951227202748"
+name="Dave Long"
+email="dave@navisoft.com"
+subject="Re: 'PUT' transaction reconsidered (was Re: twophase send concerns )"
+id="199512272027.MAA16426@geek.navisoft.com"
+inreplyto="9512262255.aa23864&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc: Larry Masinter<masinter@parc.xerox.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+> I'm becoming more and more convenced that single-exchange PUT is
+> unworkable. That is, PUT might have to happen in two steps:
+
+What are the drawbacks to single-exchange PUT if clients are full-duplex? 
+
+The current NaviPress/NaviServer interaction goes like this:
+
+Press 1.1Server 1.1
+-----------
+tries to save file
+-> PUT headers ->
+doesn't have auth
+<- 401 headers <-
+client hasn't noticed
+-> PUT buffer of body ->
+tosses data into bitbucket
+-> PUT buffer of body ->
+:"
+:
+-> PUT buffer of body ->
+"
+client finally
+realizes something's wrong,
+while reading response
+
+Now, this isn't too bad at LAN speeds, but it sure is a pain over dialup.
+
+If the server only replies early for failure, then the new logic wouldn't
+too bad - put a check for the availability of the response into the
+body writing loop:
+
+Press 2.0Server 1.1
+-----------
+tries to save file
+-> PUT headers ->
+doesn't have auth
+<- 401 headers <-
+client hasn't noticed
+-> PUT 0 - 1 buffers worth of body ->
+socket is readable!
+abort, read response...
+
+This gets slightly uglier if the server is allowed to 200 early, in that
+we would wind up running the request and response logic in parallel, and
+abort the request on a failure response.
+
+As you can see, the NaviServers already support a full-duplex single
+exchange (they need to do the bitbucketing anyway, for other reasons),
+and I was going to get the logic into NaviPress Real Soon Now.
+(Sorry, Roy, a bunch of OEM work came up in the last couple of weeks...)
+
+If y'all have your hearts set on dual exchange PUT, or can tell me
+why this single-exchange is too simplistic, I'll abandon efforts on it.
+
+-Dave
+
+I'll probably do the only-failures-early model first, because my experience
+has been that an FTP server is the only thing that most of our users ever
+get a chance to PUT to, so the NaviServer is at the limits of my world of
+interoperability.  If you've got a PUT'able server, send me mail, and I'll
+work on keeping us interoperable.
+
+
+

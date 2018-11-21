@@ -1,0 +1,333 @@
+docno="lists-005-11157214"
+received="Thu Oct  5 09:31:51 2000"
+isoreceived="20001005133151"
+sent="Thu, 5 Oct 2000 14:22:12 +0100"
+isosent="20001005132212"
+name="Tim_Ellison@uk.ibm.com"
+email="Tim_Ellison@uk.ibm.com"
+subject="Re: More detailed responses to responses..."
+id="8025696F.004A2F91.00@d06mta07.portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="More detailed responses to responses..."
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+
+
+See <tim2> tags below...
+
+
+>    Section 5.2.6, DAV:version-name
+>    Refers to Version URL. Where is this defined?
+>
+>    <tim> It isn't :-(
+>
+> In the 9.1 draft, all remaining uses of the phrase "version URL"
+> have been replaced by "URL that identifies a version".
+>
+
+How do clients discover the "URL that identifies a version"?  I would think
+it would be useful, though perhaps not required, to have this be
+discoverable in a standard way.
+
+<tim2> The URL for a version (along with those of its peers) can be found
+from the history resource property <DAV:version-set>, or a particular
+version identified by a target selector is found in the <DAV:target>
+property of the selector.
+
+>    Section 5.3, Version Selector Properties
+>    How does a client definitively figure out if a URL points to a
+"Version
+>    Selector", a version history, or a regular resource?
+>
+> Wouldn't it find out what it needs to know by asking the resource
+> what methods, live properties, and reports it supports?
+
+I'm not so sure... Since there's already so much variation in server
+implementation possibilities (auto-versioning, automatic creation of
+versioned resources, what URLs of versions look like, etc.)  I'd rather not
+leave that up to the guesswork of the client.  I could imagine a resource
+that "used to be" versioned appearing very much like a resource that is
+currently versioned.  A definitive property that declares whether a
+resource
+is a version selector, a version, or a version history would clearly fix
+this.
+
+<tim2> I agree.  The spec does give definitive rules for identifying types
+by the presence of properties, but this is IMHO a suboptimal way of doing
+business.  Someone (you know who you are<g>) was going to check to see if
+webfolders would work in the face of 'strucured' resource type values, and
+if we could be backwards compatible, this would be my preference (i.e., a
+resource type would be <DAV:collection><DAV:version-selector/>... etc.)
+Failing this approach, a separate property would be good.
+
+>    Section 6.1, Overwrite
+>    Does this section imply that doing a PUT, POST, COPY or MOVE with a
+>    destination URL that is versioned with "Overwrite: T" header
+> should delete
+>    all the version history and replace the versioned resource
+> with either a
+>    non-versioned resource -- or a versioned resource whose
+> history has been
+>    deleted??  Please, please, say no -- versioning-unaware clients will
+>    constantly be stomping on version-history if we define it this way.
+>
+> I assume that by "versioned resource", you mean "version selector"?
+> The deletion of a version selector (resulting from Overwrite:T) has
+> no affect on the version that is the target of that version selector,
+> nor on the version history of that version.  They are three distinct
+> and disjoint resources (in fact, in core versioning, you have no way
+> of naming a version history resource, much less delete it).
+
+<tim2> If you meant that the destination was a version, the PUT/POST/...
+would fail outright, if the destination were a version selector...(see
+below)
+
+OK, I'm confused.  I'm concerned about servers that support auto-versioning
+here, so for those servers...
+
+If I do a PUT to a version selector, isn't that interpreted as a write to
+the resource whose versions are represented by the version selector?
+
+<tim2> No, a version selector is a resource in its own right, with content
+and properties.  Implementation aside, think of a checked in version
+selector as an immutable copy of a version whose DAV:target indicates where
+it was copied from.  Checking out such a version selector opens the copy
+for change ('in place'), and updates via PUT/whatever to the version
+selector are 'isolated' from other versions and the history of the resource
+associated with the version selector.  When you checkin the version
+selector it marks it as immutable and copies the content & dead properties
+into a new version (in the version history).
+
+<tim2> As I said, you wouldn't want to implement it this way, but that's
+how I choose to think about it.
+
+<tim2> Now if you think about how version selectors react when they are the
+destination of a method, it makes more sense.
+
+Doesn't the version selector "pass through" most requests somehow?
+
+<tim2> No, the 'redirector model' leads to the wrong conclusions about the
+delta v behaviour.  You are not the first to adopt this model from reading
+the spec.
+
+Doesn't
+the use of VERSION-CONTROL turn the target -- say "foo.doc" -- from a
+regular resource into a version selector which points a version with the
+contents that used to be in "foo.doc"?  I thought a PUT to "foo.doc", when
+"foo.doc" is actually not a single-versioned resource but a version
+selector
+which points to one of a selection of versions, would result in a creation
+of a new version.  If that is true, then how is PUT with Overwrite:T
+possibly going to overwrite the version selector?
+
+<tim2> Hopefully thinking about it as described above will fix this.
+
+>    Please clarify if "overwrite:F" should result in no write at all if a
+>    versioned resource exists at the destination.
+>
+> Again, I assume you mean "version selector".  (Note to design team:
+> think of the confusion that would have resulted if we had used
+> the term "versioned resource" to mean "version history" :-).
+>
+> Overwrite:F has its usual semantics, namely abort the operation if
+> a resource exists at the destination.
+
+OK, I like that -- it doesn't violate the principle of least-surprise.
+Please at least recommend that in the draft.
+
+
+>    What if the source resource is not versioned, and the target is?
+>    Surely what the user intends is to make the contents of the source
+>    become the newest version at the target, not to delete the whole
+>    version history!  Imagine I'm working in my personal directory on
+>    some code/document, and when I've got it in a good/tested state, I
+>    decide to put it into the shared code/document area, where files
+>    are under version control.  Surely COPY is the natural way to do
+>    this.
+>
+>    <tim> The natural way would, I suggest, be to checkout the destination
+>    resources, update them with your personal directory contents,
+> and checkin
+>    the updates.
+>
+> I agree. In particular, if you have done any resource moving/renaming
+> in your personal directory, you'd better do those moves/renames in the
+> versioned area before doing your updates.
+
+Fine, but neither of these answers answered my question.  What if in a COPY
+the source resource is not versioned, and the target is a version selector?
+I'd propose that the behaviour be to use the source content to create a new
+version with that content at the destination.
+
+<tim2> With overwrite 'T' you would blow away the version selector with the
+new copy of the source.  Whether it was versioned or not is server
+dependent (as for all newly created resources).
+
+>    Section 10.1 - VERSION-CONTROL
+>    I would prefer not to have a separate method for this.  Would we need
+a
+>    separate method for making something auto-versioned as well?
+> I understand
+>    the desire to convert an existing resource to a versioned resource; it
+>    should be done with PROPPATCH since we've already got that method.
+>
+> VERSION-CONTROL does a lot more than just update a property on the
+> resource identified by the request-URL.  It also creates a version
+history
+> resource, and creates an initial revision in that version history.  I
+> believe it would be misleading to make that all be the side effect of
+> a PROPPATCH.
+
+Why is this misleading?  Why is this any worse than auto-creation of
+versioned resources, as proposed in the draft?
+
+<tim2> I'll let Geoff clarify his own comments, but I suspect he meant that
+you though you were doing a simple property update from False to True, and
+hey presto the server disk is going mad creating a bunch of new resources
+as a side-effect -- that may mislead clients that thought it was a simple
+proppatch.
+
+<tim2> I believe that it would be worse than auto-creation of versioned
+resources since at least the client is making a resource creation request
+in this case, and for servers that version everything, creatig a new
+versioned resource is probably an optimized operation for them.
+
+>    I am
+>    specifically thinking of clients here, and how they can make
+> fewer requests
+>    (particularly when creating a new, versioned resource) and
+> client coders
+>    would write less special-purpose code (less bugs!).  As a server
+>    implementor, this new method isn't as big a deal since I know
+> I'd have to
+>    treat the property specially instead.
+>
+> When used to create a version selector for an existing version history,
+> the VERSION-CONTROL method takes two arguments: the location of the
+> new version selector, and the version that should be its initial target.
+> There's no way to marshal both arguments in a PROPPATCH.
+>
+> In any case, I don't see how you save any code by having PROPPATCH
+> dispatch to your version control routine instead of having the
+> VERSION-CONTROL method dispatch to the exact same routine.
+
+Like I said, it's not the server that saves code in this particular
+instance, but the client.  Clients that do versioning intelligently may be
+possible with existing client APIs if we do this carefully -- with
+PROPPATCH.
+
+On the server side, it isn't code that is conserved, but testing and
+specification effort may be.  It's easier to adapt a test suite that
+already
+has PROPPATCH; it's easier to specify how PROPPATCH of a new prop should
+work than to specify a whole new METHOD (with attendant headers, how does
+each header interact with method, errors, etc).
+
+
+>    ... If a resource is already
+>    checked out -- can a "core-compliant" server refuse the
+> CHECKOUT request?
+>
+> The server can refuse any command (heck, it's the server after all :-).
+>
+> To declare this behavior, set the (optional) DAV:checkout-fork property
+> to DAV:forbidden (see section 14.1.3).  Then you would return a 409
+status
+> with <DAV:checkout-of-checked-out-version-is-forbidden/> in the response
+> body of the CHECKOUT request.
+
+Excellent.  Please put this in the draft.
+We also need <DAV:multiple-checkouts-forbidden/> for servers which not only
+do not allow checkout of a version that has already been checked out, but
+also do not allow checkout on any version of a resource for which any
+version has already been checked out.
+
+>    Can you do a CHECKIN if you haven't done a CHECKOUT?
+>
+> Depends what you mean by "you".  You can do a CHECKIN on any resource
+> that is checked out (i.e. a checked-out version selector or a working
+> resource), assuming that a write lock does not prevent you from doing so.
+
+So clients are recommended to LOCK, CHECKOUT, PUT, CHECKIN, UNLOCK if they
+want to prevent other checkins in the meantime?  Fair enough.
+
+<tim2> Taking out a lock on a version selector will prevent other PUTs on
+the version selector, and prevent others from checking it back in, but it
+won't prevent other checkouts of the version (via othe version selectors or
+working resources), or other versions of the resource.
+
+>    Section 10.5, SET-TARGET
+>    I'm proposing, in a separate mail, that this be replaced with
+> PROPPATCH of
+>    the DAV:target property.
+>
+> This would be a PROPPATCH with a very major side effect.  In particular,
+> not only would it update the DAV:target property, but it would update
+> the content and all the dead properties of the version selector as well.
+> That's way too many side effects for my taste.
+
+Why is it fine for a new method to have a bunch of side effects, but not
+for
+PROPPATCH of a new property?
+
+It's simple to design the property such that ignorant clients are extremely
+unlikely to set the property ignorantly and surprise themselves.  Just make
+the only valid values of the "DAV:target" property be values which the
+client/user would be unlikely to come up with at random.  I think my
+recommendation fit that bill, because it ensconced the URL in a <href> tag,
+the name in a <name> tag, etc.
+
+So if a server supports putting a URL to a version in "DAV:target", you
+would set (in the body of the PROPPATCH):
+  <D:target><D:href>http://foo.bar/my.doc,1</D:href></D:target>
+
+If the server supports putting a label in "DAV:target", you would set
+  <D:target><D:label>beta2</D:label></D:target>
+
+Finally, if the server supports putting a version-name in a "DAV:target",
+you would set
+  <D:target><D:version-name>beta2</D:version-name></D:target>
+
+Why is this any more dangerous than SET-TARGET?  It's no more likely to be
+used accidentally!
+
+<tim2> Without wanting to be dragged into the merits or otherwise of doing
+these significant operations on the server by virtue of a property change
+... oh, I think I just did get dragged into it <g>
+
+A thought to throw out:  I would support replacing SET-TARGET and
+VERSION-CONTROL (maybe LABEL, and maybe a couple others) with a new method
+that treats "settings" (things with side effects) differently from
+"properties".
+
+So we could name this "SET" (or "SETTINGPATCH" or "CHANGE-SETTING" if you
+want verbosity); It would be very similar to PROPPATCH in syntax.
+ - This method would only be used to change one setting at a time, since
+changing multiple settings at a time brings up concerns of the interactions
+and order of application.
+ - Atomicity wouldn't be a concern if it only changes one setting at a
+time.
+
+<tim2> Depends upon the effects of changing that setting.
+
+ - We would only have to define syntax once -- whether depth is allowed,
+how
+other headers might apply, what errors can be returned -- rather than
+define
+syntax every time we want to do something similar to this in any
+DAV-related
+protocol design effort
+
+<tim2> Ahh, but you would have to define what all the setting were, valid
+values, interactions, etc.
+
+ - It would be a good "bundle" of activity -- like PROPPATCH -- to which a
+single permission might reasonably be applied
+
+Lisa
+
+
+

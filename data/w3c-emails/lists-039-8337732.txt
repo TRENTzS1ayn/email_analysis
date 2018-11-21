@@ -1,0 +1,161 @@
+docno="lists-039-8337732"
+received="Tue Sep 14 14:13:44 1999"
+isoreceived="19990914181344"
+sent="Tue, 14 Sep 1999 11:11:48 -0700"
+isosent="19990914181148"
+name="Kevin Wiggen"
+email="wiggs@wiggenout.com"
+subject="RE: Bindings, Locks, and MOVE"
+id="LNBBKDGPNJMOJNOBHLLMKEGCCCAA.wiggs@wiggenout.com"
+charset="iso-8859-1"
+inreplyto="8E3CFBC709A8D21191A400805F15E0DBD2443C&#64;crte147.wc.eso.mc.xerox.com"
+expires="-1"
+
+To:"Slein, Judith A"<JSlein@crt.xerox.com>,"'Yaron Goland (Exchange)'"<yarong@exchange.microsoft.com>,<jamsden@us.ibm.com>,<w3c-dist-auth@w3.org>
+
+
+
+
+My thoughts on the following subject, and some random thoughts...
+
+1)  Xythos does have cross-server communication planned.  We have a hook for
+it, some code written, but need to build a version that works with
+proxy-servers etc.  This being said, I agree that cross-server MOVE is hard.
+For all the reasons stated earlier plus other things such as keeping
+permissions on a file constant across servers (especially if they are across
+corporate barriers and users/groups do not exist on both servers.  I will
+agree with the statements that cross-server MOVE should be out-of-scope for
+Webdav, and should just return an error.  Clients can still issue a COPY,
+then DELETE if they want.
+
+Xythos will implement cross-server COPY.
+
+2)  I am fine with the lock-token being MOVED with a resource.  If we can
+get away with saying cross-server MOVE is not supported, then the individual
+servers simply need to make a way of keeping locks on their own server.  I
+believe this is how we should proceed.  It sounds like we are cutting out a
+bunch of functionality, but I think it will take a whole set of working
+groups to get cross-server MOVE to work correctly in all cases anyway, so we
+might as well punt now.
+
+3)  I believe (with I think most other people), that the language
+surrounding the use of write-lock, should remain a MUST.
+
+4)  I would then like to take Judith's original note on locks and work
+though the scenarios to make sure we are all not missing anything...
+
+I now assume that locks are locking the resource not the URI.
+
+A resource is being MOVEd.  The locks are on that resource and / or its
+destination, not the collections that contain them.
+
+1. The source resource is locked, but the destination is not.
+MOVE /a/b to /x/y, where /a/b is locked  but /a/ is not and /x/y is not.
+
+<KW> /a/b moves to /x/y and remains locked with the same lock-token it had
+before.  The only Lock Token mentioned still exists and remains on the
+resource it was locking.</KW>
+
+2. The source resource is not locked, but the destination is.
+MOVE /a/b to /x/y, where /a/b is not locked and /x/ is not locked, but /x/y
+is locked
+
+<KW> This one gets a little weird.  I assume that we can delete /x/y since
+we have the lock on it.  This delete removes the lock from the system.  When
+/a/b is moved to /x/y, it still is not locked.
+
+As a user, I might expect that /a/b (which is now /x/y) has the /x/y lock,
+but I have always thought (from a user's perspective) that a merge would
+happen and not a delete followed by a write.  But the fact that the lock is
+removed from the system, does make the rest of the scenarios work
+nicely</KW>
+
+3. Both are locked, but with separate locks.
+MOVE /a/b to /x/y, where /a/b has lock L1 and /x/y has lock L2, but neither
+/a/ nor /x/ is locked.
+
+<KW> This will remove L2 from the system, and the new /x/y is still locked
+by L1.</KW>
+
+A resource is being MOVEd.  The locks are Depth: infinity locks on the
+collections that contain either the source or the destination location.
+
+4. The source collection is locked, but the destination collection is not
+MOVE /a/b to /x/y, where /a/ is locked, but /x/ is not and /x/y is not.
+
+<KW> Since the lock on /a/b comes from /a, the lock is not kept on its move.
+/a remains locked, but the new resource /x/y loses the lock it had on it.
+</KW>
+
+5. The source collection is not locked, but the destination collection is.
+MOVE /a/b to /x/y, where /a/ is not locked and /a/b is not locked, but /x/
+is locked.
+
+<KW> The original /x/y is removed, and the lock on that resource is removed.
+/a/b is then moved there, and picks up the lock from its new parent /x/</KW>
+
+6. Both are locked, but with separate locks.
+MOVE /a/b to /x/y, where /a/ has lock L1 and /b/ has lock L2.
+
+<KW> /x/y is removed and its resource is no longer locked by L2.  /a/b is
+removed from /a's lock, and the resource is added to the L2 lock space.</KW>
+
+One lock is at the collection level, the other at the resource level.
+
+7. The source resource is locked, and the destination collection is locked
+with a different token
+MOVE /a/b to /x/y, where /a/b has lock L1, /a/ is not locked, and /x/ has
+lock L2.
+
+<KW> I believe this must FAIL.  A user cannot have 2 locks on the same
+resource, and therefore needs to remove one of them before the MOVE can
+happen.</KW>
+
+8. The source collection is locked, the destination resource (not its
+collection) is locked with a different token
+MOVE /a/b to /x/y, where /a/ has lock L1, /x/ is not locked, and /x/y has
+lock L2.
+
+<KW> Strangely enough (to the user), this succeeds.  The lock L2 is removed
+from the system during the DELETE phase of the move, /a/b is then moved.  It
+is removed from /a's L1 and no lock now exists on the new /x/y </KW>
+
+For the following cases, should the MOVE succeed or fail? If it succeeds,
+what should the lock state be afterwards?
+
+9. The source resource was locked through one mapping, and a MOVE is
+attempted through a different mapping.
+9a. /a/b and /c/d map to R. /a/ is locked. MOVE /c/d to /x/y.
+
+<KW> Since locks are on resources, if the correct lock-token is passed, I
+say this succeeds.  The new /x/y is still locked via /a's lock because the
+binding for /a/b still exists.  In order to do something to the new /x/y you
+need to pass the correct lock-token.</KW>
+
+9b. /a/b and /c/d map to R. /a/ is not locked, but /a/b is. MOVE /c/d to
+/x/y.
+
+<KW> Again the MOVE succeeds if the token for R is given, the resource is
+still locked and bound to /a/b and the new /x/y </KW>
+
+10. The destination resource was locked through one mapping, and a MOVE is
+attempted through a different mapping.
+10a. /w/x and /y/z map to R. /w/ is locked. MOVE /a/b to /y/z.
+
+<KW> If correct lock token for R is given (If header with a tagged list of
+/y/z and the correct token) the move completes.  Since /w is locking the
+resource R, it continues to do so, but /y/z no longer maps to R so it is not
+locked anymore </KW>
+
+10b. /w/x and /y/z map to R. /w/ is not locked, but /w/x is. MOVE /a/b to
+/y/z.
+
+<KW> If the correct lock-token for R is passed (through the correct IF
+header and tagged list), the MOVE succeeds.  When it is done, /w/x is still
+locking R, and the new /y/z is no longer locked as it now points to a new
+resource R2. </KW>
+
+Kevin
+
+
+

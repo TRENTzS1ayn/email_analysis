@@ -1,0 +1,103 @@
+docno="lists-046-4410859"
+received="Sun Mar 17 14:22:23 2002"
+isoreceived="20020317192223"
+sent="Sun, 17 Mar 2002 20:26:32 +0100"
+isosent="20020317192632"
+name="Christian Geuer-Pollmann"
+email="geuer-pollmann@nue.et-inf.uni-siegen.de"
+subject="RE: New XPath Filter Transform"
+id="2784510648.1016396792@pinkpanther"
+charset="us-ascii"
+inreplyto="New XPath Filter Transform"
+expires="-1"
+
+To: John Boyer<JBoyer@PureEdge.com>, Gregor Karlinger<gregor.karlinger@iaik.at>, merlin<merlin@baltimore.ie>
+Cc: TAMURA Kent<kent@trl.ibm.co.jp>,w3c-ietf-xmldsig@w3.org,reagle@w3.org
+
+
+Hi John,
+
+from what I understood from your mails is that you need a transform which 
+allows to easily iterate (tree-traversal) over a structure like a DOM tree 
+without evaluating an costly XPath expression against every node in the 
+XPath node set.
+
+First of all, if the document [1] should become stable in it's current 
+processing model, I would add a comment that this transform only makes 
+sense as a first Transform after dereferencing a nodeset or after 
+transforms which produced an octet stream which is reparsed. Why? Because 
+if I e.g. have an XMLDSIG 1.0 XPath transform prior the new XPath filter, 
+the results of the original transform are discarded.
+
+But now to my approach: For me, it's not that clear how to use a sequence 
+chain of multiple http://www.w3.org/2002/02/xmldsig-xpath-filter transforms 
+to select the correct subset. But anyhow, I recently solved a similar 
+problem and I thing that my solution would work in an alternative form of 
+your filter.
+
+Let's discuss the example in terms of DOM, even if the input is an XPath 
+node set.:
+
+We 'label' the tree with three different labels:
+
+1.) The "dont-include-any-descendant-or-self" label
+2.) The "include-descendant-or-self-and-search-forward" label
+3.) The "dont-include-self-but-search-forward" label
+
+Let's take Gregor's example to show how this transform works:
+
+The input document is:
+
+<root>
+  <child1>
+    <grandChild1/>
+    <grandChild2/>
+  </child1>
+  <child2>
+    <grandChild1/>
+    <grandChild2/>
+  </child2>
+</root>
+
+And I want to get as output of the transform
+
+<child1>
+    <grandChild1/>
+
+  </child1>
+
+Which means all descendant-or-selfs of child1 but not it's grandchild2:
+
+<Transform 
+URI="http://www.w3.org/2002/03/xmldsig-the-next-alternative-xpath">
+
+ <!-- don't output / but descend -
+      you maybe find subtrees to be outputted -->
+ <XPath Filter="dont-include-self-but-search-forward">
+  /
+ </XPath>
+
+ <!-- We output the subtree under child1 but maybe
+      something inside this subtree is omitted -->
+ <XPath Filter="include-descendant-or-self-and-search-forward">
+  /root/child1[1]
+ </XPath>
+
+ <!-- don't output grandchild2 and don't descend -
+      you won't find subtrees to be outputted -->
+ <XPath Filter="dont-include-any-descendant-or-self">
+  /root/child1[1]/grandchild2
+ </XPath>
+</Transform>
+
+Does this makes sense to you? You can do the same optimizations: You only 
+evaluate 3 XPath expressions, you make a simple tree traversal and you 
+don't descend into subtrees which only contain unselected information.
+
+Regards,
+Christian
+
+[1] http://www.w3.org/Signature/Drafts/xmldsig-xpath
+
+
+

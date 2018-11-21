@@ -1,0 +1,114 @@
+docno="lists-099-16635197"
+received="Sat May  1 19:53:25 2004"
+isoreceived="20040501235325"
+sent="Sun, 02 May 2004 00:52:57 +0100"
+isosent="20040501235257"
+name="Dan Brickley"
+email="danbri@fireball.danbri.org"
+subject="fetchfoaf"
+id="E1BK4Hw-0007sm-00@fireball.danbri.org"
+expires="-1"
+
+To:www-archive@w3.org
+
+
+
+#!/usr/bin/perl
+use XML::FOAF;
+use URI;
+my $uri = $ARGV[0];
+my $rdfs='http://www.w3.org/2000/01/rdf-schema#';
+die "Usage $0 <url>; eg $0 http://www.livejournal.com/users/danbri/data/foaf" unless $uri;
+
+# I'm messing around with XML::FOAF based on some code from crschmidt and ben trott
+# danbri@w3.org
+
+#die "Need a name or nick field." unless ($p->name || $p->nick);
+
+my $p = personFromURI($uri);
+die "No person described in FOAF data" unless $p;
+print personBlurb($p);
+#print knowsSummary($p);
+
+my @d= @{dataRefs($p)};
+foreach my $uri (@d) {
+  print " reading foaf from: $uri\n";
+  my $p2=personFromURI($uri);
+  print personBlurb($p2);
+}
+
+##### Misc utilities
+
+sub dataRefs {
+  my $p=shift;
+  my @data=();
+  foreach my $mate (@{$p->knows}) {
+    my $sa=$mate->get($rdfs.'seeAlso');
+    push (@data, $sa);
+  }
+  return \@data;
+}
+
+sub  personBlurb {
+  my $p=shift;
+  my $txt="";
+  $txt .= " name=" . $p->name, "\n" if $p->name;
+  $txt .= " name=" . $p->nick, "\n" if ($p->nick && !$p->name); # need a name field
+  $txt .= " nick=" . $p->nick, "\n" if ($p->nick && !$p->name);
+  $txt .= " email=" . $p->mbox, "\n" if ($p->mbox);
+  $txt .= " aim="  . $p->aimChatID, "\n" if $p->aimChatID;
+  $txt .= " jabber=" . $p->jabberChatID, "\n" if $p->jabberChatID;
+  $txt .= " url=" . $p->homepage . "\n" if $p->homepage;
+  $txt .= " weblog=" . $p->weblog . "\n" if $p->weblog;
+  $txt .= " phone=" . $p->phone . "\n " if $p->phone;
+  return $txt."\n";
+}
+
+
+sub knowsSummary {
+  my $txt='';
+  foreach my $mate (@{$p->knows}) {
+#    $txt .= "Knows: " . $mate->nick . " weblog: " .$mate->weblog . " seeAlso: ".$mate->get($rdfs.'seeAlso')."\n" ;
+    $txt .= "Knows: " . $mate->nick . " " ;
+  }
+  return $txt;
+}
+
+sub personFromURI {
+  my $uri=shift;
+  my $foaf = XML::FOAF->new(URI->new($uri), "FOAF-Fetch, danbri+fetchfoaf\@w3.org");
+  my $p = $foaf->person; # replace with PPD code?see end of doc for snippet
+  return $p;
+}
+
+sub allSeeAlso {
+  my $p=shift;
+  ## Get all rdfs:seeAlso arcs in the foaf graph:
+  # this shows a 'raw RDF' style of interaction with the data.
+  my @res=[];
+  my $enum = $foaf->{model}->getStmts(undef,RDF::Core::Resource->new($rdfs.'seeAlso'),undef);
+  my $statement = $enum->getFirst;
+  while (defined $statement) {
+    push @res, $statement->getObject->getLabel."\n";
+    $statement = $enum->getNext
+  }
+  $enum->close;
+  return @res;
+}
+
+
+# TypePad stuff:
+# ...finding the first Person in the file... 
+#
+#my $enum = $foaf->{model}->getStmts(undef,
+#RDF::Core::Resource->new('http://www.w3.org/1999/02/22-rdf-syntax-ns#type'),
+#RDF::Core::Resource->new($NAMESPACE . 'Person')
+#) or return;
+#my $subject = $enum->getFirst->getSubject;
+#
+#$subject is now the subject of the person that we treat as the owner/maker/topic.
+#
+# todo: contrib a function to find PersonalProfileDocument
+
+
+

@@ -1,0 +1,99 @@
+docno="lists-010-8484986"
+received="Fri Aug 23 17:55:10 1996"
+isoreceived="19960823215510"
+sent="Fri, 23 Aug 96 17:02:00 MDT"
+isosent="19960823230200"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Confusion about Age: accuracy vs. safety"
+id="9608240002.AA01626@acetes.pa.dec.com"
+inreplyto="199608221235.OAA18736&#64;wsooti01.win.tue.nl"
+expires="1"
+
+
+To: Koen Holtman<koen@win.tue.nl>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    My main concern is that with the `every proxy cache must add an Age
+    header' interpretation, first-hand responses with max-age=0 or some
+    other small max-age value may have been marked as aged and gotten a
+    warning:stale header by the time they have passed a few 1.1 proxy
+    caches.  This is extremely bad because
+    
+      a) the next proxy might retry the request to get a fresh response,
+ and might even go into an infinite retry-loop when it keeps
+ getting responses with Age: 1.
+    
+I do not see anything in the draft specification that requires a
+proxy to retry a request until it gets a fresh response.  In fact,
+it seems ludicrous for an intermediate cache to do a retry purely
+on this basis, since (both because of the case you observe, and
+the possibility that an inbound cache is simply ignoring the
+Cache-control headers) if you get a stale response on your first
+try, an immediate retry is likely to result in the same error.
+
+The only place that the draft currently suggests an automatic
+retry (if my memory is accurate) when an actual communication
+failure occurs (e.g., when the server closes the connection
+before the client gets the entire response).
+
+If people are confused by this, then maybe we need to add some
+clarifying language that makes it explict: a proxy SHOULD NOT
+(or perhaps MUST NOT) retry a request that completed with
+a successful transmission of a response, whether or not that
+response is acceptable to the requesting client.
+
+      b) the user will get a big *warning:stale* message from the browser
+ while in fact nothing is wrong (the response is firsthand, so it
+ is as fresh as it can be).  Such warnings might drown out the
+ actual warnings when responses *are* stale, might cause lots of
+ reload-pressing, might cause service authors to never use
+ max-age=0, etc.
+
+The circumstances under which this could happen are:
+(1) hosts with badly incorrect clocks
+(2) origin servers that set very short max-age values
+and networks with relatively large RTTs
+
+Either one of these circumstances ought to be corrected (especially
+the wrong-clock case) and so we ought to develop techniques for
+diagnosing and reporting these problems, not hiding them.  The
+consequences of inadvertently and silently delivering stale info to
+users are far more likely to cause servers to use max-age=0 than
+the "cry wolf" problem you think you see here.
+
+    My proposal to Jeff at the time was something like the following Age
+    header rule:
+    
+     - MUST add Age when serving from cache memory
+     - MAY add Age when relaying a response from a 1.0 proxy
+     - MUST NOT add Age when relaying a response from a 1.1 or higher proxy
+
+After thinking about the possible failure modes, I believe that Koen's
+proposal would be acceptable to me, but only with the following
+modifications:
+
+     - MUST add Age when serving from cache memory
+     - MUST add Age when relaying a response from a pre-1.1 source
+     - SHOULD NOT add Age when relaying a response from a 1.1 or
+       higher source
+
+I replaced Koen's "MAY" with a "MUST" because that is necessary to
+prevent the wrong-clock failure mode that I described.
+
+I replaced his "MUST NOT" with a "SHOULD NOT" because I see no
+demonstrably serious consequences here that would merit making this a
+"MUST NOT", and it's quite conceivable that future experience will
+reveal cases where a proxy might want to add Age when relaying from a
+1.1 proxy; we shouldn't ban this unnecessarily.
+
+I replaced "proxy" with "source" because otherwise there's no guidance
+for what to do with responses received directly from an origin server.
+
+I replaced "1.0" with "pre-1.1" because there may still be some 0.9
+systems out there.
+
+-Jeff
+
+
+

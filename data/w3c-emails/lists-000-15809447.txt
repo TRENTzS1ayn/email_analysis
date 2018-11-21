@@ -1,0 +1,181 @@
+docno="lists-000-15809447"
+received="Fri Sep  1 18:20:52 2000"
+isoreceived="20000901222052"
+sent="Fri, 1 Sep 2000 16:20:03 -0600"
+isosent="20000901222003"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="RE: xml parsing error for &lt; character"
+id="001901c01462$c67ec080$51eee13f@rwaki"
+charset="iso-8859-1"
+inreplyto="Pine.WNT.4.10.10009011056180.-405663&#64;hazel.hpl.hp.com"
+expires="-1"
+
+To:"Dave Raggett"<dsr@w3.org>,"cateen"<cateen@turboweb.net.au>
+Cc:<html-tidy@w3.org>,<gerald@w3.org>
+
+
+Dave Raggett wrote:
+>
+> Unfortunately, current HTML browsers don't recognize CDATA marked
+> sections, and furthermore they expect script elements to have
+> CDATA content, and hence expect < and & to be unescaped.
+>
+> The XHTML 1.0 standard therefore recommends you move your scripts
+> to external files. The onmouseover and other event attributes
+> are however ok, as browsers will deal with entities in attribute
+> values.
+>
+> In the future as true XHTML browsers are deployed this problem
+> will go away, since when parsed as XML, you will be able to
+> use script elements with &lt; for < or with the use of an
+> enclosing CDATA marked section.
+>
+> I am uncertain as what HTML Tidy should do about this problem.
+> If it wraps the contents of a script element in a CDATA marked
+> section, it will stop the pages working in existing browsers.
+> Ditto if it escapes the problem characters. It could write the
+> contents of the script element to a new file, but what file
+> name should it use?  One possibility is simply to warn if Tidy
+> finds < and & within script elements, placing the burden on
+> the user to decide how to deal with the problem.
+>
+> What do people think about this?
+
+Dave,
+
+For a partial solution, how about special-casing JavaScript and CSS, and
+wrapping the CDATA section markup in JavaScript or CSS comments?  So far
+this seems to be working for me.  This could be expanded to cover other
+common cases like maybe VB Script.
+
+The only flaw I know of is that an embedded occurrence of ]]> will end
+the CDATA section prematurely.  If it occurred in a JavaScript string,
+it could be broken up with a backslash, but I haven't attempted to do
+this.
+
+Here are the changes I'm using (tested in Java, translated to C).
+They're based on a patch posted earlier by Gary L. Peskin.
+
+--Randy
+
+*** pprint.c    Fri Jul 28 17:57:56 2000
+--- \temp\pprint.c      Fri Sep 01 15:46:21 2000
+***************
+*** 1244,1259 ****
+          {
+              PCondFlushLine(fout, indent);
+
+              indent = 0;
+-             PCondFlushLine(fout, indent);
+              PPrintTag(lexer, fout, mode, indent, node);
+              PFlushLine(fout, indent);
+
+              for (content = node->content;
+                      content != null;
+                      content = content->next)
+                  PPrintTree(fout, (mode | PREFORMATTED | NOWRAP |CDATA), indent,
+lexer, content);
+
+              PCondFlushLine(fout, indent);
+              PPrintEndTag(fout, mode, indent, node);
+              PFlushLine(fout, indent);
+--- 1244,1337 ----
+          {
+              PCondFlushLine(fout, indent);
+
+              indent = 0;
+              PPrintTag(lexer, fout, mode, indent, node);
+              PFlushLine(fout, indent);
+
++             Bool isJavaScript = no;
++             Bool isCSS = no;
++             AttVal *type = GetAttrByName(node, "type");
++             if (type != null)
++             {
++                 isJavaScript = wstrcmp(type->value, "text/javascript") == 0;
++                 isCSS = wstrcmp(type->value, "text/css") == 0;
++             }
++             if (xHTML && node->content != null)
++             {
++                 /* start a CDATA section for style and script content */
++                 /* NOTE: This won't work if the content contains "]]>" */
++
++                 /* disable wrapping */
++                 uint savewraplen = wraplen;
++                 wraplen = 0xFFFFFF;  /* a very large number */
++
++                 if (isJavaScript)
++                 {
++                     AddC('/', linelen++);
++                     AddC('/', linelen++);
++                 }
++                 else if (isCSS)
++                 {
++                     AddC('/', linelen++);
++                     AddC('*', linelen++);
++                 }
++                 AddC('<', linelen++);
++                 AddC('!', linelen++);
++                 AddC('[', linelen++);
++                 AddC('C', linelen++);
++                 AddC('D', linelen++);
++                 AddC('A', linelen++);
++                 AddC('T', linelen++);
++                 AddC('A', linelen++);
++                 AddC('[', linelen++);
++                 if (isCSS)
++                 {
++                     AddC('*', linelen++);
++                     AddC('/', linelen++);
++                 }
++                 PCondFlushLine(fout, indent);
++
++                 /* restore wrapping */
++                 wraplen = savewraplen;
++             }
++
+              for (content = node->content;
+                      content != null;
+                      content = content->next)
+                  PPrintTree(fout, (mode | PREFORMATTED | NOWRAP |CDATA), indent,
+lexer, content);
++
++             if (xHTML && node->content != null)
++             {
++                 /* end the CDATA section for style and script content */
++
++                 /* disable wrapping */
++                 uint savewraplen = wraplen;
++                 wraplen = 0xFFFFFF;  /* a very large number */
++
++                 if (isJavaScript)
++                 {
++                     AddC('/', linelen++);
++                     AddC('/', linelen++);
++                 }
++                 else if (isCSS)
++                 {
++                     AddC('/', linelen++);
++                     AddC('*', linelen++);
++                 }
++                 AddC(']', linelen++);
++                 AddC(']', linelen++);
++                 AddC('>', linelen++);
++                 if (isCSS)
++                 {
++                     AddC('*', linelen++);
++                     AddC('/', linelen++);
++                 }
++                 PCondFlushLine(fout, indent);
++
++                 /* restore wrapping */
++                 wraplen = savewraplen;
++             }
+
+              PCondFlushLine(fout, indent);
+              PPrintEndTag(fout, mode, indent, node);
+              PFlushLine(fout, indent);
+
+
+

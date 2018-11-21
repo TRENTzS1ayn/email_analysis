@@ -1,0 +1,128 @@
+docno="lists-053-12976917"
+received="Wed Sep 10 05:22:01 2003"
+isoreceived="20030910092201"
+sent="Wed, 10 Sep 2003 12:21:47 +0300"
+isosent="20030910092147"
+name="Patrick.Stickler@nokia.com"
+email="Patrick.Stickler@nokia.com"
+subject="RE: I18N Issue alternative: collapsing plain and xml literals"
+id="A03E60B17132A84F9B4BB5EEDE57957B02A2E95B@trebe006.europe.nokia.com"
+charset="iso-8859-1"
+inreplyto="I18N Issue alternative: collapsing plain and xml literals"
+expires="-1"
+
+
+To:<Patrick.Stickler@nokia.com>,<gk@ninebynine.org>,<danbri@w3.org>,<bwm@hplb.hpl.hp.com>
+Cc:<w3c-rdfcore-wg@w3.org>,<Patrick.Stickler@nokia.com>
+
+
+
+> along the lines 
+> indicated in 
+> [1] (also described earlier, with some embellishment, by 
+> Patrick [2]), and 
+> have not become aware of any fundamental problem with it. 
+
+
+The one problem that I've seen identified with our approach
+is that it loses the distinction between text with markup
+and text that just looks like text with markup. I.e., at
+the end of the day, we just have strings, not XML.
+
+With Brian's/Dan's approach, we'd just have XML, not strings.
+
+Here's a twist on the two approaches which may promises to
+give us the semantic distinction between text and markup
+(i.e. both XML and strings) but with a consistent treatment
+in the graph:
+
+0. RDF/XML provides for the expression of both plain literals
+   and XML literals, with optionally associated language tag,
+   via xml:lang scoping (i.e. no more rdf:XMLLiteral datatype).
+
+1. All non-typed literals in the graph are canonicalized XML
+   with optionally associated language tag.
+
+2. If in the RDF/XML, for plain literals (where parseType="Literal"
+   is not specified) then the content is *converted* to an XML-literal
+   form, escaping all necessary characters, then canonicalized,
+   as part of the mapping to its graph representation.
+
+3. If parseType="Literal" is specified, then it is presumed
+   to already be in an XML-legal form and is simply canonicalized
+   on its way to the graph.
+
+Thus:
+
+<rdf:Desription rdf:about="#something" xmlns:ex="http://example.com/"
+    ex:p0="abc"
+    ex:p1="2 > 3"
+    ex:p2="2 &gt; 3"
+    ex:p3="xxx <br/> zzz"
+    ex:p4="xxx &lt;br/&gt; zzz">
+   <ex:p5>2 &gt; 3</ex:p5>
+   <ex:p6 xml:lang="en">xxx &lt;br/&gt; zzz</ex:p6>
+   <ex:p7 parseType="Literal">xxx <br/> zzz</ex:p7>
+   <ex:p8 parseType="Literal">xxx &lt;br/&gt; zzz</ex:p8>
+   <ex:p9 parseType="Literal">xxx &amp;lt;br/&amp;gt; zzz</ex:p9>
+   <ex:p10 parseType="Literal">abc</ex:p10>
+</rdf:Description>
+
+gives us
+
+<#something> <ex:p0>  "abc" ;
+             <ex:p1>  "2 &gt; 3" ;
+             <ex:p2>  "2 &gt; 3" ;
+             <ex:p3>  "xxx &lt;br/&gt; zzz" ;
+             <ex:p4>  "xxx &lt;br/&gt; zzz" ;
+             <ex:p5>  "2 &gt; 3" ;
+             <ex:p6>  "xxx &lt;br/&gt; zzz"@en ;
+             <ex:p7>  "xxx <br></br> zzz" ;
+             <ex:p8>  "xxx &lt;br/&gt; zzz" ;
+             <ex:p9>  "xxx &amp;lt;br/&amp;gt; zzz" ;
+             <ex:p10> "abc" .
+
+Thus (in terms of their values):
+
+   p1 = p2 = p5
+   p3 = p4 = p8
+   (p3|p4|p8) != p6
+   p0 = p10
+
+etc.
+
+The benefit of adding the conversion/escaping on plain
+literals is that *all* legacy RDF/XML remains legal, even 
+though RDF applications (or ideally, RDF APIs) will need to add 
+the reverse conversions/unescaping to provide the plain strings 
+for applications that only want plain strings.
+
+And since the escaping will protect the non-markup based 
+semantics of any markup characters occurring literally in
+plain strings, there is no confusion when comparing strings
+with markup and strings that just look like they have markup
+since they won't be the same string in the graph. I.e.
+
+          in RDF/XML                 in graph
+  plain: "<b>foo</b>"               "&lt;b&gt;foo&lt;/b&gt;"
+  XML:   "<b>foo</b>"               "<b>foo</b>"
+
+It also addresses the equivalence of plain literals and
+XML literals without markup, which denote the same thing,
+even though one is specified as a plain literal and the
+other as an XML literal, since plain literals in the RDF/XML
+are always converted to XML literals in the graph and thus
+their equivalence becomes apparent. I.e.
+
+          in RDF/XML                 in graph
+  plain: "&lt;b&gt;foo&lt;/b&gt;"   "&lt;b&gt;foo&lt;/b&gt;"
+  XML:   "&lt;b&gt;foo&lt;/b&gt;"   "&lt;b&gt;foo&lt;/b&gt;"
+  plain  "abc"                      "abc"
+  XML:   "abc"                      "abc"
+
+Eh?
+
+Patrick
+
+
+

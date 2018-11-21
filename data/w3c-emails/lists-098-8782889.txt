@@ -1,0 +1,122 @@
+docno="lists-098-8782889"
+received="Sun Jul  7 20:17:22 2002"
+isoreceived="20020708001722"
+sent="Mon, 8 Jul 2002 01:17:11 +0100"
+isosent="20020708001711"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Alternative N3 Parsers for CWM"
+id="014c01c22614$d08b80c0$ba560150@localhost"
+charset="utf-8"
+expires="-1"
+
+
+To:"Tim Berners-Lee"<timbl@w3.org>,"Dan Connolly"<connolly@w3.org>
+Cc:<www-archive+n3bugs@w3.org>
+
+
+Hi,
+
+I've been working on a clean substitute for notation3.py based on the
+structure of notation3.py and rdfn3.g, but using a regexp tokenizer, and
+including all of the bugfixes that I've been working on. It supports the
+"?x" univar syntax, ":-" clause labelling, keywords (including "=>") as
+subjects, and fixes the optional period in formulae bug that rdfn3.g had.
+
+A very preliminary speed test on a file with 7K+ triples reveals the parser
+to be nearly three times as fast as rdfn3.g, running in under 5 seconds as
+compared to under 13 seconds for the 130KB file.
+
+You asked whether or not the Yapps grammar should be hooked up to CWM; I
+wasn't 100% that it would be fast or reliable enough which is why I wrote
+this new parser, named "afon" in keeping with the naming scheme :-) I have
+managed to hook it up to CWM such that CWM now uses afon.N3Parser instead
+of notation3.SinkParser, and I was slightly surprised to find that it
+parses and pretty prints the 7K+ triples file at the same speed as it does
+with notation3.py (in just under 26 seconds) to within c.0.2 seconds. With
+the repeated caveat that I've only performed speed tests on this single
+(albeit large) file, it would seem to indicate that using the yapps grammar
+may pose a small speed *dis*advantage, and using afon would provide neither
+advantage nor disadvantage.
+
+However, the benefits to using an updated parser are that the syntax is
+hopefully a lot easier to follow (I took the guts of the system from the
+yapps grammar, and documented each of the functions accordingly), and that
+it is able to parse the => and ?x constructs, which will enable you to
+start deprecating log:for(All|Some).
+
+There are some other issues, too. CWM requires that formulae be identified
+as formulae (RDFSink.FORMULA)--implicitly beliving them to be URI-refs, and
+indeed requiring that they have a fragment. rdfn3.g produced bNodes for its
+formulae, and did not label them as being formulae at all, so it would be
+impossible to merge that without changes.
+
+In afon, I recently migrated from using bNodes to using hack URI-refs for
+the formulae. Since CWM provides a formulaURI to the parser (the things
+with "#0_work" on them), I had little choice but to implement them as they
+are. I think it would be a cleaner solution if CWM were to either use
+bNodes (which may be technically impossible due to its architecture), or,
+more integuingly, some other form of URI. At the moment, for each of the
+formulae generated within the document, I'm using URI-refs such as:-
+
+   formulae:ZmlsZTovaG9tZS9hZm9uL3Rlc3QubjM=#formula2
+
+I had hoped to use $ or : instead of the fragment, but once again CWM
+required that I put a fragment in there else it would not recognize them.
+The middle section is just the baseURI encoded with base64 (so that you can
+use the $ or : to separate at the end). Surprisingly, CWM recognizes the
+formulae URI-refs, and gives appropriate output--viz. it works.
+
+I've been very careful to ensure that afon registers all variable labels so
+that there are no collisions. When a variable is created, it registers it
+with the sink via. self._sink.quant(formula, variable). According to our
+recent conversation on #rdfig, I made all _:x and ?x variables quantify
+over their parent formulae (more on that at the bottom of this email).
+
+Since I've used a different output structure for the sink, I've had to
+write a buffer sink that can convert afon's output into something that CWM
+can use. For example, when self._sink.quant is called, it puts a "formula
+forSome/forAll variable" quad into the sink used by CWM. To turn this
+option on, you just set afon.SWAPCOMPAT = 1. To integrate it with SWAP, I
+replaced the "SinkParser" class in notation3.py with the following lines:-
+
+import afon
+afon.SWAPCOMPAT = 1
+SinkParser = afon.N3Parser
+
+Also, whilst RDFSink.ANONYMOUS is used to type bNodes, the output that
+notation3.SinkParser gives is devoid of any bNodes: they're converted to
+URI-refs. At first I didn't bother to convert them to URI-refs in the afon
+output, and CWM still recognized them to be URI-refs (i.e. it thinks "(3,
+'x')" is in fact "(1, 'x')" and outputs "this log:forSome <x> . <x>
+[etc.]"). However, now I output baseURI+'#'+varlabel, and CWM seems happier
+for it.
+
+The _:x and ?x constructs render log:forSome/log:forAll basically
+redundant, but for the rare times when quantification over different levels
+is required, perhaps a new directive and some sort of neutral variable
+syntax would be in order. I wouldn't mind adding that functionality to afon
+if it would mean that we could dispense with forAll/forSome once and for
+all!
+
+The code for the latest version of afon is available from:-
+
+   http://infomesh.net/2002/afon.txt
+
+I've run retest.sh, and 15/51 of the tests pass. Only /test/includes/t10.n3
+gives a syntax error (warranted: a hyphen is used illegally as a name
+character). The rest are diff failures; the genids that afon outputs are
+different from notation3.py's, hence the differences. There may also be
+some quantification errors, though: I noticed that CWM requires bNodes in
+contexts to be quantified to *and* in that context. However, universals are
+quantified to and in the parent context, and I'm not sure whence the
+difference.
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://purl.org/net/swn#> .
+:Sean :homepage <http://purl.org/net/sbp/> .
+
+
+

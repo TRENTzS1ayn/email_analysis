@@ -1,0 +1,427 @@
+docno="lists-020-15818688"
+received="Wed Mar 17 06:34:57 2004"
+isoreceived="20040317113457"
+sent="Wed, 17 Mar 2004 06:34:46 -0500"
+isosent="20040317113446"
+name="Thompson, Bryan B."
+email="BRYAN.B.THOMPSON@saic.com"
+subject="Introduction: Bryan Thompson"
+id="D24D16A6707B0A4B9EF084299CE99B39053F8B11@mcl-its-exs02.mail.saic.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'public-rdf-dawg@w3c.org'"<public-rdf-dawg@w3c.org>
+Cc:"'thompsonbry@saic.com'"<thompsonbry@saic.com>
+
+
+Hello,
+
+Our interest is primarily in the protocol aspect of the DAWG.  To that
+end, I have been working with one of the RDFNet API authors, Graham
+Moore, on an alternative to the RDFNet API Note using a REST-ful
+approach.
+
+The proposal, in short, is to use the XPointer Framework, to declare an
+XPointer scheme suitable for querying an RDF model, e.g., rdf(), to
+convey the XPointer expression to the server via the HTTP "Range"
+header, and to have the server return the results as MIME
+"multipart/mixed". For a more detailed, but not finished, writeup,
+please see:
+
+    http://wiki.cognitiveweb.org/HttpRangeAndXPointer
+
+A copy of which is pasted as plain text below.
+
+I am currently working on a proof of concept implementation as well in
+which we would like to demonstrate coverage of graph updates as well
+using a "direct manipulation" REST-ful semantics.
+
+Thanks,
+
+-bryan
+
+HttpRangeAndXPointer
+------------------------------------------------------------------------
+----
+----
+
+
+1 ContentsContents
+Summary
+Background
+XPointer
+Using XPointer with HTTP Range
+RSS Example
+RDF Triple Store Example
+Tuple Space Example
+XTM Example
+Notes
+Text fragments to be incorporated or tossed.
+References
+
+2 SummaryThis document explores the use of the XPointer Framework in
+combination with [REST Web Services]. The core use case is the direct
+manpulation of sub-resources. This requirement is especially valuable
+when
+the resource being addressed is very large, e.g., a busy RSS channel, a
+tuple space, or a triple store containing millions of triples. Further,
+by
+using the extensible XPointer Framework, the client is able to use a
+logical
+addressing scheme that is ideally suitable for identifying sub-resources
+in
+very different kinds of XML resource (e.g., SVG, RSS, and RDF/XML). 
+
+We show that you can achieve scalable direct manipulation of very large
+resource using HTTP/1.1 and the XPointer Framework. The key features of
+the
+HTTP/1.1 specification that are used are the "Range" request header, the
+"Content-Range", and "Content-Type: multipart/mixed" entity headers, and
+the
+"Accept-Ranges:" response header. 
+
+A client that desires to use these features must accept a minor
+additional
+burden in how they prepare the HTTP request (the XPointer fragment
+identifier is converted into a "Range: xpointer=...." header) and in how
+they process the HTTP response (the client must recognize the 206
+(Partial
+Content) status code and be able to handle the "multipart/mixed" content
+type when multiple sub-resources are addressed by the XPointer fragment
+identifier). 
+
+Nothing in this recommedation changes the basic contract for a fragment
+identifier. However, the recommended does effectively make it possible
+for
+the client to delegate the evaluation of the XPointer fragment
+identifier to
+the server. The client uses the HTTP "Range" request header to provide
+the
+XPointer fragment identifier to the server. By doing this, the client is
+essentially declaring that it only needs those sub-resource(s) that are
+actually addressed by the fragment indicator. An aware server will then
+return only the addressed sub-resource(s). 
+
+The use of XPointer fragment identifiers together with the HTTP POST,
+PUT
+and DELETE methods is also explored. POST appears to have utility in
+creating a new sub-resource of an identified sub-resource, which can be
+interpreted as either placing a link into the addressed sub-resource or
+as
+embedded a child XML element. PUT can be developed as a transactional
+update
+mechanism, using DROP + INSERT semantics, which makes good sense for
+flat
+addressing models, such as a triple store. The DELETE method provides a
+natural facility for destroying multiple sub-resources within a single
+transaction. 
+
+Finally, it is suggested that the use of XPointer and the extensible
+range
+mechanisms of HTTP/1.1 may provide a scalable alternative approach for
+people exploring APIs for semantic web services. [RDFNetAPI] 
+
+
+3 Background
+      Per URI [1] in order to know the authoritative interpretation 
+      of a fragment identifier, one must dereference the URI 
+      containing the fragment identifier. The Internet Media Type of 
+      the retrieved representation specifies the authoritative 
+      interpretation of the fragment identifier. [2] 
+
+With an (X)HTML representation, the agent is normally acting on behavior
+of
+a human operator who is navigating web hypermedia resources and the
+semantics of the fragment identifier are normally interepted by a web
+browser as causing the indicated sub-resource to be visible in the
+browser
+window. As such fragment identifiers do not provide a means for a client
+for
+the direct manipulation of sub-resource(s). Rather, the fragment
+indentifier
+is used by client-side processing once the resource representation is in
+hand. 
+
+In fact, HTTP does not transmit the fragment identifier as part of the
+request-URI !!! Instead, the client is expected to apply the fragment
+identifier to resolve the reference in the retrieved representation per
+the
+semantics of fragment indicators for the Internet Media Type negotiated
+for
+the representation of the resource for that GET request. 
+
+Instead, HTTP provides an extensible mechanism for clients to interact
+with
+a "Range:" of the resource representation. However the only range-unit
+that
+is explicitly described by the HTTP/1.1 RFC is "bytes", i.e., addressing
+one
+or more byte ranges in the resource representation. The "bytes"
+range-unit
+is suitable for some kinds MIME types, for example, retrieving a section
+of
+slice of binary image. Further, the HTTP specification breaks
+transparency
+and encourages caches to combine byte ranges (under certain validity
+conditions). 
+
+However the "bytes" range-unit is not suitable for our core use cases as
+it
+does not provide an extensible mechanisms for directly addressing and
+manipulating logical sub-resource(s). 
+
+
+4 XPointerThe XPointer Framework provides an extensible mechanism for
+addressing XML sub-resources. The XPointer Working Group has defined a
+core
+set of XPointer addressing schemes, in addition to the basic XPointer
+Framework. Further, people are free to define new XPointer schemes and
+to
+adopt existing XPointer schemes for addressing sub-resources for
+specific
+XML grammars, e.g., SVG. 
+
+Unfortunately of the existing XPointer schemes, the element() scheme is
+too
+weak and the xpointer() scheme is so powerful that it is rarely
+implemented.
+However, it is straight forward to declare and implement new schemes, so
+people should not be encouraged from adopting this approach. Further,
+such
+schemes will often be better tailored to the specific nature of the
+resource. 
+
+
+5 Using XPointer with HTTP RangeSo, how can we use the XPointer
+Framework to
+directly address and manipulate XML sub-resources? The key pieces are: 
+
+Server indicates support for the XPointer Framework. 
+
+
+      "Accept-Range" ":" "xpointer" 
+
+Client sends sub-resource request. 
+
+
+      "Range" ":" "xpointer" "=" pointer-parts 
+
+Server provides partial content response. 
+
+
+      "Content-Type" ":" "multipart/mixed" 
+
+
+5.1 RSS ExampleFor example, a client uses the XPointer Framework and the
+hypothetical XPointer xpath() scheme to address the sub-resource that is
+the
+third RSS "item" in an application/xml+rss representation of the
+resource
+whose URI is "http://www.rest.myorg.org/foo". 
+
+Request: 
+
+
+      GET /foo HTTP/1.1 
+      Host: rest.myorg.org 
+      Accept: application/xml+rss 
+      Range:
+xpointer=xmlns(ns:=http://myorg.org/xpointer/scheme/xpath)ns:xpath(//ite
+m/3)
+
+      ... 
+
+Response: 
+
+
+      HTTP/1.1 206 Partial Content 
+      Content-Type: application/xml+rss 
+      Content-Range:
+xpointer=xmlns(ns:=http://myorg.org/xpointer/scheme/xpath)ns:xpath(//ite
+m/3)
+
+      Content-Length: xxx 
+       
+      <item ...>...</item> 
+
+The "Accept:" header is used to negotiate the content type of the
+resource
+representation before we apply the XPointer Framework to identify the
+indicated sub-resources. If a single sub-resource is addressed, then
+this is
+also the content type of the response entity. If multiple sub-resources
+are
+identified, then the content type of the response entity will be
+"multipart/mixed." Each of the sub-entities will use the content type
+for
+the resource representation, but each sub-entity will provide only the
+representation of one of the identified sub-resources. The order of the
+"multipart/mixed" sub-entities is significant and reflects the order (if
+any) that the XPointer scheme imposes on the identified sub-resources
+(can
+XPointer schemes impose an ordering?). 
+
+
+5.2 RDF Triple Store Example
+ 
+   Develop and relate to the RDF-Net api (W3C Note). 
+ 
+
+If we insist that there is a one-to-one correspondence between the
+cardinality of the addressed sub-resources and the cardinality of the
+provided sub-entities, then this is just a shorthand for multiple PUT
+operations. 
+
+However, we can achieve transactional isolation on an update if we cause
+the
+addressed sub-resources to be modified using a "DROP + INSERT"
+semantics.
+This works nicely when the sub-resource contains the information that is
+used for logical addressing. For example, all RDF triples using a
+particular
+subject and predicate could be addressed by a hypothetical "rdf()"
+XPointer
+scheme. Those triples would be dropped and any new triples provided in
+the
+request entity(ies) would be inserted. 
+
+Viola - transactional UPDATE semantics. 
+
+As I see it, it is up to the resource service description to define the
+specific semantics for PUT. While the described model works nicely for
+RDF
+(with its flat address space in a tuple store), it would not have good
+semantics for an XML document with its tree-based addressing mechanisms.
+It
+should even be possible to use the "multipart/mixed" content type for
+PUT to
+INSERT multiple sub-resources. This makes good sense for RSS, but is
+less
+necessary for updating an RDF triple store. 
+
+
+5.3 Tuple Space Example
+  Consider developing an example for REST-ful tuple spaces. 
+
+
+5.4 XTM Example
+   Consider a look at the same reified triple store but use content 
+   negotiation to produce a view of the federated information for some 
+   subject using the XTM interchange syntax.  This should probably be 
+   broken out into an in depth look at the use of XPointer for a
+semantic 
+   web server. 
+
+
+6 Notes- Also show the use of "multipart/mixed", e.g.,
+"ns:xpath(rss/channel/item)" to address all item children of an RSS
+channel.
+
+
+- Use status code 416 (Request Range Not Satisifiable) if no
+sub-resources
+are addressed by the xpointer range (unless the If-Range header was
+used). 
+
+- The Content-XXX headers are entity headers. They may be provided any
+time
+a request entity is provided, so they are valid on a POST or PUT request
+(when using the direct manipulation semantics). However, the "Range:"
+header
+(and not the "Content-Range:" header) is used on a GET request since
+there
+is no request entity involved. The response to a GET (but not the
+request)
+may use a "Content-Range:" header since it describes the range of the
+resource whose representation is in the response entity. 
+
+- I have made the decision here to indicate support for the XPointer
+Framework using the "Accept-Ranges:" header, but not for the different
+XPointer schemes that the server recognizes. Per the XPointer Framework
+specification, if the XPointer processor does not recognize the scheme
+for a
+pointer part, then it must skip that pointer part, which seems good
+enough. 
+
+- The use of the Partial Content (206) header with a range-unit other
+than
+"bytes" may break some HTTP caching proxies. I think that this use is a
+valid reading of the extension mechanism for range-unit in the HTTP/1.1
+RFC,
+but it is at odds with the language in section 10.2.7 "206 Partial
+Content".
+In particular, that status code does requires either a Content-Range
+header
+or the "multipart/bytes" content type. I am choosing to read this as a
+failure on the part of the authors to drive the extension mechanisms for
+range-unit fully through the HTTP/1.1 RFC document. 
+
+Also, this approach might cause problems with deployed caches depending
+on
+their behavior when the range-unit is other than "bytes". 
+
+- The ETag mechanism can be used to request conditional destructive
+operations, e.g., using PUT to update a resource iff the resource has
+not
+been changed since some prior GET. This provides a kind of opportunistic
+locking strategy which can be useful. The HTTP/1.1 specification places
+constraints on the interaction of the "Range:" and "ETag:" headers.
+These
+interactions need to be review when integrating XPointer with ETag
+support. 
+
+- A savvy client can exploit the HTTP "Range:" header to obtain only the
+sub-resource(s) address by the XPointer fragment identifier. A slighly
+less
+savvy client can find itself retrieving the entire resource and having
+to
+apply XPointer itself. However, very large resources might only return
+metadata about the resource, e.g., when the resource is a triple store
+or
+tuple space. Other resources, such as an RSS channel, might only return
+those RSS items that are "current" for the channel, even though there
+may be
+other historical or pending RSS items that are not visible from that
+view of
+the resource state. These are not overly bad outcomes for more naieve
+use of
+XPointer. However, only a savvy client will be able to use XPointer to
+perform direct manipulation of sub-resources since the fragment
+identifier
+is otherwise stripped from the HTTP request. 
+
+
+7 Text fragments to be incorporated or tossed.Use server-side evaluation
+of
+XPointer on GET to return the representation of the addressed
+sub-resource(s) representation as a multipart MIME entity. This will
+require
+the use of the HTTP Range header mechanism. Note that HTTP/1.1 provides
+for
+extensible range-units, but only provides detailed (and optional)
+guidence
+for "byte-units". 
+
+Maybe we can automatically translate a fragment identifer that matches
+the
+generic syntax of an XPointer scheme into the corresponding HTTP Headers
+? 
+
+Ah! That is the problem: the HTTP caching mechanism examimes the URL but
+not
+the fragment identifier, right? If so, then caching will break if we use
+fragment identifiers to transport sub-resources. 
+
+
+8 References[1] URI -
+http://gbiv.com/protocols/uri/rev-2002/rfc2396bis.html
+
+
+[2] Architecture of the World Wide Web - http://www.w3c.org/TR/webarch/ 
+
+[x] RDF Net API -
+http://www.w3.org/Submission/2003/SUBM-rdf-netapi-20031002/ 
+
+
+

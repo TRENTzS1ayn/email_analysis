@@ -1,0 +1,82 @@
+docno="lists-039-1096133"
+received="Tue May  4 18:32:14 1999"
+isoreceived="19990504223214"
+sent="Tue, 4 May 1999 15:22:41 -0700"
+isosent="19990504222241"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: Question on uniqueness of exclusive locks"
+id="003301be967c$9fbfa280$d115c380@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="3.0.5.32.19990504145517.0363db20&#64;localhost"
+expires="-1"
+
+To: Henrik Frystyk Nielsen<frystyk@w3.org>,w3c-dist-auth@w3.org
+
+
+
+> Sorry if this has already been discussed but it seems to me that exclusive
+> locks can be replicated using the refresh mechanism and hence
+> aren't really guaranteed to be exclusive but rather sort of shared. Look
+at
+> this example:
+>
+> - While working in my office I get a lock on a resource and start edit it.
+> I suddenly have to run home so I save the edits but don't want to release
+> the lock as I don't want other people to start editing the document.
+>
+> - Later on at home I continue editing the document but the document is
+> still locked by me at work. However, I can discover the identity of the
+> lock using a PROPFIND and while I can not relock the resource it
+> seems that I can do a refresh on it which again seems to give me a copy of
+> the lock at home.
+
+Actually, the refresh operation is used to update the start time for the
+lock's timeout, not to get access to the lock token (and refreshing the lock
+requires passing the lock token in the request -- see section 8.10.9).
+PROPFIND on the lock discovery property can be used to retrieve the lock
+token, but this does not refresh the lock in any way, it's just a request
+for metadata on the resource concerning the active lock.
+
+> - I then edit at home and save the edits back but don't release
+> the lock as again, I don't want other people to start editing it.
+>
+> I now have two copies of the exclusive lock with two different
+> revisions of the document.
+
+No, the lock itself was never replicated. There is still only one lock,
+which is on the same server as the resource you were editing.
+
+When you were at work, your client had knowledge of the identifier of the
+lock (the lock token), and when you went home, your client at home then
+gained knowledge of the identifier of the lock by reading the lockdiscovery
+property, but at no time was the lock ever duplicated.
+
+> As there is no apparent link between a lock token and a
+> specific revision of the resource (UUIDs at least don't do this), the lock
+> can't help me detect the lost update problem and I may loose edits. In any
+> case, the lock is no longer exclusive.
+
+Locks don't help you *detect* the lost update problem, they help you
+*prevent* the lost update problem.  Locks make it more difficult for lost
+updates to occur, but they don't help a client detect lost updates.  You'll
+still use If-Match with Etags to do lost update detection.
+
+But, in your scenario, the only way you'll lose updates is if you yourself
+decide to blow away your own data.  The only people who can modify the
+locked resource in your scenario are those who you have given your
+authentication credentials so they can authenticate as you.
+
+In WebDAV, it is the combination of authentication credentials and
+displaying knowledge of the lock by passing the lock token in an If header
+that allows a write operation to occur on a locked resource.
+
+The lock token alone is insufficient to grant write access to a locked
+resource.
+Authentication credentials alone are insufficient to grant write access to a
+locked resource.
+
+- Jim
+
+
+

@@ -1,0 +1,155 @@
+docno="lists-042-7498440"
+received="Fri Sep  5 07:17:42 2003"
+isoreceived="20030905111742"
+sent="Fri, 5 Sep 2003 13:17:30 +0200"
+isosent="20030905111730"
+name="Julian Reschke"
+email="julian.reschke@gmx.de"
+subject="call for participation: roundtripping of WebDAV properties in filesystems"
+id="JIEGINCHMLABHJBIGKBCKEPCIFAA.julian.reschke@gmx.de"
+charset="iso-8859-1"
+inreplyto="077097E85A6BD3119E910800062786A905121EBA&#64;muc-mail5.ixos.de"
+expires="-1"
+
+To:"'Webdav WG'"<w3c-dist-auth@w3c.org>
+
+
+
+Hi,
+
+I got interested in this issue by some comments in Jim's article "The WebDAV
+property design" [1] and discussion on the Subversion mailing list about
+NTFS features.
+
+The problem(s):
+
+(a) resources copied to a local file system generally loose their WebDAV
+property information, thus they won't round-trip when the resource is PUT
+back to a WebDAV server
+
+(b) WebDAV clients mapping servers to filesystems generally can't map the
+properties to something a filesystem-based client can take advantage of.
+
+The issues:
+
+(1) Where to store the property information. The only portable solution
+involves exposing a second file somewhere else in the namespace (such as by
+appending a particular extension). In general, this is ugly due to possible
+name collisions, and the fact that the properties will not automatically
+move with the base file. Filesystems that offer multiple data streams or
+data forks may do better (see below for some information about NTFS data
+streams).
+
+(2) Which format to use.
+
+
+I think there's some hope in getting interoperability if we can get the
+client developers (such as MS, Xythos, Apply, davfs Linux developers) to get
+together (such as during the Interop event).
+
+
+Possible solutions:
+
+(1) This problem is hard in general but almost trivial for WIN32 scenarios.
+NTFS supports multiple data streams that can be accessed with generic file
+syntax (see [2]). All we'd need to do is to agree on a well-known name for
+the stream (such as ":dav-properties").
+
+(2) Let's just use the XML serialization of the DAV:prop element from a
+PROPFIND/allprop response body.
+
+
+Proof-of-concept:
+
+Below is a script for Windows Scripting Host that GETs/PROPFINDs a resource
+and stores the properties in the named data stream ":dav-properties". You
+can see the properties by just opening the data stream like a regular file,
+such as
+
+cat filename:dav-properties
+
+Usage:
+
+cscript davget.js URL destination-file user password
+
+
+--
+// davget.js
+// GET a file from an HTTP server, storing it's properties in a NTFS data
+stream
+// params: URL localfile user password
+
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+var http = new ActiveXObject("MSXML2.ServerXMLHTTP.3.0");
+var stream = new ActiveXObject("ADODB.Stream");
+
+var url = WScript.Arguments(0);
+
+
+// PROPFIND
+
+http.open("PROPFIND", url, false, WScript.Arguments(2),
+WScript.Arguments(3));
+http.setRequestHeader("Depth", "0");
+http.send("<propfind xmlns='DAV:'><allprop/></propfind>");
+
+if (http.status != 207) {
+  WScript.Echo("unexpected status from PROPFIND: " + http.status);
+  WScript.Quit(1);
+}
+
+var props = new ActiveXObject("MSXML2.DOMDocument");
+
+http.responseXML.setProperty("SelectionLanguage", "XPath");
+http.responseXML.setProperty("SelectionNamespaces", "xmlns:D='DAV:'");
+
+props.appendChild(
+
+http.responseXML.selectSingleNode("/D:multistatus/D:response/D:propstat[cont
+ains(D:status,'200')]/D:prop"));
+
+http.open("GET", url, false, WScript.Arguments(2), WScript.Arguments(3));
+http.send();
+
+if (http.status != 200) {
+  WScript.Echo("unexpected status from GET: " + http.status);
+  WScript.Quit(1);
+}
+
+stream.open();
+stream.Type = 1;
+try {
+  if (http.responseText.length > 0) {
+    stream.Write(http.responseBody);
+  }
+}
+catch (e) {
+  WScript.Echo("empty content? " + e);
+}
+
+stream.SaveToFile(WScript.Arguments(1), 2);
+stream.close();
+
+stream.open();
+stream.Type = 1;
+props.save(stream);
+stream.SaveToFile(WScript.Arguments(1) + ":dav-props", 2);
+stream.close();
+--
+
+Feedback appreciated,
+
+Julian
+
+
+
+
+
+[1] <http://www.cs.ucsc.edu/~ejw/papers/spe-whitehead.pdf>
+[2] <http://www.sysinternals.com/ntw2k/source/misc.shtml#Streams>
+
+--
+<green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+
+

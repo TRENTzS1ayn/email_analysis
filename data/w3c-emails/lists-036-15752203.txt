@@ -1,0 +1,152 @@
+docno="lists-036-15752203"
+received="Thu Mar  4 04:01:22 2004"
+isoreceived="20040304090122"
+sent="Thu, 4 Mar 2004 09:01:20 +0000"
+isosent="20040304090120"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="authority sub-components"
+id="20040304090120.GC5210~@nicemice.net"
+charset="us-ascii"
+expires="-1"
+
+To:uri@w3.org
+
+
+
+I just noticed a philosophical inconsistency in the current draft's
+definition of the authority component.  I also found a bug, which I'll
+discuss later in this message.  Consider the URI:
+
+    foo://joe:abc@1.2.3.4:56789/
+
+The RFC-1738 view was that there was no doubt what was what:
+
+    joe is a user name
+    abc is a password
+    1.2.3.4 is an IPv4 address
+    56789 is a port number
+
+The RFC-2396 view is that there are two possibilities, which you cannot
+distinguish unless you recognize the foo: scheme.  If foo: uses a
+server-based authority, then the above types apply.  If foo: uses a
+registry-based authority, then
+
+    joe:abc@1.2.3.4:56789 is a reg_name
+    (there is no user, password, IPv4 address, or port number)
+
+[Aside:  I'll have to retract my recent claim that a validation grammar
+can be used for decomposition.  A validation grammar can be ambiguous,
+and indeed the RFC-2396 grammar is ambiguous here.  A decomposition
+grammar cannot be ambiguous, but can be overly permissive.]
+
+The current draft of 2396bis seems to be heading back in the direction
+of RFC-1738 for the authority component.  It has eliminated @ and : from
+the set of characters allowed in a reg-name, and pushed reg-name down
+to be a sub-component of authority, rather than the entire authority.
+According to the current draft, even if we don't recognize the foo:
+scheme, we can be sure that
+
+    joe:abc is userinfo
+    1.2.3.4 is an IPv4 address
+    56789 is a port number
+
+So far, 2396bis is following the RFC-1738 model of knowing what's
+what without having to recognize the scheme.  But for the reg-name
+subcomponent, it's back to the RFC-2396 model of needing to recognize
+the scheme in order to know what it is.
+
+    foo://joe:abc@example.net:56789/
+
+    joe:abc is userinfo
+    56789 is a port number
+    example.net is a reg-name,
+      which might or might not be a hostname depending on foo:
+
+If 2396bis is willing to say that 1.2.3.4 is always an IPv4 address
+and never a reg-name, it must place a pretty high value on the ability
+to distinguish an IP address without having to recognize the scheme.
+Hostnames are an internet data type as fundamental as IP addresses, so
+it ought to be equally valuable to be able to distinguish a hostname
+without having to recognize the scheme.  Why is 2396bis willing to
+reserve part of the potential reg-name space for IPv4 addresses but not
+for hostnames?
+
+Now for the bug...  Section 2.3 says:
+
+    URIs that differ in the replacement of an unreserved character
+    with its corresponding percent-encoded octet are equivalent: they
+    identify the same resource.
+
+    For consistency, percent-encoded octets in the ranges of ALPHA
+    (%41-%5A and %61-%7A), DIGIT (%30-%39), hyphen (%2D), period (%2E),
+    underscore (%5F), or tilde (%7E) should not be created by URI
+    producers and, when found in a URI, should be decoded to their
+    corresponding unreserved character by URI normalizers.
+
+But consider the URI:
+
+    foo://%31.2.3.4/
+
+The authority is a reg-name, not an IP address, according to the ABNF
+grammar and the first-match-wins rule (and the text "If host matches
+the rule for IPv4address, then it should be considered an IPv4 address
+literal and not a reg-name.").
+
+The %31 encodes an unreserved character, and section 2.3 says that
+decoding it will result in an equivalent URI, and that such decoding
+should be done by URI normalizers.  The result, however, is:
+
+    foo://1.2.3.4/
+
+The authority here is an IPv4 address, not a reg-name.  These are
+different data types with different semantics.  The reg-name %31.2.3.4
+refers to the entry "1.2.3.4" in a scheme-specific name registry, while
+the IPv4 address 1.2.3.4 refers to an IP network interface.
+
+One way to fix this bug would be to allow percent-encoding within
+IPv4address, but that would not be compatible with deployed software.
+
+Another way to fix the bug would be to go back more toward the RFC-2396
+model (but not all the way back):
+
+    authority = [ userinfo "@" ] coordinator [ ":" port ]
+    coordinator = reg-name / host ; first match does NOT win, the scheme
+                                  ; determines which alternative applies
+    host = IP-literal / IPv4address / hostname
+
+This way, 1.2.3.4 and example.net are both equally indeterminate.  Both
+might or might not be reg-names, depending on the scheme.  Rewriting
+foo://%31.2.3.4/ as foo://1.2.3.4/ is safe, because if foo://%31.2.3.4/
+is valid, then foo: must be a scheme that uses reg-name coordinators
+rather than host coordinators, and therefore 1.2.3.4 is still a reg-name
+in foo://1.2.3.4/.
+
+Another way to fix this bug would be to make IPv4address and reg-name
+distinguishable without having to resort to the first-match-wins rule.
+For example:
+
+    host = IP-literal / IPv4address / hostname / "-" reg-name
+
+There would be no overlap between any of these four tokens, no need to
+invoke the first-match-wins rule, and both IP addresses and hostnames
+would be recognizable without needing to recognize the scheme.  The
+downside is that this would invalidate things that were valid under
+RFC-2396.  2396bis already invalidates some things that were valid
+under RFC-2396, like foo://a@b@c/, but this would invalidate almost all
+non-hostname-syntax names.  Do there currently exist URI schemes that
+use non-hostname-syntax names in the authority component?
+
+By the way, I wonder if the token name "reg-name" is misleading.  The
+2396bis reg-name is quite distinct from the RFC-2396 reg_name.  It
+occupies a different position in the grammar and has a different
+meaning.  The RFC-2396 reg_name was a kind of naming authority that is
+not a server (and is not a host, and never has users or ports), while
+the 2396bis reg-name is a kind of host (which could have users and
+ports).  These are quite different concepts.
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

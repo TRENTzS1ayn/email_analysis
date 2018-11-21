@@ -1,0 +1,177 @@
+docno="lists-037-9931403"
+received="Mon Feb  3 13:48:04 1997"
+isoreceived="19970203184804"
+sent="Mon, 3 Feb 1997 10:18:39 -0800"
+isosent="19970203181839"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="Re: app/foo and app/fooresult"
+id="af1bc6cc05021004a2d5@[128.195.185.27]"
+charset="us-ascii"
+inreplyto="app/foo and app/fooresult"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+Cc:marc@ckm.ucsf.edu
+
+At 12:03 PM 1/30/97, Marc Salomon wrote:
+
+>Is there a rationale for defining complementary MIME types for requests and
+>responses to a method besides the ability to unambiguously determine the nature
+>of the message out of context?  Are you that much more likely to retain the C-T
+>header than the HTTP request/response line?
+>
+>If a lock request is in the form of:
+>
+>LOCK foo HTTP/1.x
+>Content-Type: application/lock
+>
+>[lock request entity]
+>
+>and the response is in the form of:
+>
+>HTTP/1.x 20x OK
+>Content-Type: application/lockresult
+>
+>[lock response body]
+>
+>The main reason that I can see for creating MIME types for request and reponse
+>is that you are missing the HTTP request or status lines but manage to keep the
+>Content-Type header value around.  Contrast this to the message/http content
+>type that doesn't need to a separate IMT for the request and reponse as its
+>form is unambiguous.
+
+Excellent question.
+
+There are several choices for where method parameters can be placed.
+
+1. In the URL, via munging (e.g.,
+http://foo.bar.com/junk.html?type=exlusive_write)
+2. In headers, which often end up being method-specific (such as LockEntry,
+which if used as a header would have limited applicability outside LOCK and
+CHECKOUT).
+3. In the message body.  In this category, we had the choices of a) using
+the same content type for all methods (e.g., application/davparams) or b)
+having method-specific content types.
+
+Combinations of the above choices are also available.  Combining approaches
+#2 and #3 offers the advantage that headers which have utility across
+methods can be placed into headers, where appropriate.  This combination
+approach is primarily what was followed in the current WEBDAV draft, with
+the "Overwrite" header being an example of a header which has utility
+across many methods (however, the overwrite header may not be necessary,
+since existing headers may cover its functionality).
+
+When the design team decided how to package method parameters, there were
+several concerns:
+
+a) the agreement made at the Palo Alto meeting (from the minutes):
+
+* The group reached rough consensus that new DAV functionality should be
+specified with new HTTP methods, with request parameters in the message
+body. However, this was subject to the caveat that existing HTTP/1.1
+headers should be used where appropriate and consistent with existing
+meaning and usage. Also, this design choice was not meant to preclude
+the definition of new headers, if they are the best design choice.
+
+This reflected a sentiment expressed at this meeting that method-specific
+headers were not desirable within HTTP -- headers ideally should apply to
+all methods, not just a single method.
+
+b) the desire to accomodate potential email access to DAV functionality
+(this group is not actively working on how this is done, but wishes to make
+it easy to do so in the future)
+
+Affecting the thinking of the design team were the leftover bodies from the
+approach of using POST with all parameters in the message body, which was
+in previous drafts.  At the Palo Alto meeting the group decided to define
+separate methods rather than do all DAV capability via POST.  This was due
+to the consistent feedback from HTTP server authors (I polled Robert
+Thau/Apache, Anselm Baird-Smith/Jigsaw, and Jim Cunningham/Netscape), that
+methods were far preferable than a POST based approach.  However, in the
+POST approach all parameters were in the message body, and this colored our
+thinking.
+
+The other fact that affected the design team was our lack of knowledge
+about the message/http content type.
+
+With the design team's biases out on the table, I still find the current
+approach for parameter packaging (parameters primarily in bodies with
+specific content types, with a few new headers which apply to many methods
+-- consistent with the agreement reached at the Palo Alto meeting) to be
+better than alternatives.  Alternatives, and their advantages and
+disadvantages are discussed below:
+
+1. URL munging.  While this has the advantage of working with downlevel
+clients, URL munging is bad for many reasons.  First, URLs are opaque
+strings which identify resources.  Once you do parameter munging, an entry
+in the namespace isn't the identifier for a resource, but rather an
+identifier for some arbitrary computation.  Also, the munge then adds extra
+semantics to the URL, which then makes the URL non-opaque.  Never seriously
+considered for DAV because it breaks the semantics of URLs, this technique
+is used by some existing versioning systems.
+
+2. All parameters in headers.  This approach has the advantage of not
+requiring many new content types, and is closest to existing HTTP/1.1
+practice.  However, this approach does create a feature interaction
+problem.  Every time a new header is introduced into HTTP, it is necessary
+to detail the interactions between that header and existing methods.  Also,
+in the future, every time a new method is added to HTTP, all existing
+headers must be checked for applicability or interactions with the new
+method (in fact, there is a definite need to go through all of the HTTP/1.1
+headers and decide whether they apply to the DAV methods, and what they
+mean if they do apply).
+
+This problem is mitigated by placing the method parameter information in
+the message body.  With all method parameters in the body, the parameters
+are *modularized*, and are in a location where the server can immediately
+know the information relates to a specific method.  This allows a server to
+immediately reject a method-specific parameter if the client sends it as a
+header.  And, if a new method is introduced, the parameter attributes do
+not need to be examined in the light of this new method.  If the new method
+wants to use existing parameter attributes, it can, but it isn't forced to
+do a time-consuming evaluation of the new method versus all existing
+headers.  Similarly, the method parameter attributes for all DAV methods do
+not need to be examined to see if they affect existing HTTP/1.1 methods,
+which would be the case if they were defined as headers.
+
+The design team also believed that method-specific content types which
+encapsulate  method parameter attributes would be conducive to email access
+to DAV functionality.  However, given that the HTTP message would be
+packaged into a message/http content type (which could carry the method
+parameter attributes as headers as easily as parameters in the message
+body), this does not end up being a substantial advantage for the
+parameters in message body approach.
+
+However, the email usage case *does* provide support for using
+method-specific content types rather than using an application/davparams
+content type.  Since email may deliver messages out-of-order, by having the
+method name in the content type, a client can reconnect a method response
+to a method request.  The design team worked to make sure the response
+carried enough information so that a client could reconnect a response it
+to a request, even if it was received out-of-order.
+
+Having the request information packaged in a special content type also has
+the advantage that a request can be formulated once, stored in an
+intermediate location, then reused verbatim in potentially many requests.
+However, I cannot easily come up with a convincing usage case for this
+capability.
+
+Thus, the most compelling argument in favor of packaging method parameters
+into the message body and defining new content types is modularity, and the
+information hiding that results from this modularity.  This prevents the
+need for an exhaustive header interaction analysis for new method parameter
+headers.  The compelling argument in favor of method-specific content types
+is reconnecting out-of-order responses with initial requests, which may
+occur in email usage of DAV.
+
+This post represents my understanding of the design team's rationale for
+their choice of method parameter packaging.  I welcome your comments on our
+choice.  Certainly, if the group decides on an alternate approach, then the
+opinion of the group will hold.
+
+- Jim
+
+
+

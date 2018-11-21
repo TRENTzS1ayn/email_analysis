@@ -1,0 +1,118 @@
+docno="lists-013-7734450"
+received="Mon Feb 23 15:40:42 2004"
+isoreceived="20040223204042"
+sent="Mon, 23 Feb 2004 20:40:41 +0000"
+isosent="20040223204041"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Meaning of Vary header applied to nonexistent headers"
+id="20040223204041.GA32719@mail.shareable.org"
+charset="usascii"
+expires="1"
+
+To:ietf-http-wg@w3.org
+
+
+
+This is a request for clarification in the HTTP/1.1 standard.  Perhaps
+something for the accumulating errata.
+
+1. When an origin server selects the response by looking at a request
+   header, and the header does not exist, is it correct for the server to
+   add the name of that header to Vary?
+
+   For example, suppose a server's logic is like this pseudo-code:
+
+       reponse_headers (Vary) = "Accept-Language"
+
+       IF request_headers (Accept-Language) contains "ja" THEN
+   serve the japanese page
+       ELSE 
+           serve the english page
+       ENDIF
+
+   What is the correct HTTP response when the request doesn't have an
+   Accept-Language header?
+
+   I would guess that the correct response is to "include Vary:
+   Accept-Language", but that begs the next question:
+
+2. How should a cache treat missing requests headers which are
+   mentioned in Vary, when deciding if a stored entity matches a
+   request?
+
+   a. If the stored entity was requested _without_ the header mentioned
+      in Vary, and the new request is also _without_ the header, does
+      the stored entity match?  (This would come from scenario 1 above).
+
+   b. If the stored entity was requested _without_ the header mentioned
+      in Vary, and the new request is _with_ the header, does the
+      stored entity match?
+     
+   c. If the stored entity was requested _with_ the header mentioned
+      in Vary, and the new request is _without_ the header, does the
+      stored entity match?
+
+I would imagine that in case a, the entity matches, and in cases b and
+c, the entity doesn't match and must be revalidated.
+
+But the language of RFC 2616 is a unclear:
+
+   When the cache receives a subsequent request whose Request-URI
+   specifies one or more cache entries including a Vary header field,
+   the cache MUST NOT use such a cache entry to construct a response to
+   the new request unless all of the selecting request-headers present
+   in the new request match the corresponding stored request-headers in
+   the original request.
+
+Can the selecting request-headers "match" if they are absent?  What
+about case a?
+
+   The selecting request-headers from two requests are defined to match
+   if and only if the selecting request-headers in the first request can
+   be transformed to the selecting request-headers in the second request
+   by adding or removing linear white space (LWS) at places where this
+   is allowed by the corresponding BNF, and/or combining multiple
+   message-header fields with the same field name following the rules
+   about message headers in section 4.2.
+
+Is this supposed to mean that an absent header is equivalent to an
+empty header, or that an absent header is semantically a distinct
+value from an empty header, or that an absent header is not considered
+at all in the decision, or that an absent header cannot be matched
+even with an absent header in the original request for the cached
+entity?
+
+3. Does this mean that server code which inspects a header value, and
+   finds the header missing, should look like this instead?
+
+       IF exists request_headers (Accept-Language) THEN
+           reponse_headers (Vary) = "Accept-Language"
+       ELSE
+           response_headers (Vary) = "*"
+       ENDIF
+
+       IF request_headers (Accept-Language) contains "ja" THEN
+   serve the japanese page
+       ELSE 
+           serve the english page
+       ENDIF
+
+This question has come up because I am writing some simple server code
+which creates Vary headers when the application examines the value of
+a request-header.  Yet, reading RFC 2616 doesn't seem to clarify what
+the server code should do in these cases; it sheds no light on it at all.
+
+The conservative thing to do is to disable cacheing when an examined
+request-header is absent, but that seems excessively pessimistic.
+
+I was prompted to ask here, after reading the HTTP/1.1 errata document
+and seeing nothing that clarifies this question.
+
+Can anyone shed any light on this?
+
+Thanks,
+-- Jamie
+
+
+

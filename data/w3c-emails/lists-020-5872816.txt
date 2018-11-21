@@ -1,0 +1,119 @@
+docno="lists-020-5872816"
+received="Mon Mar  1 19:14:27 2004"
+isoreceived="20040302001427"
+sent="Mon, 01 Mar 2004 16:14:25 -0800"
+isosent="20040302001425"
+name="Per Bothner"
+email="per@bothner.com"
+subject="defer cyclic module import until XQuery 1.0"
+id="4043D1E1.5000401@bothner.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+
+The November draft of the XQuery specification (4.7 Module Import)
+says that "Two modules may import each other."  However, the
+formal semantics assumes this is not the case, starting with:
+
+5.2 Module Declaration
+"We assume that the static-context processing and dynamic-context
+processing described in [5 Modules and Prologs] are applied to all
+library modules before the normalization, static context processing,
+and dynamic context processing of the main module. That is, at the
+time an "import module" declaration is processed, we assume that the
+static and dynamic context of the imported module is already
+available."
+
+So you say "let's fix the formal semantics".  Doable, probably,
+but not trivially.  The processing of the module prologue
+is done in "declaration order", and cyclic module imports
+disallows that.
+
+A module cycle has to be compiled as a unit; you can't separately
+compile them.  So they're little more than syntactic sugar.  I think
+you could define module cycles by defining module import as
+"semi-textually" merging in declarations from the imported module,
+renaming the namespace prefixes.  I don't understand schema imports
+well enough to know if they would cause complications.  Other
+declarations such as base-uri, validation declaration, and default
+collation declations probably cause minor complications.  Variables
+declarations are the biggest obvious complication.
+
+Note that if a VarDecl omits the TypeDeclaration, the value of
+the VarRef is that of its definining expression.  This doesn't
+work if there is a cycle between variables, so we'd need to
+add rules to disallows such a cycle.  Note that XQuery static
+typing is strictly bottom-up; there is no ML-style type unification.
+
+A related issue is that the the formal semantics "looks up" variables
+and functions in imported modules by lookup up their namespace
+uri in the "module_dynEnv".  Note this doesn't work if there are
+multiple modules in the same namespace.  Both formal and informal
+semantics are very unclear about the difference between a library
+module as a syntactic unit, its namespace, and the result of
+elaborating one or more libray module syntax forms with the same uri.
+
+If there may be multiple modules for the same uri, how do you tell
+when there is a cycle?  What if there is no location hint in the
+module import, or the location hint is an alias (e.g. a symbolic link)
+for a previously-imported module?
+
+Separate compilation becomes a lot more complicated, both
+definition and implementation, when modules may recursively
+import each other.  Find a pre-compiled module is difficult
+unless there is a one-to-one mapping between modules and URIs.
+Location hints don't help much unless their meaning is standardized,
+at least in a non-normative manner.
+
+If two queries are executed, and both import the same library module,
+must/should the implementation evaluate the library module's variable
+initializations twice, or can it re-use the values from the first query?
+It is tempting to think of module-leval variables similar to
+C/C++/Java static variables that are initialized when their module is
+first loaded, but that may not be the desired semantics.  Consider:
+   declare variable $var { fn:current-time() };
+
+I'm sure these issuees can be solved, but it will take time;
+better to leave them for version 2.0.
+
+Recommendation for XQuery 1.0:
+* Modules may not import each other, directly  or indirectly.
+* Only allow a single library module for a given namespace.
+* Consider a non-normative recommendation that location specifiers
+in import statements be URIs (where relative URIs are resolved
+against the importing module's base uri, while defaults to its
+"source file name").
+* Possibly: Remove the requirement that the fn:current-date,
+fn:current-time, and fn:current-dateTime functions if "invoked
+multiple times during the execution of a query or transformation,
+these functions always return the same result", since that would
+preclude an implementation from running library initializers
+only once.
+
+Alternative, recommended to be deferred to 2.0:
+* Allow modules to import each other, but prohibit static cycles in
+definition of variables.  I.e. a variable's defining expression may
+not depend on variables or functions that in turn depend on it.  This
+restriction should be statically checkable; this avoids the need
+for a dynamic check, and it solves the problem of determining the type
+of a variable without a type specifier.  Note that a dynamic check for
+a cyclic dependency isn't enough if you're doing static typing.
+(I suggest allowing implementations without the static typing feature
+to defer the cycle check until runtime.)
+* We have to define both informally and formally the semantics
+of a cycle of module imports.  This is difficult.
+* We have to be able to detect a module cycle.  This means we
+have to have a concept of "module identity" or "module name".
+This is difficult if multiple modules may have the same namespace.
+* Remove the restriction that a variable must be defined
+before its use, as that is redundant, and the restriction is
+meaningless if you have modules that import from each other.
+-- 
+--Per Bothner
+per@bothner.com   http://per.bothner.com/
+
+
+

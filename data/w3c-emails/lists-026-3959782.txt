@@ -1,0 +1,175 @@
+docno="lists-026-3959782"
+received="Thu May 22 17:45:31 2003"
+isoreceived="20030522214531"
+sent="Thu, 22 May 2003 14:46:09 -0700"
+isosent="20030522214609"
+name="Burdett, David"
+email="david.burdett@commerceone.com"
+subject="RE: Partial executability/ determinism of a Chor description lang uage"
+id="C1E0143CD365A445A4417083BF6F42CC053D1B1F@C1plenaexm07.commerceone.com"
+inreplyto="Partial executability/ determinism of a Chor description lang uage"
+expires="-1"
+
+
+To:"'Fletcher, Tony'"<Tony.Fletcher@choreology.com>,public-ws-chor@w3.org
+
+Tony
+ 
+I agree with the requirement that the behavior of the a choreography can be
+dependent of the content of a message. However, I think the best way to do
+this is with an abstract choreography definition (in a CDL) and a binding to
+the concrete. The following is based on the ideas for a CDL I put out in an
+earlier email [1].
+ 
+Here's the Choreography definition ...
+ 
+<Interaction Name="SendOrderResponse">
+  <Description>Send the order response to the buyer</Description>
+  <PreCondition Condition="OrderChecked"/>
+  <FromRole>Seller></FromRole>
+  <ToRole>Buyer</ToRole>
+  <FromRoleState>OrderResponseSent</FromRoleState>
+  <ToRoleState>OrderResponseReceived</ToRoleState>
+  <MessageFamily>OrderResponse</MessageFamily>
+</Interaction>
+<Process Name="CheckOrderResponse" Role="Buyer">
+  <Description>The buyer checks the order response</Description>
+  <PreCondition Condition="OrderResponseReceived"/>
+  <ProcessEndState State="OrderAccepted"/>
+  <ProcessEndState State="OrderRejected"/>
+  <ProcessEndState State="OrderResponseError"/>
+</Process>
+
+<Interaction Name="SendMessage3">
+  <Description>Send Message 3 as Order accepted</Description>
+  <PreCondition Condition="OrderAccepted"/>
+  <FromRole>Buyer</FromRole>
+  <FromRoleState>Message3Sent</FromRoleState>
+  <ToRole>Seller</ToRole>
+  <ToRoleState>Message3Received</ToRoleState>
+  <MessageFamily>Message3</MessageFamily>
+</Interaction>
+<Interaction Name="SendMessage4">
+  <Description>Send Message 4 as Order rejected</Description>
+  <PreCondition Condition="OrderRejected"/>
+  <FromRole>Buyer</FromRole>
+  <FromRoleState>Message4Sent</FromRoleState>
+  <ToRole>Seller</ToRole>
+  <ToRoleState>Message4Received</ToRoleState>
+  <MessageFamily>Message4</MessageFamily>
+</Interaction>
+
+In the example above:
+1. An Interaction is the sending of a message from one role to another which
+results in state changes at each role, e.g. sending an OrderResponse results
+in the From role's state becoming OrderResponseSent, and once received the
+To role's state becoming OrderResponseReceived
+2. A Process is an activity that occurs in one role (e.g.
+CheckOrderResponse) which can result in one or more output states (e.g.
+OrderAccepted, OrderRejected or OrderResponseError)
+3. Any Interaction or Process is conditional on the existence of some
+combination of states, for example the CheckOrderResponse process is
+conditional on the OrderResponseReceived state.
+ 
+Note that this whole definition is abstract as it does not identify either
+the message format or how you determine, for example any of the states. To
+do this you need a separate document to do the "binding". This would look
+something like the following ...
+ 
+<Binding>
+  <MessageFamilyBinding name="OrderResponse">
+    urn:somenamesapce.com/orderresponse.xsd
+  </MessageFamilyBinding>
+  <StateBinding name="OrderRejected">
+    urn:somenamespace/orderresponse.xsd/OrderResponse/status="Rejected"
+  </StateBinding>
+  <StateBinding name="OrderAccepted">
+    urn:somenamespace/orderresponse.xsd/OrderResponse/status="Accepted"
+  </StateBinding>
+</Binding>
+ 
+In this binding:
+1. The content of MessageFamilyBinding binds the generic OrderResponse to a
+specific OrderResponse schema definition
+2. The individual states, e.g "OrderRejected" are bound to an Xpath
+expression that evaluates to true/false that examines a part of a document
+(Note, my Xpath expresssion is probably slightly off!)
+
+This way, you can both a) keep the choreography "abstract" and b) have a
+concrete binding that can be used in a real implementation. Also note that:
+1. You can have multiple different bindings for the same choreography
+definition therefore enabling choreography reuse
+2. You could also indirectly bind a MessageFamily to a WSDL message
+reference inside an operation definition and therefore bind a service to a
+choreography.
+ 
+I also think that the whole area of how you go about doing bindings would be
+fruitful one to explore further.
+ 
+Thoughts?
+ 
+David
+[1] http://lists.w3.org/Archives/Public/public-ws-chor/2003Apr/0057.html
+<http://lists.w3.org/Archives/Public/public-ws-chor/2003Apr/0057.html> 
+
+-----Original Message-----
+From: Fletcher, Tony [mailto:Tony.Fletcher@choreology.com]
+Sent: Thursday, May 22, 2003 2:41 AM
+To: public-ws-chor@w3.org
+Subject: Partial executability/ determinism of a Chor description language
+
+
+Dear Colleagues,
+ 
+I would like to clarify in my own mind and continue a discussion o the
+degree to which a Choreography description language (CDL) is deterministic
+or 'executable'.  I think this issue links to previous threads on the use of
+information from messages, or not.
+ 
+I think we all agree that a CDL will only give a very partial description of
+the behaviour of any 'entity' playing a particular role (and that you do
+need a full programming language such as Java or C#  for any sort of
+'complete' description.
+ 
+However, consider the following:
+ 
+Role A sends message 1 to role B
+ 
+Role B replies with message 2 to role A
+ 
+At this point there may now be say three different messages that A could
+next send to B according to the CDL instance and given no other information.
+ 
+Now suppose that message 1 was an order message and message 2 an order
+response with a critical information field that says 'accept' or 'reject'.
+ 
+The CDL could now say that role A can examine the incoming message 2 extract
+the semantic accept or reject and if reject then send message 3 else send
+message 4 or message 5 (means of determining which is not shown in this CDL
+instance, but would be in the CPL for that role).
+ 
+Without being dependent on the precise syntax of messages, only some of the
+semantic elements, I think that some people in this group would like the
+above behaviour to be supported by the WS-Chor language and thus support for
+this behaviour to be a requirement.
+ 
+Others seem to be arguing for no dependence on message content at all -
+perhaps just the name of the message received(?).  Can we reach an amicable
+consensus?
+ 
+Best Regards     Tony
+A M Fletcher
+ 
+Cohesions 1.0 (TM)
+ 
+Business transaction management software for application coordination
+ 
+Choreology Ltd., 13 Austin Friars, London EC2N 2JX     UK
+Tel: +44 (0) 20 76701787   Fax: +44 (0) 20 7670 1785  Mobile: +44 (0) 7801
+948219
+tony.fletcher@choreology.com <mailto:tony.fletcher@choreology.com>
+(Home: amfletcher@iee.org)
+ 
+
+
+

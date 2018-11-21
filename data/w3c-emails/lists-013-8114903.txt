@@ -1,0 +1,211 @@
+docno="lists-013-8114903"
+received="Mon Mar 15 17:59:56 2004"
+isoreceived="20040315225956"
+sent="Mon, 15 Mar 2004 22:59:51 +0000"
+isosent="20040315225951"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Re: LWS around header names"
+id="20040315225951.GA11561@mail.shareable.org"
+charset="usascii"
+inreplyto="Pine.BSF.4.58.0403151333580.17944&#64;measurementfactory.com"
+expires="1"
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+Cc:ietf-http-wg@w3.org
+
+
+
+Alex Rousskov wrote:
+> I believe Apache team did the right thing: skipping whitespace
+> characters before colon is desirable/correct, and the bug had, albeit
+> remote, security implications.
+
+Unfortunately, fixing it has introduced new, albeit remote, security
+implications.  Previously a Squid proxy or other (old) Apache proxy
+would have forwarded "Authorization :" and not applied the proxy
+requirements when that header is forwarded, and the origin server would
+have ignored it.
+
+The new Apache as origin server will treat it as a proper
+Authorization header, and may send a response that is inappropriately
+cached, unknown to the origin server.
+
+Now that is a remote security implication indeed.  It's not obvious
+that you could use it for anything useful, but it's not obvious that
+you can't, and Authorization isn't the only such header.
+
+You see?  It's fixed a bug, and removed one obscure security
+implication, but replaced it with a new one.  Given that there are
+more Squid proxies than Apache proxies on a typical path, the new one
+is marginally more dangerous. :)
+
+> >        The grammar of RFC 2616 suggests that it is, because ":" is a
+> >        separator character, and thus the rule for implied LWS between
+> >        a token and a separator applies
+> 
+> Yes.
+
+I agree.  That's what I thought when I read the grammar for the first time.
+
+> >        The wording explicit states LWS is permitted after the colon,
+> >        suggesting that the intention is that it's not permitted before
+> >        the colon.
+> 
+> I believe the wording does not suggest anything beyond what it
+> explicitly says.
+
+I agree that there's no contradiction, but I disagree with you about
+the suggestion of intent.  Why would the text explicitly mention LWS
+after the colon but nothing about LWS before it, instead of saying,
+with no ambiguity, "the colon may be surrounded by any amount of LWS,
+though none is preferred before and a single SP is preferred after"?
+
+ "MAY X" does not imply "MUST NOT Y". I hate cases
+> where formal grammar is "explained" in semi-formal language, causing
+> doubts and contradiction. In this particular case, however, a [less
+> formal] MAY rule does not really contradict the [more formal] grammar.
+
+I agree there is no logical contradiction, however the wording does
+suggest another rule, precisely because it draws attention to one side
+of the colon only.  Importantly, the rule for implied *LWS says
+"Except where noted otherwise, ...".  In other words, implied LWS is
+_only_ implied where the text does not "note otherwise" something else.
+
+I think this is an example of the text "noting otherwise", even though
+it does not explicitly say that it is noting otherwise.
+
+That means there is no logical contradiction with _not_ allowing LWS
+before the colon.  Unfortunately, both interpretations fit.
+
+> The fact that implementations vary does not prove that this wording
+> implies something; there are other, more important, reasons for
+> implementations to vary on the subject.
+
+Sure, but the fact that _all_ implementations I've seen of servers,
+except for the new Apache behaviour, implement no LWS before the colon
+strongly indicates that is how people are reading it.  I know a lot
+of implementers are sloppy about following the RFC, or have other
+reasons for ignoring it, but some of the authors are quite
+conscientious and there is no compatibility problem with writing code
+which accepts LWS there.  So we can conclude that authors who were
+conscientious understood the text to apply, and that it was one of the
+"Except were noted otherwise" instances of the implied LWS rule.
+
+I honestly thought the same, until I saw the Apache patch.  Even
+though I'd wondered about the implied LWS, I took a guess that the
+text describing the header syntax is an instance of "noted otherwise".
+And as you know I'm quite conscientiously following the RFC where possible.
+
+So, I'm saying the standard is ambiguous at that point -- either
+reading is possible, and a clarification would be good.
+
+> >     2. What about LWS before the field-name?
+> 
+> Do you mean SP or HT before the field-name? CRLF before the field-name
+> would indicate the end of headers (the field-name would be a part of
+> the body then).
+
+Yes.
+
+> >    2. Whether LWS is actually permitted before the field-name.
+> >       (Grammar says it isn't.  Implementations vary).
+> 
+> There are probably many special cases here (folding, CRLF, first
+> header, other headers, etc.). Implementations vary.
+
+I see one case: the line is non-empty and begins with LWS, either SP
+or HT.  Either it's a folded continuation of the previous line, or
+it's the line after Request-Line or Status-Line, in which case it's
+not and grammatically it would match the header syntax if the header
+syntax permitted LWS before the field-name.
+
+Implementations do vary, but remarkably few reject this; most accept
+it as a field-name beginning with LWS!  Otherwise skip the LWS.
+
+Both of these behaviours are bugs, but worse than that: they're both
+security holes.  The same kind of hole which motivated your patch to
+Apache, but through a slightly different route.
+
+> >    4. That invalid field-names (such as containing control characters
+> >       or LWS) SHOULD (or MUST?) be rejected.
+> 
+> How does one reject an invalid field-name? Do you mean that they
+> should not be forwarded by proxies? But a proxy may be (should be?)
+> acting like a tunnel when the message seems to be corrupted. Or do you
+> mean origin servers should ignore them? But an origin server may be
+> (should be?) acting like a tunnel to CGI-like applications when the
+> message seems to be corrupted.
+
+Since they are invalid, the same way one rejects invalid HTTP message
+syntax: with a 400 response, if no other 4xx is appropriate.  Proxies
+and servers alike should reject it, rather than forwarding tunneling it.
+
+Why?  Because passing them along, in either direction, enables the
+exact remote security exploits which motivated the patch to Apache to
+allow LWS before the colon.  There is also the problem of CRs: Apache
+doesn't remove CRs before the colon, but it does treat CR as LWS at
+other places where tokens are scanned.  Other clients and servers are
+different, so there it is plausible that a CR may be used as "LWS"
+which Apache doesn't trim but something else does.
+
+Is it not better to reject messages which are clearly out of spec?  It
+depends whether there are practical reasons to keep forwarding them.
+In the case of control chars and LWS in header names, I think there
+aren't, but I have not done any surveys to guage it seriously.
+
+Do you see, that changing Apache in that way, while possibly correct,
+fixes one obscure security flaw while introducing another.  Neither
+behaviour results in a secure server.
+
+As regards what the spec should say, I suggest it should be
+unambiguous where appropriate, and it should lead the way in
+indicating how servers SHOULD reject certain constructs for security
+reasons, even if it will be a long time, if ever, before the
+recommendations are actually widespread among implementations.
+
+Presently I find the syntax of headers is ambiguously presented,
+precisely because you can understand the text is an instance of the
+"except where noted otherwise" clause for implied *LWS, or you cannot.
+Both interpretations make sense linguistically to me, and even if I'm
+wrong, it indicates clearer text is appropriate.
+
+And, even though the syntax does not allow control characters or lone
+CRs in headers, and probably does not allow LWS before the field-name
+of the first header line, it would be good for the RFC to suggest a
+policy among implementations, of making a point of rejecting those.
+
+Without guidance from the RFC, implementors will do exactly what they
+are doing: copy each other, and do the simplest in the belief that
+real web servers have to do that sort of thing to be robust in the
+real world.  Perhaps they do, perhaps they don't, but most
+implementors will take into account guidance from the RFC and other
+related documents, if it is available.
+
+I think it's reasonable for the RFC to suggest implementation SHOULD
+reject such headers, instead of letting the implementor make an
+unguided decision, because it is easy, probably not harmful (this
+should be checked empirically of course), and prevents a number of
+theoretical and subtle security flaws due to different programs having
+different interpretations of non-compliant header names.
+
+This is different from a blanket suggestion to reject all invalid
+syntax: it's not reasonable for the RFC to suggest implementations
+reject field _values_ which don't match the grammar.  That is likely
+to break real setups.  The former is a good in real life (I am
+guessing; maybe something really depends on it); the latter is not,
+and the RFC may as well say so.
+
+Fwiw, my implementation strategy is to read the RFC and related RFCs,
+and to read the code for a number of servers and clients in order to
+figure out in what ways deviation from the RFC or extra rules are
+needed for the real world.  Unfortunately, there's no way to determine
+whether an implementation quirk that lots of programs have in common
+is needed for the real world, or just like that for other reasons,
+like everyone copying each other, or it being an obvious ad-hoc
+implementation method.
+
+-- JAmie
+
+
+

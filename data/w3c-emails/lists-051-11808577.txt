@@ -1,0 +1,151 @@
+docno="lists-051-11808577"
+received="Fri Sep  6 04:58:43 2002"
+isoreceived="20020906085843"
+sent="Fri, 6 Sep 2002 01:01:54 -0700"
+isosent="20020906080154"
+name="pat hayes"
+email="phayes@ai.uwf.edu"
+subject="handling bare literals and PS a Q. about lang tags"
+id="p05111b07b99dd8206d2d@[65.212.118.251]"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-rdfcore-wg@w3.org, Patrick Stickler<patrick.stickler@nokia.com>
+
+
+Patrick's document up to section 6 describes how to handle datatyped 
+literals (and does it fine), but I think that its rather strict 
+rejection of 'bare' (ie un-datatyped) literals is rather extreme. I 
+have a suggestion for how to handle bare literals which is entirely 
+compatible (in fact, I think more compatible) with the treatment of 
+datatyped literals, and has a few other advantages as well.
+
+In brief, the idea is to treat a bare literal as being a datatyped 
+literal with a bnode as its datatype. That is, it means 'some 
+datatyping of this literal but we don't know which one right now'. 
+This allows one to use bare literals coherently in any context where 
+the datatype can be specified in some other way: in particular, it 
+allows classical long-range datatyping for bare literals. It also can 
+be used to make various different 'datatyping assumptions' to be made 
+explicit by the use of common or distinct bnodes.
+
+It also can be used to simplify the syntax. Right now, with the 
+Guha/Stickler datatyping scheme, we have basically four kinds of node 
+in an RDF graph: urirefs, bnodes, bare literals and datatyped 
+literals. I suggest factoring this four into two cases plus an 
+option, as follows. A basic node is either a uriref or an bnode. 
+Urirefs refer to things and bnodes are existentially quantified, as 
+usual.  A node in an RDF graph is either a basic node, or a basic 
+node plus a literal, called a literal node. All these node types are 
+tidy (where identity of a literal node depends on identity of both 
+the basic node and the literal.) There is one special semantic rule 
+for literal nodes: the simple node part of it always denotes a 
+datatype, and the literal node denotes the value of the literal 
+string under the datatype mapping.
+
+That is pretty much all there is to it. When the datatype is referred 
+to by a uriref, this is the Guha/Stickler idea.  When its a bnode, we 
+get what was once referred to as 'semantically untidy' literals (but 
+they aren't untidy any more :-). If we combine the semantic 
+conditions for bnodes and for datatype literals, then (_:x, "10") is 
+basically a variable ranging over possible things that "10" could be 
+mapped to by a datatype. This means that it is OK to impose some 
+particular datatype by some other means, eg by a range:
+
+ex:age rdfs:range xsd:integer .
+Jenny ex:age (_:x, "10") .
+
+says Jenny is ten: in fact, we can fix the MT so that this entails
+
+Jenny ex:age (xsd:integer, "10") .
+
+Having the bnode made explicit allows some other useful ways of 
+attaching datatypes, however. Someone might for example have some 
+rules which can assign a datatype based on the form of the literal 
+(if its a numeral, assume its an integer, otherwise a string....) and 
+these could be expressed as conditions on the bnode itself.
+
+These inner bnodes inside literal nodes act just like regular bnodes, 
+by the way: the same entailments apply to them and for the same 
+reasons, eg
+
+Jenny ex:age (xsd:integer, "10") .
+entails
+Jenny ex:age (_:y, "10") .
+
+and they can occur in other triples elsewhere in the graph, so that 
+we are able to say things like
+
+Jenny ex:age (_:y, "10") .
+_:y rdf:type rdf:Datatype .
+
+Dan wanted to be able to check literal identity by string-matching. 
+Well, he can, provided he is careful about his bnodes. On this 
+scheme, a bare literal is simply illegal, so any bare literal has to 
+be parsed into a literal node, presumably by inserting a bnode 
+(assuming, that is, that we don't have datatyping information 
+available). Now, there are several strategies for how to do this. The 
+'safest' strategy would be to insert a unique bnode into each bare 
+literal node. This basically allows any future information about 
+datatyping to be compatible, but on the other hand it rather weakens 
+the RDF graph. Notice that this might require a tidy bare-literal 
+graph to have some of its nodes 'split' into distinct 
+bnode-datatyped-literal nodes; an alternative strategy would be to 
+not allow this splitting; that effectively would preserve the graph 
+structure and treat the bare literals as semantically tidy.) A 
+stronger strategy would be to insert the same bnode into every 
+literal in a document: that would effectively assert that they all 
+have to be datatyped the same way. Finally, what might be called a 
+Connolly strategy would be to use the same bnode for every literal in 
+the entire world; that would insist that ALL bare literals have the 
+same datatype, and then literal node matching would amount to string 
+matching on the literal strings. The nice thing about this is that 
+the resulting graphs would make explicit in their node structure 
+whatever assumptions were being made, so that once all literals were 
+b-node-ified, the graphs could be merged safely and the usual RDF 
+rules would keep the different assumptions intact and detect any 
+incompatibilities by the usual inference processes.
+
+Finally, one alternative is to do all the above but ALSO allow bare 
+literals as legal nodes, and require them to follow Dan's preferences 
+and denote themselves. Then *bare* literals provide a way to refer to 
+lexical forms, and datatyped literals (including those with bnodes in 
+them) allow us to use literals to refer to values. In this case all 
+nodes would be tidy also, but a bare literal would never be the same 
+as a literal node.  In many ways this conforms to everyone's wishes, 
+I think: literals always refer to themselves, datatyped literal nodes 
+always refer to values, all the usual semantic rules apply uniformly, 
+and we can say anything. The only real cost will be to legacy systems 
+which use bare literals to refer to values, but they will need to be 
+changed, probably, whatever we do. And we can discuss the translation 
+strategies in the previous paragraph, with their pros and cons, for 
+use by conversion implementers.
+
+If the WG feels this is worth bothering with, I could wrote this up 
+as a draft in a few days.
+
+Pat
+
+PS. Catching up on last weeks emails....re. the xml:lang tag, might 
+there be some interaction between this and the lexical forms for 
+datatyping? Eg I gather than in Germany, commas are used for a 
+decimal point, so we might for example have
+(xsd:real, "10,5") -en .
+being invalid but
+(xsd:real, "10,5") -gr .
+refers to ten and a half.
+
+
+
+
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

@@ -1,0 +1,82 @@
+docno="lists-010-4837594"
+received="Wed Jul 10 16:14:09 1996"
+isoreceived="19960710201409"
+sent="Wed, 10 Jul 96 15:56:18 MDT"
+isosent="19960710215618"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: multihost virtual sites for HTTP 1.2"
+id="9607102256.AA12020@acetes.pa.dec.com"
+inreplyto="c=US%a=_%p=msft%l=RED-77-MSG-960709215536Z17122&#64;abash1.microsoft.com"
+expires="1"
+
+
+To: Paul Leach<paulle@microsoft.com>
+Cc:"'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'"<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+I realize that there is some debate about the necessity of a
+mechanism such as Paul's proposed "Referral" header, but I tend
+to agree that it allows things that cannot be done with DNS
+multiple bindings, NFS cross-mounts, or clever proxies.
+
+In particular, it looks like it would allow a single logical "site"
+to be distributed geographically around the Internet, which might
+be a Very Good Thing for such potential hot spots as the 1996
+US presidential election server.
+
+I consider it potentially quite important that Paul's proposal
+allows more than one referral-URI.  This not only allows replication
+for performance, it also allows replication for fault-tolerance.
+The use of multiple DNS bindings, for example, doesn't help much
+if one of the actual servers is dead (or your path through the
+Internet to that server is broken).
+
+On the other hand, Paul's description ("append [the suffix of
+the original URI] to one of the referrals") might not be sufficiently
+well specified.  I.e., if a client chooses one of the referral-URIs,
+and then after a few successful transactions that server seems to
+die, should the client re-negotiate with the original server?
+Pick another referral-URI?  Keep trying?  The behavior of the
+client in this case has some potential implications for the
+failure semantics, especially if the client is updating a
+database at the server end.
+
+Paul's proposed BNF was:
+
+Referral= "Referral" ":" prefix 1#referral-URI
+prefix  = absoluteURI
+referral= absoluteURI
+
+I assume that the last line should have been:
+referral-URI= absoluteURI
+
+I'd like to suggest an elaboration, to:
+
+Referral= "Referral" ":" prefix 1#referral-info
+prefix  = absoluteURI
+referral-info= referral-URI delta-seconds metric
+referral-URI= absoluteURI
+metric= 1*DIGIT
+
+Thus, a referral would include not only a new URI, but a maximum
+age ("time-to-live" in DNS terms) and a cost metric.  The client
+algorithm would then be
+choose from the unexpired referral-infos (those whose
+delta-seconds is less than the Age of the response)
+the referral-URI with the lowest metric.
+Or maybe that should be "highest metric"?  I dunno.
+
+We could perhaps get rid of the expiration (delta-seconds) parameter if
+we made it explicit that a referral lasts only as long as the
+Cache-control: max-age of the response that carries it.  But
+you need an expiration mechanism of some sort, or else these bindings
+are impossible to revoke.
+
+We might want to modify that client algorithm so that "unexpired
+referral-info" includes "which has not been unresponsive recently".
+I.e., if a server is playing hard-to-GET, drop it from the list.
+
+-Jeff
+
+
+

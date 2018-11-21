@@ -1,0 +1,141 @@
+docno="lists-042-4992629"
+received="Tue Mar 11 14:56:10 2003"
+isoreceived="20030311195610"
+sent="Tue, 11 Mar 2003 14:54:43 -0500"
+isosent="20030311195443"
+name="Jason Crawford"
+email="nn683849@smallcue.com"
+subject="RE: MOVEs across file systems"
+id="OFF79B160F.7238439C-ON85256CE6.005B8168@us.ibm.com"
+charset="US-ASCII"
+inreplyto="MOVEs across file systems"
+expires="-1"
+
+To:"Lisa Dusseault"<lisa@xythos.com>
+Cc:"'WebDAV'"<w3c-dist-auth@w3.org>
+
+
+
+
+
+
+Warning... this note is more interesting to server designers than
+spec designers....  :-)
+
+On Tuesday, 03/11/2003 at 08:27 PST, "Lisa Dusseault"
+<nnlisa___at___xythos.com@smallcue.com> wrote:
+> > Anyway... the thought I just wanted to point out is that if you have a
+> > resource on one file system with multiple bindings to it, and you MOVE
+> > that resource via one of those bindings "to another file system"...
+> > you might actually want to NOT "copy/delete" it since you
+> > still also have
+> > several bindings to it from the original file system.  You might
+> > *need* to keep a cross file system binding and not necessarily
+> > move implementations around during MOVE/BIND and other
+> > namespace operations.  And if you're forced to support cross
+> > file system bindings, then perhaps you never really need to take the
+> > COPY/DELETE approach?
+>
+> A couple counter-reasons:
+>  - Quota within the system (top level directories or lower directories
+> limiting space) this may depend on how the quota is counted - the
+> system, through its acknowledged limitations, may need to actually move
+> the resources (not leave them and rebind them) in order to calculate
+> quota.
+>
+>  - Disk space outside the system - different parts of the namespace are
+> frequently literally stored on different disks. Users/Administrators may
+> move content from one part of the namespace to another *in order* to
+> transfer to a less-used disk.
+
+The system *might* not want to move the implementation to the other file
+system because it has reason to keep it on the current file system also.
+But as you say, perhaps it might want to move it for reasons of it's own.
+Either way, the server has to support cross file system bindings.  And the
+choice of which file system it will chose to keep it on becomes arbitrary
+from the WebDAV perspective.   I would expect that it would actually end up
+keeping it where it was and just get the operation done quickly.
+
+You are probably talking about a situation where it's the last binding, so
+it's probably best to move it to the same file system used by its final
+parent.  Again, it probably could get away not moving it, but as you say,
+users might make assumptions about certain parts of the URI space being
+stored in certain file stores.   One complication with this approach is
+that in order to try to maintain that relationship, the operation will try
+to move the reources to file store that might not have enough quota from
+one that already has enough.  That might make the operation abort despite
+the fact that the user has enough quota overall.  Another is that if there
+is a global quota, the safe copy approach might cause the global quota to
+be exceeded (because for some period there will be two copies of one or
+more resources) and possibly abort the operation despite there being plenty
+of quota overall.  Either way, the half finished MOVE can be a real pain
+for clients.   How bad this is depends on how the COPY/DELETE operations
+are ordered and when the abort occurs.  (I know I find it a real mess when
+I've encountered this situation.  It's tedious to fix if it's even fixable
+and the user knows how to fix it.)
+
+Interestingly enough... even if the root of a subtree ends up changing file
+systems because it has only one parent binding, many of it's children might
+not migrate if there are links from the original file system to them.
+
+So in the presence of multiple bindings, this association between URI and
+the file store used for the implementation is weak and sometimes
+problematic.  For this reason it doesn't seem well advised to be
+compromising WebDAV operations to maintain this mapping  that it can't
+really guarantee anyway.  It does seem like there needs to be some other
+way for the user to move resources between various storage systems in order
+to manage the consumption of his quotas.  --  I repeat though... this is
+only in the presence of multiple bindings.  In the absense of multiple
+bindings, if we ignore the issue of aborts due to secondary issues, and
+ignoring the unfortunate possibility that resource-id's might change as
+implementations migrate, the server should be able to maintain the URL to
+file store mappings and that can be attractive from a UI perspective.
+
+
+
+> Jason, you've clearly got the right instincts for designing a WebDAV
+> server -- thinking carefully about how to do the best possible job.
+> It's just a question of can the *protocol* enforce a good job on server
+> implementors?  Sometimes it can, but sometimes it can't.
+
+Agreed.  In this thread I'm just pointing out possibilities that I, for
+one, hadn't thought about or noticed mentioned before.  Thank you for
+responding and cleaning up weaknesses in the message that started this
+thread.  :-)
+
+> We wouldn't
+> want to force atomic DELETEs and have an implementation choose to reject
+> a great number of large DELETE requests just because it can't guarantee
+> them all atomic. In the extreme, that would be an even worse tradeoff.
+
+
+Yes, for DELETE, there is a possibility that a client doesn't care if it's
+atomic or not.  He just "wants to free resources eating up [his] quota...
+and if [he] can't get all of the subtree freed, that's okay for now."   I
+will point out weakly though, that if that's the user's thinking, even in
+an atomic server, if the error message provided is informative enough,
+there is a significant possibility that user will be able to free up the
+portion of the subtree that isn't resisting the DELETE.  Obviously a server
+can do that more efficiently though than the client can if the server
+understands what the user/client wants.
+
+Speaking of the server knowing what the user wants, that does bring up
+another point... is the best effort DELETE operation allowed to
+stop the first time it encounters a resource that prevents the unbinding of
+the request-URI binding (for example to keep it reachable)?   Or must it
+continue to find as many resources that it's free to delete as possible?
+Or in the case of request URI is "protected" by a lock in the subtree, the
+server will almost certainly be aware of the "protection" issue right away,
+so is the server required to not remove any bindings at all? --  Anyway, if
+we really think clients will *want* best effort DELETE available, we'll
+have to specify what the prefered/required behavior is for that.  (Maybe
+later if we don't see the demand yet.)
+
+J.
+
+------------------------------------------
+Phone: 914-784-7569,   ccjason@us.ibm.com
+I do not check nn621779@smallcue.com
+
+
+

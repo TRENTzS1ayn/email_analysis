@@ -1,0 +1,215 @@
+docno="lists-011-11302090"
+received="Wed Nov 19 11:51:40 1997"
+isoreceived="19971119165140"
+sent="Wed, 19 Nov 1997 14:43:08 0500"
+isosent="19971119194308"
+name="Henrik Frystyk Nielsen"
+email="frystyk@w3.org"
+subject="Issue: TRAILER_FIELDS and Transfer Encodings once again"
+id="3.0.3.32.19971119144308.00b4f620@localhost"
+charset="usascii"
+expires="1"
+
+
+To:mogul@pa.dec.com,fielding@kiwi.ics.uci.edu,  Larry Masinter<masinter@parc.xerox.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+This is a write-up of the proposed changes to rev-00 regarding
+Accept-transfer (now Accept-TE) and Transfer-Encoding. It takes into
+account the following
+
+- introduces transfer-encoding parameters
+- prevents chunked from having any parameters in Transfer-Encoding
+- prevents chunked from having q=0 in Accept-TE
+- prevents CL from being in a trailer
+
+Larry, I know this is kind of late, but the trailer field issue and
+transfer encodings are relatively new issues. However, we are using a lot
+of existing mechanisms already defined in HTTP/1.1 and hence the new stuff
+boils down to the header names.
+
+Comments?
+
+Henrik
+
+****
+
+3.6 Transfer Codings
+
+Transfer coding values are used to indicate an encoding transformation that
+has been, can be, or may need to be applied to an entity-body in order to
+ensure "safe transport" through the network. This differs from a content
+coding in that the transfer coding is a property of the message, not of the
+original entity. Therefore, transfer codings only apply to the immediate
+connection.
+
+       transfer-coding         = "chunked" | transfer-extension
+       transfer-extension      = token *( ";" parameter )
+
+Parameters may be in the form of attribute/value pairs.
+
+       parameter               = attribute "=" value
+       attribute               = token
+       value                   = token | quoted-string
+
+[[Jim, parameter is already defined in 3.7. As it should only be in one
+place, it can either be here or in section 3.7. In the latter case, there
+should be a forward reference here]]
+
+All transfer-coding values are case-insensitive. HTTP/1.1 uses transfer
+coding values in the Accept-TE header field (section 14.Y) and the
+Transfer-Encoding header field (section 14.40).
+
+Transfer codings are analogous to the Content-Transfer-Encoding values of
+MIME [7], which were designed to enable safe transport of binary data over
+a 7-bit transport service. However, safe transport has a different focus
+for an 8bit-clean transfer protocol. In HTTP, the only unsafe
+characteristic of message-bodies is the difficulty in determining the exact
+body length (section 7.2.2), or the desire to encrypt data over a shared
+transport.
+
+The Internet Assigned Numbers Authority (IANA) acts as a registry for
+transfer-coding value tokens. Initially, the registry contains the
+following tokens: "chunked" (section 3.6.1), "identity" (section 3.6.2),
+"gzip" (section 3.5), "compress" (section 3.5), and "deflate" (section 3.5).
+
+New transfer-coding value tokens should be registered in the same way as
+new content-coding value tokens (section 3.5).
+
+A server which receives an entity-body with a transfer-coding it does not
+understand SHOULD return 501 (Unimplemented), and close the connection. A
+server MUST NOT send transfer-codings to an HTTP/1.0 client.
+
+3.6.1 Chunked Transfer Coding
+
+The chunked encoding modifies the body of a message in order to transfer it
+as a series of chunks, each with its own size indicator, followed by an
+optional trailer containing entity-header fields. This allows
+dynamically-produced content to be transferred along with the information
+necessary for the recipient to verify that it has received the full message.
+
+       Chunked-Body   = *chunk
+                        last-chunk
+                        trailer
+                        CRLF
+       chunk          = chunk-size [ chunk-extension ] CRLF
+                        chunk-data CRLF
+       chunk-size     = 1*HEX 
+       last-chunk     = 1*("0") [ chunk-extension ] CRLF
+
+       chunk-extension= *( ";" chunk-ext-name [ "=" chunk-ext-value ] ) 
+       chunk-ext-name = token
+       chunk-ext-value= token | quoted-string
+       chunk-data     = chunk-size(OCTET)
+       trailer        = *entity-header
+
+The chunk-size field is a string of hex digits indicating the size of the
+chunk. The chunked encoding is ended by any chunk whose size is zero,
+followed by the trailer, which is terminated by an empty line.
+
+The trailer allows the sender to include additional HTTP header fields at
+the end of the message. The Trailer header field can be used to indicate
+which header fields are included in a trailer (see section 14.Y).
+
+A server using chunked transfer-coding in a response MUST NOT use the
+trailer for other header fields than Content-MD5 and Authentication-Info
+unless the "chunked" transfer-coding is present in the request as an
+accepted transfer-coding in the Accept-TE field (section 14.X).
+
+An example process for decoding a Chunked-Body is presented in appendix
+19.4.6.
+
+All HTTP/1.1 applications MUST be able to receive and decode the "chunked"
+transfer coding, and MUST ignore chunk-extension extensions they do not
+understand.
+
+3.6.2 Identity Transfer Coding
+
+The identity transfer-encoding is the default (identity) encoding; the use
+of no transformation whatsoever. This transfer-coding is used only in the
+Accept-TE header, and SHOULD NOT be used in any Transfer-Encoding header.
+
+14.X Accept-TE
+
+The Accept-TE request-header field is similar to Accept-Encoding, but
+restricts the transfer-codings (section 3.6) that are acceptable in the
+response.
+
+       Accept-TE        = "Accept-TE" ":"
+                          #( t-codings )
+t-codings        = "chunked" | ( transfer-extension [ accept-params ] )
+
+Examples of its use are:
+
+       Accept-TE: deflate
+       Accept-TE:
+       Accept-TE: chunk=1.0; deflate=0.5
+
+The Accept-TE header field only applies to the immediate connection.
+Therefore, the accept-te keyword MUST be supplied within a Connection
+header field (section 14.10) whenever Accept-TE is present in an HTTP/1.1
+message.
+
+A server tests whether a transfer-coding is acceptable, according to an
+Accept-TE field, using these rules:
+
+1. If the transfer-coding is one of the transfer-codings listed in the
+Accept-TE field, then it is acceptable, unless it is accompanied by a
+qvalue of 0.  (As defined in section 3.9, a qvalue of 0 means "not
+acceptable.")
+
+2. If multiple transfer-codings are acceptable, then the acceptable
+transfer-coding with the highest non-zero qvalue is preferred.
+
+3. The "identity" transfer-coding is always acceptable, unless specifically
+refused because the Accept-TE field includes "identity;q=0", or because the
+field includes "*;q=0" and does not explictly include the "identity"
+transfer-coding.  If the Accept-TE field-value is empty, then only the
+"identity" encoding is acceptable.
+
+4. The "chunked" transfer-coding is always acceptable. The Trailer header
+field (section 14.Y) can be used to indicate the set of header fields
+included in the trailer.
+
+If an Accept-TE field is present in a request, and if a server cannot send
+a response which is acceptable according to the Accept-TE header, then the
+server SHOULD send an error response with the 406 (Not Acceptable) status
+code.
+
+If no Accept-TE field is present, the sender MAY assume that the recipient
+will accept the "identity" and "chunked" transfer-codings.
+
+A server using chunked transfer-coding in a response MUST NOT use the
+trailer for other header fields than Content-MD5 and Authentication-Info
+unless the "chunked" transfer-coding is present in the request as an
+accepted transfer-coding in the Accept-TE field.
+
+14.Y Trailer
+
+The Trailer general field value indicates that the given set of header
+fields are present in the trailer of a message encoded with chunked
+transfer-coding.
+
+       Trailer  = "Trailer" ":" 1#field-name
+
+An HTTP/1.1 sender MAY include a Trailer header field in a message using
+chunked transfer-coding with a non-empty trailer. Doing so allows the
+recipient to know which header fields to expect in the trailer.
+
+If no Trailer header field is present, the trailer SHOULD NOT include any
+other header fields than Content-MD5 and Authentication-Info.
+
+A server MUST NOT include any other header fields unless the "chunked"
+transfer-coding is present in the request as an accepted transfer-coding in
+the Accept-TE field.
+
+Message headers listed in the Trailer header field MUST NOT include the
+following header fields:
+
+Transfer-Encoding
+Content-Length
+Trailer
+
+
+

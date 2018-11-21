@@ -1,0 +1,68 @@
+docno="lists-001-10919426"
+received="Fri Aug 31 12:51:20 2001"
+isoreceived="20010831165120"
+sent="Fri, 31 Aug 2001 10:53:28 -0600"
+isosent="20010831165328"
+name="Lee Passey"
+email="lee@novonyx.com"
+subject="Empty paragraphs"
+id="3B8FC108.D423798B@novonyx.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+The default behavior of Tidy is to replace <p></p> with <br />.
+
+I have some html files which contain the phrase <p>&nbsp;<p>, and I
+expected that same behavior would hold for them.  This is not the case.
+
+I got into the source code and discovered there are two reasons for
+this:  
+(1) in TrimTrailingSpace(), a check is made for a character having the
+value of 160 (0xa0), which is the code for a non-breaking space. 
+However, the code is encoded in the buffer in utf-8, which makes it a
+two-byte character.  Interestingly, the second character of the sequence
+is 160!  Thus, the routine thinks it has found a non-breaking space,
+which it has, but only removes the second character, leaving a roque 194
+in the TextNode
+
+(2) in TrimSpaces(), no check is made for text nodes which have trimmed
+into oblivion.
+
+I presume newer versions of tidy should include these fixes, so I am
+including here the diffs from the 8-2000 version that I used to
+accomplish this.
+
+
+
+288a289
+>             /*!  NOTE:  &nbsp; is utf-8 encoded as two bytes  */
+293a295,299
+>                 if (   (unsigned char)lexer->lexbuf[last->end - 1] == 0xc2
+>                     && c == 0xa0)
+>                 {
+>                     last->end -= 1;
+>                 }
+297a304,308
+>                 if (   (unsigned char) (lexer->lexbuf[ last->end - 1]) == 0xc2
+>                     && c == 0xa0)
+>                 {
+>                     last->end -= 1;
+>                 }
+378a390
+>     {
+379a392,394
+>         if (text->start == text->end)
+>             TrimEmptyElement( lexer, text );
+>     }
+383a399
+>     {
+384a401,403
+>         if (text->start == text->end)
+>             TrimEmptyElement( lexer, text );
+>     }
+
+
+

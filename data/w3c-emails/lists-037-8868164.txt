@@ -1,0 +1,1194 @@
+docno="lists-037-8868164"
+received="Tue Jun 17 18:18:44 1997"
+isoreceived="19970617221844"
+sent="Tue, 17 Jun 1997 15:12:05 -0700"
+isosent="19970617221205"
+name="Jim Whitehead"
+email="ejw@rome.ICS.UCI.EDU"
+subject="Namespace Draft"
+id="9706171512.aa04124@paris.ics.uci.edu"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+Enclosed, please find a text version of a draft for how to perform
+namespace operations via HTTP.  This draft meets the requirements for
+name space manipulation (copy, move/rename) in Section 5.7 of the
+requirements document, for collections (Requirements Section 5.8),
+retrieval of unprocessed source for editing (Requirements Section 5.5),
+and for partial write (Requirements Section 5.6).
+
+This draft is available in HTML format at URL:
+
+http://www.ics.uci.edu/~ejw/authoring/proposals/namespace.html
+
+
+This proposal, in combination with the locking draft and the properties
+draft, form a consistent proposal which meets Sections 5.1-5.8 of
+the WebDAV Requirements Document, i.e., all distributed authoring
+requirements.
+
+Note that this proposal, like all proposals put before this working
+group, must receive the rough consensus of the working group (i.e.,
+the members of the mailing list) before it can leave the working
+group.  Your comments and questions on the proposals are instrumental
+in determining problem areas, and areas on which there is agreement.
+
+- Jim
+
+
+A Proposal for Collections of Web Resources and Name Space Operations
+
+                          Draft v0.6, June 6, 1997
+
+1 Observations on the HTTP Object Model
+
+As a prerequisite for specification of collections and name space operations
+for the Web, a model for collection resources and for namespace topology
+must be given. This section describes a new type of Web resource, the
+collection resource, and provides a model for discussing the relationship
+between the resources that are generated as the result of a data-producing
+process, and the source resources that describe the process.
+
+1.1 Collection Resources
+
+A collection is a Web resource type whose primary state is a set of URIs and
+associated values that are recorded as properties on the resource. The URIs
+identify the resources that are members of the collection. The values
+associated with each URI include information such as the Last Modified Date,
+Entity Tag, Creation Date, Content Type, Display Name, and whether the
+member is a collection.
+
+A member of a collection is either an internal member resource, which MUST
+have a URI that is relative to the base URI of the collection, or an
+external member resource, which has a URI which is not relative to the base
+URI of the collection. External member resources are further subdivided into
+propagate members, which have recursive method invocations propagated to
+them, and no-propagate members, which do not.
+
+A collection resource may be viewed and used as a compound resource in which
+the collection is a container for a group of related resources that,
+together, form a larger logical unit. For example, a collection of HTML
+resources where each resource is the chapter of a book can be viewed as a
+compound resource representing the entire book.
+
+Some methods, when invoked on a collection, affect the entire collection.
+For example, it is possible to copy an entire collection and its contents
+with just a single copy method request. The model for performing these
+operations is a tree traversal. The method is invoked on the collection,
+which then performs the method on itself before propagating the method to
+all its internal members and propagate external members. If these are
+non-collection resources, the request method is processed. However, if the
+request is propagated to another collection, then the propagation begins
+again. This sequence of actions causes the method to be propagated as a tree
+traversal of the members of the collections.
+
+1.2 Creation and Retrieval of Collection Resources
+
+Since the existing HTTP methods for creating (PUT, POST) and retrieving
+(GET) a resource were defined for non-collection resources, it is not
+surprising that the semantics of these methods do not transfer well to
+collections. For example, the PUT method is defined to store the request
+entity under the Request-URI. While a description format for a collection
+can readily be constructed that could be used with PUT, the implications of
+sending such a description to the server are undesirable. For example, if a
+description of a collection was PUT to the server which omitted some
+existing resources, this might be interpreted as a command to remove those
+members. However, this would extend PUT to perform DELETE functionality,
+which is undesirable since it changes the semantics of PUT, and makes it
+difficult to control DELETE functionality with an access control scheme
+based on methods.
+
+While the POST method is sufficiently open-ended that a "create a
+collection" POST command could be constructed, this is undesirable because
+it would be difficult to provide separate access control for collection
+creation and other uses of POST if they both use the same method.
+
+The GET method when applied to collections is also problematic. While it
+might seem desirable to have GET return a listing of the members of a
+collection, this is foiled by the existence of the "index.html" de-facto
+standard namespace redirection, in which a GET request on a collection is
+automatically redirected to the index.html resource.
+
+Because of the difficulty of reusing existing HTTP/1.1 methods for
+collections, two new resource creation/retrieval methods are needed. This
+proposal introduces the MKCOL method for creating collection resources, and
+the INDEX method for retrieving the contents of a collection.
+
+The exact definition of the behavior of GET and PUT on collections is
+defined later in this draft.
+
+1.3 Source Resources and Output Resources
+
+For many resources, the entity returned by GET exactly matches the
+persistent state of the resource, for example, a GIF file stored on a disk.
+For this simple case, the URL at which a resource is accessed is identical
+to the URL at which the source (the persistent state) of the resource is
+accessed. This is also the case for HTML source files that are not processed
+by the server prior to transmission.
+
+However, HTML files can sometimes be processed by the server before being
+transmitted as a return entity body. Server-side-include directives within
+an HTML file instruct a server to replace the directive with another value,
+such as the current date. In this case, what is returned by GET (HTML plus
+date) differs from the persistent state of the resource (HTML plus
+directive). Typically there is no way to access the HTML file containing the
+unprocessed directive.
+
+Sometimes the entity returned by GET is the output of a data-producing
+process that is described by one or more source resources (that may not even
+have a location in the URL namespace). A single data-producing process may
+dynamically generate the state of a potentially large number of output
+resources. An example of this is a CGI script that describes a "finger"
+gateway process that maps part of the namespace of a server into finger
+requests, such as http://www.foo.bar.org/finger_gateway/user@host.
+
+In the absence of distributed authoring capability, the fact that the source
+resource(s) for server generated output do not have a mapping to the URI
+namespace is not a problem, and has desirable security benefits. However, if
+remote editing of the source resource(s) is desired, they should be given a
+location in the URI namespace. This source location should not be one of the
+locations at which the generated output is retrievable, since in general it
+is impossible for the server to differentiate requests for source resources
+from requests for process output resources. There is often a many-to-many
+relationship between source resources and output resources.
+
+Within the HTTP URL namespace managed by servers which implement the DAV
+property functionality, all resources which have a single source resource,
+and that source resource has a URI, the URI of the source resource SHOULD be
+stored in a single link with type Source. Note that by storing the source
+URI in links on the output resources, the burden of discovering the source
+is placed on the authoring client.
+
+In the general case, a large number of source resources can comprise a
+data-producing process that generates many output resources, creating a
+many-to-many relationship between output resources and source resources. If
+each output resource had links back to every source resource in the
+data-producing process, there can be a potentially large number of such
+links. Due to the potentially large number of links, and the lack of a
+policy for ordering access to multiple sources, explicit storage of source
+relationships is limited to cases with only a single source resource.
+
+2 Terms
+
+Collection - A resource that contains member resources.
+
+Member Resource - a resource referred to by a collection. There are two
+types of member resources: external and internal.
+
+Internal Member Resource - the name given to a member resource of a
+collection whose URI is relative to the URI of the collection.
+
+External Member Resource - a member resource with an absolute URI that is
+not relative to its parent's URI.
+
+Properties - Also known as small-chunk metadata, a hierarchical set of
+name/value pairs that describe a resource.
+
+Live Properties - Properties whose semantics and syntax are enforced by the
+server. For example, a live "read-only" property that is enforced by the
+server would disallow PUTs to the associated resource.
+
+Dead properties - Properties whose semantics and syntax are not enforced by
+the server. A dead "read-only" property would not be enforced by the server
+and thus would not be used by the server as a reason to disallow a PUT on
+the associated resource.
+
+3 Collection Requirements
+
+The requirements for collections are given below, reprinted from [DAVREQ]:
+
+3.1. List Collection.
+
+A listing of all resources in a specific collection must be accessible.
+
+3.2. Make Collection.
+
+It must be possible to create a new collection.
+
+3.3. Add to Collection.
+
+It must be possible to add a resource to a collection directly or by
+reference.
+
+3.4. Remove from Collection.
+
+It must be possible to remove a resource from a collection.
+
+4 MKCOL Method
+
+4.1 Problem Description
+
+The client needs a way to create a collection.
+
+4.2 Solution Requirements
+
+The solution:
+
+   * Must ensure that a collection has been made (i.e. that it responds to
+     the INDEX method) as opposed to a non-collection resource. If a
+     collection could not be made, it must indicate a failure to the
+     principal.
+   * The server MAY, if necessary, create any intermediate collections so
+     that the underlying storage medium is consistent.
+
+4.3 Request
+
+The MKCOL method creates a new collection resource at the location specified
+by the Request-URI, overwriting any existing resource at Request-URI.
+
+A MKCOL request message MAY contain a message body that specifies additional
+characteristics or behavior of the collection. However, a server which
+supports MKCOL is not required to support any MKCOL request entity types. If
+the server receives a MKCOL request entity type it does not support or
+understand, it MUST respond with a 415 (Unsupported Media Type) status code.
+
+During MKCOL processing, a server MAY add the Request-URI to one or more
+collections within the server's controlled namespace.
+
+4.3.1 Creating Multiple Collections
+
+The server MAY create intermediate collections if they do not already exist.
+For example, if the collection http://server/a/ already exists in the
+server's namespace, then while performing a MKCOL to create
+http://server/a/b/c/ the server may also create a collection at
+http://server/a/b/.
+
+4.4 Response
+
+Responses from a MKCOL request are not cacheable, since MKCOL has
+non-idempotent semantics.
+
+201 (Created) - The structured resource was created in its entirety.
+
+403 (Forbidden) - The server does not allow the creation of collections at
+the given location in its namespace.
+
+415 (Unsupported Media Type) - The server does not support the request type
+of the body.
+
+416 (Unprocessable Entity) - A new status code. The server understands the
+content type of the request entity, but was unable to process the contained
+instructions.
+
+4.5 Example
+
+This example creates a container collection called /webdisc/xfiles/ on the
+server www.server.org.
+
+MKCOL /webdisc/xfiles/ HTTP/1.1
+Host: www.server.org
+
+HTTP/1.1 201 Created
+
+5 INDEX Method
+
+5.1 Problem Description
+
+A mechanism is needed to discover if a resource is a collection and if so,
+list its members.
+
+5.2 Solution Requirements
+
+The solution:
+
+   * must allow a client to discover the members of a collection
+   * must always provide a machine-readable description of the membership of
+     a collection
+
+5.3 The Request
+
+The INDEX method returns a machine-readable representation of the membership
+of the resource at the Request-URI. For a collection, INDEX returns a
+machine-readable list of its members. For other resources, the information
+returned by INDEX is undefined, and MAY vary. The request message body of an
+INDEX request SHOULD be ignored.
+
+The Depth header can be used to indicate how much of a result can be
+generated for the response. The specific values allowed for the depth header
+when used with the INDEX method are 1 and infinity. The 1 value indicates
+that the immediate member resources should be reported in the result,
+infinity indicates that all internal descendant resources should be in the
+result. If the Depth header is not given, then 1 is assumed. Servers MUST
+honor a depth of 1. Servers MAY honor infinity.
+
+5.4 The Response
+
+200 (OK) - The server MUST send an application/xml response entity which
+describes the collection.
+
+404 (Not Found) - Same behavior as HTTP 1.1. The server never had the
+resource, or the server permanently deleted the resource and has no
+knowledge that it ever existed. This error code implies that, essentially,
+the server has no information about the Request URI.
+
+5.5 Response Message Body
+
+The default INDEX response for a resource is an application/xml HTTP entity
+(i.e., an Extensible Markup Language (XML) document) that contains a single
+XML entity called collectionresource which describes the collection, and a
+set of XML entities called memberesource which describe the members of the
+collection.
+
+The response from INDEX is cacheable, and MUST be accompanied by an ETag
+header. If GET and INDEX return different entities for the same resource
+state, they MUST return different entity tags.
+
+The server MUST transmit the following XML entities for each member resource
+of a collection: Ref, IsCollection, Content-Type, External. The server MUST
+transmit the following XML entities if it can generate any meaningful values
+for them: Creation-Date, Last-Modified, ETag, DisplayName.
+
+The value of content-type, last-modified, and etag XML entities MUST be
+identical to the value of the response header field of the same name in the
+HTTP/1.1 specification. Since the HTTP/1.1 header fields are described in
+terms of the on-the-wire entity, the values presented by INDEX are those
+that would be generated if the resource was accessed using the GET method
+without content negotiation.
+
+5.5.1 CollectionResource
+
+Name: http://www.ietf.org/standards/dav/index/collectionresource
+Purpose: Describes a collection
+Schema: http://www.ietf.org/standards/dav/
+Parent: <XML>
+Value: MemberResource
+
+5.5.2 MemberResource
+
+Name: http://www.ietf.org/standards/dav/index/memberresource
+Purpose: Describes a member of a collection
+Schema: http://www.ietf.org/standards/dav/
+Parent: CollectionResource
+Value: Ref, IsCollection, Content-Type, External, Creation-Date,
+Last-Modified, ETag, DisplayName (other XML entities MAY also be present)
+
+5.5.3 Ref
+
+See XML definition.
+
+5.5.4 IsCollection
+
+Name: http://www.ietf.org/standards/dav/index/iscollection
+Purpose: This is a boolean value which is set to "true" if the entry is a
+collection
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: ("true" | "false")
+
+5.5.5 Content-Type
+
+Name: http://www.ietf.org/standards/dav/index/content-type
+Purpose: The content-type of the member resource.
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: media-type ; defined in Section 3.7 of [HTTP11] If no meaningful
+content-type can be generated, then an empty value MUST be given.
+
+5.5.6 External
+
+Name: http://www.ietf.org/standards/dav/index/external
+Purpose: If present, this element indicates the resource is an external
+member of the collection. If the value is "propagate," it is a propagate
+member, if the value is "no-propagate," it is a no-propagate member.
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: ("propagate" | "no-propagate")
+
+5.5.7 Creation-Date
+
+Name: http://www.ietf.org/standards/dav/index/creation-date
+Purpose: The date the resource was created.
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: The date MUST be given in RFC 1123 format (rfc-1123 production,
+defined in section 3.3.1 of [HTTP11]
+
+5.5.8 Last-Modified
+
+Name: http://www.ietf.org/standards/dav/index/last-modified
+Purpose: The date the resource was last modified.
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: The date MUST be given in RFC 1123 format (rfc-1123 production,
+defined in section 3.3.1 of [HTTP11]
+
+5.5.9 ETag
+
+Name: http://www.ietf.org/standards/dav/index/etag
+Purpose: The entity tag of the resource.
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: entity-tag ; defined in Section 3.11 of [HTTP11]
+
+5.5.10 DisplayName
+
+Name: http://www.ietf.org/standards/dav/index/displayname
+Purpose: A name for the resource that is suitable for presentation to a
+person
+Schema: http://www.ietf.org/standards/dav/
+Parent: MemberResource
+Value: Any valid XML character data (from XML specification)
+
+5.6 Example
+
+INDEX /user/yarong/dav_drafts/ HTTP/1.1
+Host: www.microsoft.com
+Depth: 1
+
+HTTP/1.1 200 OK
+Content-Type: application/xml
+Content-Length: xxx
+Last-Modified: xxx
+ETag: "fooyyybar"
+
+<XML>
+
+<XML:Namespace><Ref>http://www.ietf.org/standards/dav/index/</><As>I</></>
+<I:CollectionResource>
+        <MemberResource>
+                <XML:Ref>namespace.doc</>
+                <IsCollection>false</>
+                <Content-Type>application/msword</>
+                <External>false</>
+                <Creation-Date>Thu, 20 Mar 1997 23:05:25 GMT</>
+                <Last-Modified>Fri, 22 Aug 1997 18:22:56 GMT</>
+                <Etag>8675309</>
+                <DisplayName>WebDAV Name Spe Operations Draft</>
+</>     </>
+</>
+
+This example shows the result of the INDEX method applied to the collection
+resource http://www.microsoft.com/er/yarong/dav_drafts/. It returns a
+response body in XML format, which gives information about the container's
+sole member, http://www.microsoft.com/users/yarong/dav_drafts/namespace.doc.
+
+6 Behavior of RFC 2068 Methods on Collections
+
+With the introduction of the collection resource type to the HTTP object
+model, it is necessary to define the behavior of the existing methods
+(defined in RFC 2068) when invoked on a collection resource to avoid
+ambiguity. While some methods, such as OPTIONS and TRACE behave identically
+when applied to collections, GET, HEAD, POST, PUT, and DELETE require some
+additional explanation.
+
+6.1 GET, HEAD for Collections
+
+The semantics of GET are unchanged when applied to a collection, since GET
+is defined as, "retrieve whatever information (in the form of an entity) is
+identified by the Request-URI" [HTTP11]. GET when applied to a collection
+MAY return the contents of an "index.html" resource, a human-readable view
+of the contents of the collection, or something else altogether, and hence
+it is possible the result of a GET on a collection will bear no correlation
+to the state of the collection.
+
+Similarly, since the definition of HEAD is a GET without a response message
+body, the semantics of HEAD do not require any modification when applied to
+collection resources.
+
+6.2 POST for Collections
+
+Since by definition the actual function performed by POST is determined by
+the server and often depends on the particular resource, the behavior of
+POST when applied to collections cannot be modified because it is largely
+undefined. Thus the semantics of POST do not require any modification when
+applied to a collection.
+
+6.3 PUT for Collections
+
+In HTTP/1.1, PUT stores the request entity under the Request-URI, and hence
+its semantics are limited to non-collection resources. If a PUT is invoked
+on a collection, the collection has the DELETE method invoked on it, and
+then PUT processing proceeds as specified in [HTTP11].
+
+When the PUT operation creates a new non-collection resource, a server MAY
+add that resource's URI to one or more collections within the server's
+controlled namespace.
+
+6.4 DELETE for Collections
+
+When DELETE is applied to a collection resource, all internal members MUST
+be recursively deleted. The dav:link/propagate members MUST be deleted and
+their links must be removed. dav:link/nopropagate members MUST have only
+their link removed; the resources MUST not be deleted.
+
+The Depth header does not apply to the DELETE method. It cannot be used to
+limit the extent of the operation. If it is present and has a value other
+than "Infinite", the request MUST fail with a 412 (Precondition Failed).
+
+When applied to any resource, the DELETE method deletes all properties on
+the Request-URI.
+
+During DELETE processing, a server MAY remove the URI of the deleted
+resource(s) from collections within its controlled namespace.
+
+6.4.1 New Response Codes
+
+207 (Partial Success) Only some of the member resources were deleted. The
+response entity will describe any errors.
+
+500 (Server Error) The resource was in such a state that it could not be
+deleted. The response entity will describe reason for the error.
+
+7 COPY Method
+
+7.1 Problem Description
+
+Currently, in order to create a copy of a resource, the client must GET an
+entity and then PUT that entity to the desired destination. This requires
+(1) an entity to be transmitted to and from the server and (2) that the
+resource be expressible as an entity with complete fidelity.
+
+This is problematic because of the network traffic involved in making a
+copy, and because there is often no way to fully express a resource as an
+entity without a loss of fidelity.
+
+7.2 Solution Requirements
+
+The solution:
+
+   * MUST allow a principal to create a copy of a resource without having to
+     transmit the resource to and from the server.
+
+7.3 The Request
+
+The COPY method creates a duplicate of the source resource, given by the
+Request-URI, in the destination resource, given by the Destination header.
+The Destination header MUST be present. The exact behavior of the COPY
+method depends on the type of the source resource.
+
+7.3.1 COPY for HTTP/1.1 resources
+
+When the source resource is not a collection, and is not a property, the
+body of the destination resource MUST be octet-for-octet identical to the
+body of the source resource. Alterations to the destination resource do not
+modify the source resource. Alterations to the source resource do not modify
+the destination resource. Thus, all copies are performed "by-value".
+
+If the Duplicate-Properties header is "false," then properties SHOULD NOT be
+copied to the destination resource. If the Duplicate-Properties header is
+"false" and the Enforce-Live-Properties header is also present, the request
+MUST fail with a 412 (Precondition Failed) status code.
+
+Properties SHOULD be duplicated on the destination resource by performing
+the equivalent actions as a logical copy of the root property on the source
+to the root property on the destination, following the definition for
+copying properties.
+
+7.3.2 COPY for Properties
+
+Live properties SHOULD be duplicated as identically behaving live properties
+at the destination resource. Since they are live properties, the server
+determines the syntax and semantics (hence value) of these properties.
+Properties named by the Enforce-Live-Properties header MUST be live on the
+destination resource, or the method MUST fail. If a property is not named by
+Enforce-Live-Properties and cannot be copied live, then its value MUST be
+duplicated in an identically named, dead resource on the destination
+resource.
+
+For every dead property defined on the source resource, there SHOULD be an
+octet-for-octet identical dead property on the destination resource.
+
+Duplicated properties MUST maintain the ordering of properties on the
+destination, and MUST maintain the tree structure of properties.
+
+7.3.3 COPY for Collections
+
+The Depth and Overwrite headers govern the behavior of COPY for collections.
+
+When performing a recursive copy, all HTTP/1.1 request headers are
+duplicated on the propagated method request except for the precondition
+headers If-Modified-Since, If-Match, If-None-Match, If-Range,
+If-Unmodified-Since, which should only be applied to the Request-URI to
+determine if the operation should be performed. The Destination header MUST
+be rewritten to preserve the membership of the destination collection, i.e.,
+by appending the relative URI of the member to the URI of the destination
+collection.
+
+A Depth of "0" indicates the collection MUST duplicate all of its external
+members in a new collection at the Destination. Since the COPY method is not
+propagated to its members, no internal member resource is duplicated.
+
+A Depth of "1" indicates the collection MUST propagate the COPY to all
+internal, non-collection members and to all non-collection propagate
+external members. If the Overwrite header is "true" the COPY method
+duplicates all of its external members in a new collection at the
+Destination. If the Overwrite header is "false" and the destination resource
+is a collection, the COPY method does not duplicate its external members,
+but is propagated to all internal, non-collection members.
+
+A Depth of "infinity" indicates the collection MUST propagate the COPY
+method to all internal members and all propagate external members. If the
+Overwrite header is "true," the COPY method MUST duplicate all of its
+external members in a new collection at the Destination. If the Overwrite
+header is "false" and the destination resource is a collection, then the
+COPY method does not duplicate its external members, but is propagated to
+all internal members.
+
+A copy operation on a collection should behave as if it were performed
+atomically.
+
+7.3.4 Type Interactions
+
+If the destination resource identifies a property and the source resource is
+not a property, then the copy SHOULD fail.
+
+If the destination resource identifies a collection and the Overwrite header
+is "true," prior to performing the copy, a DELETE operation MUST be
+performed on the collection.
+
+7.4 The Response
+
+200 (OK) The source resource was successfully copied to a pre-existing
+destination resource.
+
+201 (Created) The source resource was successfully copied. The copy
+operation resulted in the creation of a new resource.
+
+207 (Partial Success) Only some of the member resources were copied. The
+return entity body describes the status code for each resource.
+
+412 (Precondition Failed) This status code MUST be returned if the server
+was unable to maintain the liveness of the properties listed in the
+Enforce-Live-Properties header, or if the Overwrite header is false, and the
+state of the destination resource is non-null.
+
+500 (Server Error) The resource was in such a state that it could not be
+copied. This may occur if the Destination header indicated an external (from
+the point of view of the server) resource and the server has no capability
+to copy to an external resource.
+
+502 (Bad Gateway) - This may occur when copying to external resources and
+the destination server refused to accept the resource.
+
+7.5 Examples
+
+7.5.1 Overwrite Example
+
+This example shows resource http://www.ics.uci.edu/~fielding/index.html
+being copied to the location
+http://www.ics.uci.edu/users/f/fielding/index.html. The contents of the
+destination resource were overwritten, if non-null.
+
+COPY /~fielding/index.html HTTP/1.1
+Host: www.ics.uci.edu
+Destination: http://www.ics.uci.edu/users/f/fielding/index.html
+Overwrite: "true"
+
+HTTP/1.1 200 OK
+
+7.5.2 No Overwrite Example
+
+The following example shows the same copy operation being performed, except
+with the Overwrite header set to "false." A response of 412, Precondition
+Failed, is returned because the destination resource has a non-null state.
+
+COPY /~fielding/index.html HTTP/1.1
+Host: www.ics.uci.edu
+Destination: http://www.ics.uci.edu/users/f/fielding/index.html
+
+HTTP/1.1 412 Precondition Failed
+
+8 MOVE Method
+
+8.1 Problem Description
+
+The move operation on a resource is the logical equivalent of a copy
+followed by a delete.
+
+In HTTP 1.1, the procedure could be performed in several steps. First, the
+client could issue a GET to retrieve a representation of a resource, issue a
+DELETE to remove the resource from the server, then use PUT to place the
+resource on the server with a new URI. As is the case for COPY, because of
+the network traffic involved in making a move, and because there is often no
+way to fully express a resource as an entity without a loss of fidelity,
+server move functionality is preferable.
+
+With a DAV server, a principal may accomplish this task by issuing a COPY
+and then DELETE. Network load decreases, but the server load may still be
+significant because the server must create a duplicate resource. If a server
+knew beforehand that a principal intends to perform COPY and DELETE
+operations in succession, it can avoid the creation of a duplicate resource.
+
+8.2 Solution Requirements
+
+The solution:
+
+   * Must prevent the unneeded transfer of entity bodies from and to the
+     server.
+   * Must prevent the unneeded creation of copies by the server.
+
+8.4 The Request
+
+The MOVE method is defined as the logical equivalent of a COPY followed by a
+DELETE of the source resource, performed atomically.
+
+8.5 The Response
+
+200 (OK) - The resource was moved. A successful response must contain the
+Content-Location header, set equal to the URI in source. This lets caches
+properly flush any cached entries for the source. Unfortunately the
+Content-Location header only allows a single value so it is not possible for
+caches unfamiliar with the MOVE method to properly clear their caches.
+
+207 (Partial Success) Only some of the member resources were moved. The
+return entity body will give the status code for each resource.
+
+412 (Precondition Failed) This status code MUST be returned if the server
+was unable to maintain the liveness of the properties listed in the
+Enforce-Live-Properties header, or if the Overwrite header is false, and the
+state of the destination resource is non-null.
+
+501 (Not Implemented) - This may occur if the Destination header specifies a
+resource which is outside its domain of control (e.g., stored on another
+server) resource and the server either refuses or is incapable of moving to
+an external resource.
+
+502 (Bad Gateway) - This may occur when moving to external resources and the
+destination server refused to accept the resource.
+
+8.6 Examples
+
+8.6.1 Overwrite Example
+
+This example shows resource http://www.ics.uci.edu/~fielding/index.html
+being moved to the location
+http://www.ics.uci.edu/users/f/fielding/index.html. The contents of the
+destination resource were overwritten, if non-null.
+
+MOVE /~fielding/index.html HTTP/1.1
+Host: www.ics.uci.edu
+Destination: http://www.ics.uci.edu/users/f/fielding/index.html
+Overwrite: true
+
+HTTP/1.1 200 OK
+Content-Location: http://www.ics.uci.edu/users/f/fielding/index.html
+
+9 Multi-Status Response
+
+9.1 Problem Definition
+
+When certain methods (COPY, MOVE, and DELETE) are applied to a collection,
+they may end up being recursively applied to all sub-members of the
+collection. In this case, it is possible that the operation will succeed on
+some member resources, while it will fail on others, thus generating a 207
+(Partial Success) status code. A user-agent needs to know for which members
+of the collection the method succeeded and for which it failed.
+
+9.2 Solution Requirements
+
+The solution must:
+
+- communicate the status code and reason
+
+- give the URI of the resource on which the method was invoked
+
+- be consistent with other return body formats
+
+9.3 Multi-Status Response
+
+The default multi-status response body is an application/xml HTTP entity
+that contains a single XML entity called multiresponse, which contains a set
+of XML entities called response, one for each 200, 300, 400, and 500 series
+status code generated during the method invocation. 100 series status codes
+MUST NOT be recorded in a response XML entity. Each response XML entity
+contains two sub-entities, ref, the URI of the resource on which the method
+was invoked, and status, which holds the status-line from the method
+invocation.
+
+A multi-status response MUST be present when a 207 (Partial Success) status
+code is returned by the initial method invocation.
+
+9.3.1 MultiResponse
+
+Name: http://www.ietf.org/standards/dav/multiresponse/multiresponse
+Purpose: Contains multiple response messages.
+Schema: http://www.ietf.org/standards/dav/multiresponse/
+Parent: <XML>
+Value: 1*Response
+
+9.3.2 Response
+
+Name: http://www.ietf.org/standards/dav/multiresponse/response
+Purpose: Holds a single response
+Schema: http://www.ietf.org/standards/dav/multiresponse/
+Parent: MultiResponse
+Value: Ref, Status
+
+9.3.3 Status
+
+Name: http://www.ietf.org/standards/dav/multiresponse/status
+Purpose: Holds a single HTTP status-line
+Schema: http://www.ietf.org/standards/dav/multiresponse/
+Parent: Response
+Value: status-line ;status-line defined in [HTTP11]
+
+9.4 Example
+
+COPY /users/jdoe/collection/ HTTP/1.1
+Host: www.doecorp.com
+Destination: http://www.doecorp.com/users/jdoe/othercollection/
+Depth: infinity
+Overwrite: false
+
+HTTP/1.1 207 Partial Success
+Content-Type: application/xml
+Content-Length: xxx
+
+<XML>
+<XML:Namespace><Ref>http://www.ietf.org/standards/dav/multiresponse/</><As>R</></>
+<R:MultiResponse>
+        <Response>
+                <XML:Ref>http://www.doecorp.com/users/jdoe/collection/index.html</>
+        <Status>HTTP/1.1 412 Precondition Failed</>
+        </>
+        <Response>
+                <XML:Ref>http://www.doecorp.com/users/jdoe/collection/report.html</>
+                <Status>HTTP/1.1 200 OK</>
+        </>
+</>
+</>
+
+10 PATCH Method
+
+10.1 Problem Definition
+
+At present, if a principal modifies a resource, they must issue a GET
+against the resource, modify their local copy of the resource, and then
+issue a PUT to place the modified resource on the server. This procedure is
+inefficient because the entire entity for a resource must be transmitted to
+and from the server in order to make even small changes. Ideally, the update
+entity transmitted to the server should be proportional in size to the
+modifications.
+
+10.2 Solution Requirements
+
+The solution must:
+
+   * allow partial modification of a resource without having to transmit the
+     entire modified resource
+   * allow byte-range patching
+   * allows extensions so that patches can be done beyond simple byte-range
+     patching
+   * allow ranges to be deleted, inserted, and replaced
+
+10.3 The Request
+
+The PATCH method contains a list of differences between the original version
+of the resource identified by the Request-URI and the desired content of the
+resource after the PATCH action has been applied. The list of differences is
+in a format defined by the media type of the entity (e.g.,
+"application/diff") and must include sufficient information to allow the
+server to convert the original version of the resource to the desired
+version.
+
+Since the semantics of PATCH are non-idempotent, responses to this method
+are not cacheable.
+
+If the request appears (at least initially) to be acceptable, the server
+MUST transmit an interim 100 response message after receiving the empty line
+terminating the request headers and continue processing the request.
+
+While server support for PATCH is optional, if a server does support PATCH,
+it MUST support at least the application/xml diff format defined below.
+Support for the VTML difference format [VTML] is recommended, but not
+required.
+
+10.4 application/xml entities for PATCH
+
+The resourceupdate XML entity contains a set of XML sub-entities that
+describe modification operations. The name and meaning of these XML entities
+is given below. Processing of these directives MUST be performed in the
+order encountered within the XML document.
+
+10.4.1 ResourceUpdate
+
+Name: http://www.ietf.org/standards/dav/patch/resourceupdate
+Purpose: Contains an ordered set of changes to a non-collection,
+non-property resource. Schema: http://www.ietf.org/standards/dav/patch/
+Parent: <XML>
+Value: *(Insert | Delete | Replace)
+
+10.4.2 Insert
+
+Name: http://www.ietf.org/standards/dav/patch/insert
+Purpose: Insert the XML entity's contents starting exactly at the specified
+octet.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: ResourceUpdate
+Value: The insert XML entity MUST contain an octet XML entity that specifies
+an octet position within the body of a resource. A value of "end" specifies
+the end of the resource. The body of the insert XML entity contains the
+octets to be inserted.
+
+10.4.3 Delete
+
+Name: http://www.ietf.org/standards/dav/patch/delete
+Purpose: Removes the specified range of octets.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: ResourceUpdate
+Value: The Delete XML entity MUST contain an octet-range XML entity. The
+value of this XML entity is empty. Discussion: The octets which are deleted
+are removed, which meams the resource is collapsed and the length of the
+resource is decremented by the size of the octet range. It is not
+appropriate to replace deleted octets with zeroed-out octets, since zero is
+a valid octet value.
+
+10.4.5 Replace
+
+Name: http://www.ietf.org/standards/dav/patch/replace
+Purpose: Replaces the specified range of octets with the contents of the XML
+entity. If the number of octets in the XML entity is different from the
+number of octets specified, the update MUST be rejected. Schema:
+http://www.ietf.org/standards/dav/patch/ Parent: ResourceUpdate Value: The
+Replace XML entity MUST contain an octet-range XML entity. The contents of
+the entity are the replacement octets.
+
+10.4.6 Octet-Range Attribute
+
+Name: http://www.ietf.org/standards/dav/patch/octet-range
+Purpose: Specifies a range of octets which the enclosing property effects.
+Schema: http://www.ietf.org/standards/dav/patch/ Parent: Insert, Delete,
+Replace
+Value: number ["-" (number | "end")]
+Number = 1*Digit
+Description: Octet numbering begins with 0. If the octet contains a single
+number then the operation is to begin at that octet and to continue for a
+length specified by the operation. In the case of a delete, this would mean
+to delete but a single octet. In the case of an insert this would mean to
+begin the insertion at the specified octet and to continue for the length of
+the included value, extending the resource if necessary. In the case of
+replace, the replace begins at the specified octet and overwrites all that
+follow to the length of the included value. Octet values MUST specify
+locations in the state of the resource prior to the processing of the PATCH
+method.
+
+10.5 The Response
+
+200 (OK) - The request entity body was processed without error, resulting in
+an update to the state of the resource.
+
+409 (Conflict) - If the update information in the request message body does
+not make sense given the current state of the resource (e.g., an instruction
+to delete a non-existent line), this status code MAY be returned.
+
+415 (Unsupported Media Type) - The server does not support the content type
+of the update instructions in the request message body.
+
+416 (Unprocessable Entity) - A new status code. The server understands the
+content type of the request entity, but was unable to process the contained
+instructions.
+
+10.6 Examples
+
+10.6.1 HTML file modification
+
+The following example shows a modification of the title and contents of the
+HTML resource http://www.example.org/hello.html.
+
+Before:
+
+<HTML>
+<HEAD>
+<TITLE>Hello world HTML page</TITLE>
+</HEAD>
+<BODY>
+<P>Hello, world!</P>
+</BODY>
+</HTML>
+
+PATCH Request:
+
+PATCH hello.html HTTP/1.1
+Host: www.example.org
+Content-Type: application/xml
+Content-Length: xxx
+
+Interim response:
+
+HTTP/1.1 100 Continue
+
+Request continues (it was never interrupted, the 100 response came in while
+the response was being sent).
+
+<XML>
+<XML:Namespace><ref>http://www.ietf.org/standards/dav/patch/</><AS>D</></>
+<D:ResourceUpdate>
+        <Replace><octet-range>14</>&003CTITLE&003ENew Title&003C/TITLE&003E</>
+        <Delete><octet-range>38-50</>
+        <Insert><octet-range>86</>&003CP&003ENew paragraph&003C/P&003E
+</>
+</></>
+
+Final response
+
+HTTP/1.1 200 OK
+
+After:
+
+<HTML>
+<HEAD>
+<TITLE>New Title</TITLE>
+</HEAD>
+<BODY>
+<P>Hello, world!</P>
+<P>New paragraph</P>
+</BODY>
+</HTML>
+
+11 Headers
+
+11.1 Depth
+
+The Depth header determines the depth to which a method is propagated on a
+resource's children.
+
+Depth = "Depth" ":" DepthToken
+DepthToken = "0" | "1" | "infinity" | token
+
+The optional token allows for extension. A server MUST ignore a Depth header
+with an unknown value.
+
+11.2 Destination
+
+The Destination header specifies a destination resource for methods such as
+COPY and MOVE which take two URIs as parameters.
+
+Destination= "Destination" ":" URI
+
+11.3 Enforce-Live-Properties
+
+The Enforce-Live-Properties header specifies properties that MUST be "live"
+after they are copied (moved) to the destination resource of a copy (or
+move). If the value "*" is given for the header, then it designates all live
+properties on the source resource.
+
+EnforceLiveProperties = "Enforce-Live-Properties:" "*" | 1#( Property-Name )
+Property-Name = <"> URI <">
+
+11.4 Duplicate-Properties
+
+The Duplicate-Properties header instructs the server whether to duplicate
+the source resource's properties onto the destination resource during a COPY
+or MOVE. A value of "false" states that the server MUST NOT duplicate on the
+destination resource any properties which are defined on the source
+resource. By default, the value of this header is "true," and a client MAY
+omit this header from a request when its value is "true."
+
+Duplicate-Properties = "Duplicate-Properties" ":" ("true" | "false")
+
+11.5 Overwrite
+
+The Overwrite header specifies whether the server should overwrite the state
+of a non-null destination resource during a COPY or MOVE. A value of "false"
+states that the server MUST NOT perform the COPY or MOVE operation if the
+state of the destination resource is non-null. By default, the value of
+Overwrite is "false," and a client MAY omit this header from a request when
+its value is "false." While the Overwrite header appears to duplicate the
+functionality of the If-Match: * header of HTTP/1.1, If-Match applies only
+to the Request-URI, and not to the Destination of a COPY or MOVE.
+
+Overwrite = "Overwrite" ":" ("true" | "false")
+
+11.6 Destroy Header
+
+When deleting a resource the client often wishes to specify exactly what
+sort of delete is being enacted. The Destroy header, used with PEP, allows
+the client to specify the end result they desire. The Destroy header is
+specified as follows:
+
+DestroyHeader = "Destroy" ":" #Choices
+Choices = "VersionDestroy" | "NoUndelete" | "Undelete" | Token
+
+The Undelete token requests that, if possible, the resource should be left
+in a state such that it can be undeleted. The server is not required to
+honor this request.
+
+The NoUndelete token requests that the resource MUST NOT be left in a state
+such that it can be undeleted.
+
+The VersionDestroy token includes the functionality of the NoUndelete token
+and extends it to include having the server remove all versioning references
+to the resource that it has control over.
+
+12 Links
+
+A collection is stored as a set of links. Internal members of the
+collection, and external propagate members are links of type propagate.
+External non-propagate members of the collection are links of type
+nopropagate.
+
+12.1 Propagate Link Type
+
+Name: http://www.ietf.org/standards/dav/link/propagate
+Purpose: A propagate link holds a member of a collection that has recursive
+method invocations propagated to it.
+Schema: http://www.ietf.org/standards/dav/link/
+Parent: Any.
+Value: src, dst (See the definition of links in the companion draft, "A Data
+Model and Operations for DAV Properties").
+Discussion: The source of the link (src) must be the URI of the collection,
+and there must be only one destination (dst) of the link, which is the URI
+of the propagate member. If the URI is relative to the URI of the
+collection, then this link describes an internal member of a collection,
+otherwise the link describes an external, propagate member of the
+collection.
+
+12.2 NoPropagate Link Type
+
+Name: http://www.ietf.org/standards/dav/link/nopropagate
+Purpose: A no-propagate link holds an external member of a collection that
+does not have recursive method invocations propagated to it.
+Schema: http://www.ietf.org/standards/dav/link/
+Parent: Any.
+Value: src, dst
+Discussion: The source of the link (src) must be the URI of the collection,
+and there must be only one destination (dst) of the link, which is the URI
+of the external, no-propagate member.
+
+12.3 Source Link Type
+
+Name: http://www.ietf.org/standards/dav/link/source
+Purpose: The destination of the source link identifies the resource which
+contains the unprocessed source of the link's source.
+Schema: http://www.ietf.org/standards/dav/link/
+Parent: Any.
+Value: src, dst
+Discussion: The source of the link (src) is typically the URI of the
+resource on which the link is defined, and there is typically only one
+destination (dst) of the link, which is the URI where the unprocessed source
+of the resource may be accessed.
+
+13 References
+
+[DAVREQ] J. A. Slein, F. Vitali, E. J. Whitehead, Jr., and D. G. Durand.
+"Requirements for Distributed Authoring and Versioning on the World Wide
+Web" Internet Draft, work-in-progress,
+<draft-ietf-webdav-requirements-00.txt>, May, 1997.
+
+[HTTP11] R. T. Fielding, J. Gettys, J. C. Mogul, H. F. Nielsen, and T.
+Berners-Lee. "Hypertext Transfer Protocol -- HTTP/1.1" RFC 2068. U.C.
+Irvine, Digital Equipment Corp., MIT/LCS. January, 1997.
+
+[NEWURL] T. Berners-Lee, R. Fielding, L. Masinter. "Uniform Resource
+Locators (URL): Generic Syntax and Semantics." Internet-draft,
+work-in-progress. <draft-fielding-url-syntax-05.txt>, May 2, 1997.
+
+[VTML] F. Vitali, D. Durand. "VTML: Technical Description." Unpublished
+manuscript. <http://www.cs.unibo.it/~fabio/bio/Working/Versioning/VTML.html
+
+A Appendix A - Open Issues
+
+The following are open issues.
+
+  1. Can you have multiple source links on a single resource?
+  2. Whether Depth = 1 header values should be allowed for COPY on
+     collections
+  3. Should Patch octet references by cumulative or must all absolutely
+     refer to the previous state of the resource? (I (YYG) personally
+     believe they should be cumulative)
+
+
+

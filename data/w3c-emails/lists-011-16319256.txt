@@ -1,0 +1,167 @@
+docno="lists-011-16319256"
+received="Thu Jan 29 22:58:17 1998"
+isoreceived="19980130035817"
+sent="Fri, 30 Jan 1998 19:36:56 +1200"
+isosent="19980130073656"
+name="Adrien de Croy"
+email="adrien@qbik.com"
+subject="Re: HTTP/1.1 : Chunking"
+id="2.2.32.19980130073656.00f6d8e8@192.168.0.1"
+charset="usascii"
+inreplyto="HTTP/1.1 : Chunking"
+expires="1"
+
+
+To: Ben Laurie<ben@algroup.co.uk>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+Hi
+
+At 22:42 29/01/98 +0000, Ben Laurie wrote:
+>Adrien de Croy wrote:
+>> I would have thought that in a random data stream, the chances of any
+>> particular 4 byte sequence would have been 1 in 4 Billion, but we are only
+>> looking at the last 4 bytes before a close.  So, given there is only one
+>> close per session, there is only one inspected 4 byte sequence, hence the
+>> chance of any one file causing confusion over an OEF marker is 1 in 4
+billion.
+>
+>Sorry, my mistake, I was taking into account the below, which means
+>you'd have to check every byte.
+
+I see - that would make this method extremely inefficient :)
+
+Basically my reasoning for raising this, is as part of ongoing development
+of WinGate, we are looking at implementing HTTP/1.1 support in our HTTP proxy.
+
+We originally considered HTTP/1.0 to be relatively complex for a proxy, but
+HTTP/1.1 seems an order of magnitude more complex.  I seem to remember a
+couple of my engineering lecturers reiterating the old KISS maxim, and since
+this is still a proposed standard, I thought "why not" see if some redundant
+complexity could be removed from the spec.
+
+With the reasons given, I have removed chunking from my list of redundant
+(?) complexities in HTTP/1.1 (which I am still building, although I will
+raise a couple here).
+
+First one.
+
+4.2 Message headers
+
+The allowing of multiple headers if their values form a single list seems a
+redundant complexity.  Unless you are catering for people debugging by hand
+with telnet,  There is no reason why any client or server software should
+ever NEED to split a field value over multiple lines.
+
+Support for multiple fields of the same name is actually quite complex in a
+client (including a proxy) however, since the fields can no longer be stored
+in a map structure indexed by field name, and so field lookups get slower -
+you also have to then assume that there could be another one there.
+
+Personally I would remove allowing this from the spec.  I don't believe any
+client software would implement it (unless they are programming in Pascal or
+something with a string length limitation - UGH!).
+
+Next one
+
+2.2 Basic rules - Folding
+
+Same goes for folding of header fields - just adds complexity to a parser.
+One can no longer use the CLRF as an end of line marker, because the next
+line may start with LWS.  What's the point? Manual telnet debugging support?
+
+Sub-entity negotiation.
+
+This is a whole can of worms for caching proxies.  All of a sudden a URL is
+not unique any more, and caches need to index on Accept header fields as
+well.  Also, a caching proxy may make a different decision about what
+resource is acceptable to a client or not.  I would have thought that there
+would be VERY few implementations of this, if any server needed to send a
+different entity due to some Accept-x field (say language) it could do it
+with a redirect to another URI.  This would also be much more manageable by
+the content provider, and MUCH easier to implement and manage in a server.
+There needs to be something to uniquely identify every entity in the system,
+a URL is not a bad one.  Would multi-entity resources be treated by all
+intermediaries (proxies gateways etc) as a single resource indexed to the
+URI that requested it?
+
+Proxy Authentication.
+
+There are some problems with the proposed method where it relates to chained
+proxies, or a "use proxy" response.  Basically it may be necessary for a
+client to include many Proxy-Authorization fields in a request, since it is
+possible that only the client holds the credentials of the proxies involved.
+Otherwise ALL agents in the chain (including the end server) MUST support
+persistent connections.
+
+If it needs multiple authorisation fields, how can each proxy tell which one
+is intended for it.  It would have to try them all for a match, strip it
+out, and pass the request on.
+
+Multiple byte-range requests?  
+
+Normally I guess these would only be made by caches, as clients would
+generally always need the end of a file, rather than chunks out of the
+middle of it.  Are overlapping byte ranges meant to be condensed by the
+server? or supplied as requested.
+
+
+The only general thing I would say is that in the main, the new HTTP/1.1
+adds a whole bunch of useful stuff, especially wrt caching, validating
+cached files, and efficiency improvements.  However, there are some aspects
+that would be quite complex to code, and therefore cause problems for
+software developers, which in the end affects the lives of the software
+users - who the protocol was developed for.  With the content negotiation
+concept, the concept of a file on a disk seems to have been lost.  I don't
+see any unique identifier for this, which is what is required for efficient
+caching, and serving of files.  Since the protocol is changing, why not make
+it REAL easy to validate cache files by assigning every cachable resource a
+globally unique identifier which changes with modifications to the resource.
+Then a validation would simply involve sending the identifier
+Say in the form of URL: File Version, or system file time.  This would
+completely remove the complexity of validation with servers, and caches
+could still use freshness concepts for efficiency.  It would also remove the
+dependency on synchronised clocks etc.
+
+
+Anyway, just a few thoughts.
+
+Cheers
+
+Adrien de Croy
+
+
+>
+>> However, as pointed out by John Franks, this method would not, and cannot
+>> allow for multiple transactions per connection, since it relies on the close
+>> event being a signal as well.
+>> 
+>> However, reflecting more on that issue, the chances of a client requiring
+>> multiple created entitities (i.e those where the server cannot know a priori
+>> the size) in a single connection is rather low, at least at the moment.
+>> Multiple normal requests per connection would still be possible, and
+>> unaffected by this proposal.
+>
+>It'd have to server the created entity last, which seems unlikely.
+>
+>Cheers,
+>
+>Ben.
+>
+>-- 
+>Ben Laurie            |Phone: +44 (181) 735 0686|Apache Group member
+>Freelance Consultant  |Fax:   +44 (181) 735 0689|http://www.apache.org
+>and Technical Director|Email: ben@algroup.co.uk |Apache-SSL author
+>A.L. Digital Ltd,     |http://www.algroup.co.uk/Apache-SSL
+>London, England.      |"Apache: TDG" http://www.ora.com/catalog/apache
+>
+----------------------------------------------------------------------------
+------
+Adrien de Croy - adrien@qbik.com.  Qbik New Zealand Limited, Auckland, New
+Zealand
+                 See our pages and learn about WinGate at http://www.qbik.com/
+----------------------------------------------------------------------------
+------
+
+
+

@@ -1,0 +1,180 @@
+docno="lists-050-6466167"
+received="Wed Jul 10 10:06:58 2002"
+isoreceived="20020710140658"
+sent="Wed, 10 Jul 2002 15:06:25 +0100"
+isosent="20020710140625"
+name="Jeremy Carroll"
+email="jjc@hplb.hpl.hp.com"
+subject="Implementing RDF datatyping in Jena2"
+id="JAEBJCLMIFLKLOJGMELDCEFFCEAA.jjc@hplb.hpl.hp.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"RDF Core"<w3c-rdfcore-wg@w3.org>
+
+
+
+
+This message is intended for both jena-devel and w3c-rdfcore-wg.
+
+RDF Datatyping
+==============
+The RDF datatyping proposals involve:
+  - local datatyping
+  - global datatyping
+
+Local datatyping involves immediate triples to indicate a lexical form and a
+datatype to use to map that lexical form.
+
+Global datatyping depends on the schema to find the datatype.
+
+It is currently unclear as to whether the datatyping will be tidy or untidy.
+This message will address both possibilities.
+
+
+Jena 2 Graph API
+================
+
+Jena 2 is currently in experimental stages.
+
+A key characteristic is that as well as having graphs which are actual triple
+stores, there are virtual graphs which are derived from other graphs using some
+rules (e.g. RDFS closure rules).
+Virtual graphs have an API very much like a store, but there is no suggestion
+that any triple returned has not been created on the fly. Virtual graphs can be
+infinite.
+
+Richer interfaces (Models) are implemented over Graph to give extra
+functionality but no extra triples.
+
+
+Local Datatyping
+================
+
+Local datatyping would be exposed as extra methods on the richer model
+interface. This may be exposed on the Statement class e.g.
+
+Object Statement.getDatatypeValue()
+
+returns
+  The value of the object of the triple as a java object according to the local
+datatyping rules.
+  If the particular triple does not conform to the local datatyping idiom then
+null is returned.
+  If the particular triple conforms inconsistently to the local datatyping idiom
+then a RDFInconsistentException is thrown.
+
+e.g.
+
+t = <a> <p> _:b .
+    _:b <xsd:int> "10" .
+
+t.getDatatypeValue() returns a java.lang.Integer object with value 10.
+
+t = <a> <p> "10" .
+
+t.getDatatypeValue() returns null
+
+[[ Choice here: with tidy datatyping we may wish to return the java.lang.String
+"10", any language tag would explicitly be dropped. With untidy datatyping then
+this must be null. ]]
+
+t = <a> <p> _:b .
+    _:b <xsd:int> "10" .
+    _:b <xsd:int> "11" .
+
+t.getDatatypeValue() throws an exception.
+
+
+
+
+Untidy Global Datatyping
+========================
+
+Global datatyping is implemented as a graph to graph mapping.
+  Graph g1 = ...;
+  Graph g2 = new DatatypedGraph(g1);
+
+This graph to graph mapping expresses the global datatyping as triples following
+the local datatyping conventions.
+
+This would follow the convention of simpledatatypes2 that a lexical node *is* a
+shorthand for a bNode with a dlex arc leading to the lexical value.
+
+i.e. if
+ <a> <r> "10" .     is in g1
+then
+ <a> <r> _:b .
+ _:b <dlex> "10" .  are in g2.
+
+(and <a> <r> "10" is not in g2).
+
+Also the additional closure rules of simpledatatypes2 would be applied.
+
+If
+  <a> <r> _:b .
+  _:b <dlex> string .
+  <r> <drange> datatype .
+are in g2 then also
+  _b datatype string .
+is in g2.
+
+
+Actually accessing the values would then be achieved as for the local
+datatyping; which provides the API.
+
+Tidy Global Datatyping
+======================
+
+In the tidy case the triples would remain unchanged but their interpretation is
+extended to take into account the global datatype.
+
+Hence if
+
+t = <a> <r> "10" .
+and
+  <r> <drange> <xsd:int> .
+
+then
+t.getDatatypeValue() would return the java.lang.Integer object as before.
+
+If
+
+
+t = <a> <r> "10" .
+  <r> <drange> <xsd:int> .
+  <r> <drange> <xsd:string> .
+
+then
+t.getDatatypeValue() throws an exception.
+
+
+
+
+Nonmonotonicity
+===============
+
+Both approaches have aspects that appear non-monotonic.
+In the untidy approach, the graph to graph mapping replaces each triple with a
+simple literal object with two triples and a bNode. This replacement, while
+intended to be semantically neutral, at least appears like a deletion at the
+syntactic level, and, it could be argued that this is non-monotonic.
+
+
+The tidy case is thrown by an example like:
+
+t = <a> <r> "10" .
+    <foo> <subPropertyOf> <drange> .
+    <r> <foo> <xsd:int> .
+
+
+Here, taking the datatype over the RDF graph only we would get the string "10";
+taking the RDFS closure and then taking the global datatyping we would get the
+Integer 10.
+
+
+
+Jeremy
+
+
+

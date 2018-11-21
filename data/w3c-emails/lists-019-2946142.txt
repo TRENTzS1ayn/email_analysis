@@ -1,0 +1,87 @@
+docno="lists-019-2946142"
+received="Sat May 31 20:30:30 2003"
+isoreceived="20030601003030"
+sent="Sat, 31 May 2003 17:31:19 -0700"
+isosent="20030601003119"
+name="Michael Brundage"
+email="xquery@attbi.com"
+subject="[F&amp;O, May 2] : error in definition of deep-equal"
+id="000001c327d5$1f5aaf60$6401a8c0@xpider"
+charset="us-ascii"
+expires="-1"
+
+To:<public-qt-comments@w3.org>
+Cc:"'Ashok Malhotra'"<ashokma@microsoft.com>
+
+
+
+The definition of deep-equal means that two empty document nodes always
+compare false:
+
+deep-equal(document { () }, document { () })
+=> false()
+
+because "...if neither node has element children, then the result is true
+only if the other node also has simple content..." and document nodes never
+have simple content.
+
+I think "the other node also has" should have been "both nodes have", but in
+any case, this definition seems to preclude empty document nodes from
+comparing equal.  This comment may also apply to empty element nodes,
+depending on whether they are considered to have simple content or not (even
+when typed with a complex content model?).
+
+The definition could be fixed by collapsing the last two cases ("If neither
+node has element children..." and "Otherwise, the result is true if and only
+if the children...") into a single case:
+
+    Otherwise, the result is true only if the children of both nodes are all
+pairwise deep-equal, ignoring comment and processing-instruction node
+children in both cases.
+
+   fn:deep-equal(($parameter1/(* | text()), data()), ($parameter2/(* |
+text()), data()), $collation)
+
+
+
+Also, I think the whole definition for the node case could be reduced
+significantly by negating it and making some minor rewrites:
+
+fn:node-kind($parameter1) eq fn:node-kind($parameter2)
+and
+not(fn:node-name($parameter1) != fn:node-name($parameter2))
+and
+(if  (fn:node-kind($parameter1) != ("element", "attribute", "document"))
+ then fn:compare(fn:string($parameter1), fn:string($parameter2),
+$collection) eq 0
+ else ((count($parameter1/@*) = count($parameter2/@*)) and
+       (every $a1 in $parameter1/@* satifies
+             (some $a2 in $parameter2/@* satisfies fn:deep-equal(data($a1),
+data($a2), $collation))))
+  and fn:deep-equal(($parameter1/(* | text()), data()), ($parameter2/(* |
+text()), data()), $collation)
+)
+
+
+And finally, because namespace nodes cannot be selected or constructed alone
+by any XQuery expression, and because the recursive deep-equal definition
+for element skips namespace nodes, why are they included in the list ("If
+the two nodes are ... namespace nodes...")?  Just in case?
+
+
+
+Cheers,
+
+Michael Brundage
+Writing as
+Author, "XQuery: The XML Query Language" (Addison-Wesley, to appear 2003)
+Co-author, "Professional XML Databases" (Wrox Press, 2000)
+
+not as
+Technical Lead
+Common Query Runtime/XML Query Processing
+WebData XML Team
+Microsoft
+
+
+

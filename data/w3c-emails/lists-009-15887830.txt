@@ -1,0 +1,377 @@
+docno="lists-009-15887830"
+received="Mon Mar  4 16:15:46 1996"
+isoreceived="19960304211546"
+sent="Tue, 5 Mar 1996 01:12:46 +0100 (MET)"
+isosent="19960305001246"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Feature Negotiation Headers and Calculations, v1"
+id="199603050012.BAA04605@wsooti05.win.tue.nl"
+charset="USASCII"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc: Koen Holtman<koen@win.tue.nl>
+
+
+I wrote this in the past few hours, as background material for
+possible feature negotiation discussions at the IETF (which I won't be
+attending).  I hope that I will be able to expand section 3 soon.
+
+  Koen.
+
+
+------snip-----
+
+EXPERIMENTAL DEFINITION
+
+            Feature Negotiation Headers and Calculations
+            ---------------------------------------------
+
+                                          Koen Holtman, koen@win.tue.nl
+                                          Version 1, 4 Mar 1996
+
+
+INTRODUCTION
+
+   Parts of this document are unfinished.
+
+   This is an experimental definition.  It is expected that the
+   mechanism defined here, and the definition itself, can be improved
+   if more work is done.
+
+   Feature negotiation as we currently think of it will have lots and
+   lots of different feature identifiers.  The main purpose of this
+   experiment is to find a possible definition of a feature
+   negotiation mechanism that will not put pressure on browsers to
+   send very long lists of all supported features in every request.
+
+   This document should be read in the context of
+   draft-holtman-http-negotiation-00.txt, which should be read in the
+   context of draft-ietf-http-v11-spec-01.txt.  The meaning and
+   purpose of `feature negotiation' is assumed to be known.
+
+
+1. Overview
+
+   Feature negotiation as defined here is a refinement of the content
+   negotiation mechanism defined in
+   draft-holtman-http-negotiation-00.txt.  The mechanism is refined
+   by adding extra headers and header elements:
+
+    o Accept-Features
+    o Content-Features
+    o {features ...} attribute for the Alternates header.
+
+   The definitions of the overall quality calculations in
+   draft-holtman are extended with a new factor: qf for `feature
+   quality factor'.  Also, the rule associated with the
+   reactive-on-wildcard directive is extended.
+
+
+2. Feature identifiers
+
+   This document does not define what a feature identifier (fid) looks
+   like.  For the purpose of this document, we use
+
+     fid = token
+
+   where token is defined in draft-ietf-http-v11-spec-01.txt.  It is
+   assumed that tokens are not very long: a typical length would be 5
+   to 10 characters.  Examples of fids used in this document are:
+
+     f1  f2  f3
+
+   The mechanisms defined in this document will work with fids much
+   longer than 10 characters, but they will be less efficient in this
+   case.
+
+   Some ways to get short fids:
+
+     - The feature registration process assigns a short fid to every
+       registered feature.
+
+     - Fids are the sequence numbers (in base 10, 16, or 64) of the
+       feature registration process.
+
+     - The feature registration authority pre-assigns blocks of
+       numbers to browser authors, and registers some of these numbers
+       as feature identifiers later.
+
+     Note: If fids _must_ be long for some reason, not all is lost:
+     see the Accept-Feature-Hashed definition at the end of this text.
+
+
+3. Requirements on feature negotiation mechanisms
+
+
+   This section lists some requirements for feature negotiation
+   mechanisms.  It can be used as a checklist when considering (other)
+   definitions of such mechanisms.
+
+
+   TBS
+
+
+4. Content-Features header
+
+   The Content-Features header specifies some of the features that
+   need to used for rendering the enclosed entity.
+
+      Content-Features = "Content-Features" ":" 1#fid
+
+   This header is purely informational, this specification does not
+   intend there to be some required use of this header.
+
+
+5. Features attribute of the Alternates header
+
+   The features attribute of the Alternates header describes some of
+   the features that need to used for rendering the alternate.
+
+       Alternates = "Alternates" ":" 1#( alternate-descr  
+                                       | caching-directive )
+
+       alternate-descr = 
+               "{" <"> URI <"> source-quality
+                   [ "{" "type" <"> media-type <"> "}" ]
+                   [ "{" "language" <"> 1#language-tag <"> "}" ]
+                   [ "{" "encoding" <"> 1#content-coding <"> "}" ]
+                   [ "{" "length" 1*DIGIT "}" ]
+                   [ "{" "description" quoted-string "}" ]
+                   [ "{" "features" feature-list "}" ]
+                   [ extension-attribute ]
+               "}"
+
+       source-quality = qvalue
+
+       feature-list = 1#feature-list-element
+
+       feature-list-element = ( fid | fid-bag ) [ "/" missing-degradation ] 
+
+       fid-bag = "[" 1#fid "]"
+
+       missing-degradation = qvalue
+
+   If a missing-degradation value is not present in a feature list
+   element, the default value is 0.
+
+   TBS [text about interpretation of feature list elements, see the
+   example below for now]
+
+   An example is:
+
+       Alternates: {"blah.1.html" 1.0
+                   {type "text/html"} {features f1, f2/0.95}},
+                   {"blah.2.html" 1.0
+                   {type "text/html"} {features [f1, f3], [f4, f5]/0.8}},
+
+   The two feature lists could be written in words as: "blah.1.html
+   needs the feature f1 for rendering.  The availability of feature f2
+   is also desired, if this feature is missing, the overall quality of
+   the end result will decrease with a factor 0.95.", and "blah.2.html
+   needs the feature f1 or the feature f3 for rendering.  The
+   availability of feature f4 or f5 is also desired, if both are
+   missing, the overall quality of the end result will decrease with a
+   factor 0.8.".
+
+   Note: If an overall quality of 0.5 decreases with a factor 0.95,
+   the resulting quality is 0.5*0.95=0.475, NOT 0.5-(0.5*0.475)=0.025.
+
+   Note: The fid-bags are needed 
+      1) to cope with overlap in features (this page can be rendered
+         with the <blah> tag implementations of both browser X and
+         browser Y) and
+      2) to allow for conditional HTML
+
+
+6. qf calculation for reactive negotiation
+
+   If feature negotiation is included into content negotiation, the
+   definition for the overall quality in reactive negotiation becomes
+
+      Q = qs * qe * qc * ql * q * qml * qf
+
+   where the computation of qf, the feature quality factor, is
+   defined as follows.
+
+      qf The feature quality factor for the alternate is 1 if there is
+         no features attribute in the alternate description.  If there
+         is a features attribute in the alternate description, it is
+         the product of the individual degradation factors iqf of the
+         elements of the included feature list.  The iqf of a feature
+         list element equals 1 if the element is supported by the user
+         agent, and equals the missing-degradation factor of the
+         element (default 0) if the element is not supported.  A
+         feature list element of the form fid is supported if the
+         corresponding feature is available in the user agent.  A
+         feature list element of the form fid-bag is supported if at
+         least one of the corresponding features is available in the
+         user agent.
+
+
+7. Accept-Features header
+
+   The Accept-Features request header specifies some of the features
+   which are available or are not available in the user agent.  It is
+   indented that user agents send short Accept-Features headers by
+   default.
+
+      Accept-Features = "Accept-Features" ":" 1#( fid | not-fid | "*" )
+
+      not-fid = "/" fid
+
+   A fid form in this field indicates that the corresponding feature
+   is available.  A not-fid form in this field indicates that the
+   corresponding feature is not available. 
+
+   If the wildcard "*" is included, this indicates that all features
+   not explicitly listed as a fid or a not-fid must be considered
+   available when a preemptive negotiation calculation is performed.
+   If the wildcard "*" is not included, all features not explicitly
+   listed must be considered unavailable.  An example is:
+
+      Accept-Features: f1, /f2, /f3, f5, *
+
+   This header indicates that the features f1 and f5 are available in
+   the user agent.  When a preemptive negotiation calculation is
+   performed, the header indicates that all features except f2 and f3
+   are available.
+
+   The wildcard "*" and the not-fid form are useful for for
+   optimizing the negotiation process if the reactive-on-wildcard
+   directive is used in the Accept header.
+
+      Note: draft-holtman has the following to say about short accept
+      headers: "As most resources will be un-negotiable, user agents
+      are encouraged to send empty or small accept headers, or even
+      omit some accept headers entirely, by default.  If a user agent
+      knows or discovers that an origin server provides negotiated
+      resources, it is encouraged to use data from the negotiated
+      responses received so far to dynamically add or extend accept
+      headers sent in future requests on resources provided by that
+      origin server, in order to increase the probability that
+      preemptive negotiation can be used instead of the slower
+      reactive negotiation.".  This also applies to the
+      Accept-Features header.
+
+
+8. qf calculation for preemptive negotiation
+
+      Note: this section contains the tricky part.
+
+   If feature negotiation is included into content negotiation, the
+   definition for the overall quality in preemptive negotiation
+   becomes
+
+      Q = qs * qe * qc * ql * q * qml * qf
+
+   where the computation of qf, the feature quality factor, is
+   defined as follows.
+
+      qf The feature quality factor for the alternate is 1 if there is
+         no features attribute in the alternate description.  If there
+         is a features attribute in the alternate description, the
+         factor is 1 if there is no Accept-Features header present in
+         the request.  If there is a features attribute in the
+         alternate description, and an Accept-Features header is
+         present in the request, the feature quality factor is the
+         product of the individual degradation factors iqf of the
+         elements of the included feature list.  The iqf of a feature
+         list element equals 1 if the element is indicated as
+         supported by the Accept-Features header, and equals the
+         missing-degradation factor of the element (default 0)
+         otherwise.  A feature list element of the form fid is
+         indicated as supported if the corresponding feature is
+         available according to the Accept-Features header.  A feature
+         list element of the form fid-bag is indicated as supported if
+         at least one of the corresponding features is available
+         according to the Accept-Features header.
+
+   For example, the header
+
+      Accept-Features: f1, /f2, /f3, f5, *
+
+   would cause the following iqf factors to be assigned:
+
+      f1             = 1
+      f2/0.95        = 0.95
+      f99            = 1
+      [f1, f3]       = 1
+      [f4, f5]/0.8   = 1
+      [f2, f3]       = 0
+      [f2, f3, f99]  = 1
+
+
+9. Extension of conditions for sending a preemptive response if a
+   reactive-on-wildcard directive is included in the Accept header
+
+   Section 5.2 of draft-holtman says:
+
+     If the best alternate has an overall quality factor greater than
+     zero, and an Accept header in the request contains a
+     reactive-on-wildcard directive, then the server may generate a
+     preemptive response, provided that the origin server restriction,
+     if applicable, is met, if
+
+       o the type quality factor (q) of the best alternate was not
+         derived from a match to a media range containing an asterisk
+         "*" wildcard character in an Accept header, and
+
+       o the language quality factor (ql) of the best alternate was
+         not derived from a match to a "*" language-range in the
+         Accept-Language header.
+
+     In all other cases, the server must generate a reactive response.
+
+   If feature negotiation is included into content negotiation, a
+   third condition must be added:
+
+     o the feature quality factor (qf) of the best alternate was
+       derived without using the "*" wildcard, if present, in the
+       Accept-Features header.
+
+
+10. Accept-Features-Hashed
+
+      Note: the text below is too sketchy.  This section can be
+      ignored, the rest of this text does not depend on it.
+
+      Note: this header could be used instead of the Accept-Features
+      header if fids must be long for some reason.  Note that the fids
+      in the Alternates header will _not_ be hashed under the scheme
+      described here.
+
+   The Accept-Features-Hashed request header specifies hash values of
+   some of the features which are available or are not available in
+   the user agent.  It is indented that user agents send short
+   Accept-Features-Hashed headers by default.
+
+      Accept-Features-Hashed = "Accept-Features-Hashed" ":"
+                      1#( fid-hashed | not-fid-hashed | "*" )
+
+      fid-hashed = <the hash value of a fid (for example a 32 bit hash
+                    encoded in base 64, hash function to be specified)>
+
+      not-fid = "/" fid-hashed
+
+   The interpretation and use of this header is the same as that of
+   the Accept-Features header, modulo the hashing.
+
+   In a preemptive negotiation feature quality factor calculation, a
+   fid-hashed value matches any fid which hashes to that value.  This
+   means that there is a possibility that hash collisions produce a
+   preemptive response which includes the wrong alternate.  The user
+   agent should do a reactive negotiation calculation to find out if
+   the correct alternate was sent.  If it is found that hash
+   collisions caused the wrong alternate to be sent, the user agent
+   can do a direct request to retrieve the real best alternate.  As
+   hash collisions will be rare, no noticeable loss of performance is
+   to be expected because of this mechanism.
+
+
+[End of text.]
+
+
+

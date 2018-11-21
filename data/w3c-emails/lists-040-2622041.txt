@@ -1,0 +1,277 @@
+docno="lists-040-2622041"
+received="Thu Mar 30 02:37:49 2000"
+isoreceived="20000330073749"
+sent="Thu, 30 Mar 2000 02:32:15 -0500"
+isosent="20000330073215"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="ACLs"
+id="852568B2.0029DDDD.00@d54mta03.raleigh.ibm.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:w3c-dist-auth@w3c.org
+
+
+
+
+Glad to see the renewed activity on WebDAV ACLs! I read this stuff in a
+hurry, so I may have not understood all the potential issues or may have
+missed some. But here's a start at least. I'm glad to see renewed activity
+in ACLs. We should also take a look at emerging ACL models that are already
+out there too. For example, the Java2 security model, IBM SecureWay,
+Windows2000, etc. No need to invent a new one if an existing model would do
+the job.
+
+Review of the 00 Spec:
+
+Need to examine the notion of ACL inheritance in the presence of bindings
+where an actual resource may have more than one parent.
+
+Consider deleting dynamic ACL inheritance and apply ACL edits on a
+collection with a depth header.
+
+Delete the concept of hierarchical properties. WebDAV should now know about
+the structure of a property value any more than it should know about the
+structure of the contents of a resource. This creates a coupling between
+the access protocol and resource types that is not in the spirit of HTTP.
+
+Remove ACLs on individual properties for now. This capability raises too
+many issues. For example, should properties belong to groups so ACLs can be
+applied to the group rather than just individual properties.
+
+Need to be specific about what it means for a principal to (indirectly
+through membership in various groups) to have both grant and deny rights on
+the same resource. Deny should take precedence over grant.
+
+If property ACLs are supported, add/deletechild could also apply to adding
+and deleting properties. If not, use add/deletemember instead of child to
+be consistent with collection nomenclature.
+
+--------------------------------------------------------------------------
+
+Geoff's 01 Spec:
+
+
+--------------------------------------------------------------------------
+
+March 24 Call:
+
+An ACL has a list of ACEs.? Each server has a maximum number of ACEs per
+ACL, which is implementation dependent.? The current proposal is to require
+implementers to support at least 1 ACE granting permission to a user, and 1
+ACE granting permission to a group.? Implementations are required to
+implement a minimum of zero ACEs applying to a user or a group
+<jra>
+What user? The owner? What group? I don't agree with the resolution of this
+issue. I think it should be possible (is now) to have no ACL for a
+resource. This implies it is not under access control and all rights are
+available to all principals. Similarly it should be possible to have an ACL
+which is empty implying no rights are granted to anyone. (Note that the
+owner always has the right to change the ACLs, this can't be denied
+implicitly or explicitly). Each ACE specifies a specific principal - an
+individual authentication id, or an id of a group of authentication ids.
+Given the ACL model, I don't know what a group permission would mean in
+this context.
+</jra>
+
+ACL is a property of a resource, from a ?model? point of view.? How they
+are marshaled across the wire (e.g. via PROPPATCH or ACL methods) should be
+left to discussion at the end of the process.
+<jra>
+Don't agree. An ACL is not a property, its an ACL. ACLs as properties
+raises the issue of exposing ACL information to PROPFIND/PROPPATCH, or
+adding a bunch of special cases to prevent this. Servers should be free to
+implement ACLs any way they want, and not treat them as properties. How
+ACLs are marshalled across the wire *is* the business of the protocol, not
+the server. PROPPATCH should not be overloaded with updating access
+control. I think keeping ACLs and properties separate will avoid a lot of
+complexity, controversy, and headach without bloating the protocol with too
+many more methods. ACLs and properties are already separate concepts
+regardles of how they are manipulated and marshalled.
+</jra>
+
+Advanced access control provides more sophisticated capabilities, such as
+the ability to both grant and deny rights, the ability to define rights
+other than read and write, ACL inheritance, and access control on
+individual
+properties of a resource.  A particular resource may support only a subset
+of the advanced access control capabilities.
+<jra>
+I think we should try to avoid two levels of access control. I suggest that
+grant and deny are concepts that apply to read and write access and are
+really already there in basic access. A "right" should just be a string,
+just like lock scope and type. A server should be able to advertise any
+rights on any resource, and this should be reported as part of the ACL
+discovery on a resource. This is no more complicated than the similar
+mechanisms for locking and should be include in basic access control.
+
+ACL inheritance should just be deleted in favor of using a depth header on
+the ACL method when the request URL references a collection. I think this
+gets us what we need all in one spec.
+
+I think we should defer ACLs on individual properties.
+</jra>
+
+Every resource MUST be associated with two principals: a simple principal
+called the "owner" of that resource and a compound principal called the
+"group" of that resource.  An ACE that associates rights to the owner or
+group of a resource rather than to a particular principal can then be
+shared
+by a number of different resources.
+<jra>
+I think a resource should have an owner, and this should be the same as the
+DAV:author? But I don't think a resource needs a group. This sharing should
+be done by applying the ACE or a complete ACL to the other resource rather
+than implicitly through the owner or group. This can be done by getting the
+ACL information and applying it to another resource, or using depth on a
+collection. ACLs should be associated with resources only, not resources
+and principals. But I may not understand the details of the proposal.
+</jra>
+
+By default, a principal has no access rights to an object.
+<jra>
+The current owner must always have the right to change owner and modify
+ACLs. This can never be denied.
+</jra>
+
+<!ELEMENT ace (principal, right*)>
+</jra>
+should be:
+<!ELEMENT ace (principal, allow*, deny*)>
+The semantics already specify that rights may not be available. deny just
+provides a conveniencs for listing what you can't do rather than listing
+with you can do. The combination of right and deny just make the ace
+smaller. There's no new semantics. With just read and write rights, this
+doesn't matter, but if the right can be any string including All, then it
+does. For example,
+<allow></all></allow>
+<deny></delete></deny>
+would let a principal do everyting but delete but doesn't require a
+potentially long list.
+</jra>
+
+The owner-principal XML element represents the owner of a
+resource. This principal allows multiple resources to share the same ACL,
+but have the ACL apply to whatever principal is identified as the owner of
+the resource.
+<jra>
+So owner-principal is an alias in an ACE that references the current owner
+of the resource, whatever that principal might be? Where are the rights
+associated with a principal stored? All rights are currently associated
+with a resource through an ACE. The same principal may have very different
+rights on different resources. There are no rights that are just associated
+with the principal. A principal is not a resource that can have anything
+associated with it. Its just an opaque string. I don't quite get this and
+don't see why its necessary.
+</jra>
+
+For example, suppose that the owner was given only the read right, while
+the
+group was given both read and write rights.  Even if the owner is a member
+of that group, the owner only has exactly those rights given to it, i.e.
+read only. In contrast, if the group were "granted" the write right, then
+this would apply to all principals, whether or not there is a more specific
+ACE that identifies that principal.
+<jra>
+I find this confusing. It would seem that if the principal belongs to a
+group, and the group has a right that doesn't conflict with the principal's
+other right, then the principal has the right. Otherwise, Why bother with
+belonging to the group. The rights of a group are implicitly granted or
+denied when a principal becomes a member of the group. This is a privileged
+operation too which is not described in the ACL spec. Is it outside the
+scope?
+</jra>
+
+When a resource is created it is given a set of default ACL properties from
+a designated resource, referred to as an ACL source. The inheritance can be
+"static", so that subsequent changes to the ACL source do not affect the
+new
+resources ACL properties; or it can be "dynamic", so that subsequent
+changes
+are reflected in the new resource's ACL properties.
+<jra>
+5.2 Use the same logic as for inheritance of deep locks and remove this
+section. Then ACLs can be effected by MOVE too. Locks and ACLs are related
+in that they both provide access control mechanisms. They should be treated
+the same as much as possible.
+
+Delete section 5.3, ACLs on individual properties, too. This would be
+something like wanting ACLs on parts of the contents of a resource. I think
+ACLs on the resource controlling access to its state - properties and
+contents - should be enough. More might be better, but is it necessary?
+</jra>
+
+It is legal for a property to carry a setting for what sort of inheritance
+its children will have. Currently this value has no meaning as properties
+can not have children, but it is expected in the future that hierarchical
+properties will be adopted, so this setting will then have meaning. For now
+compliant resources MUST record this value but do not have to do anything
+with it.
+<jra>
+I think this is really going too far. WebDAV should not know about the
+structure of any property just like it doesn't know about the structure of
+any resource other than its own meta-data.
+</jra>
+
+<!ELEMENT ace (principal, (right | grant | deny)*)>
+<jra>
+should be:
+<!ELEMENT ace (principal, (grant | deny)*)>
+right is redundant.
+</jra>
+
+
+
+Here's a stab at the open issues from the last telecon:
+
+Specificity:? how do multiple ACEs interact?
+
+This is pretty well described in the 00 spec. More specific takes
+precedence over general. Deny takes precedence over grant. Is there a
+specific issue missing?
+
+Does the distinction between users and groups need to be made in an ACE?
+
+No. A group is just an aggregate of principals for convenience purposes. It
+adds no additional semantic capability.
+
+?checkPermissions? method:? ?do I have rights to do the following operation
+if I tried it?
+
+HTTP is a "try it and see what happens" or challenge response paradigm.
+This has worked well so far for access control. If the operation works, a
+client wouldn't want to waste the time checking ahead of time. If it fails
+due to access control, the client will know from the returned status code
+and can do whatever it would have done after a "checkPermissions" method. I
+don't see the need.
+
+Do we need an owner?? Can?t I just use a user principal?
+
+I don't know what a user principal is. It has to refer to a particular
+owner. In UNIX, user is a generic alias for the current owner of the
+resource. Its not a particular principal. Same with group. WebDAV ACLs are
+different in that they have lists of ACEs rather than just current owner,
+current group, and other as in UNIX.
+
+Some discussion of read/write permission on ACLs themselves.? General
+agreement to defer access control on ACLs to ?advanced?, with the
+owner-based model for CORE.
+
+The author should always have permission to change ACLs and can grant or
+deny this permission to other principals. The ability to change the owner
+must be restricted to the current owner only.
+
+A group should be a resource so it has an owner and can have access control
+on it too. Maybe a principal should be a resource and a group a kind of
+collection of principals.
+
+Do we need a way to discover how many ACEs a server can support in an ACL?
+
+Why would we ever consider specifying a limit? We don't expect servers to
+have some limit to the number of resources they can manage although we do
+expect that we could get an error anytime if the server runs out of space.
+Why not treat ACLs the same way?
+
+
+

@@ -1,0 +1,202 @@
+docno="lists-038-8736185"
+received="Thu Aug  6 12:38:50 1998"
+isoreceived="19980806163850"
+sent="Thu, 6 Aug 1998 09:18:29 -0700"
+isosent="19980806161829"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="FW: RE: Baby steps"
+id="001c01bdc155$d9298600$d115c380@galileo.ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="RE: Baby steps"
+expires="-1"
+
+To: WEBDAV WG<w3c-dist-auth@w3.org>
+
+
+Caught by the spam filter -- the email address
+BCragun.ORM2-1.OREM2@gw.novell.com has been added to the accept2 list for
+the list, so future messages from this address shouldn't be bounced.
+
+- Jim
+
+-----Original Message-----
+From: Bruce Cragun [mailto:BCragun.ORM2-1.OREM2@gw.novell.com]
+Sent: Thursday, August 06, 1998 7:21 AM
+To: ejw@ics.uci.edu; rubys@us.ibm.com; w3c-dist-auth@w3.org
+Subject: [Spam?] RE: Baby steps
+
+
+This explanation of VPortals helped me a lot in understanding their purpose.
+But it returns me to a question I asked in Redmond: What is the method for
+getting an earlier (i.e. not the tip) version of a document?  And does
+WebDAV truly support not only getting a non-tip version but also the ability
+to return that version, with changes, to the same location?  Stated another
+way, can I edit a non-tip version and return it to the collection as that
+same version, or does WebDAV force a new version for any change?
+
+This issue is critical to us at Novell, so I just want to make sure nobody
+believes we have placed such limitations into this spec.
+
+>>> Jim Whitehead <ejw@ics.uci.edu> 08/05 1:56 PM >>>
+
+> Suppose I am in my favorite Integrated Development Environment
+> (IDE) and want to checkout the latest version of x.c.  Nothing
+> fancy, no branches.
+>
+> Everything I have read so far seems to start at "once you have found the
+> Vportal, here are the set of operations you can perform"
+>
+> ...
+>
+> I believe I can follow the chain from portal to vgraph to cache, but
+> can't quite make the leap from the conceptual resource to the portal.
+
+The simple answer is you can discover the Vportals by performing a PROPFIND
+on its containing collection to retrieve the members of the collection.  The
+PROPFIND will list the Vportals, along with all other resources (e.g.,
+collections, regular resources, etc.) that are contained in the collection.
+This is the typical WebDAV mechanism for retrieving the members of a
+collection.
+
+Examples are always helpful to fully understand versioning, so here is an
+example which will hopefully shed some light on this issue.  The example
+will start off assuming that no versioning is taking place (i.e., show how
+things would be organized and accomplished using existing DAV and HTTP
+features), then add versioning into the picture.
+
+So, let's imagine that your "x.c" is part of project "my-utility", and
+belongs to an HTTP URL hierarchy that looks like this:
+
+              my-utility
+                   |
+  -----------------+-------------------
+  |         |           |             |
+x.c      makefile   my-util.h        y.c
+
+If this URL hierarchy were located on the server "devel.swcorp.com", then
+there would be the following URLs:
+
+http://devel.swcorp.com/my-utility/           The collection holding the
+resources
+http://devel.swcorp.com/my-utility/x.c        The C source resource "x.c"
+http://devel.swcorp.com/my-utility/makefile   The makefile for the project
+http://devel.swcorp.com/my-utility/my-util.h  The include resource for the
+project
+http://devel.swcorp.com/my-utility/y.c        The C source resource "y.c"
+
+Using DAV PROPFIND with Depth "infinity" on
+http://devel.swcorp.com/my-utility/, a complete list of the members of the
+collection would be returned, along with the properties requested in the
+PROPFIND.
+
+OK, now versioning is going to be added into the picture.  Assume that
+"x.c", "makefile", "my-util.h", and "y.c" are versioned (ignoring
+configuration management issues for the moment, and hence leaving the
+my-utility collection unversioned), and has a history of several previous
+revisions.
+
+>From previous discussions on this list, and working group meeting
+discussions, there is broad agreement that each revision of a resource is
+itself a separate resource, with its own URL.  This approach has many nice
+qualities -- links can be constructed to previous revisions of a resource,
+and they integrate well with the existing cache infrastructure.
+
+But, this creates a naming problem.  Ideally, when working on a project, you
+want to have a structural view of it -- in this example, the project has
+been hierarchically structured by placing the program files (x.c, y.c,
+makefile, my-util.h) into a collection (my-utility).  With the addition of
+versioning, each source code resource in the project now has multiple
+resources associated with it -- each conceptual source code resource is now
+really a set of resources.  For example, "x.c" is now really a conceptual
+handle for the resources "x.c version 1", "x.c version 2", "x.c version 3",
+"x.c version 4", etc.  When working on the program, the programmer thinks of
+all these resources simply as "x.c", but for the Web server, there needs to
+be a separate URL for each of these resources.
+
+Since the HTTP URL space only has a single form of organization,
+hierarchical, all of the versions of a resource, each with its own URL, need
+to be placed somewhere in an HTTP URL hierarchy.  There are several choices
+here.
+
+One choice is to "URL munge", essentially hiding all but the tip (or default
+published) version of a resource.  In this scheme, you could add a
+",v{version id}" to the end of a URL to retrieve a specific version.
+Performing a retrieval without adding ",v{version id}" would return the tip
+or default member.  This approach is bad because it makes URLs non-opaque,
+and raises the risk of namespace collisions with other mappings of ",v" in a
+URL.  As a result, this approach has time and again been rejected by this
+working group.
+
+Another choice is to place all of the versions of a resource into the same
+collection as the original resource.  In this example, a PROPFIND of
+"my-utility" would list "x.c version 1", "x.c version 2", "x.c version 3",
+"y.c version 1", "y.c version 2", etc.  This approach is bad because it
+mixes together the structure of a project and the versions of project
+members into the same collection.  It would also cause the collection
+listing to become quite large over time.
+
+It seemed to me, looking at this problem, that what was needed was an
+abstraction which would allow a programmer to work on their projects as if
+they were unversioned, i.e., if the programmer worked on an unversioned
+source code resource called "x.c", then they should still be able to work on
+"x.c" even when it was versioned.  To avoid the URL munge approach, and to
+avoid mixing together the structure view with the versions of resources, it
+would be necessary to stash the version resources in a location in the URL
+hierarchy which was different from the "structure" location. The Vportal is
+that abstraction.
+
+A Vportal provides the bridge between the structural organization of a
+project, and the location in the URL namespace where every individual
+version of a resource is located (i.e. the version space, making the Vportal
+a link between the structure space and the version space).
+
+So, how would the my-utility project look if it were versioned using
+Vportals?  The structural view would still be the same -- a PROPFIND on the
+collection http://devel.swcorp.com/my-utility/ would still return the
+following resources:
+
+
+http://devel.swcorp.com/my-utility/x.c        Vportal for the C source
+resource "x.c"
+http://devel.swcorp.com/my-utility/makefile   Vportal for the makefile for
+the project
+http://devel.swcorp.com/my-utility/my-util.h  Vportal for the include
+resource for the project
+http://devel.swcorp.com/my-utility/y.c        Vportal for the C source
+resource "y.c"
+
+
+So, when versioning a project, each resource is replaced with a Vportal,
+which is a pointer into the version graph for that resource. Returning to
+the original question, "how would you discover a Vportal", the answer is
+"use PROPFIND".
+
+The Vportals also imply that there is a stash of versioned resources
+someplace in the URL hierarchy.  For this example, these versions are
+located in collections under "/version-cache/", as follows.
+
+The revisions of "x.c" are located in the collection
+"/version-cache/my-utility/x.c/".  So, version 1 would have the full URL:
+
+http://devel.swcorp.com/version-cache/my-utility/x.c/x.c-vers1
+
+There is nothing magic about this naming convention -- I do not expect it to
+be standardized, and I do expect it to vary from server to server.  This is
+OK, and does not lead to loss of interoperability since the version graph
+contains a complete list of the members of the graph, their is-derived-from
+relationships, and their complete URLs.
+
+When editing a versioned resource, the Vportal resource receives CHECKOUT
+and CHECKIN commands.  So, to begin editing "x.c", a CHECKOUT would be sent
+to "http://devel.swcorp.com/my-utility/x.c".  When editing was finished, a
+CHECKIN would be sent to the same URL.  From the perspective of the person
+editing versioned "x.c", the Vportal "x.c" acts just like unversioned "x.c".
+
+Well, this probably answered your question in more detail than you were
+expecting :-)
+
+- Jim
+
+
+

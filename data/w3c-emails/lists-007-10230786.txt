@@ -1,0 +1,186 @@
+docno="lists-007-10230786"
+received="Sun Jan 17 23:00:42 1999"
+isoreceived="19990118040042"
+sent="Sun, 17 Jan 1999 22:57:28 -0500"
+isosent="19990118035728"
+name="Jonathan Rosenberg"
+email="jdrosen@dnrc.bell-labs.com"
+subject="Re: request for review: http extensions"
+id="36A2B128.577A922@dnrc.bell-labs.com"
+charset="us-ascii"
+inreplyto="3.0.5.32.19990115201249.00c21420&#64;localhost"
+expires="-1"
+
+
+To: Henrik Frystyk Nielsen<frystyk@w3.org>
+CC: Philipp Hoschka<Philipp.Hoschka@sophia.inria.fr>,discuss@apps.ietf.org
+
+Henrik Frystyk Nielsen wrote:
+> 
+> At 01:42 1/12/99 -0500, Jonathan Rosenberg wrote:
+> 
+> >I read this message and followed the thread a bit; I agree with Dave
+> >Kristol here and still don't see your point. I am assuming your
+> >definition of hogging the space is something like:
+> >
+> >Man: "myextension";ns=00-,"myextension";ns=01-,"myextension";ns=02-
+> >
+> >and so on.
+> >
+> >Now, with or without the dash, its impossible to hog the space since the
+> >number of digits is unbounded.
+> 
+> Nope, it is still possible: 11 will match not only 11- but also 111,
+> 111mynewheader, etc. That is, without the non digit separator, you can hog
+> the space using 100 prefixes.
+
+I see; the problem though again is not in the BNF for the extension
+delcaration. What you are trying to say is that a header that belongs to
+an extension MUST have a dash after its extension number. Then, a header
+matches an extension if the extension number, with a dash appended to
+it, are a prefix of the header. This rule does not require the dash
+itself to be present in the BNF for the extension declaration. 
+
+In other words:
+
+Man: "my-extension";ns=00
+00-Header1: value
+000-Header1: value2
+
+Based on the rules, a dash is appended to the header extension number
+for my-extension, yielding 00-, and then a prefix search is done on the
+header fields. Only the first one matches, so this one belongs to the
+my-extension extension. 
+
+> 
+> >> This is the reason we went with the current solution which allows for a
+> >> smooth transition from local extension to standards track RFC without
+> >> having to resolve the problem of defining the URI space for IANA registered
+> >> tokens and documents.
+> >
+> >Understandable. In that case, an implementors note saying that the URI
+> >space for RFC's would be preferrable, once available, would be useful.
+> 
+> ok - it now says:
+> 
+>         The support for header field names as extension identifiers
+>         provides a transition strategy from decentralized extensions
+>         to extensions defined by IETF Standards Track RFCs until a
+>         persistent mapping has been defined between the globally unique
+>         URI space and features defined in IETF Standards Track RFCs.
+
+Sounds good.
+
+> 
+> >> >4. The spec allows for declaration extension parameters, but none are
+> >> >defined and there is no guidelines regarding what they might actually
+> >> >be useful for. What is their purpose?
+> >>
+> >> What do you mean "none are defined" - they are intended for extending the
+> >> extension declarations with (by definition) optional parameters. I am not
+> >> sure what you mean?
+> >
+> >I mean, what would be an example of an optional parameter that someone
+> >might try to use in the future?
+> >
+> >> >5. The spec says unrecognized decl-ext parameters SHOULD be
+> >> >ignored. What else can it do? Shouldn't this be a MUST?
+> >>
+> >> The SHOULD is really more a guideline for what to do with unknown
+> >> parameters. The only strict requirement is that it must not be removed if
+> >> forwarded. I will here refer to Larry Masinter's thoughts on
+> >> MAY/SHOULD/MUST [7].
+> >
+> >On more thought, its sort of strange that the only possibility is for
+> >unknown decl-ext parameters to be ignored (i.e., the declaration
+> >extension is optional). What happens if the declaration extension must
+> >be understood in order to process the request?
+> 
+> The decl-ext extensions are only intended to extend the extension framework
+> itself (the declaration) and not any of the extensions that it is used to
+> declare. If you want an mandatory extension to the extension framework, you
+> use the extension itself to introduce the new extension. Only one mandatory
+> bit is sufficient.
+> 
+> Maybe this is not clear from the context so I have added:
+> 
+>         An agent MAY use the decl-extensions mechanism to include
+>         optional extension declaration parameters but cannot assume
+>         these parameters to be recognized by the recipient. This
+>         mechanism MUST NOT be used to pass extension instance data,
+>         which MAY be passed using header field prefix values
+>         (see section 3.1). Unrecognized decl-ext parameters SHOULD
+>         be ignored and MUST NOT be removed by proxies when
+>         forwarding the extension declaration.
+
+OK.
+
+> 
+> >On a related note, the extension mechanism really only allows you to
+> >define new header extensions. However, extensions could also include new
+> >values for existing headers or new parameters, and so on. Might be
+> >useful to extend the concept to cover these cases as well. For example:
+> >
+> >Man: "my-extension"; ns=11-
+> >Cache-Control: 11-new-cache-mechanism
+> 
+> This is intentional - otherwise it would require that every HTTP extension
+> application knows how to parse all existing (as well as any new) header
+> fields which is not possible. Because of the way MIME works, the unit of an
+> extension must be a header field and not a header field parameter.
+
+I think this works so long as the application can parse the header
+fields to which the extension applies. If an extension is listed as
+mandatory, and a client doesn't know the extension, it just returns an
+error response. If it is mandatory, and the client does understand the
+extension, than presumably it knows how to parse the header to which the
+extension applies, using the new parameters. I guess the problem is with
+optional extensions, and that an application would still try to parse
+the extended header, not noticing its extended since the header looks
+the same. 
+
+
+> >> >19. You might want to consider a header called Unsupported for 510
+> >> >responses (its used in SIP. It could be used to list those mandatory
+> >> >extensions which were not understood:
+> >>
+> >> The problem with this is that there may be other reasons why extensions are
+> >> not accepted which can not be expressed by such a header field (they can
+> >> have the wrong parameters, be combined in unacceptable ways, etc.). As this
+> >> is really a function of the extensions, this is better expressed by them
+> >> than by the extension protocol.
+> >
+> >This seem more an argument for a different response code than anything
+> >else; in other words, 510 is sent ONLY when the problem was that a
+> >mandatory extension was not understood since its not implemented (along
+> >with the Unsupported header). If it was understood (i.e., the server
+> >knows and implements it) but the values or parameters malformed, a
+> >different response code would be used (perhaps a 400).
+> 
+> But then you have all the combinations of the two - imagine two extensions
+> where one wasn't fulfilled because of lack of credentials and the other was
+> not understood. I still think leaving the whole thing to the extensions is
+> better.
+
+I think extensions not being understood always takes precedence, since
+the extension could be defining a feature which is "ignore the lack of
+credentials for any other extensions", in which case if the extension
+was understood there would be no error for the other. If a mandatory
+extension is not understood, no other aspect of a request can be
+reliably parsed, so I still think it makes sense to report a 510 and
+list the extension that wasn't understood. But, I don't feel terribly
+strongly here, and if the group doesn't consider this an issue thats
+fine.
+
+-Jonathan R.
+
+-- 
+Jonathan D. Rosenberg                       Lucent Technologies
+Member of Technical Staff                   101 Crawfords Corner Rd.
+High Speed Networks Research                Holmdel, NJ 07733
+FAX: (732) 834-5379                         Rm. 4C-526
+EMAIL: jdrosen@bell-labs.com
+URL: http://www.cs.columbia.edu/~jdrosen
+
+
+

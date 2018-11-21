@@ -1,0 +1,69 @@
+docno="lists-012-11582642"
+received="Thu Sep  2 22:17:38 1999"
+isoreceived="19990903021738"
+sent="Thu, 02 Sep 1999 14:17:07 0700"
+isosent="19990902211707"
+name="Julien Pierre"
+email="jpierre@netscape.com"
+subject="Re: Serverside roles in the HTTP"
+id="37CEE953.3076CE93@netscape.com"
+charset="usascii"
+inreplyto="872567E0.00575D31.00&#64;d53mta08h.boulder.ibm.com"
+expires="1"
+
+
+To:kugler@us.ibm.com
+CC:http-wg@cuckoo.hpl.hp.com,http-wg@hplb.hpl.hp.com
+
+Hi,
+
+kugler@us.ibm.com wrote:
+
+> If the full content is immediately available, it would be sent as one chunk.
+
+Not necessarily.
+It depends how the CGI is writing to stdout, on the OS, pipe buffer size, and on the
+load on the machine.
+If a dumb CGI writes one byte at a time to stdout, even in a tight loop, it's
+possible that the kernel will make the daemon thread wake up and return it that
+single byte, which would then be sent as a chunk if no buffer thresholds are set.
+Every other 1-byte write may also result in another chunk. Some thresholds are
+necessary to avoid those cases.
+
+> >This won't work for some content generators.
+> >For example, you can't start a CGI before you know the length of the POST data
+> >because you have to set it in the CGI process environment variables.
+>
+> The one pathological case is CGI/1.1 and chunked POST requests.  Supposedly,
+> future versions of CGI will deal with chunking.  And if the request provides
+> Content-Length, you don't have to buffer it, even for CGI/1.1.
+
+True - and we don't buffer the POST data in our daemon.
+
+This reminds me of a case I was debugging a few weeks ago :
+an echo CGI script writes the POST data to stdout as it comes, in a simple loop. The
+problem is that most HTTP/1.0 clients send the full request first, then wait for the
+server reply.
+
+But if the POST data is large, at some point, the server's socket buffer gets full
+when trying to send the reply, since the client isn't reading the reply yet (it's
+still not done POSTing the request). At that point, both the clients and the server
+are trying to send() and one of them times out (typically the server).
+
+I haven't seen anything in the CGI spec that requires a script to first read all its
+input before its starts writing to stdout. The script should be the proper place to
+do the buffering for this case.
+
+--
+for a good time, try kill -9 -1
+
+
+
+
+
+
+application/x-pkcs7-signature attachment: S/MIME Cryptographic Signature
+
+
+
+

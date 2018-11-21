@@ -1,0 +1,193 @@
+docno="lists-064-12039247"
+received="Wed May 16 13:18:23 2001"
+isoreceived="20010516171823"
+sent="Wed, 16 May 2001 17:14:36 +0100"
+isosent="20010516161436"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="More EARL (0.9) Issues"
+id="05fe01c0de23$6f26a880$4eda93c3@z5n9x1"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<w3c-wai-er-ig@w3.org>
+
+1) Granularity of results. This was raised a while ago, in the 12
+February teleconference [1], and Len followed it p with an action item
+to write some more about it, which he did [2]. However, some of this
+work was "forgotten" when drafting EARL 0.9, and I'm not sure we have
+a good enough range of expression rating-wise.
+
+At the moment, I'm moving towards explicitly enumerating certain
+classes, using "oneOf" in DAML. However, this wouldn't allow for
+extensibility afterwards, so we could say that the main class is
+comprised of a disjoint union of two sub classes, one of which is made
+by ERT - an explicit enumeration, and the other is for public use to
+add terms that they want a certain processor to use. This reminds me
+very much of the extra parameter entities in XHTML m12n, that allow
+people to extend, for example, the common attributes. Hmm... neat
+little analogy.
+
+2) Still no feedback on the "building RDF statements by creating an
+intersection of DAML restrictions on the reification properties",
+although I expect some from Libby today. I think I'll just go with my
+gut and say that it's correct, although Wendy, you can chase it up if
+you want.
+
+Let's try to explain what's going on here:-
+
+What we want to say is that we have a statement (a triple) that is
+comprised of specific parts. In EARL, we are creating (for example) a
+earl:Evaluation, which is made up of the parts "earl:Assertor",
+"earl:asserts", and "earl:Assertion". EARL Assertion is also a
+statement, but we can ignore that for now. What you can say (what we
+do say in 0.9) is that when you use an "earl:asserts" property, it has
+to be used in an earl:Assertor, and the object must be an
+earl:Assertion, but this has two disadvantages: a) it's too
+constraining, what if I want to use earl:asserts on something else? b)
+there is no way to say that this particular statement is an
+earl:Evaluation.
+
+Now, DAML has a method of putting restrictions on certain terms, so
+for example, you can say that "earl:Assertor" is a rdfs:subClassOf a
+restriction on the property "earl:asserts" to "earl:Assertion". In
+other words, when, and only when, earl:asserts is being used upon an
+earl:Assertor, the object of it must be earl:Assertion. So far so
+good, but what if we applied this to the entire statement?
+
+In RDF, to say what a statement is comprised of, you have three
+properties - rdf:subject, rdf:predicate, and rdf:object. So, for
+example, where you have the triple:-
+
+     :John :loves :Mary .
+
+The rdf:subject of that statement is ":John", the rdf:predicate is
+":loves", and the rdf:object is ":Mary". In other words:-
+
+   [ rdf:Statement;
+     rdf:subject :John;
+     rdf:predicate :loves;
+     rdf:object :Mary ] .
+
+O.K., now remember the DAML restriction stuff? What we could say is
+that in the case of an earl:Evaluation, the rdf:subject of it can only
+ever be an *instance* of earl:assertor, the rdf:predicate can only
+ever be *exactly* earl:asserts, and the rdf:object can only ever be an
+instance of earl:Assertion. These statements in RDF are:-
+
+   [ daml:onProperty rdf:subject;
+     daml:toClass earl:Assertor ]
+   [ daml:onProperty rdf:subject;
+     daml:hasValue earl:asserts ]
+   [ daml:onProperty rdf:subject;
+     daml:toClass earl:Assertion ]
+
+Unfortunately, we have to make the statements separately - look at the
+confusion it would cause if you had two onProperty arcs - you wouldn't
+know which one goes where! Thankfully, DAML gives us a method to say
+that our particular class is comprised of all of these restrictions -
+it's the intersection of these:-
+
+   earl:Evaluation daml:intersectionOf
+     ([ daml:onProperty rdf:subject;
+        daml:toClass earl:Assertor ]
+      [ daml:onProperty rdf:subject;
+        daml:hasValue earl:asserts ]
+      [ daml:onProperty rdf:subject;
+        daml:toClass earl:Assertion ]) .
+
+Ta da (round of applause please). Notes: if there could be other
+things that have these particular restrictions, then we would say that
+earl:Evaluation is a sub class of the intersection of these
+restrictions, but I think if it looks/smells/feels like an
+earl:Evaluation, then it is one, so I'm just going to say it's the
+intersection.
+
+You can do a similar thing to earl:Assertion.
+
+3) Does the above method make the restriction on earl:asserts
+obsolete? I'm not too sure about the stability of the above still, so
+I would be inclined to say that we might as well include the
+semantics, even if they can be inferred. My concern with the RDF model
+is that although instances of it can have the power of semantic
+transformations and so forth, if there are holes in the model, it's
+difficult to patch up.
+
+4) Are there any other sub classes of earl:Assertor that we need to
+note? At the moment, we only have earl:Person. Maybe we could allow
+earl:Tool here as well (or possibly earl:AssertingTool). Do we have to
+enumerate this? Could we use a similar method to 1)?
+
+5) I think we should change the "hasName", "hasEmail" and so forth
+into just "name", "email" and so on. Aaron et al. had a big discussion
+on using noun and verb clauses on SWAG-Dev, and no real consensus was
+reached (I actually argued for the "hasX", so I'm being a bit
+hypocritical here).
+
+6) Do we need to include other properties that humans could have other
+that email address and so on? Could we import some of the terms used
+in P3P?
+
+7) More prose for the terms, please. At the moment, just looking
+through the schema, it is next to impossible to work out hat each of
+the terms is for, just by name. We need to agree on the prose and best
+practices for the terms - it's not something one of us can just hack
+up.
+
+8) How do we express ranges of dates on NonUniqueTestSubjects? I want
+to say that this applies to my particular Web page, which was in
+action between two particular dates, or even more complicated, between
+a certain set of dates. We need some equivalent of a "fromDate" and
+"toDate" mechanism... hmm:-
+
+   :MyPage a earl:NonUniqueTestSubject;
+      :dateRange [ :fromDate "2001-03-05";
+                          :toDate "2001-03-17" ] .
+
+If so, there's no way that we can use dc:date for this. I think we
+should really consider the future with dc:date - why use it explicitly
+in the instances when we can just mess about with it on the schema
+side?
+
+Note that ":dateRange" above could then just become "earl:date", which
+would be a (disjoint?) union of earl:Date and earl:DateRange. Hmm...
+I'm not sure about all that, because of the restrictions we have on
+the cardinality of date properties... earl:DateRange would be used on
+earl:NonUniqueTestSubject, multiple earl:Date's would be used on
+earl:NonUniqueTestSubject, and single earl:Date's would be used on
+earl:UniqueTestSubject.
+
+To express multiple date ranges, you'll have to use DAML in the
+instances (which I wanted to avoid - maybe we could use another
+equivalent?), so you could have:-
+
+   :MyCoolPage a earl:NonUniqueTestSubject;
+      :dateRange [ daml:intersectionOf
+                              ([ :fromDate "2001-03-05";
+                                  :toDate "2001-03-17" ]
+                               [ :fromDate "2001-03-21";
+                                  :toDate "2001-03-25" ]) ] .
+
+Or, rather...
+
+   :MyCoolPage a earl:NonUniqueTestSubject;
+      earl:date [ daml:intersectionOf
+                              ([ earl:fromDate "2001-03-05";
+                                  earl:toDate "2001-03-17" ]
+                               [ earl:fromDate "2001-03-21";
+                                  earl:toDate "2001-03-25" ]) ] .
+
+That's a pretty neat bit of hacking, that.
+
+[1] http://lists.w3.org/Archives/Public/w3c-wai-er-ig/2001Feb/0088
+[2] http://lists.w3.org/Archives/Public/w3c-wai-er-ig/2001Feb/0097
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://webns.net/roughterms/> .
+:Sean :hasHomepage <http://purl.org/net/sbp/> .
+
+
+

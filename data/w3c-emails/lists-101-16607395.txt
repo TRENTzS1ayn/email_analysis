@@ -1,0 +1,245 @@
+docno="lists-101-16607395"
+received="Tue May  2 17:42:57 2000"
+isoreceived="20000502214257"
+sent="Tue, 2 May 2000 23:42:48 +0200 (CEST)"
+isosent="20000502214248"
+name="jeroen@tcf.nl"
+email="jeroen@tcf.nl"
+subject="XPath API start"
+id="200005022142.XAA27585@webmail2.xs4all.nl"
+expires="-1"
+
+
+To:www-dom-xpath@w3.org
+
+Below you can find an XPath API as we've been implementing it on top of our 
+database Xhive.
+
+We believe that and XPath API as part of DOM makes sense, it takes way too long 
+before the Query WG has a spec available. This API is supposed to get the 
+discussion started. (and nothing more !, feedback is appreciated)
+
+When we've created this api we've made the following assumptions:
+
+- the interfaces should be simple and straight forward
+- it doesn't make too much sense to offer a complete API for parsed XPath 
+queries although this is possible
+- it should cover the complete XPath implementation
+- every query object has an authority object which organizes authority on 
+queries. We've created it to serve our repository but it might easily be skipped
+- our product is a Java product so the API's are in java which is alright for 
+discussion purposes.
+- XPath queries should support the context supported by Xpath (the context node, 
+a set of variable bindings, a set of namespace declarations)
+
+Method names etc should of course be changed and a clear module (something like 
+org.w3c.dom.xpath) should be created. Dom core should add an hasFeature.
+
+
+Have fun, 
+
+Jeroen
+
+----------------------
+Jeroen van Rotterdam
+The Connection Factory
+http://www.xhive.com
+jeroen@tcf.nl
+----------------------
+
+
+--------------------------------------------
+ XPath Query factory
+--------------------------------------------
+public interface XPathQueryImpl{
+  XPathQuery createXPathQuery( String unparsedQuery, String description );
+}
+
+--------------------------------------------
+Main Query interface
+--------------------------------------------
+public interface XPathQuery {
+
+  /* set the unparsed query */
+  public void setQuery( String unparsedQuery );
+
+  /* get the unparsed query */
+  public String getQuery() throws XhiveException;
+
+  /* execute the query against a reference node */
+  public XPathResultIf execute( Node referenceNode ) throws XhiveException;
+
+  /* Description of this query*/
+  public void setDescription( String description );
+  public String getDescription();
+
+  /* variable binding list */
+  public VariableBindingListIf getVariableBindingList();
+
+  /* namespace declaration */  
+  public NamespaceDeclarationListIf getNamespaceDeclarationList();
+
+  public Date getLastModified();
+ 
+  public String toString();
+
+  public XhiveAuthorityIf getAuthority();
+}
+
+--------------------------------------------
+ result interface
+--------------------------------------------
+
+public interface XPathResultIf {
+
+  public static final short NODESET = 1;
+  public static final short BOOLEAN = 2;
+  public static final short STRING =  3;
+  public static final short NUMBER =  4;
+
+  public short getType() throws XPathException;
+  public boolean getBooleanVal() throws XPathException;
+  public XPathNodeSetIf getNodeSetVal() throws XPathException;
+  public double getNumberVal() throws XPathException;
+  public String getStringVal() throws XPathException;
+}
+
+-------------------------------------
+ node set if
+-------------------------------------
+public interface XPathNodeSetIf {
+
+  public Node getFirst() throws XPathException;
+
+  public Node getNext() throws XPathException;
+
+  public int getSize() throws XPathException;
+  
+}
+
+--------------------------------------
+ variable binding list
+--------------------------------------
+
+public interface VariableBindingListIf  {
+
+  public VariableBindingIf createVariableBinding( 
+        String name, XPathNodeSetIf value ) throws XhiveException;
+
+  public VariableBindingIf createVariableBinding( 
+        String name, String value ) throws XhiveException;
+
+  public VariableBindingIf createVariableBinding( 
+        String name, boolean value ) throws XhiveException;
+
+  public VariableBindingIf createVariableBinding( 
+        String name, Double value ) throws XhiveException;
+
+  public void addVariableBinding(VariableBindingIf variableBinding)
+        throws XhiveException;
+
+  public boolean removeVariableBinding(VariableBindingIf variableBinding )         
+        throws XhiveException;
+
+  public VariableBindingIteratorIf getVariableBindings();
+
+  public int size();
+}
+
+
+-----------------------------------------
+ variable binding
+-----------------------------------------
+
+public interface VariableBindingIf {
+
+  public String getName();
+    
+  public XPathResultIf getBinding();
+} 
+
+-----------------------------------------
+ namespace declaration list
+-----------------------------------------
+
+public interface NamespaceDeclarationListIf  {
+
+  public NamespaceDeclarationIf createNamespaceDeclaration( 
+        String prefix, String namespaceURI ) throws XhiveException;
+
+  public void addNamespaceDeclaration(NamespaceDeclarationIf nsDeclaration)        
+        throws XhiveException;
+
+  public boolean removeNamespaceDeclaration(NamespaceDeclarationIf declaration ) 
+        throws XhiveException;
+
+  public NamespaceDeclarationIteratorIf getNamespaceDeclarations();
+
+  public int size();
+}
+
+-------------------------------------------
+ namespace declaration interator interface
+-------------------------------------------
+
+public interface NamespaceDeclarationIteratorIf {
+
+    public boolean hasNext();
+
+    public NamespaceDeclarationIf next () throws XhiveException;
+
+    public boolean hasPrevious();
+
+    public NamespaceDeclarationIf previous () throws XhiveException;
+}
+
+---------------------------------------------
+ namespace declaration interface
+---------------------------------------------
+public interface NamespaceDeclarationIf {
+
+  public String getPrefix();
+
+  public String getNamespaceURI();
+} 
+
+---------------------------------------------
+ XhiveAuthority interface
+ unix style authority model
+---------------------------------------------
+
+public interface XhiveAuthorityIf  {
+
+  static short READ_ACCESS          = 0;
+  static short WRITE_ACCESS         = 1;
+  static short READ_EXECUTE_ACCESS  = 2;
+  static short WRITE_EXECUTE_ACCESS = 3;
+  static short NO_ACCESS            = 4;
+
+  public void setOwnerAuthority( short authority ) throws XhiveException;
+  public void setGroupAuthority( short authority ) throws XhiveException;
+  public void setOtherAuthority( short authority ) throws XhiveException;
+
+  public void setAuthority( short ownerAuthority, 
+     short groupAuthority, short otherAuthority ) throws XhiveException;
+
+  public void setOwner( XhiveUserIf owner );
+  public void setGroup( XhiveGroupIf group ) throws XhiveException;
+
+  public XhiveUserIf getOwner();
+  public XhiveGroupIf getGroup();
+
+  public boolean isExecutable();
+  public boolean isWritable();
+  public boolean isReadable();
+
+}
+
+-------------------------------------------------------------------------
+By the way we've added support for document collections where documents are what 
+we call "Bastard Nodes" of a collection. (Bastard Node: document.getParent == 
+null while collection.getChild delivers a Document). This enables you to query 
+over collections while not braking the core Dom and XPath interfaces.
+
+
+

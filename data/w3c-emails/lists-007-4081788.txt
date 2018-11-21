@@ -1,0 +1,158 @@
+docno="lists-007-4081788"
+received="Sun Jul  7 14:49:12 2002"
+isoreceived="20020707184912"
+sent="Sun, 7 Jul 2002 20:49:03 +0200"
+isosent="20020707184903"
+name="Julian Reschke"
+email="julian.reschke@greenbytes.de"
+subject="RE: Replacing the Label header with a DAV:labeled-version report"
+id="JIEGINCHMLABHJBIGKBCGEGMEOAA.julian.reschke@greenbytes.de"
+charset="iso-8859-1"
+inreplyto="3906C56A7BD1F54593344C05BD1374B1075FD3CD&#64;SUS-MA1IT01"
+expires="-1"
+
+To:"Clemm, Geoff"<gclemm@rational.com>,"'Deltav WG'"<ietf-dav-versioning@w3.org>
+
+
+
+> From: ietf-dav-versioning-request@w3.org
+> [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Clemm, Geoff
+> Sent: Sunday, July 07, 2002 1:34 AM
+> To: 'Deltav WG'
+> Subject: RE: Replacing the Label header with a DAV:labeled-version
+> report
+>
+>
+>
+>    From: Julian Reschke [mailto:julian.reschke@greenbytes.de]
+>
+>    > From: Clemm, Geoff
+>    >
+>    > Julian didn't like the marshalling of this report, because it
+>    > makes it look like the properties are those of the VCR, when they
+>    > actually are properties of the version
+>
+>    Yes, that's the problem, and I fear the new format doesn't address
+>    this.
+>
+>    If the multistatus/response format is re-used for a REPORT (basically a
+good
+>    thing), it must not break the existing semantics, in particular:
+>
+>    - the properties reported must actually be the properties of  the
+resource
+>    identified by the reported URI (DAV:href) and
+>    - the properties reported actually must be properties (!).
+>
+>    If this is not the case, the response seems to indicate that there's a
+>    DAV:labeled-version-report property, which isn't the case.
+>
+> If this is a problem, it is a problem with the 3253 definition of REPORT.
+> In particular, section 3.6 states:
+>
+>    "If a Depth request header is included, the response MUST be a 207
+>    Multi-Status.  The request MUST be applied separately to the
+>    collection itself and to all members of the collection that satisfy
+>    the Depth value.  The DAV:prop element of a DAV:response for a
+>    given resource MUST contain the requested report for that resource."
+>
+> So according to 3253, the DAV:prop elements MUST contain the requested
+> report (as if it were a property).
+
+Good catch. So, taking both RFC3253 and RFC2518 in account, the requested
+report must be contained inside DAV:prop, and DAV:prop must contain WebDAV
+properties of the resource identified by DAV:href.
+
+This works fine for things like DAV:version-tree, but obviously fails here,
+so we need to find a resolution.
+
+> Since this was not considered a problem during any of the reviews of
+> 3253, I'd need to hear some compelling reasons why this marshalling
+> has become a problem.  In particular, there is no rule that I know of
+
+*I* didn't consider this a problem because none of the reports defined by
+RFC3253 actually breaks RFC2518 semantics -- so everytime the multistatus
+format is used, the contents of DAV:prop actually *are* WebDAV properties.
+So if the *intent* of the text you quoted is to allow *arbitary* reports to
+be marshalled *inside* DAV:prop, why wasn't this feature used by any of the
+reports defined in RFC3253 (or ACL)?
+
+> that states that the interpretation of a DAV:multistatus element must
+> be the same in all contexts in which it appears.  I know that this is
+> definitely not the case for other XML elements used by WebDAV (e.g.
+> the way the property elements are used in the request and response
+> bodies of a PROPPATCH differ significantly).
+
+That's correct, but I don't think that's the point. When people see a
+multistatus response body, up until now they *always* could assume that
+something that they see inside DAV:prop actually *is* a WebDAV property of
+the resource identified by DAV:href. In particular, one would assume that if
+it appear inside a DAV:response/DAV:propstat/DAV:prop element, you can also
+query it using PROPFIND.
+
+Besides: every time you define a report-specific element for inclusion into
+DAV:prop, you basically block any usage of this name as "real" WebDAV
+property. In this particular case, using DAV:labeled-version-report as
+"container" element makes it impossible to actually have a property called
+DAV:labeled-version-report (and to have it returned by this report). While
+this may not seem to be a real-world problem here, it would mean that an
+ambiguity is introduced into the namespaces of WebDAV property names  --
+suddenly there's an overlap with marshalling elements for specific reports.
+
+So why not use a marshalling format that has none of these problems?
+
+>    So how about properly extending the response element, for instance:
+>
+>      <?xml version="1.0" encoding="utf-8" ?>
+>      <D:multistatus xmlns:D="DAV:">
+>
+>        <D:response>
+>  <D:href>http://www.webdav.org/folder/</D:href>
+>  <D:labeled-version-report>
+>    <D:href>http://repo.webdav.org/his/23/ver/V5</D:href>
+>    <D:propstat>
+>      <D:prop>
+>        <D:version-name>V5</D:version-name>
+>      </D:prop>
+>      <D:status>HTTP/1.1 200 OK</D:status>
+>    </Dpropstat>
+>  </D:labeled-version-report>
+>  <D:status>HTTP/1.1 200 OK</D:status>
+>        </D:response>
+>
+>       <D:response>
+>  <D:href>http://www.webdav.org/folder/foo.html</D:href>
+>  <D:labeled-version-report>
+>    <D:href>http://repo.webdav.org/his/84/ver/V8</D:href>
+>      <D:propstat>
+>        <D:prop>
+>  <D:version-name>V8</D:version-name>
+>      </D:prop>
+>      <D:status>HTTP/1.1 200 OK</D:status>
+>    </D:propstat>
+>  </D:labeled-version-report>
+>  <D:status>HTTP/1.1 200 OK</D:status>
+>        </D:response>
+>
+>      </D:multistatus>
+>
+> That would be fine with me (and arguably is cleaner than what is
+
+...thanks...
+
+> defined in 3253), but it is inconsistent with 3253, so unless there
+
+Why would that be inconsistent with RFC3253? The format you proposed earlier
+definitively is inconsistent with RFC2518, and I'm not aware of another case
+in RFC3253 that has this problem.
+
+> is something seriously wrong with the 3253 marshalling, I think
+> consistency is more important here than aesthetics.
+
+I think the RFC3253 marshalling as explained by you in seriously
+inconsistent with RFC2518 *and* not very aesthetical. I'm happy it hasn't
+been used before :-) I have the feeling I'm overseeing something, and I'm
+sure you'll educate me...
+
+
+

@@ -1,0 +1,356 @@
+docno="lists-044-6444240"
+received="Thu Jun  8 16:56:53 2000"
+isoreceived="20000608205653"
+sent="Thu, 8 Jun 2000 16:56:42 -0400"
+isosent="20000608205642"
+name="Ken Goldman"
+email="kgold@watson.ibm.com"
+subject="Re: Enveloped signatures"
+id="200006082056.QAA26374@alpha.watson.ibm.com"
+inreplyto="BFEDKCINEPLBDLODCODKAELNCCAA.jboyer&#64;PureEdge.com"
+expires="-1"
+
+
+To:jboyer@PureEdge.com
+Cc:<w3c-ietf-xmldsig@w3.org>
+
+I've been looking at the same problem (a collection of signed
+documents within another signed document).  Below is my attempt at
+an example.
+
+> From: "John Boyer" <jboyer@PureEdge.com>
+> Date: Thu, 11 May 2000 16:37:15 -0700
+> 
+> Hi Joseph and Mariano,
+> 
+> Whether the XPath transform adds a here() function or a $here variable is
+> not nearly as important as whether it will actually solve the problems it is
+> intended to solve.
+> 
+> Any conformant XPath implementation MUST offer a way to add to the function
+> library, so there is no problem doing it as a function.
+> 
+> The larger issue, though, is whether here() does the trick.  Mariano, when
+> we spoke at the FTF, you said you'd post an example regarding the problem
+> you actually want to solve with here(), which was some way to get around the
+> XML global id problem.  I would appreciate it if you would work that out and
+> show it.
+
+
+Background
+----------
+
+XML DSIG signature elements contain an element called SignedInfo,
+which is hashed and signed.  SignedInfo contains a number of elements
+called a Reference.  A Reference, among other things, points to an
+element being hashed and the its hash.
+
+This note analyzes a potential problem with "points to an element".
+
+Current DSIG Specification
+--------------------------
+
+The pointer is described in 4.3.3 as a URI, and it recommends
+accepting URI's in the HTTP scheme.  In particular, the # syntax
+should be handled.  For example:
+
+       URI="http://foo.com/bar.xml#chapter1"
+
+points to the element with the ID attribute "chapter1".  For a
+reference within the XML document containing the signature, the syntax
+would be shortened to:
+
+      URI="#chapter1"
+
+This latter is a typical case for signed documents.
+
+Example with no Problem
+-----------------------
+
+This is a very simplified example, using an electronic check document,
+which does not show the problem.
+
+<checkdoc>
+
+  <check ID="checkdata">
+    <amount>1.00</amount>
+    <payto>Ken</payto>
+  </check>
+
+  <Signature> 
+    <SignedInfo> 
+      <Reference URI="#checkdata"> 
+        <DigestValue>j6lwx3rvEPO0vKtMup4NbeVu8nk=</DigestValue> 
+      </Reference>    
+    </SignedInfo> 
+    <SignatureValue>MC0CFFrVLtRlk=...</SignatureValue> 
+    <KeyInfo> 
+      <KeyValue>MIIBtzCCASw...</KeyValue> 
+    </KeyInfo>
+  </Signature>
+
+</checkdoc>
+
+The SignedInfo element contains a reference to the check element, and a
+hash of the element.  The SignedInfo element is hashed and signed, the
+result being placed in the SignatureValue element.  The KeyInfo
+contains a certificate with the signer's public key and account
+information.
+
+Example with a Problem
+----------------------
+
+The problem occurs when combining two signed documents into a third,
+larger document.  For example, two or more signed check documents may
+be combined into a signed deposit document (ignoring endorsements for
+simplification).
+
+A very simplified deposit document might look like this.
+
+<depositdoc>
+
+  <deposit ID="depositdata">
+    <amount>2.00</amount>
+  </depositelement>
+  <Signature> 
+    <SignedInfo> 
+      <Reference URI="#depositdata">
+         <DigestValue>abcd</DigestValue> 
+      </Reference>    
+      <Reference URI="#check1">
+         <DigestValue>abcd</DigestValue> 
+      </Reference>    
+      <Reference URI="#check2">
+         <DigestValue>defg</DigestValue> 
+      </Reference>    
+    </SignedInfo> 
+    <SignatureValue>1234</SignatureValue> 
+  </Signature>
+  
+  <checkdoc>
+    <check ID="checkdata">
+      <amount>1.00</amount>
+      <payto>Ken</payto>
+    </check>
+    <Signature ID="check1"> 
+      <SignedInfo> 
+         <Reference URI="#checkdata"> 
+           <DigestValue>aaaa</DigestValue> 
+         </Reference>    
+      </SignedInfo> 
+      <SignatureValue>1111</SignatureValue> 
+    </Signature>
+  </checkdoc>
+    
+  <checkdoc>
+    <check ID="checkdata">
+      <amount>1.00</amount>
+      <payto>Ken</payto>
+    </check>
+    <Signature ID="check2"> 
+      <SignedInfo> 
+         <Reference URI="#checkdata"> 
+           <DigestValue>bbbb</DigestValue> 
+         </Reference>    
+      </SignedInfo> 
+      <SignatureValue>2222</SignatureValue> 
+    </Signature>
+  </checkdoc>
+
+</depositdoc>
+
+An ID is added to each of the two check documents' signature elements.
+The deposit document signature element has references to these two
+check documents' signatures, preventing tampering with the check
+documents included in the deposit document.
+
+The problem is not with the deposit document's signature, but with the
+two check document signatures.  Each contains a reference to a
+"checkdata" ID.
+
+First, a document may not contain two ID attributes with the same
+value.
+
+Second, even with legacy systems (e.g. HTML parsers) which will accept
+the ID collision, the typical behavior is to find the first one.  In
+the example, it would find the first of the two check elements.  This
+causes all check document signatures after the first to fail.
+
+False Solution
+--------------
+
+Suppose that the check element ID can be made unique.  Clearly,
+appending a random number is insufficient, but assume some globally
+unique prefix per signer, such as a URL, certificate issuer and serial
+number.
+
+Even in this case, the document is open to tampering by the document
+generator.  For example, take the above example, make the first two
+checkdata ID's unique, and add a third, bogus check document.
+
+<depositdoc>
+
+  <deposit ID="depositdata">
+    <amount>1002.00</amount>
+  </depositelement>
+  <Signature> 
+    <SignedInfo> 
+      <Reference URI="#depositdata">
+         <DigestValue>abcd</DigestValue> 
+      </Reference>    
+      <Reference URI="#check1">
+        <DigestValue>abcd</DigestValue> 
+      </Reference>    
+      <Reference URI="#check2">
+        <DigestValue>defg</DigestValue> 
+      </Reference>    
+      <Reference URI="#check3">
+        <DigestValue>ghij</DigestValue> 
+      </Reference>    
+    </SignedInfo> 
+    <SignatureValue>2345</SignatureValue> 
+  </Signature>
+  
+  <checkdoc>
+    <check ID="checkdata1">
+      <amount>1.00</amount>
+      <payto>Ken</payto>
+    </check>
+    <Signature ID="check1"> 
+      <SignedInfo> 
+        <Reference URI="#checkdata1"> 
+          <DigestValue>aaaa</DigestValue> 
+        </Reference>    
+      </SignedInfo> 
+      <SignatureValue>1111</SignatureValue> 
+    </Signature>
+  </checkdoc>
+    
+  <checkdoc>
+    <check ID="checkdata2">
+      <amount>1.00</amount>
+      <payto>Ken</payto>
+    </check>
+    <Signature ID="check2"> 
+      <SignedInfo> 
+        <Reference URI="#checkdata2"> 
+          <DigestValue>bbbb</DigestValue> 
+        </Reference>    
+      </SignedInfo> 
+      <SignatureValue>2222</SignatureValue> 
+    </Signature>
+  </checkdoc>
+    
+  <checkdoc>
+    <check ID="checkdata3">
+      <amount>1000.00</amount>
+      <payto>Ken</payto>
+    </check>
+    <Signature ID="check3"> 
+      <SignedInfo> 
+        <Reference URI="#checkdata1"> 
+          <DigestValue>aaaa</DigestValue> 
+        </Reference>    
+      </SignedInfo> 
+      <SignatureValue>1111</SignatureValue> 
+    </Signature>
+  </checkdoc>
+  
+</depositdoc>
+
+The third check document contains a checkdata3 field with bogus data.
+It is unsigned.  However, the third check document's signature element
+is copied, or "borrowed", from the first check document.  
+
+Since the document conforms to the DTD or schema, it will be passed by
+the parser as well formed and valid.
+
+Since the reference points to the first check, a generic DSIG verifier
+will pass the document.  
+
+It is easy to argue that a semantic layer reference pointer
+verification could detect the bogus check.
+
+I maintain that such verification is undesirable.  It places an
+additional burden on the application developer.  It is also difficult
+to prove that all such examples like the one above have been
+considered.  The document seems open to clever tampering.
+
+Solution
+--------
+
+Signing an element with a # pointer syntax works for the initial
+document generator.  However, once the document is embedded into
+another document, the reference can point anywhere in the document.  I
+believe that this is a fundamental security flaw.
+
+Better is a pointer which is constrained to point within a particular
+element containing the pointer.  This can be done with existing
+XPath syntax.
+
+A check document, for example, would become
+
+<checkdoc>
+
+  <check>
+    <amount>1.00</amount>
+    <payto>Ken</payto>
+  </check>
+
+  <Signature> 
+    <SignedInfo> 
+      <Reference URI="ancestor:checkdoc[1]/check[1]"> 
+        <DigestValue>aaaa</DigestValue> 
+      </Reference>    
+    </SignedInfo> 
+    <SignatureValue>1111</SignatureValue> 
+  </Signature>
+
+</checkdoc>
+
+The XPath construct says "start here, at this reference, go up the
+hierarchy until the checkdoc element is found, then down the hierarchy
+to the check element".  This reference cannot point outside its check
+document.  It cannot be borrowed.
+
+Note:  I believe that an equivalent expression using XPointer
+is:
+
+<Reference URI="origin().ancestor(1,checkdoc).child(1,check)">
+
+
+DSIG Specification
+------------------
+
+Currently, support of XPath is RECOMMENDED, not REQUIRED. My
+understanding is that it may not be supported by a document generator,
+but a "good" document verifier should support it.
+
+XPath does not support origin().  The XPointer extension to XPath,
+which includes origin(), is optional in DSIG, so it reasonable may not
+be supported.  XPointer is also not a completed specification.
+
+Conclusion
+----------
+
+The current specification appears to recommend reference URI's using
+the # syntax, pointing to an ID.  Even assuming ID's can be guaranteed
+unique, it is too easy to borrow a signature element using this
+construct.  Such a document verifies against a DTD or schema and a
+generic DSIG verifier.  More complex, application level processing
+becomes required.
+
+A better solution allows a reference pointer syntax which is relative
+to the current pointer position, not the root of the document.  The
+XPath ancestor/child construct appears to meet this requirement.
+
+I recommend that the DSIG specification be amended to point out the
+problem with references using ID and #, and describe the XPath
+construct as a more secure alternative.
+
+
+-- 
+Ken Goldman   kgold@watson.ibm.com   914-784-7646
+
+
+

@@ -1,0 +1,107 @@
+docno="lists-039-5113704"
+received="Tue Mar 23 15:14:54 1999"
+isoreceived="19990323201454"
+sent="Tue, 23 Mar 1999 12:06:47 -0800"
+isosent="19990323200647"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="FW: [Moderator Action] ACP Issue YG-7"
+id="000d01be7568$aea12ec0$d115c380@galileo.ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="[Moderator Action] ACP Issue YG-7"
+expires="-1"
+
+To: WEBDAV WG<w3c-dist-auth@w3.org>
+
+
+Caught by the spam filter.  A request is in to add jdavis@coursenet.com to
+the accept2 list.
+
+- Jim
+
+-----Original Message-----
+From: Jim Davis [mailto:jdavis@coursenet.com]
+Sent: Tuesday, March 23, 1999 12:00 PM
+To: w3c-dist-auth@w3.org
+Subject: [Moderator Action] ACP Issue YG-7
+
+
+YG-7 is "Do references to collections have to provide references for all
+the members of the collection? If one creates a reference to a collection
+is one also required to create references to all the members of that
+collection? I suspect the answer is yes but this is not clear from the
+spec. If one creates a reference to a collection, MUST a GET on collection
+members accessed through that reference succeed? In other words, by
+creating a reference to a collection is one required to create reference to
+its entire tree? (Request for clarification not for change.) Section 4.4.1"
+
+Well, no and yes.  If A is a reference to collection C, which contains
+member Q, then a client request on A/Q ishould succeed, but A/Q is *not* a
+reference.  Its resourcetype is not DAV:reference.  See 4.16  of the 03
+draft.
+
+Here's the design rationale.
+
+Question 1: should references be allowed to point to a collection at all?
+ Yes.
+   1. Server can't prevent it for redirect references
+   2. it's useful
+   3. it's meaningful.
+
+Question 2: in that case, what does A/Q mean?
+ alternatives:
+   1. 404 not found
+        con: then what use is the reference to the collection?  The client
+could have done PROPFIND on A, would expect it to have members, so how can
+webDAV then refuse requests on those members?
+   2. follow the reference A.
+       if A is redirect, then return 302 P/Q
+       if A is direct, then just follow to P/Q (server side)
+
+There is some controversy about the redirect case.  The server has no way
+to know that the target is in fact an resource such that P/Q makes sense.
+ So you could argue that redirect should not be allowed, but the arguments
+against this are:
+ 1) the client could only have obtained the URL A/Q in the first place
+either because P acted like a collection last time it was visited, or
+  2) the client was just randomly entering URL strings.
+
+Note that the meaning of 302 is "moved temporarily", not permanently.  So
+it's reasonable for a client  to have done the following:
+  PROPFIND A (gets 302 to P)
+  PROPFIND P (finds Q)
+  PROPFIND A/Q (because 302 does not mean "use P/Q forever")
+
+Note also that RFC 2396 section 5 sanctions hierarchic resource names in
+general, so it's reasonable to do such "URI arithmetic" on non-HTTP URIs
+
+Question 3: what about No-Passthrough on such a URL A/Q
+ Answer:   Since A/Q isn't a reference, the No-Passthrough is of no
+consequence (unless the target P/Q is itself a reference).
+
+Question 4: When one does a PROPFIND with non-zero Depth on A, what are the
+URLs in the href elements returned?
+ 1. A/Q
+ 2. P/Q
+ 3. Q (relative URLS)
+
+while choice 1 seems (at first) like it might be a hassle, but it isn't,
+since the URL replacement only has to happen in one place (the front of the
+URL).  In general, at least for file-system based WebDAV servers, it will
+rarely happen that the root of the file system will also be the root of the
+WebDAV namespace, so such servers will have to perform some string
+operations on the front of the URL pathname anyway.
+
+choice 2 seems to violate laws of webDAV namespaces.  It would be weird if
+collection A had a direct member whose URL was such that it did not appear
+(on syntactic grounds) to be a member of A.
+
+choice 3 may or may not be allowed.  We need an expert ruling whether href
+can be relative or must be absolute.  If it's legal, then it's a valid
+choice as well.
+
+please reply to jrd3@alum.mit.edu, despite the Reply-To address in the
+header.
+
+
+

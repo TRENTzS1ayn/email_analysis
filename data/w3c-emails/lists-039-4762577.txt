@@ -1,0 +1,105 @@
+docno="lists-039-4762577"
+received="Tue Mar  9 18:32:28 1999"
+isoreceived="19990309233228"
+sent="Tue, 09 Mar 1999 15:27:52 -0800"
+isosent="19990309232752"
+name="Roy T. Fielding"
+email="fielding@kiwi.ics.uci.edu"
+subject="Re: Locking a Resource or Locking a URL?"
+id="9903091527.aa01746@paris.ics.uci.edu"
+inreplyto="201BB34B3A73D1118C1F00805F1582E801BA4D33&#64;x-wb-0128-nt8.wrc.xerox.com"
+expires="-1"
+
+To:"Slein, Judith A"<JSlein@crt.xerox.com>
+cc:w3c-dist-auth@w3.org
+
+
+>Yaron (I think) suggested at one point that we treat references the way
+>WebDAV treats source.  So we would introduce a new property on the reference
+>similar to the DAV:source property on ordinary resources.  In order to apply
+>any method to the reference, a client would have to get the URI from this
+>new property and submit the request to that URI.
+
+That's pretty much what I meant.  Let's say we have three URI -- A, B, C --
+which have the following relationship
+
+     A is any resource
+     B is a direct reference resource whose target is A
+     C is a resource that defines the mapping B --> A
+
+C is therefore a resource that generates side-effects on other resources,
+a common thing in HTTP.  The above is, in fact, how most servers are
+configured today, though few allow remote editing of the config file C.
+
+All of the common passthrough methods on B get applied to A.  The others
+(all namespace operations: COPY, MOVE, DELETE, ...) result in an error
+response saying either "I am a reference, go to C to change my definition",
+or 401/403 if that information is protected and the credentials are missing.
+
+>This mechanism would replace the No-Passthrough header currently in the
+>advanced collections protocol.
+
+Yes.  I'm not keen on using a header field to modify the target of a
+method, for three reasons:
+
+  1) it messes-up caching of normal requests, just like content negotiation;
+  2) it places the client in the position of guessing the implementation
+     on the server side;
+  3) it limits the generation of direct reference names (B) to individual
+     references rather than the more interesting computed reference sets.
+
+>This would work if the default behavior for every method was to apply to the
+>target.  Then any request submitted to the URI that identifies the reference
+>would get applied to the target, and to apply the request to the reference
+>you would send it to the URI in DAV:ref.  
+>
+>But currently there are exceptions, for which the default behavior -- the
+>one we want down-level clients to get -- is to apply the request to the
+>reference.
+> 
+>We always want to make it possible for reference-aware clients to override
+>the default behavior, and have the request applied to the reference or the
+>target or both.  No-Passthrough lets the client have the method applied to
+>the reference; looking up the value of DAV:reftarget and submitting the
+>request to it allows the client to have the method applied to the target.
+>
+>Are you suggesting that each reference contain instructions for the default
+>behavior of each method? So the protocol would specify a syntax for setting
+>up these instructions, and each individual reference could have a different
+>default behavior?  Or that the server would decide on the default behavior
+>and the client could somehow discover what it is?
+
+I'm not clear as to why it would need to be set on a per-reference basis.
+I can think of a good reason not to allow it: consider a direct reference
+whose target is a direct reference whose target is A.  If all references
+pass through the same methods, the semantics are consistent.  Otherwise
+it gets messy.
+
+Regardless, it is safer to assume that the server decides what methods
+cannot be passed-through.  The protocol then only needs to define the
+error response for "I am a reference, go to C", and the simplest of many
+possible exchange formats for a representation of C (the instructions
+telling the server to map B-->A).  This is identical to the content
+negotiation problem, where B is the negotiation handle, {A,...} is the
+set of variants, and C is the instructions for mapping requests of B
+to one of the variant set.
+
+Note that all of the properties of interest to the author are on the
+resources A and C -- resource B is simply a polarized window to A.
+I have a vague recollection that the reason people wanted to pass-through
+by choice rather than by default was to be able to access properties
+of the reference.  This design solves that problem.  It also works for
+redirect references.
+
+The other advantage of this design is that it takes into account the
+direct or indirect references that are not authorable.  That is, the
+server can show them as part of a collection (part of its namespace)
+and have an interoperable answer for a client that tries to COPY or
+MOVE or DELETE those names.  I think this is cleaner than having the
+server pretend each reference is an independent entity with its own
+properties.
+
+....Roy
+
+
+

@@ -1,0 +1,420 @@
+docno="lists-010-1871135"
+received="Thu Apr 11 15:35:38 1996"
+isoreceived="19960411193538"
+sent="Fri, 12 Apr 1996 00:24:22 +0200 (MET DST)"
+isosent="19960411222422"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="(CONTENT NEGOTIATION,VARY) Updated draft text for Vary header and content negotiation `hooks'"
+id="199604112224.AAA10463@wsooti04.win.tue.nl"
+charset="USASCII"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc: Koen Holtman<koen@win.tue.nl>
+
+
+The text below is an updated version of the text I posted on Tuesday
+(April 9).  Since then, Larry Masinter made some comments, which led
+to some changes in the text.  I made some other changes to prepare for
+integration in the main 1.1 document.  Changes with respect to the
+Tuesday version are marked with | change bars.
+
+It expected that the text below will have to be changed in some places
+to synchronize with the planned caching text by Jeff Mogul.  Places
+were changes are expected are marked with notes.  According to the
+current schedule of the editorial group, the text below will first be
+incorporated (possibly with stylistic improvements) into a first rough
+version of the 1.1 draft.  After that, additional changes will be
+made.
+
+I believe there to be rough consensus on all mechanisms outlined
+below, with the exception of the described mechanism for generating an
+If-Invalid header.  If you disagree, please speak up as soon as
+possible.  There is no rough consensus on the specific words used
+below; further edits to the words are expected.
+
+Koen.
+
+--snip--
+
+
+** I. Vary+content negotiation new/changed header descriptions
+
+   [##Note: The current section 12 needs to be deleted completely from
+   the April 1.1 draft.##]
+
+10.v  Vary
+
+|  [##Note: With respect to the last 1.1 draft, the Vary header text is
+|  completely new, it replaces no existing text##]
+
+   [##This Vary section mixes the description of a header with a
+   description of rules for caching.   These two things could be
+   separated in the final 1.1 document, with the rules for caching
+   being integrated in the caching section.##]
+
+|
+
+   The Vary response-header field is used by an origin server to
+   signal that the resource identified by the current request is a
+   varying resource.  A varying resource has multiple entities
+   associated with it, all of which are representations of the content
+   of the resource.  If a GET or HEAD request on a varying resource is
+   received, the origin server will select one of the associated
+   entities as the entity best matching the request.  Selection of
+   this entity is based on the contents of particular header fields in
+   the request message, or on other information pertaining to the
+   request, like the network address of the sending client.
+
+   If a resource is varying, this has an important effect on cache
+   management, particularly for caching proxies which service a
+   diverse set of user agents.  All 200 (OK) responses from varying
+   resources must contain at least one Vary header or Alternates
+   header (Section 10.a) to signal variance.
+
+   If no Vary headers and no Alternates headers are present in a 200
+   (OK) response, then caches may assume, as long as the response is
+   fresh, that the resource in question is not varying, and has only
+   one associated entity.  Note however that this entity can still
+   change through time, as possibly indicated by a Cache-Control
+   response header (section 10.cc).
+
+   After selection of the entity best matching the current request,
+   the origin server will usually generate a 200 (OK) response, but it
+   can also generate other responses like 206 (Partial Content) or 304
+   (Not modified) if headers which modify the semantics of the
+   request, like Range (Section 10.ran) or If-Valid (Section 10.ifva),
+   are present.  An origin server need not be capable of selecting an
+   entity for every possible incoming request on a varying resource;
+   it can choose to generate a 3xx (redirection) or 4xx (client error)
+   type response for some requests.
+
+   In a request message on a varying resource, the selecting request
+   headers are those request headers whose contents were used by the
+   origin server to select the entity best matching the request. The
+   Vary header field specifies the selecting request headers and any
+   other selection parameters that were used by the origin server.
+
+       Vary                 = "Vary" ":" 1#selection-parameter
+
+|      selection-parameter  = request-header-name
+|                           | "{accept-headers}"
+|                           | "{other}"
+|                           | "{" extension-parameter "}"
+
+|      request-header-name  = field-name
+
+       extension-parameter  = token
+
+|  The presence of a request-header-name signals that the
+|  request-header field with this name is selecting.  Note that the
+|  name need not belong to a request-header field defined in this
+|  specification, and that header names are case-insensitive.  The
+|  presence of the "{accept-headers}" parameter signals that all request
+   headers whose names start with "accept" are selecting.
+
+   The inclusion of the "{other}" parameter in a Vary field signals
+   that parameters other than the contents of request headers, for
+   example the network address of the sending party, play a role in
+   the selection of the response.
+
+      Note: This specification allows the origin server to express
+      that other parameters were used, but does not allow the origin
+      server to specify the exact nature of these parameters.  This
+      is left to future extensions.
+
+|  If an extension-parameter unknown to the cache is present in a Vary
+|  header, the cache must treat it as the "{other}" parameter.
+   If multiple Vary and Alternates header fields are present in a
+   response, these must be combined to give all selecting parameters.
+
+   The field name "Host" must never be included into a Vary header;
+   clients must ignore it if it is present.  The names of fields which
+   change the semantics of a GET request, like "Range" and "If-Valid"
+   must also never be included, and must be ignored when present.  
+
+   [##Note: Dave Kristol suggested that I change the "must never be
+   included" above to "must be omitted", but I think this evokes the
+   wrong mental model of how servers go about making Vary headers##]
+
+   Servers which use access authentication are not obliged to send
+   "Vary: Authorization" headers in responses.  It must be assumed
+   that requests on authenticated resources can always produce
+   different responses for different users.  Note that servers can
+   signal the absence of authentication by including a "Cache-Control:
+   public" header in the response.
+
+   [##Note: the text below could be moved to a separate subsection
+   elsewhere in the 1.1 draft.  Some of the text at the start of this
+   section could be repeated at the start of that separate subsection.
+|  I advise against the making of such editing moves in the first
+|  rough version of the 1.1 draft##]
+
+|  A cache may store and refresh 200 (OK) responses from a varying
+|  resource according to the rules in Section aa.bb [##meant are the
+|  rules for storing (and when this is disallowed) and refreshing
+|  which are to be written by Jeff Mogul##].  The partial entities in
+|  206 (Partial Content) responses from varying resources may also be
+|  used by the cache.
+
+   When getting a request on a varying resource, a cache can only
+   return a cached 200 (OK) response to one of its clients in two
+   particular cases.
+
+|  [#Note: the paragraph below is likely to change.  Note that this
+|  paragraph talks about the construction mechanism of the If-Invalid
+|  header, the only thing for which I do _not_ detect rough consensus
+|  yet.  Also, this paragraph contains some caching terminology that
+|  may have to be adjusted to the caching text by Jeff Mogul.##]
+
+   First, if a cache gets a request on a varying resource for which it
+   has cached one or more responses with Vary or Alternates headers,
+   it can relay that request towards the origin server, adding an
+   If-Invalid header listing the cval-info values in the Cval headers
+   (Section 10.cval) of the cached responses.  If it then gets back a
+|  3xx (Ppp Qqq) [##TBS in the text by Jeff Mogul##] response with
+   the cval-info of a cached 200 (OK) response in its Cval header, it
+   can return this cached 200 (OK) response to its client, after
+   merging in any of the 3xx response headers as specified in Section
+   xx.yy [##Which will be written by Jeff Mogul##].
+
+   Second, if a cache gets a request on a varying resource, it can
+   return to its client a cached, fresh 200 (OK) response which has
+   Vary or Alternates headers, provided that
+
+       - the Vary and Alternates headers of this fresh response
+         specify that only request header fields are selecting
+         parameters,
+
+       - the specified selecting request header fields of the current
+         request match the specified selecting request header fields
+         of a previous request on the resource relayed towards the
+         origin server,
+
+       - this previous request got a 200 (OK) or 3xx (Ppp Qqq)
+         response which had the same cval-info value in its CVal
+         header as the cached, fresh 200 (OK) response.
+
+|  [#Note: the paragraph below is likely to change.  We know what a
+|  better matching rule (one which allows a match more often) should
+|  look like, and there would be no objections to improving the rule
+|  below, but good words remain to be written.##]
+
+   Two sequences of selecting request header fields match if and only
+   if the first sequence can be transformed into the second sequence
+   by only adding or removing whitespace at places in fields where
+   this is allowed according to the syntax rules in this
+   specification.
+
+   [##Note that a more complicated matching rule could be defined in a
+   future specification.  The rule above reflects the consensus of the
+   editorial group on how complex we can get in HTTP/1.1##]
+
+   [##Note that the above rule says sequences, not sets of request
+   headers.  It cannot say sets because, for some request headers
+   (like Via?) which contain comma-separated lists, if you have two in
+   a request, the order in which they appear matters.  A simple
+   matching rule which would allow some forms of re-shuffling and
+   collapsing of request headers to get a match turned out to be
+   beyond my capabilities to write.##]
+
+   [##Jeff Mogul has made some suggestions for a better matching rule,
+   though the specification of this rule uses much more text.  A
+   future version of this text may have a better matching rule in a
+   separate subsection.##]
+
+   If a cached 200 (OK) response may be returned to a request on a
+   varying resource which included Range request header, then a cache
+   may also use this 200 (OK) response to construct and return a 206
+   (Partial Content) response with the requested range.
+
+         Note: Implementation of support for the second case above is
+         mainly interesting in user agent caches, as a user agent
+         cache will generally have an easy way of determining whether
+         the sequence of request header fields of the current request
+         equals the sequence sent in an earlier request on the same
+         resource.  Proxy caches supporting the second case would have
+         to record diverse sequences of request header fields
+         previously relayed; the implementation effort associated with
+         this may not be balanced by a sufficient payoff in traffic
+         savings.  A planned specification of a content negotiation
+         mechanism will define additional cases in which proxy caches
+         can return a cached 200 (OK) response without contacting the
+         origin server.  The implementation effort associated with
+         support for these additional cases is expected to have a much
+         better cost/benefit ratio.
+
+  [##Note that the `planned specification of a content negotiation
+  mechanism' above does not necessarily have to be draft-holtman!'  In
+  theory, a content negotiation mechanism totally unlike draft-holtman
+  could just as well live up to these cost/benefit expectations.##]
+
+10.a  Alternates
+
+|  [##Note: With respect to the last 1.1 draft, the Alternates header
+|  text is completely new, it replaces no existing text##]
+
+   The Alternates response-header field is used by origin servers to
+   signal that the resource identified by the request-URI and the Host
+   request header (present if the request-URI is not an absoluteURI)
+   has the capability to send different responses depending on the
+   accept headers in the request message.  This has an important
+   effect on cache management, particularly for caching proxies which
+   service a diverse set of user agents.  This effect is covered in
+   Section 10.v.
+
+       Alternates           = "Alternates" ":" opaque-field
+
+       opaque-field         = field-value
+
+   The Alternates header is included into HTTP/1.1 to make HTTP/1.1
+   caches compatible with a planned content negotiation mechanism.
+   HTTP/1.1 allows a future content negotiation standard to define the
+   format of the Alternates header field-value, as long as the defined
+   format satisfies the general rules in Section 4.2.
+
+   To ensure compatibility with future experimental or standardized
+   software, caching HTTP/1.1 clients must treat all Alternates
+   headers in a response as synonymous to the following Vary header:
+
+         Vary: {accept-headers}
+
+   and follow the caching rules associated with the presence of this
+   Vary header, as covered in Section 10.v.  HTTP/1.1 allows origin
+   servers to send Alternates headers under experimental conditions.
+
+
+10.u  URI
+
+|  [##Note: As soon as possible, the URI header section from the old
+|  1.1 draft should be deleted in the new draft, and be replaced with
+|  `TBS'.  Roy Fielding will supply the new text for the URI header
+|  section, which will differ significantly from the text in the old
+|  1.1 draft.##]
+
+|
+|
+
+
+** II. Changed status code descriptions
+
+300 Multiple Choices
+
+|  [##Note: the text below should replace 300 header text in the old
+|  1.1 draft.##]
+
+   This status code is reserved for future use by a planned content
+   negotiation mechanism.  HTTP/1.1 user agents receiving a 300
+   response which includes a Location header can treat this response
+   as they would treat a 303 (See Other) response.  If no Location
+   header is included, the appropriate action is to display the entity
+   enclosed in the response to the user.
+
+406 None Acceptable
+
+|  [##Note: the text below should replace 406 header text in the old
+|  1.1 draft##]
+
+   This status code is reserved for future use by a planned content
+   negotiation mechanism.  HTTP/1.1 user agents receiving a 406
+   response which includes a Location header can treat this response
+   as they would treat a 303 (See Other) response.  If no Location
+   header is included, the appropriate action is to display the entity
+   enclosed in the response to the user.
+
+
+** III.  New text for the (new) caching section
+
+13.x Interoperability of varying resources with HTTP/1.0 proxy caches
+
+| [##Note: With respect to the last 1.1 draft, the text below is
+| completely new, it replaces no existing text. This text should be
+| added to the caching section of the new 1.1 draft.##]
+|
+
+  If the correct handling of responses from a varying resource
+  (Section 10.v) by HTTP/1.0 proxy caches in the response chain is
+  important, HTTP/1.1 origin servers can include the following Expires
+  (Section 10.exp) response header in all responses from the varying
+  resource:
+
+     Expires: Thu, 01 Jan 1980 00:00:00 GMT
+
+  If this Expires header is included, the server should usually also
+  include a Cache-Control header for the benefit of HTTP/1.1 caches,
+  for example
+
+     Cache-Control: max-age=604800
+
+  which overrides the freshness lifetime of zero seconds specified by
+  the included Expires header.
+
+
+13.y Cache replacement for varying resources
+
+| [##Note: With respect to the last 1.1 draft, the text below is
+| completely new, it replaces no existing text.  This text should be
+| added to the caching section of the new 1.1 draft.##]
+
+| [##Note: The Content-Location header mentioned below was not in the
+| old 1.1 draft.  I believe Roy Fielding will supply a section
+| describing this header for the new draft.  This new Content-Location
+| section will be very similar to the section for the Location header
+| in the old 1.1 draft.  Note that the old Location header section
+| will not be removed in the new draft.##]
+
+| [##Note to Jeff Mogul: You will have to sync your caching text with
+  the text below.  I cannot move here without loosing upwards
+  compatibility, which means that I cannot move at all.##]
+
+  If a new 200 (OK) response is received from a non-varying resource
+  while an old 200 (OK) response is cached, caches can delete this old
+  response from cache memory and insert the new response.  For 200
+  (OK) responses from varying resources (Section 10.v), cache
+  replacement is more complex.
+
+  HTTP/1.1 allows the authors of varying resources to guide cache
+  replacement by the inclusion of elements of so-called replacement
+  keys in the responses of these resources.  The replacement key of a
+  varying response consists of two elements, both of which may be
+  empty strings, separated by a semicolon:
+
+       replacement-key  =  variant-id ";" absoluteURI
+
+  The variant-id element of the replacement key is the variant-id
+  value in the Cval header of the response, if a Cval header which
+  such a value is present, and an empty string otherwise.  The
+  absoluteURI element of the replacement key is the absolute URI given
+  in, or derived from, the Content-Location header of the response if
+  present, and and an empty string if no Content-Location header is
+  present.
+
+  If a cache has stored in memory a 200 (OK) response with a certain
+  replacement key, and receives, from the same resource, a new 200
+  (OK) response which has the same replacement key, this should be
+  interpreted as a signal from the resource author that the old
+  response can be deleted from cache memory and replaced by the new
+  response.
+
+  The replacement key mechanism cannot cause deletion from cache
+  memory of old responses with replacement keys that will no longer be
+  used.  It is expected that the normal `least recently used'
+  replacement heuristics employed by caches will eventually cause such
+  old responses to be deleted.
+
+  All 200 (OK) responses from varying resources should include
+  replacement key elements.  Resource authors may not assume that
+  caches will be able to cache responses not including replacement key
+  elements.  If a Vary header is used to signal variance, the response
+  should include a variant-id value as the replacement key element.
+  The Content-Location header should only be used to supply a
+  replacement key element if an Alternates header is present in the
+  response.
+
+
+[End of document]
+
+
+

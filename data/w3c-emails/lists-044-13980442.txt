@@ -1,0 +1,319 @@
+docno="lists-044-13980442"
+received="Fri Aug 11 20:13:34 2000"
+isoreceived="20000812001334"
+sent="Fri, 11 Aug 2000 17:13:09 -0700"
+isosent="20000812001309"
+name="John Boyer"
+email="jboyer@PureEdge.com"
+subject="RE: Determining attribute uniqueness seems to require namespace prefix in Infoset"
+id="BFEDKCINEPLBDLODCODKEEFCCEAA.jboyer@PureEdge.com"
+charset="iso-8859-1"
+inreplyto="200008112057.QAA06998&#64;torque.pothole.com"
+expires="-1"
+
+To:"Donald E. Eastlake 3rd"<dee3@torque.pothole.com>,"Joseph Reagle"<reagle@w3.org>
+Cc:<xml-names-editor@w3.org>,<www-xml-infoset-comments@w3.org>,"XML DSig"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Don,
+
+I see where you are coming from now, and it is both interesting and correct,
+but it means we need to be saying something more in DSig, if not in XML
+Names.
+
+The appendix refers to the attributes as 'unqualified'.  The section is not
+saying that unqualified attributes are qualified by per element partitions
+(because then it wouldn't be unqualified).  Instead, because it is
+non-normative, it is saying that one is free to look at it this way if it
+makes one feel better.
+
+The implication is that "per element partitions" don't really exist and need
+not be supported by conforming applications.  In other words, the material
+on per element partitions is a convoluted way of saying that the only thing
+which matters is that an attribute appears within an element and should
+therefore be processed as though it were in that element's namespace unless
+it has a non-empty namespace other than the element's.  As well, I think
+this is what you are saying.
+
+Unfortunately, it actually does matter quite a bit.  For starters, suppose
+you have an HTML anchor with two hrefs, one unqualified and the other in the
+HTML namespace.  Which does one use?  Put in another more general way, given
+element E in namespace N, if one wants to obtain attribute A from E, which
+of the following processing models is correct?
+
+1) Attr = (N:E).get(N, A)
+2) if Attr is null, Attr = (N:E).get("", A)
+
+or
+
+1) Attr = (N:E).get("", A)
+2) if Attr is null, Attr = (N:E).get(N, A)
+
+It makes a difference if the XML is <N:E xmlns:N="N" A="2" N:A="1">.  The
+first model gives the attribute whose value is 1, and the second model gives
+the attribute whose value is 2.
+
+I don't think this can be explained away as a simple differing viewpoint
+because I don't agree that all applications process attributes solely within
+the context of the parent element.  The prime example of this is XSLT, which
+uses XPath for template matching.
+
+Lets compare the following four occurences of an element E by considering
+the xsl-template's XPath expression that must match E based on whether the
+value of an attribute A is 'test':
+
+1) <N1:E xmlns:N1="http://www.w3.org" xmlns:N2="http://www.PureEdge.com"
+A="test"/>
+2) <N1:E xmlns:N1="http://www.w3.org" xmlns:N2="http://www.PureEdge.com"
+N2:A="test"/>
+3) <N1:E xmlns:N1="http://www.w3.org" xmlns:N2="http://www.PureEdge.com"
+N1:A="Yikes" N2:A="test"/>
+4) <N1:E xmlns:N1="http://www.w3.org" A="test" N1:A="Yikes"/>
+
+The xsl-template cannot simply try to match on the local name A or else
+element E in #2 would be matched, which is clearly not intended. If we add
+to the XPath test a call to namespace-uri() to match the URI for N1, then #3
+works but #1 doesn't.  If we add a test that finds the local name of A and a
+namespace-uri() that is either blank or equal to the URI for N1, then #1 -
+#3 work as expected, but #4 has two attributes that match the test.
+
+If the claim is true that attributes should be processed within the context
+of the parent, then A="test" would indicate that the xsl-template should
+match N1:E in #4.  However, N1:A is clearly the attribute A in element E's
+namespace, so for the purposes of the primary processing application for the
+N1 namespace, N1:A and A are duplicates.
+
+Personally, I don't believe in duplicate attributes.  The normative part of
+XML Names makes it clear that the attributes are not duplicates in name
+(which is a well-formedness requirement of XML), but if the non-normative
+part of the spec invents some concept that makes the two attributes equal
+for the purposes of processing, then a precedence must be specified. Which
+one has precedence?  Until we know this, the proper xsl-template cannot be
+written.
+
+If I had to guess on a processing precedence, I would guess that the
+namespace qualified version should take precedence.  Here's why:
+
+I've been sitting here trying to figure out why the default namespace does
+not apply to attributes, and the only thing that I can think of is that
+unqualified attributes can then be used to apply an attribute value across
+all namespaces.  In other words, a sort of default value to be used when no
+namespace specific attribute is given. Consider the following bit of XML:
+
+<E xmlns:N1="http://www.w3.org" xmlns:N2="http://www.PureEdge.com"
+A="default" N1:A="Value for App that processes N1" N2:A="Value for App that
+processes N2"/>
+
+The information in element E can be used by one application that conforms to
+specification given at the URI for N1, or it could be processed by a second
+application that conforms to specifications given at N2, or it could be
+processed by some other generic XML processing application.  If, by
+convention, namespace qualified attributes took precedence over unqualified
+attributes for processing, then the value for A would be
+application-dependent.  If unqualified attributes took precedence, then A
+would always equal default.
+
+Perhaps XML names will not be changed or clarified, and perhaps they will
+make no recommendation, but for a particular application, esp. a security
+conscious one such as DSig, we should be saying what we expect our
+processors to do when there are qualified and unqualified attributes with
+matching local names.
+
+John Boyer
+Development Team Leader,
+Distributed Processing and XML
+PureEdge Solutions Inc.
+Creating Binding E-Commerce
+v: 250-479-8334, ext. 143  f: 250-479-3772
+1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>
+
+
+
+-----Original Message-----
+From: w3c-ietf-xmldsig-request@w3.org
+[mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of Donald E. Eastlake
+3rd
+Sent: Friday, August 11, 2000 1:57 PM
+To: John Boyer
+Cc: xml-names-editor@w3.org; www-xml-infoset-comments@w3.org; XML DSig
+Subject: Re: Determining attribute uniqueness seems to require namespace
+prefix in Infoset
+
+
+
+From:  "John Boyer" <jboyer@PureEdge.com>
+To:  "Donald E. Eastlake 3rd" <dee3@torque.pothole.com>
+Cc:  <xml-names-editor@w3.org>, <www-xml-infoset-comments@w3.org>,
+            "XML DSig" <w3c-ietf-xmldsig@w3.org>
+Date:  Fri, 11 Aug 2000 13:01:46 -0700
+Message-ID:  <BFEDKCINEPLBDLODCODKMEEPCEAA.jboyer@PureEdge.com>
+In-Reply-To:  <200008111839.OAA06618@torque.pothole.com>
+
+>Hi Don,
+>
+>I did not mean to misquote you.  However, I haven't seen any W3C documents,
+>nor implementations based on them, that use the term 'qualify' as you are
+>using it.  It is not possible to 'qualify' an attribute with anything but a
+>namespace URI.
+
+It is syntactically not possible to attach any type of qulifying text
+string to an attribute other than a prefix which corresonds to a URI.
+However all non-prefixed attributes are automatically 'qualified' by
+their element.
+
+>In other words, in the example
+>
+><x xmlns:n1="http://www.w3.org" xmlns="http://www.w3.org" >
+>  <good a="1"     n1:a="2" />
+></x>
+>
+>There does not seem to be any basis in W3C work for the interpretation
+>
+>1) that 'a' is qualified as (n1:good):a,
+>2) that 'a' is not qualified by a URI, and
+>3) that 'a' is qualified by elements, including any URI which may qualify
+>that element
+
+See <http://www.w3.org/TR/1999/REC-xml-names-19990114> section A.2.  I
+had to read this section and related material many times to make sense
+out of them.
+
+The unprefixed "a" above is in the Per-Element-Type Partition
+associated with the element "good" in the namespace http://www.w3.org.
+Whether you consider "a" to be "qualified" by n1:good or "local" to it
+or part of it's Per-Element-Type Partition is all the same.  And it is
+different from n1:a which is in the Global Attribute Partition.
+
+>Therefore, when you said that the attributes "are qualified by their
+>element", I assumed you meant 'qualify' in the sense defined by XML Names
+>[1, see the abstract], which associates elements and attributes with a
+>namespace identified by URI.  With this version of 'qualify', what you said
+>is equal to what I said you said.
+
+Unprefixed attributes are not associated with just a namespace.  They
+are associated with an element which is in turn associated with a
+namespace.
+
+>Finally, ending most of our debate about this issue, Tim Bray states, "An
+>attribute whose name contains no prefix is not in any namespace".  This
+>means that in the first example of Section 5.2 of XML Names, the href in
+<a>
+>is not in the HTML namespace.
+
+Well, it's not "directly" in any namespace.  It's in the
+Per-Element-Type Partition of the element "a" in the HTML namespace.
+
+No doubt debate is ended by a correct understanding of what Tim Bray
+has said just as it is ended by a correct understanding of
+http://www.w3.org/TR/1999/REC-xml-names-19990114 or a correct
+understanding of the "Namespace Myths Exploded" material at xml.com.
+The question is, what is "correct" understanding?
+
+>This means if I put an HTML island in the middle of some XML by adding
+>xmlns="http://www.w3.org/TR/REC-html40" to the html tag, then when I want
+>the href of some anchor, I cannot simply say
+>'get("http://www.w3.org/TR/REC-html40", href)'.  I must instead say
+>
+>1) get("http://www.w3.org/TR/REC-html40", href)
+>2) if that fails, then get("", href)
+>
+>Once again... Yikes!
+
+I'm not sure I understand this part of what you are saying but if your
+understanding is that the treatment of unprefixed attributes is
+fundamentally broken perhaps your understanding is incorrect.
+
+Note that the Myths Exploded text keeps saying fuzzy handwaving things
+like it doesn't really make much difference (which is why Appendix A
+to the Namespaces document is not normative) because real applications
+only handle non-prefixed attributes within the conext of the element
+where they appear anyway.  In my mind it is just a difference in point
+of view whether you consider such attributes to have no "qualifying
+stuff" but to be used/operated on by their element, or you try to
+induce a universal uniqueness by consdering them qualified by their
+element name local part and their element's namespace if any.
+
+>John Boyer
+>Development Team Leader,
+>Distributed Processing and XML
+>PureEdge Solutions Inc.
+>Creating Binding E-Commerce
+>v: 250-479-8334, ext. 143  f: 250-479-3772
+>1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>
+
+Thanks,
+Donald
+
+>-----Original Message-----
+>From: w3c-ietf-xmldsig-request@w3.org
+>[mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of Donald E. Eastlake
+>3rd
+>Sent: Friday, August 11, 2000 11:39 AM
+>To: John Boyer
+>Cc: xml-names-editor@w3.org; www-xml-infoset-comments@w3.org; XML DSig
+>Subject: Re: Determining attribute uniqueness seems to require namespace
+>prefix in Infoset
+>
+>
+>
+>From:  "John Boyer" <jboyer@PureEdge.com>
+>To:  <xml-names-editor@w3.org>
+>Cc:  <www-xml-infoset-comments@w3.org>, "XML DSig"
+<w3c-ietf-xmldsig@w3.org>
+>Date:  Fri, 11 Aug 2000 10:15:32 -0700
+>Message-ID:  <BFEDKCINEPLBDLODCODKOEEKCEAA.jboyer@PureEdge.com>
+>
+>>Dear Editors,
+>>
+>>Please see the first example of Section 5.2 and the sentence immediately
+>>above it, which says "Note that default namespaces do not apply directly
+to
+>>attributes" [1].  One chairman of the XML DSig group recently commented
+>that
+>>the word 'directly' may be intended to indicate that unqualified
+attributes
+>>inherit their namespace setting from the parent element.  This seems
+>>sensible to me as the href attribute should be in the same namespace as
+the
+>>parent element <a>.
+>
+>No, I did not say that attributes "inherit their namespace setting
+>from the parent element".  I said that they are qualified by their
+>element.  That is, in
+>
+><b:a xmlns:b="foo:bar" c="xyz">
+>
+>it is "as if" c were actually b:a:c except, of course, that this
+>syntax is illegal.
+>
+>>[1] http://www.w3.org/TR/REC-xml-names/#defaulting
+>>
+>>However, now look at the last example of Section 5.3.  The second
+occurence
+>>of <good> has attributes a and n1:a.  This is declared as legal, but if
+'a'
+>>inherits its namespace setting from good, then a and n1:a appear to be
+>>equal.
+>
+>But n1:a and n1:good:a would be different.
+>
+>>...
+>>
+>>Could you please advise us on the correct interpretation (and fix the
+error
+>>if indeed there is one)?
+>>
+>>
+>>     John Boyer
+>>      Development Team Leader,
+>>      Distributed Processing and XML
+>>      PureEdge Solutions Inc.
+>>      Creating Binding E-Commerce
+>>      v: 250-479-8334, ext. 143  f: 250-479-3772
+>>      1-888-517-2675   http://www.PureEdge.com
+>
+>Donald
+>
+
+
+

@@ -1,0 +1,129 @@
+docno="lists-005-14247741"
+received="Mon Dec 18 09:44:51 2000"
+isoreceived="20001218144451"
+sent="Mon, 18 Dec 2000 06:48:25 -0800"
+isosent="20001218144825"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: live props on a VCR"
+id="20001218064825.C30887@lyra.org"
+charset="us-ascii"
+inreplyto="200012180507.AAA01615&#64;tantalum.atria.com"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+On Mon, Dec 18, 2000 at 12:07:39AM -0500, Geoffrey M. Clemm wrote:
+> 
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    The spec is pretty clear in 2.1.3 that dead properties of a version resource
+>    must also be exposed on the VCR. It also says that live props may differ.
+>    But it would be good to know if a VR's live props must also be exposed on
+>    the VCR.
+> 
+>    Specifically, I want to get the DAV:version-name from the VCR (rather than
+>    issue a second PROPFIND against the DAV:target of the VCR).
+> 
+> You could just use the property report to avoid the extra roundtrip, i.e. 
+> to get the version-name of the target of a vcr:
+> 
+> REPORT /whatever HTTP/1.1
+> ... some headers ...
+> <D:property-report xmlns:D="DAV:">
+>   <D:target>
+>     <D:version-name/>
+>   </D:target>
+> </D:property-report>
+
+hehe... that will be even worse. The PROPFIND that I'm using is a Depth:1
+request. I'm fetching the props for a whole bunch of resources. If I
+switched to a REPORT, then I'd need to do a PROPFIND on a collection to get
+all the children, then a PROPFIND/REPORT to link thru the target to get the
+props off the version resource. Blarg...
+
+What would be neat is a collection property providing the URLs of its
+members. You could then do a property-report kind of like:
+
+  REPORT /the-collection HTTP/1.1
+  ... some headers ...
+  <D:property-report xmlns:D="DAV:">
+    <D:member-set>
+      <D:target>
+        <D:version-name/>
+      </D:target>
+    <D:/member-set>
+  </D:property-report>
+
+
+:-)
+
+(this would also be nice in that I wouldn't have to filter out the PROPFIND
+ result for the collection itself... I'd only get the internal members)
+
+[ and I'm not truly suggesting this new property, but it is certainly an
+  interesting item to ponder... ]
+
+>    I don't see anything in the spec about exposing VR live props thru the VCR
+>    (I could have easily missed it so far). I'd like to state that they *are*
+>    exposed.
+> 
+> In general, the VCR live properties can differ from those of the
+> version identified by its DAV:target (e.g. creationdate,
+> getmodificationdate, etag, etc).  Currently, a server can implement a
+> VCR PROPFIND without traversing over to the target (which in a
+> distributed versioning system could exist on a different server).
+> There are some live properties (such as DAV:version-name and
+> DAV:version-history) that could be cached on the VCR because they only
+> change when you change the DAV:target, but I am concerned that this
+> blurring of the distinction between a VCR and the version identified
+> by the DAV:target of the VCR is likely to confuse implementers into
+> thinking that all the live properties of the VCR and the DAV:target
+> version have the same value.
+
+Well, the simple issue in my mind is "I've got this (VC) resource here, but
+I don't know what it is [without the version-name]." There is a non-trivial
+amount of work to go and fetch that version-name; if it had simply been
+exposed via the VCR, then I'd be fine.
+
+I'd think the following properties are "important" to have appear on the
+VCR, and a statement that they MUST be the same:
+
+  DAV:version-name
+  DAV:checkin-date
+  DAV:comment             (*)
+  DAV:creator-displayname (*)
+  DAV:version-history
+  DAV:version             (+)
+
+(*) actually, the VCR could define these itself, so these might be confusing
+to have appear on the VCR.
+(+) this is unchanging, but is just a copy of the DAV:target prop  (??)
+
+There are some informational properties: checkin-fork, checkout-fork, and
+mutable; I don't have any feelings about them. I'm also not going to suggest
+the *-set properties, since they could be computed and will change from time
+to time.
+
+The properties above are all (typically) immutable. It would be nice to have
+a MUST for these, and then a SHOULD for others (or even punt the others).
+Punting all others would satisfy Geoff's concern about people blurring the
+distinction between the resources. Avoiding the *-set properties will also
+help out with the remote system issue.
+
+Yet, *having* these can provide great benefits to the client. Consider the
+version-history property: a client can then quickly link to the history and
+gather information. The version-name and checkin-date provides useful
+information about what you're looking at. (the comment/creator-displayname
+are handy, but not terribly so -- they only talk about the last change
+rather than anything intrinsic about the resource).
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

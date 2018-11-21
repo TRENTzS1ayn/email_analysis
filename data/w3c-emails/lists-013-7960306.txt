@@ -1,0 +1,376 @@
+docno="lists-013-7960306"
+received="Sun Mar 14 17:15:39 2004"
+isoreceived="20040314221539"
+sent="Sun, 14 Mar 2004 16:49:11 +0000"
+isosent="20040314164911"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Re: Can the response entity be transmitted before all the request entity has been read?"
+id="20040314164911.GA2949@mail.shareable.org"
+charset="usascii"
+inreplyto="20040314145414.53BB941327&#64;smtp4.wanadoo.nl"
+expires="1"
+
+To: Joris Dobbelsteen<joris.dobbelsteen@mail.com>
+Cc: WWW WG<ietf-http-wg@w3.org>
+
+
+
+Joris Dobbelsteen wrote:
+> Requests and responses are *always* fully completed. There is no way of
+> canceling a request/response half-way, except by closing the connection.
+
+Thank you.  I had managed to figure that out, more recently than my
+mail on the subject :)
+
+> Just ignore the 100 response. The protocol behaves exactly with or without
+> it.
+
+I can't ignore it: I'm writing a HTTP/1.1 server.  I must send the 100
+response at the appropriate time, to prevent the client delay.  Also
+it's a protocol requirement: section 8.2.3.  OTOH I don't want to send
+it if I'm generating an error response.  Pretty much what 100 is for.
+
+I delay sending the 100 response until the application (which sits on
+top of the server) asks to read any of the request entity, which makes sense.
+
+The complications arose from the question of what to do when the
+server application doesn't read any of the request entity.
+Conservatively the HTTP server just reads it anyway, but I was trying
+to apply a close to optimal set of rules.  The obvious thing to do is
+not send 100, so that the client might not sent the entity.
+
+But I've looked a bit harder, and RFC 2616 section 8.2.3 states:
+
+      - Upon receiving a request which includes an Expect request-header
+        field with the "100-continue" expectation, an origin server MUST
+        either respond with 100 (Continue) status and continue to read
+        from the input stream, or respond with a final status code. The
+        origin server MUST NOT wait for the request body before sending
+        the 100 (Continue) response. If it responds with a final status
+        code, it MAY close the transport connection or it MAY continue
+        to read and discard the rest of the request.  It MUST NOT
+        perform the requested method if it returns a final status code.
+
+That final MUST NOT indicates that if my server application generates
+a non-error response, i.e. a response which indicates it _did_ perform
+the requested method, and the server application doesn't ever ask for
+any of the request entity from the HTTP server, the HTTP server must
+_still_ send 100.
+
+Ok.
+
+Furthermore, the HTTP server _must_ read _all_ of the request entity.
+It cannot abort, because there is no way to know when the client
+application has read the response.  It is possible to know when the
+client's TCP stack has acknowledged all the response, but the client
+_application_ might not see that data until it has sent all the request.
+
+> I believe the above would impact most of your questions, as I believe you
+> get meaning of this response incorrect. 
+
+Yes I did.  I thought it meant the client could choose not to send the
+response at all.  (Actually, for "Error Status" responses (section
+8.2.2), the client _can_ choose not to send a response, as you
+observe: the client can send a zero length chunk.  It can't do that
+for non-error responses).  My understanding of 100 (Continue) is now
+adequate.  Thank you :)
+
+> *Remark* on the chunked transfer from clients to servers. I don't know
+> whether implementations actually send a zero-sized chunk after getting a
+> response. This behaviour might be implementation specific. I rather believe
+> clients would complete the entire request.
+
+If it's an Error Status they SHOULD send the zero-sized chunk or close
+the connection.  Section 8.2.2 is quite prominent.  This has nothing
+to do with 100 (Continue), by the way, it's orthogonal to it.
+
+Consequently, if I'm generating an Error Status with a body, like a
+404 with explanation page that *uses* the request entity to generate
+that page, my server MUST NOT send the Error Status until reading
+entire request entity.  If it did send the Error Status earlier, the
+client is supposed to abort sending the request which the server needs
+to construct the page which goes with that 404.
+
+However, if I'm generating a 200 response where the page uses the
+request entity, it appears I can transmit that before the request
+entity is all read.
+
+> When sending a entity body to the server and you receive a 3xx
+> response, this means the request is redirected. The serer is
+> unwilling/unable/... to handle the request.  The behaviour can be
+> similar to the error responses (4xx and 5xx), because in this case
+> the server is also unwilling/unable to handle the request.
+
+You may be right, but I see no clear text which relates the meaning of
+3xx to "Error Status" in section 8.2.2 - which is fairly important.
+
+As I described in the example above, 200 can overlap the response and
+request; 404 cannot.  Can 303?  It's allowed for a 303 response to
+come with an explanatory page which _might_ be generated using data
+from the client request entity.
+
+I'll be conservative and assume clients are allowed to abort the
+request entity on 3xx responses too (for 8.2.2).  *But* I have to be
+conservative and assume I'm not allowed to transmit a 3xx without 100
+when 100 is indicated (for 8.2.3): 303 being a valid response for a
+POST method which *is* performed.
+
+> After an error you should close the connection when:
+> 1) You are not sure about the state (e.g. after 400 bad request).
+> 2) Client is sending data and you don't want to waste bandwidth on it.
+
+You can't fully close the connection, however, because of the TCP RST
+problem.  And the client SHOULD abort the request with a zero length
+chunk, but I haven't got as far as testing any clients for that yet.
+
+> >After transmitting the response entity and discovering that it 
+> >didn't need the request entity after all, and it wasn't an 
+> >error response, it's too late for the server to change the 
+> >response headers: they are transmitted already.  The server 
+> >will not have put Connection: close in the response header, 
+> >unless that was requested by the client, or it was HTTP/1.0 
+> >without keep-alive, or some other conditions applied.  So the 
+> >server will transmit the response...
+> >
+> >And then it has to shut down the connection, right?  (All the 
+> >while reading data from the client to avoid the TCP RST problem).
+> 
+> A much better way to tranfer the data would be by using chunked transfers.
+> Using trailers you can afterwards change the headers.
+
+Do you trust any clients to honour trailers properly? :)
+
+> The most obvious choice would be to close the connection and hope the user
+> agent got the message correctly. Due to the fact that the user agent was
+> unable to complete the request, this mgiht result in an error, despite
+> receiving the entire response correctly. I don't have any experience with
+> doing this.
+
+Neither do I.  From RFC 2616, I think that a client _should_ display
+an Error Status response correctly even if it is close-delimited, and
+the (unidirectional) close reaches the client before the client has
+finished transmitting.  It's clear that real web servers have to keep
+reading at that point to make sure clients to eventually see the
+error.  It's also clear that a client which doesn't keep monitoring
+the stream for an error, i.e. tries to send an entire large request
+first, won't look too impressive to its user: the server should always
+be able to refuse a large upload, quickly.
+
+> >> > If you have enough information to begin the response just from 
+> >> > reading the request headers, then you are free to send the 
+> >response 
+> >> > headers right away; even the 1xx response is optional - 
+> >you can skip 
+> >> > right to sending the final response.  (Note: the rules of the 
+> >> > protocol don't forbid this - what any given client will do 
+> >with this 
+> >> > is a different question that can be answered only with testing).
+> >> 
+> >> Yes.
+
+No!  Section 8.2.3, about the origin server: "It MUST NOT perform the
+requested method if it returns a final status code."  Here final
+status code means without a preceding 100 (Continue), and with none of
+the conditions for omitting 100 (such as already seeing some of the
+request entity).
+
+If it MUST NOT perform the requested method, that means it must be
+sending an _error_ final status code, as a success code means that it
+did perform the requested method.  Slightly round the houses logic I
+know.
+
+This includes at least some, maybe all, of 3xx.  I.e. for the purpose
+of section 8.2.3, 3xx responses are in the same category as 2xx
+responses.
+
+> The request headers will ALWAYS be followed by the entity body. There is no
+> way of cancelling transfering the entity body, other than to close the TCP
+> connection.
+
+Yes, I've got that now.  It is not possible to ask the client to abort
+the request entity while accepting a non-error response, only an error
+response.
+
+> When analyzing the protocol, you can simply ignore the 100 reponse. With or
+> without it, the results are exactly the same. It was rather developed to let
+> a client wait a short while, so the server could return error when it didn't
+> accepted the response for any reason, saving you from transmitting data.
+
+My reading of 8.2.3 indicates a slight protocol implication: if the
+server sees Expect: 100-continue, and sends a non-error response
+(i.e. indicating it did perform the requested method) without a
+preceding 100 Continue, and it sends the non-error status line
+_before_ it receives any of the request entity, and it's a HTTP/1.1 or
+greater request, then that server is not conforming with RFC 2616 8.2.3.
+
+> >(Btw, any Transfer-Encoding indicates a request body, and 
+> >"chunked" is required to be the last in the sequence of 
+> >transfer-codings.  If Content-Type specifies 
+> >"multipart/byteranges", that indicates a body, but I see 
+> >nothing in RFC 2616 which indicates a body for any other 
+> >multipart encoding.  Right?)
+> 
+> See the MIME specification, I believe...
+
+RFC 2616 section 4.3:
+
+   The presence of a message-body in a request is signaled by the
+   inclusion of a Content-Length or Transfer-Encoding header field in
+   the request's message-headers.
+
+The existence of Content-Type without either of those two headers
+would appear to not indicate a message-body.  Though section 4.4, part
+4, offers multipart/byteranges without Content-Length and without
+chunked, which logically implies Transfer-Encoding: identity, but
+identity has been removed in the errata :)
+
+Something is amiss...
+
+> No, just ignore the 100 response when developing for HTTP/1.1. The server
+> will always expect a entity body.
+
+I'm writing the server ;)
+
+> >  2. If the server sends an error response, without 100 (Continue) and
+> >     without observing any request entity prior to sending the
+> >     response, then it must not try to read another request for the
+> >     same reason.  Is this correct?
+> 
+> Same as above. Usually the connection will be closed to avoid receiving the
+> unneeded entity body.
+
+Yes, although you can't close the connection fully right away, because
+the client will fail to see "in flight" response data.  Hence
+lingering close etc.  And in theory, if the request is using chunked,
+the client will use that zero length chunk instead of aborting the
+connection...  (This makes chunked requests advantageous).  Then
+again, how many clients transmit requests using chunked encoding?
+
+> >  3. If the server sends a *non-error* response, after 100 (Continue),
+> >     and before reading all of the request entity, it can assume the
+> >     client will send all of the request entity or abort the 
+> >connection.
+> >
+> >     In this case if the server doesn't want to read all of the
+> >     request entity, because it knows the entity is large and there
+> >     is no point transferring the remaining data, then after it has
+> >     completely sent the response entity it should signal connection
+> >     shutdown (i.e. TCP FIN, shutdown(SHUT_WR)), and continue reading
+> >     for a while to prevent the TCP RST problem.
+> >
+> >     If the server does want to read all the request entity after it
+> >     has started sending the respones, it can just do that and it
+> >     should work.
+> 
+> I don't know whether the request and response should be threated as an
+> atomic piece. So an implementation might give an error, because it is unable
+> to send the entire request.
+
+It could be messy.  It'll need testing.
+
+> >  4. If the server sends an *error* response, after 100 (Continue),
+> >     and before reading all of the request entity, it must assume the
+> >     client MAY prematurely abort transmitting the request entity
+> >     either by closing the connection or transmitting a zero length
+> >     chunk.
+> 
+> I don't believe the transfer of data is aborted by a zero length chunk, when
+> this is not the last one. More probably is the server closing the connection
+> when it knows the client received all the data.
+
+It's difficult to know when the client has received all the data so
+that it's safe to close the connection...  A fair heuristic would be
+wait for all ACKs for the data, then add a time limit for the client
+application to read it from the client OS's TCP stack.  (If the
+application doesn't read it soon enough, the request entity still
+flowing to the server causes the server's closed socket to send RSTs
+to the client OS, which then discards received data before the client
+application can see it.)
+
+> A 3xx (Redirection) indicates the server will not handle the response and
+> will redirect it to another server. These is no point in this respect to
+> transfer the data to the server and aborting the connection would seem the
+> only logic one.
+
+Sure, but what do actual client implementations do?  If the spec
+_stated_ that 3xx responses are errors for the purpose of 8.2.2, fine.
+But I don't see the language in the spec as indicating that at all
+clearly.
+
+In my mind, some 3xx responses are informative.  Certainly, 302, 303
+and 307 are often used by servers wishing to direct the client around
+the URL space of theserver, e.g. to append "/" when a URL corresponds
+to a directory, or as an alternative form of content negotiation.
+
+In particular, 303 is supposed to be used after a *successful* POST,
+which wants to redirect the client to follow it with a GET.  That's
+not an error at all.
+
+So they're not really *errors*.
+
+Also you said there's no point transferring data.  Servers certainly
+transfer some data with 302/303/307 responses: a small page telling
+older clients that there's a redirection, with a link.  That page can
+depend on the request entity, especially if it's a 303 in response to
+a POST.
+
+Anyway I'll conservatively assumes clients treat 3xx like errors for the
+purpose of 8.2.2 -- i.e. they may abort the request entity, so if the
+server's application wants to read the request entity, it must delay
+sending the status line until it's read all of the request.
+
+At the same time, because 3xx aren't errors, I have to treat them like
+2xx for the purpose of 8.2.3.
+
+Fwiw, these are the rules my server now implements:
+
+    - If the application asks for any of the request entity, send 100
+      (if required by Expect: 100-continue or the PUT/POST rule).
+
+    - If the application generates a 2xx status, and it hasn't sent
+      100 yet, send it with the status (if required by....rule).  It
+      is always sent, even if the application doesn't show any
+      interest in the entity (because of 8.2.3).
+
+    - If the application generates a 4xx/5xx status, and it hasn't
+      asked for any of the request entity, send the error status
+      without 100 and prevent the application from seeing any of the
+      request entity.
+
+    - If the application generates a 4xx/5xx and it does want the
+      request entity, send 100 (if required by....rule), then read the
+      entire request, and _then_ send the status line response
+      (because of 8.2.2).
+
+    - If the server application generates a 3xx, regardless of whether
+      the application wants the request entity (because of 8.2.3) send
+      100 (if required by....rule), then read the entire request,
+      _then_ send the status line and response (because of 8.2.2, and the
+      possibilities that clients might abort the request entity when
+      they see a 3xx response).
+
+The question of how to abort connections is another thorny one.  With
+error responses, we want to close the connection after sending the
+response and not reading the whole request but have to do so in a
+careful way to be confident the client application sees the error.
+
+With non-error 2xx responses (this is totally a guess based on how I
+imagine some clients to be written), we might find that closing the
+connection after sending the response and not yet having read the
+whole request may lead clients to ignore the response, or to abort the
+request.  So my conservative *guess* as to the right thing to do is to
+send the status line as soon as possible (unlike for error responses),
+but to refuse to send the close (for close-delimited) or zero chunk
+(chunked) or final byte (content-length) until the all of the request
+entity has been received.
+
+That looks more complicated than necessary -- but is it?  Does anyone
+have knowledge of how different well-known clients react to receiving a
+whole response before all the request has been read?
+
+Thanks,
+-- Jamie
+
+
+

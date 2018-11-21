@@ -1,0 +1,174 @@
+docno="lists-054-4996887"
+received="Sun Dec 29 19:36:06 1996"
+isoreceived="19961230003606"
+sent="Sun, 29 Dec 1996 17:34:07 -0900"
+isosent="19961230023407"
+name="W. Eliot Kimber"
+email="eliot@isogen.com"
+subject="Re: locating capabilities vs. anchor awareness"
+id="3.0.32.19961229173211.00a72b88@uu10.psi.com"
+charset="us-ascii"
+inreplyto="locating capabilities vs. anchor awareness"
+expires="-1"
+
+
+To:W3C-SGML-WG@www10.w3.org
+
+At 02:25 AM 12/28/96 +0000, Lou Burnard wrote:
+>A first draft of a brief tutorial intro to the TEI extended
+>pointer syntax is now available at
+>
+>http://users.ox.ac.uk/~lou/wip/XR.htm
+
+Lou,
+
+Thanks for making this summary available.  The summary reinforces my
+opinion that TEI extended pointers are probably a good thing for XML.
+
+The only wrinkles I see in integrating TEI pointers with HyTime are:
+
+1. TEI pointers use a slightly different "grove plan" than HyTime, to wit, TEI
+   extended pointers only see elements (and not pseudo elements) in the tree
+   rooted at the document element.  This doesn't cause any problems with
+   specification, it just might confuse people (any location address can 
+   specify the grove plan to be used when resolving it).  
+
+2. The XREF element's to and from attributes cannot be directly mapped to
+   a HyTime contextual link because HyTime expects there to be a single
+   attribute for each link end, but TEI allows two (three if you count
+   "doc").  The only ways to resolve this that I can see are:
+
+   A. Allow To, From, and Doc and then use a separate fixed query as the value
+      of the HyTime anchor-addressing attribute that then refers to the values
+      of the To/From attributes.  This is pretty twisted but it could be made
+      to work (e.g., I could create an SDQL "resolve TEI pointer" function and
+      then use that as the value of the anchor-addressing attribute).
+
+   B. Allow the DOC specification directly in the TEI extended pointer, e.g.:
+      to="DOC (P3) ID (ABCD)" and limit XREF to "to" attribute.  This seems
+      like a useful thing regardless--maybe it's already there and it just
+      wasn't mentioned in the tutorial?
+ 
+A few minor points wrt to mentions of HyTime and overlaps with HyTime
+terminology and functionality in the tutorial (and I assume in the current
+official TEI specs):
+
+location path/location ladder/step
+
+- Both HyTime and TEI pointers have the concept of location ladders and
+location paths (I don't know who influenced whom here).  In the original
+HyTime standard, the terms location ladder and location path were not
+always used consistently.  In the TC, we've taken pains to sort out the
+terms.  A "location ladder" is the equivalent of a single TEI extended
+pointer: it specifies the list of nodes selected by successive narrowing of
+the set of possible nodes, e.g. "first para of third chapter of second part
+of doc A".  A "location path" is a series of "steps", each step the bottom
+rung of a single location ladder, i.e., a series of indirections where one
+location address refers to another (this would be like one XPTR element
+pointing to another XPTR element).  These terms seem to be slightly
+different from the way Lou has used them.  In particular, we use "rung" to
+distinguish stages in a location ladder from steps in a location path--TEI
+appears to use the term "step" where HyTime uses "rung" and doesn't appear
+to necessarily distinguish rungs in ladders from steps in paths (this may
+be because in TEI extended pointers, the location ladder is always
+contained in a single pointer specification, whereas in HyTime a ladder
+consists of multiple address elements).  
+
+- From the tutorial: "The token and str methods are defined as behaving in
+  exactly the same way as their HyTime equivalents tokenloc and strloc
+  respectively." 
+
+  Note that tokenloc and strloc were replaced by "dataloc" in the final
+  HyTime standard.  Dataloc survives in the TC, although the original
+  "quantum" attribute is now "filter".  The filter value corresponding
+  to TEI's "token" is "norm", meaning SSEP-delimited tokens.
+
+- HyQ: HyQ is dead and replaced by SDQL from the DSSSL standard.
+
+- Spans: The TEI "from" and "to" attributes let you address data by pointing
+  to the start and end points and addressing everything in between.  HyTime
+  calls this form of address a "span".  Any location address in HyTime can
+  indicate that it is addressing a span, in which case, every pair of nodes
+  addressed is taken to be the start/end (to/from) of a span.  Thus, the
+  concept is there, but the syntax is different [my understanding is that
+  spans were added specifically to reflect the TEI functionality.]  Note
+  that when using a query in HyTime, spanning is a function of the query's
+  semantics--HyTime doesn't care how the query arrives at the node list
+  it returns.  Thus, if we assume that XPTR elements are treated as queries
+  in a HyTime context, the TEI to/from attribute syntax is fine because the
+  TEI engine will simply return the entire list of nodes addressed, not
+  just the separate to and from values.
+
+- "HERE" keyword.  With the TC, HyTime now has the equivalent of the "HERE"
+  keyword, which is the ability of the location source of a location
+  address to be the "referrer", i.e., the non-location address element that
+  first points to it.  When used with the relloc (relative location address)
+  element in particular, it lets you do things very much like TEI extended
+  pointers by making it possible to have a single location ladder that 
+  locates the "next" or "previous" element.  [I originally suggested this
+  addition to HyTime specifically to mirror the TEI functionality.]
+
+- DOC attribute.  The TEI "doc" attribute corresponds to the HyTime 
+  location source attribute when it refers to a document or subdocument
+  entity.  In original HyTime, the locsrc attribute could only be an
+  IDREF.  With the TC, any location address element type can be declared
+  as an ENTITY attribute, so that you can specify entities directly
+  as location sources.
+
+Given the above, the TEI XPTR element form can be declared to a HyTime
+engine like so:
+
+<!NOTATION TEIXPTR  PUBLIC "-//TEI P3//NOTATION TEI Extended-Pointer
+Syntax//EN" >
+<!ATTLIST #NOTATION TEIXPTR
+          to     CDATA  #IMPLIED
+          -- Lextype(TEIXPTR) --
+          from   CDATA  #IMPLIED
+          -- Lextype(TEIXPTR) --
+>
+    
+<!ELEMENT XPTR  - O EMPTY >
+<!ATTLIST XPTR 
+          doc    ENTITY #IMPLIED
+          -- Constraint: document or subdocument entity --
+          to     CDATA  #IMPLIED
+          -- Lextype(TEIXPTR) --
+          from   CDATA  #IMPLIED
+          -- Lextype(TEIXPTR) --
+          notation (TEIXPTR) #FIXED "TEIXPTR"
+          HyTime   NAME      #FIXED "queryloc"
+          HyNames  CDATA     #FIXED "locsrc doc"
+>
+
+The TEI XREF element, using option B given above, can be declared like so:
+
+<!ELEMENT XREF  - - (#PCDATA) >
+<!ATTLIST XREF 
+          to     CDATA  #IMPLIED
+          -- Lextype(TEIXPTR) --
+          refloc   CDATA     #FIXED "to queryloc TEIXPTR"
+          HyTime   NAME      #FIXED "clink"
+          HyNames  CDATA     #FIXED "linkend to"
+>
+
+Note that neither of these definitions change the element instances at all.
+
+Cheers,
+
+E.
+
+
+
+
+
+--
+W. Eliot Kimber (eliot@isogen.com) 
+Senior SGML Consulting Engineer, Highland Consulting
+2200 North Lamar Street, Suite 230, Dallas, Texas 75202
++1-214-953-0004 +1-214-953-3152 fax
+http://www.isogen.com (work) http://www.drmacro.com (home)
+"Rats in the morning, rats in the afternoon...if they don't go away, I'll be
+re-educated soon..."                 --Austin Lounge Lizards, "1984 Blues"
+
+
+

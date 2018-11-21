@@ -1,0 +1,123 @@
+docno="lists-038-14501912"
+received="Wed Nov 18 06:15:48 1998"
+isoreceived="19981118111548"
+sent="Wed, 18 Nov 1998 03:16:10 -0800"
+isosent="19981118111610"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: interoperability testing of mod_dav"
+id="3652AC7A.34C74A4E@lyra.org"
+charset="us-ascii"
+inreplyto="3.0.5.32.19981117211417.0095a8e0&#64;mailback.parc.xerox.com"
+expires="-1"
+
+
+To: Jim Davis<jdavis@parc.xerox.com>
+CC:w3c-dist-auth@w3.org
+
+Thanx for the testing, Jim!
+
+Jim Davis wrote:
+> ...
+> The client is a WebDAV client side library in Python.  Almost everything
+> worked perfectly.
+
+Interesting point that we're both using Python clients to do our
+testing... :-)
+
+> I report the following bugs, some of  which may actually be bugs in my
+> understanding of the protocol
+> 
+> 1. mod_dav does not allow one to set the dav:getcontenttype property, or at
+> least the value one sets is ignored.  I created a file
+
+Actually, it should be returning a 500 right now (which in itself is an
+error, but if it isn't returning 500, then I've got a different, more
+subtle error occurring).
+
+(actually, the 500 should be returned for DAV:getcontenttype; it
+shouldn't have an issue with dav:getcontenttype)
+
+> http://msdav.lyra.org/dav/foo.html and set the content type to text/plain.
+> But the server is returning a content type of text/html.
+> 
+> In my opinion, this should not be a read-only property.  After all, how
+> could a client set a property value for a type the server did not even know?
+
+The spec is quite unclear here. mod_dav will consider DAV:displayname,
+DAV:source, and DAV:resourcetype (for non-collections) to be read/write.
+Properties in the DAV: namespace not specifically detailed in the
+specification will be considered to be dead properties.
+
+> 2. An attempt to set a read-only property such as DAV:creationdate returns
+> a 500.  It should return 409 conflict I think.  (see 7.2.1)
+
+Bug in my code. In fact, I already had a comment in there stating that a
+500 would be returned, which is improper. There is a bit of design
+refinement that I need to do in some of the property stuff to deal with
+this and some other situations.
+
+I agree that 409 is the proper response.
+
+> 3. I was not able to set a property value that contained an attribute.  (At
+> least the xml:lang attribute should be supported)
+> 
+> Request:
+> <?xml version="1.0"?>
+> <A:propertyupdate xmlns:A="DAV:">
+>   <A:set>
+>     <A:prop>
+>       <B:author xmlns:B="http://example.com/" xml:lang="nl">h van der
+> kaas</B:author>
+>     </A:prop>
+>   </A:set>
+> </A:propertyupdate>
+> 
+> Reply
+> 
+> <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+> <HTML><HEAD>
+> <TITLE>400 Bad Request</TITLE>
+> </HEAD><BODY>
+> <H1>Bad Request</H1>
+> Your browser sent a request that
+> this server could not understand.<P>
+> An undefined namespace prefix was used.<P>
+> <HR>
+> <ADDRESS>Apache/1.3.3 Server at kurgan.lyra.org Port 80</ADDRESS>
+> </BODY></HTML>
+
+There are several issues here:
+
+1) mod_dav does not recognize the xml: prefix, so it barfed on the
+xml:lang attribute. (BUG)
+2) mod_dav's design states that attributes (other than namespace
+declarations) on the element that names the property (B:author in this
+case) are not saved. That is detailed on the mod_dav web page. Note that
+all attributes on child elements /are/ saved.
+3) it is arguable whether the xml:lang should be saved when it occurs on
+the property name element, or whether a client is required to pop it
+down to a child element (with the caveat of (1) where xml: is not
+currently recognized)
+
+> Other than these three errors, I was able to do PUT, MKCOL, DELETE,
+> PROPPATCH and PROPFIND to good effect.
+
+Excellent. Thank you for your testing.
+
+> Of course, mod_dav has no locking,
+> so I could not test that.
+
+Yup. It is only a Class 1 right now. I believe the community will find a
+Class 1 useful, so I want to complete and release that work first. Class
+2 capabilities will follow in a future release, along with capabilities
+from the other WebDAV specs/drafts.
+
+Thanx,
+-g
+
+--
+Greg Stein, http://www.lyra.org/
+
+
+

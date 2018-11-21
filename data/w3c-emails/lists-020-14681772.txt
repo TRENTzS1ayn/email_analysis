@@ -1,0 +1,124 @@
+docno="lists-020-14681772"
+received="Thu Jun 10 21:59:59 2004"
+isoreceived="20040611015959"
+sent="Fri, 11 Jun 2004 11:00:07 +0900"
+isosent="20040611020007"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="optional arcs implementation"
+id="20040611020007.GA12275@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:public-rdf-dawg@w3.org, Rob Shearer<Rob.Shearer@networkinference.com>
+
+
+
+sorry for the delay in sending this out to you:
+
+The algae code:
+
+package W3C::Rdf::AlgaeCompileTree::Option;
+sub evaluateQTerm {
+    my ($self, $resultSet, $db, $modifier) = @_;
+
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+my $row = $e->nextElement;
+my $miniResultSet = $row->makeResultSet;
+$self->{DECL}->evaluateQTerm($miniResultSet, $db, $modifier);
+my $empty = 1;
+for (my $miniE = $miniResultSet->elements; $miniE->hasMoreElements;) {
+    $empty = 0;
+    my $miniRow = $miniE->nextElement;
+    my $newRow = $row->duplicate;
+    $newRow->assumeNewBindings($miniRow);
+}
+if (!$empty) {
+    $row->eliminate;
+}
+    }
+}
+
+The interface to the solution set is:
+for each row
+  for each new solution
+    duplicate the row
+    add the bindings to the new row
+eliminate the original row
+
+ala:
+sub evaluateQTerm {
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+my $row = $e->nextElement;
+for each solution
+    my $newRow = $row->duplicate;
+    $newRow->assumeNewBindings(solution);
+}
+$row->eliminate;
+    }
+}
+
+Trivial test:
+  ns <http://example.org/n#>
+  assert (
+   A p1 B .
+   A p2 C .
+   A p3 D .
+  
+   B p1 B .
+   B p2 C )
+  
+  ask (
+   ?n p1 B .
+   ?n p2 C .
+   ~?n p3 ?n2 )
+  
+  collect (?n ?n2)
+got:
++------------------------+------------------------+
+|                       n|                      n2|
+|------------------------|------------------------|
+|<http://example.org/n#B>|               !unbound!|
+|<http://example.org/n#A>|<http://example.org/n#D>|
++------------------------+------------------------+
+
+Testing for unintended extra resuts:
+ns <http://example.org/n#>
+  assert (
+   A p1 B .
+   A p2 C .
+   A p3 D .
+  
+   D p4 E .
+   E p5 F .
+  
+   D2 p4 E2 .
+   E2 p5 F2 )
+  
+  ask (
+   ?n p1 B .
+   ?n p2 C .
+   ~?n ?po ?n2 .
+   ?n2 p4 ?n3 .
+   ?n3 p5 ?n4)
+  
+  collect (?n ?n2 ?po)
+got:
++------------------------+------------------------+-------------------------+
+|                       n|                      n2|                       po|
+|------------------------|------------------------|-------------------------|
+|<http://example.org/n#A>|<http://example.org/n#D>|<http://example.org/n#p3>|
++------------------------+------------------------+-------------------------+
+
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

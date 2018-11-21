@@ -1,0 +1,283 @@
+docno="lists-054-14528245"
+received="Wed Sep 11 19:25:51 1996"
+isoreceived="19960911232551"
+sent="Wed, 11 Sep 96 18:20:16 CDT"
+isosent="19960911232016"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.CC.UIC.EDU"
+subject="Empty elements (and processing without a DTD)"
+id="199609112325.TAA25074@www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+
+In the days before the SGML Work Group discussion list started up in
+earnest, the Editorial Review Board spent some time discussing the
+project's statement of goals -- and, like the Work Group as a whole,
+found itself drawn irresistibly into the discussion of particular
+technical points which came up in the course of larger discussions.
+Among other things, we discussed at some length what to do with EMPTY
+elements in XML.  The other members of the ERB have encouraged me to
+post to the WG this summary of the ERB's discussion of EMPTY elements,
+originally posted to the ERB itself, so as to bring the results of that
+discussion into this one.  It seems particularly apposite in the light
+of Robin Cover's recent query about why or when one might want to
+process a document without reading the DTD, even though it assumes
+rather than gives an answer to Robin's question.
+
+I have edited slightly for clarity and accuracy.  -CMSMcQ
+
+----
+
+In private corresondence, Steve DeRose has identified (I think
+correctly) the following problems caused by EMPTY in its current form:
+
+A. it makes it hard, working only from the ESIS, to write out a document
+instance that is sure to be ESIS-equivalent to the original (i.e. to
+perform an ESIS-based identity-transform), since it's hard to know
+whether to emit "<blort>" or "<blort></blort>"
+
+B. it makes it hard, if you have "<p>foo <blort> bar </p>" in input, to
+know whether when fully normalized this means / should mean:
+
+       <p>foo <blort> bar </p>           <!-- empty -->
+       <p>foo <blort> bar </blort></p>   <!-- not empty -->
+
+unless you have read and understood the entire DTD -- which otherwise
+you might, under certain circumstances, be able to bypass entirely.
+
+Both of these things (correct understanding of the input, even sans DTD,
+and correct production of ESIS-equivalent structures, on the basis of
+the ESIS alone) seem plausible to want to do in XML.  (They are
+plausible to want to do in SGML, too, it's just that without some
+knowledge of DTD or instance they are either very hard, or impossible.)
+
+
+One of the best ideas proposed by Claus Huitfeldt at the Wittgenstein
+Archives of the University of Bergen, and implemented in their markup
+scheme MECS (the Multi-Element Coding System), was to distinguish
+elements with content from those without content:
+
+       <p/foo <blort> bar /p> and
+       <p/foo <blort/ bar /blort>/p>
+
+are completely distinct and can never look alike even with minimization:
+
+       <p/foo <blort> bar />
+       <p/foo <blort/ bar />/>
+
+
+
+I think we could get the function we need (empty elements with some
+enforcement/recognition that they are empty by definition, but also
+allowing simpler tools) in several ways, with different tradeoffs.
+
+1 Don't Worry, Be Smart (Naggum).  As I understand it, this is Erik
+Naggum's proposal for handling empty elements in stupid parsers.  Even if
+this description isn't what he meant, however, it is still Erik from
+whom I acquired the ideas below.
+
+Keep the current syntax, and know that if you don't see an end-tag, the
+start-tag was for an empty element.  I.e. every element is a potential
+empty element until you see an end-tag for it.  If end-tag omission is
+prohibited, this means you only have to look for the next corresponding
+end-tag to be sure of what you have to do.  If you're building a tree,
+you'll need to adjust it from time to time, or keep it in suspension
+until the ambiguity is resolved.  When you see an end-tag, do this:
+
+   if gi(currentTag) = gi(peekAtStack())
+      then call PopStack
+      else do
+           /* first update our internal tables:  we now know that the
+              GI at the top of the stack is for an EMPTY element, and if
+              we like we can adjust our scanner so in the future we
+              can do the right thing immediately ... */
+           giTemp = gi(peekAtStack())
+           empty.giTemp = 1
+
+           /* now update our tree information:
+              delete everything we used to think was a child of
+              the empty element, and make it a right-hand sibling
+              instead */
+           call PromoteChildrentoRightSiblings(currentElement)
+      end /* else */
+
+Pro:  simple, clean, obvious to SGML users.
+
+Con:  possibly long lookahead for the second, third, ... start-tags
+encountered in the document; need big buffers or possibly two-pass
+parsing.
+
+
+2 The Elephant's Child, or, the Insatiable Content Model (Clark).  James
+has already mentioned [in the ERB discussions] this way of ensuring that
+an element is always empty, even though it is not necessarily declared
+using the EMPTY keyword.  E.g.
+
+  <!ELEMENT blort - - (nonesuch?) >
+
+where 'nonesuch', of course, is a name for an element which may never be
+defined (because if it were, there would be one such!).
+
+Pro:  provides the necessary functionality (ensures that blorts are
+always empty).
+
+Con:  if Nonesuch is made a reserved name in XML, then DTD designers
+must remember to avoid it -- to make the prohibition easy to remember
+and obey, it needs to be a name like Nonesuch... so the rules can say
+"Never end a name in three dots:  such names are reserved for use by
+XML systems which need magic names."  If on the other hand Nonesuch is
+not a reserved name, then designers can use any name they choose, but
+(a) they have to understand the mechanism, to use it right, and (b) XML
+tools are liable to issue warnings that the DTD has a possible typo, or
+to offer the user Nonesuch... as a choice on a menu, unless they do some
+preliminary DTD analysis.  From the reluctance of SoftQuad to handle
+undeclared elements properly, I infer that not all developers think such
+analysis simple or easy or worth while.
+
+
+3 The Trapeze Act -- working *with* a net (Huitfeldt, DeRose).  The
+problem is not in EMPTY, or in the absence of an end-tag, but in the
+inability to know without reading the DTD whether a given start-tag is
+for an empty element or not.  We can remove the ambiguity by requiring
+-- as a matter of XML conformance, not of SGML -- that elements declared
+EMPTY should always use a NET start-tag:
+
+  <p>foo <blort/ bar</p>
+
+is legal, while
+
+  <p>foo <blort> bar</p>
+
+is either illegal, or means
+
+  <p>foo <blort> bar</blort></p>
+
+(This is slightly different from Steve's proposal, which involved
+two slashes, not one.)
+
+So if a yacc/lex parser defines terminals STAGO, NAME, TAGC, NET, we
+can define
+
+  element  : starttag content endtag
+           | emptytag
+           ;
+  starttag : STAGO NAME attspecs TAGC
+           ;
+  emptytag : STAGO NAME attspecs NET
+           ;
+
+Pro:  solves the problem, for XML parsers which parse the source
+themselves.
+
+Con:  many of us have trained ourselves to hate and despise NET, and
+recoil in horror at the prospect of finding useful work for it to do.
+More seriously, it's hard to imagine just how to tell existing SGML
+software how to emit a legal XML document using this mechanism, which
+means every time I touch my XML documents with an SGML tool, I am
+punished by being required to run a little cleanup filter.  The
+distinction between <blort></blort> and <blort/ is also lost if one uses
+an sgmls-style front end.
+
+
+4 The End Run.  If the problem is disambiguating the sequence
+
+  STAGO NAME attspecs TAGC
+
+(e.g. if NET is disallowed entirely and the Trapeze Act is not
+appealing), then the same effect can be gained by providing the
+information in another form, e.g. as a sort of architectural form.  (I
+say 'sort of' because it needn't work exactly the same way HyTime
+architectural forms work.)
+
+  <!ELEMENT blort - O EMPTY >
+  <!ATTLIST blort
+            ...
+            XMLdecl  (empty) 'empty' >
+
+Pro:  easy to handle using ESIS only (e.g. sgmls output)
+
+Con:  does not do the job for software which reads the source itself;
+such software would have to read the DTD after all.  (Combine with the
+Trapeze Act in order to avoid this problem?)
+
+
+5 Borrowing from Peter to pay Paul (Maler, Goldstein, Bos):  if you
+can't get the information in the instance (because FIXED attributes are
+defined in the DTD, which you don't want to read), or in the DTD
+(because you don't want to read it), put it somewhere else.  Bob
+Goldstein and I suggested some time ago that you could put it
+(redundantly) in a style sheet (this in the old HTML to the Max paper);
+Eve has suggested PIs or other auxiliary material, as has Bert Bos in
+his proposal for SGML Lite (for which there is a pointer from the
+'voting booth').
+
+
+6 Raw Bits, or What's So Hard about Reading DTDs?  This resolves the
+problem by declaring it a non-problem:  if one wants EMPTY elements, one
+has to declare them (as in PSGML -- Poor Folks' SGML, see pointer in the
+voting booth), and if the parser wants to know about them, it has to
+read the declarations.  Since a non-validating parser needn't do much
+with other declarations except read past them, the DTD parser need only:
+
+  - read and understand declarations of external parameter entities
+  - recognize and obey reference to external parameter entities
+  - recognize and handle declarations of EMPTY elements
+  - skip over other types of declarations; the only place an MDC is
+    legal is within a literal, a comment, or a marked section,
+    so all you need is a lexical scanner that takes care of comments
+    and marked sections, and something like this in the grammar:
+
+    miscdeclaration : MDO misccontent MDC
+    misccontent : /* nil */
+                | misccontent QUOTEDLITERAL
+                | misccontent STRING        /* string without MDC */
+                ;
+
+If there's no DTD to read, then there are no EMPTY elements.  Period.
+Then an empty blort will have to read
+
+  <p>foo <blort></blort> bar</p>
+
+while
+
+  <p>foo <blort> bar</p>
+
+is either illegal, or means
+
+  <p>foo <blort> bar</blort></p>
+
+as in the Trapeze Act.
+
+
+7 Cooked Bits.  A variant of the Raw Bits (parse it and like it!)
+approach would be to provide a different syntax for the declarations, to
+make them really, really easy to parse.  Since we already agree that
+we'll need a filter to take an XML document and prepare an SGML
+declaration and prolog for it, we do have this as an option.  It has
+been suggested, for example, that DTDs are structured information, and
+might usefully be represented using the same techniques we suggest for
+other structured information, namely SGML / XML document instances.
+This has the beneficial side effect of reducing the size and complexity
+of the context-free grammar by about half.
+
+----
+
+I don't know (a) whether there are other ways to get around this
+problem, or (b) which of these I think should be adopted in XML.
+
+I suspect everyone will agree that if XML document instances can be
+strictly conforming SGML, and XML can be elegant and easy to use, and
+XML can be simple to understand and implement, it would be good.
+It's just not clear to me how to optimize the values of all three
+aspects here, or in a number of other areas.
+
+-C. M. Sperberg-McQueen
+ ACH / ACL / ALLC Text Encoding Initiative
+ University of Illinois at Chicago
+ tei@uic.edu / Tel. +1 (312) 413-0317 / Fax +1 (312) 996-6834
+
+
+

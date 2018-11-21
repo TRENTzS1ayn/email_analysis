@@ -1,0 +1,1143 @@
+docno="lists-012-5349058"
+received="Wed Aug 26 09:29:57 1998"
+isoreceived="19980826132957"
+sent="Wed, 26 Aug 1998 09:25:23 0700"
+isosent="19980826162523"
+name="Jim Gettys"
+email="jg@pa.dec.com"
+subject="Fwd: Analysis of &quot;chunking, trailers, and buffering&quot; problem (CHUNKEDTRAILERS)"
+id="9808261625.AA01626@pachyderm.pa.dec.com"
+charset="iso-88591"
+expires="1"
+
+
+To:http-wg@hplb.hpl.hp.com
+
+
+Bala Krishanmurthy asked I post the (long) discussion  of possibilities 
+that was off-line the main list; I think this is a good idea as not everyone 
+was at the working group meeting this week.
+- Jim
+
+
+
+attached mail follows:
+Richard Gray pointed out an interoperability bug in the current
+specification:
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1998q3/0011.html
+
+This lead to a lengthy off-line discussion between Richard, Jim,
+myself, and (later on) Henrik.  After thinking about it for perhaps
+a little too long, we've convinced ourselves that this is an actual
+interoperability bug, and therefore requires resolution.
+
+Jim and I are both somewhat embarrassed to admit that the bug is
+a result of ignoring a Protocol Design 101 lesson that we both
+should have remembered somewhat earlier in the process.
+
+Jim asked me to write up an analysis of the problem, and of the
+various proposed solutions, and to submit it to the Editorial
+Group for additional analysis.  The goal is to avoid proposing
+a solution to the entire HTTP-WG until we've had a chance to 
+give it some review.  (Larry/Jim: if I've left off any members
+of the Editorial Group, please rectify this!)
+
+My draft analysis is appended.  Constructive comment are
+appreciated.  I'm not entirely satisfied with any of the possible
+solutions (which is why the draft includes two alternative
+"recommended solutions"), but after mulling it over for a while,
+I'm not sure we can do any better.
+
+-Jeff
+
+(A) THE SCENARIO:
+
+Consider this configuration:
+
+                 hop1            hop2             hop3
+   OriginServer -------- ProxyA --------- ProxyB ---------- Client
+   HTTP/1.1             HTTP/1.1         HTTP/1.0         HTTP/1.1
+
+
+and suppose that the OriginServer sends a response that
+(1) is very large (X bytes long)
+(2) is sent used a chunked encoding
+(3) is sent with an Authentication-Info header field
+(4) the Authentication-Info field is sent in the trailer
+of the chunked encoding.
+
+Now, this is all reasonable.  The origin server has received
+the request via an HTTP/1.1 proxy (ProxyA), so it knows that it is
+legal to send a chunked response.  Since it is a long response,
+the origin server doesn't want to buffer the whole response
+in order to place the Authentication-Info field before the
+message-body; putting it in the trailer avoids this buffering
+step.  And section 3.6.1 (Chunked Transfer Coding)  says:
+
+     A server using chunked transfer-coding in a response MUST NOT
+     use the trailer for other header fields than Content-MD5 and
+     Authentication-Info unless the "chunked" transfer-coding is
+     present in the request as an accepted transfer-coding in the TE
+     field (section 14.39).
+
+Therefore, the origin server has not broken any of the rules
+as specified in draft-ietf-http-v11-spec-rev-04.txt.
+
+But suppose ProxyA is unable to buffer an arbitrarily long
+message; in particular, suppose that it cannot buffer an
+message body of length X.  Now we have a problem:
+(1) ProxyA cannot forward the message in chunked encoding,
+because ProxyB is HTTP/1.0 and doesn't understand chunked.
+(2) ProxyA cannot put the Authentication-Info field
+into the header of a non-chunked message, because to
+do that requires buffer X bytes of message body, and
+we just said that ProxyA can't do that.
+(3) ProxyA cannot simply drop the Authentication-Info field,
+because it's an End-To-End header and proxies can't
+arbitrarily drop such headers.  In this case, doing so
+would totally break the authentication mechanism.
+(4) ProxyA cannot automatically retry the request
+(using HTTP/1.0 this time), because it has no way
+to know whether the operation is idempotent.
+In fact, there is no way for the end-hosts in this scenario
+(Client or OriginServer) to even know that something has gone
+wrong.
+
+We could insist that ProxyA never send its requests using HTTP/1.1,
+because then this particular problem would never arise.  But then
+we would be tossing out all of the advantages of HTTP/1.1 on the
+hop between ProxyA and the OriginServer, for all requests, even
+though this scenario might be extremely rare.  (Note that there
+does not seem to be any way for ProxyA to realize, when it is
+about to forward the request, that the response might fall into
+this category.)
+
+(B) THE UNDERLYING PROBLEM:
+
+What has gone wrong here?  The bug is that we have apparently
+ignored a fundamental aspect of protocol design: the sender
+of a message needs to know, in general, whether the recipient
+can actually buffer it or not.  For example, TCP has the
+notion of a maximum segment size (MSS) and a receiver window
+size, precisely to avoid the possibility that a TCP sender
+will send a bigger datagram, or more data, than the TCP receiver
+can buffer.  But HTTP has no such mechanism (unless you squint
+at the byte-range feature, which doesn't solve the case at hand).
+
+This is actually a bug, at some level, in HTTP as a whole.
+I.e., the browser normally has to be able to buffer the
+entire response (in order to do things like render it,
+scroll back and forth, and all those things that we take
+for granted).  But www.contentprovider.com has no sure way of
+knowing whether the response it sends to a client is going to
+be too big to fit in the browser's buffer.
+
+The observed fact that we haven't been confronted with this
+problem, in actual practice, no doubt is because most browsers
+have relatively large buffers, and most Web values are small.
+I mean, the mean and median response sizes are on the order
+of 10K, and there are very few outliers.
+
+So the Web "works" because of an apparently unstated understanding
+between content providers and browser implementors about the
+browser's buffer size.  (And it probably fails to "work" for
+browsers on PDAs, except that with slow modems, very few users
+would bother to wait for even a smallish PDA to fill up.)
+
+But when we introduce a proxy with a constrained buffer size,
+and then encounter a situation that requires the proxy to buffer
+the entire message, we run straight into this problem.
+
+To summarize: the introduction of trailer fields into HTTP/1.1
+means that there will be times when either a sender or a recipient
+will have to buffer the entire message.  This is unavoidable;
+our only choice is whether to force the buffering to occur at
+the sender or at the recipient.  The current specification
+forces whole-message buffering at the recipient, making it
+impossible to recover from buffer overflow.
+
+(C) POSSIBLE SOLUTIONS:
+
+We can see several possible solutions, of varying degrees of
+desirability:
+
+(1) Ignore it.  Assume that nobody cares if Authentication-Info
+sometimes mysteriously gets lost from large responses.
+
+(1a) Ignore it, but add a note warning implementors that this
+might be a problem ... although giving no real guidance about
+what to do about it.
+
+(2) Insist that all HTTP/1.1 proxies must have (effectively)
+infinite buffer capacities.
+
+(3) Modify the spec to prohibit the use of Authentication-Info
+or Content-MD5 in a trailer unless specifically authorized by
+the presence of a TE header field in the request.  This means
+that, absent such a TE field, the origin server must be willing
+to buffer the entire response.
+
+(4) Change the spec to say that proxy implementations SHOULD
+be able to buffer up to N bytes of message-body, and that
+servers SHOULD NOT put Authentication-Info or Content-MD5
+in the trailer of a message longer than N bytes (without
+permission in the form of a TE header).
+
+(4a) Argue for a while about what N should be.
+
+(5) Add a requirement that servers/proxies SHOULD NOT put
+Authentication-Info or Content-MD5 in the trailer of any message
+if the request includes a Via field that lists an HTTP/1.0
+forwarder.
+
+(6) Add end-to-end and hop-by-hop buffer-size negotiation
+to HTTP/1.1.
+
+(D) ANALYSIS OF POSSIBLE SOLUTIONS:
+
+    (1) Ignore it.
+    
+Probably a mistake.  It's not such an unlikely scenario, since
+Digest Authentication allows the server to (optionally) include
+a digest of any arbitrarily-long response.  Also, it violates our
+duty to ensure interoperability of all of the protocol features
+(rather than simply the interoperability of features in isolation).
+
+    (1a) Ignore it, but add a note.
+    
+Not really an improvement, since it doesn't really eliminate
+the interoperability problem.
+
+    (2) Insist that HTTP/1.1 proxies have infinite buffer capacities.
+    
+Not a practical option.  At least one proxy implementor intends
+to ship a system with a 50KB limit, whether the spec allows it
+or not.  Remember, not all proxies have caches, so not all proxies
+need (or can include) mass storage.
+
+    (3) Remove the exception for Authentication-Info or Content-MD5.
+    
+This would solve the problem.  It might not be feasible if there
+are many already-deployed servers that send Authentication-Info or
+Content-MD5 in the trailer.
+
+It does force the origin server to buffer the entire message,
+under certain circumstances.  It has been argued that this
+just shifts the problem from the proxy to the origin server.
+However, there is a significant difference: the origin server
+can therefore detect that there is a problem.  I.e., the origin
+server is potentially able to restructure its response to
+avoid having to buffer the whole message (even if this requires
+generating the response twice, once to compute the hash value
+and once to stream it to the network), or to generate a meaningful
+error code.  But the proxy is unable to do anything except generate
+a relatively useless error message.
+
+    (4) Add a SHOULD-level N-byte limit to the spec.
+    
+This would solve the problem.  It would again force the origin
+server to buffer the message, in some cases; see #3 for more
+details.  But not quite as often as #3.
+
+As with #3, it would not be feasible if already-deployed servers send
+longer messages that contain trailers.
+
+    (4a) What should N be?
+
+On the other hand, choosing a value for N requires negotiation.
+If the value chosen is larger than the buffer size used by
+any significant number of deployed proxies, then the "solution"
+fails.  If the number is too small, it degenerates into solution
+#3 (i.e., always buffer at the origin server), but with more
+complexity in the specification.  However, making N too small
+can't cause interoperability failures; it can only reduce the
+amount of "optimization" available relative to solution #3.
+    
+    (5) Check the Via header for HTTP/1.0 proxies.
+
+This approach depends on the proper implementation of the
+Via header by any proxy with limited buffer sizes.  It also
+represents an added complication of the spec.  But it does
+allow the most optimistic use of trailers, and should (if
+Via headers are correctly implemented) directly avoid the
+problem.
+
+It still requires the origin server to buffer the entire
+message in some, but not all, cases.
+
+    (6) Add end-to-end and hop-by-hop buffer-size negotiation.
+
+Presumably too much of a change to add to HTTP/1.1 at this stage.
+However, it might be useful to pursue this as an add-on extension,
+especially since it could solve the problem of sending over-sized
+messages to small clients, such as PDAs.
+
+(E)  RECOMMENDATION FROM THE HTTP/1.1 EDITORIAL GROUP
+
+Solution #3, removing the exception for Authentication-Info
+or Content-MD5 in a trailer, seems to be the simplest solution
+and will probably work (depending on whether existing deployed
+servers would fail to comply).  Among other things, it simplifies
+the specification (by removing an exception); all of the other
+changes add complexity.
+
+The proposal would be to change, in section 3.6.1 (Chunked
+Transfer Coding), this paragraph:
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].
+
+to read
+
+A server using chunked transfer-coding in a response MUST NOT
+use the trailer for any header fields unless the "chunked"
+transfer-coding is present in the request as an accepted
+transfer-coding in the TE field (section 14.39).
+
+In section 14.39 (TE), change this paragraph:
+
+    If no TE field is present, the sender MAY assume that the recipient
+    will accept the "identity" and "chunked" transfer-codings.
+    
+to read
+
+    If no TE field is present, the sender MAY assume that the recipient
+    will accept the "identity" and "chunked" transfer-codings, but
+    MUST NOT send any trailer fields in a "chunked" transfer-coding.    
+
+In section 14.40 (Trailer), change this paragraph
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+to    
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields.  A server MUST NOT send any trailer
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+Note: when a trailer field is sent without observing the
+requirements of the previous paragraph, it could be silently
+dropped by an intervening proxy, if the message is being
+forwarded to an HTTP/1.0 recipient.
+
+The removal of the exception allowing the sender to omit Content-MD5
+or Authentication-Info from the Trailer header field also solves
+a related problem: under the existing specification, even a proxy
+with sufficient buffer space cannot know until it has seen the
+end of the entire message whether or not it will have to move
+these fields from the trailer to the header (when forwarding to
+an HTTP/1.0 recipient).  In other words, the current spec requires
+a proxy to buffer every chunked message before forwarding it to
+an HTTP/1.0 recipient, whether or not it includes a trailer field.
+
+
+(E1) ALTERNATIVE RECOMMENDATION FROM THE HTTP/1.1 EDITORIAL GROUP
+
+If it is felt that the recommendation above is too restrictive
+(because it eliminates the use of trailer fields in certain
+all-HTTP/1.1 paths, where the buffering problem is non-fatal),
+we could instead adopt a more complicated change involving checks
+on the Via header.
+
+This version would change, in section 3.6.1 (Chunked Transfer
+Coding), this paragraph:
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].
+
+to read
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].  A server
+MUST NOT send any trailer fields if the request includes
+a Via header field listing one or more HTTP/1.0 hops.
+
+In section 14.40 (Trailer), change this paragraph
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+to    
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.  If the
+    request includes a Via header field listing one or more HTTP/1.0
+    hops, the trailer MUST NOT include any header fields.
+
+Note: when a trailer field is sent without observing the
+requirements of the previous paragraph, it could be silently
+dropped by an intervening proxy, if the message is being
+forwarded to an HTTP/1.0 recipient.
+
+[End]
+
+attached mail follows:
+Nice analysis.  However, it isn't necessary to prevent a feature
+just because some applications are incapable of using it.  I think
+the protocol needs to allow these things (Content-MD5 in particular)
+when the sender doesn't care if the recipient has no choice but
+to ignore the trailer.  My choice would be a combination of your
+two E proposals, something like the following:
+
+>The proposal would be to change, in section 3.6.1 (Chunked
+>Transfer Coding), this paragraph:
+>
+>        A server using chunked transfer-coding in a response MUST NOT
+>        use the trailer for other header fields than Content-MD5 and
+>        Authentication-Info unless the "chunked" transfer-coding is
+>        present in the request as an accepted transfer-coding in the TE
+>        field (section 14.39). The Authentication-Info header is
+>        defined by RFC 2069 [32] or its successor [43].
+>
+>to read
+
+    A server using chunked transfer-coding in a response MUST NOT
+    use the trailer for any header fields unless at least one of 
+    the following are true:
+
+       a) the "chunked" transfer-coding is present in the request
+          as an accepted transfer-coding in the TE field (section 14.39);
+
+       b) there is no Via header field (indicating a connection without
+          intermediary proxies);
+
+       c) all of the protocols listed in the Via header field are
+          HTTP/1.1 or later; or,
+
+       d) the server grants the recipient the right and ability to
+          discard those trailer fields without forwarding them to any
+          downstream recipient of the remaining message.  This is
+          only possible if the trailer fields consist entirely of
+          optional metadata that is not necessary for the recipient
+          to understand in order to use the message.
+
+    The above requirement exists to avoid an interoperabilty paradox
+    when the message is being received by an HTTP/1.1 (or later) proxy
+    and forwarded to an HTTP/1.0 recipient.  It avoids a situation
+    where compliance with the protocol would have necessitated an
+    infinite buffer on the proxy.
+
+[Aside:
+Actually, I don't understand why the presence or lack of the TE field
+should have anything to do with this requirement.  TE doesn't indicate
+anything useful for trailer fields, not even the extent to which an
+implementation might be prepared to handle trailer fields, and it
+most certainly can't handle this case because TE is hop-by-hop and
+the exception will only work if chunked will be sent end-to-end.
+I suggest we drop part (a) completely.
+
+If we want to control the trailer with TE, then it needs a separate
+name for it (like "trailer"), and it needs to be propagated inbound
+just like the old Pragma directives.  In fact, it would probably work
+better as a Pragma directive and not in TE at all.]
+
+>In section 14.39 (TE), change this paragraph:
+>
+>    If no TE field is present, the sender MAY assume that the recipient
+>    will accept the "identity" and "chunked" transfer-codings.
+>    
+>to read
+
+     If no TE field is present, the sender MAY assume that the recipient
+     will accept the "identity" and "chunked" transfer-codings.  See
+     section 3.6.1 for restrictions on the use of trailer fields in a
+     "chunked" transfer-coding.    
+
+[Aside: this is true even if the TE field is present and indicates that
+ "identity" and "chunked" are not acceptable.  In other words, this
+ paragraph already contradicts how we will implement HTTP.  I thought
+ this was cleaned up after the discussion with Dave's issues.]
+
+>In section 14.40 (Trailer), change this paragraph
+>
+>    If no Trailer header field is present, the trailer SHOULD NOT
+>    include any header fields other than Content-MD5 and
+>    Authentication-Info.  A server MUST NOT include any other header
+>    fields unless the "chunked" transfer-coding is present in the
+>    request as an accepted transfer-coding in the TE field.
+>
+>to    
+
+     If no Trailer header field is present, the trailer SHOULD NOT
+     include any header fields.  See section 3.6.1 for restrictions
+     on the use of trailer fields in a "chunked" transfer-coding.
+
+ 
+Rationale:  This option trades off the exception for Authentication-Info
+and Content-MD5, which was an unnecessary complication to begin with,
+with a more complex check of the conditions under which a trailer field
+is allowed.  Condition (d) takes care of all current implementations
+of the chunked encoding that use trailer fields.  The other conditions
+are sufficient to prevent the paradox and still allow future applications
+to make use of the features.  In my opinion, this is also easier for
+a server developer to implement, since the requirement is quite explicit.
+I also dislike repeating the same requirement in multiple places -- the
+reader needs a cross-reference to where the requirement is stated
+along with its rationale, not repetition of a MUST sentence.
+
+Of course, Jeff is quite right that this doesn't solve the basic
+problem of HTTP needing a way to negotiate a maximum message size,
+particularly when we consider extensions that would require the
+proxy to verify the message content (or something else in the trailer)
+before forwarding the message.  But I think that is a general failure
+of single-stream/single-response protocols.  To solve it we would need
+a method of splitting a message into separately digestable chunks,
+which is something we can't do in HTTP/1.x [actually, that is why we
+have a chunk-ext field after every chunk-size, but trying to get people
+to define AA protocols that use such things is even harder than getting
+them to implement Digest].
+
+The notion of a buffer negotiation protocol extension doesn't really work.
+Use of chunked indicates that the server is not aware of the content
+length before sending the data, so it wouldn't know if it could send it
+all in one buffer-limited size or not.  We would have to do something
+weird with the response code like in byte-ranges responses, but in this
+case indicating that the response may or may not be complete up to
+a certain length.  Actually, an easier way to accomplish that would
+have been to define a special option for the ending zero-length chunk
+such that it would indicate an incomplete but self-consistent response,
+unlike the premature termination of the response when closing the connection.
+
+Ah, crap.  If someone would please go back in time two years and insert a
+
+   chunk-data
+   0;end-code=533
+   trailers
+
+into the spec I'd really appreciate it.  I suppose we could enable that
+with a hop-by-hop buffer limit extension.
+
+....Roy
+
+attached mail follows:
+>                  hop1            hop2             hop3
+>    OriginServer -------- ProxyA --------- ProxyB ---------- Client
+>    HTTP/1.1             HTTP/1.1         HTTP/1.0         HTTP/1.1
+>
+> ... there is no way for the end-hosts in this scenario
+> (Client or OriginServer) to even know that something has gone
+> wrong.
+
+  They'll know when the authentication fails.
+
+  My conclusion is that there are some aspects of 1.1, including
+  digest authentication and content-md5 that just won't end up working
+  in this scenario and that the proposed cures are worse than that
+  problem given that there are widely deployed 1.1 user agents that
+  won't provide the hints the solutions need.
+
+  The problem with any proposed solution that requires the TE field is
+  that at least some current deployed 1.1 user agents don't send it.
+  The following is a header capture from IE4.0 (with some manual line
+  wrapping):
+
+     GET / HTTP/1.1
+     Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg,
+             application/vnd.ms-excel, application/msword,
+             application/vnd.ms-powerpoint, */*
+     Accept-Language: en-us
+     Accept-Encoding: gzip, deflate
+     User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows NT)
+     Host: birdcage:4042
+     Connection: Keep-Alive
+
+  Note the lack of 'TE: chunked'.
+
+  We may have a problem with deployed origin servers and proxies, but
+  any such problem pales in comparison to replacing all the IE 1.1
+  browsers out there.
+
+> (5) Add a requirement that servers/proxies SHOULD NOT put
+> Authentication-Info or Content-MD5 in the trailer of any message
+> if the request includes a Via field that lists an HTTP/1.0
+> forwarder.
+
+> Also, it violates our duty to ensure interoperability of all of the
+> protocol features (rather than simply the interoperability of
+> features in isolation).
+
+  I don't believe that we have a duty to ensure that all 1.1 features
+  will work in the face of an undetected 1.0 proxy - that is too
+  restrictive a test.  I believe that in this situation all that is
+  required is that it be possible to detect that an error has occured
+  (easy - the expected response field [A-I or C-MD5] will be missing)
+  and why.
+
+  I support solution 1a - do not change the protocol at this very late
+  date, add a note describing the potential backward compatibility
+  problem in the face of certain 1.0 proxy situations.
+
+  If that won't fly, how about this - add a new 4xx error code:
+
+    10.4.19 418 Path Unsuitable
+
+    The request could not be satisfied because the path over which it
+    was received is in some way unsuitable.  The response body SHOULD
+    include an explanation of the problem to aid the recipient.   For
+    example, the response requires the use of chunked encoding with a
+    Content-MD5 header field in the trailer, but the origin server
+    detected a 1.0 proxy server in the request path.
+
+  this is backward compatible because it will be interpreted as 400 by
+  anything and the response body will explain the problem.
+
+attached mail follows:
+Roy T. Fielding wrote:
+>        c) all of the protocols listed in the Via header field are
+>           HTTP/1.1 or later; or,
+
+Note that the "Via" header was a new addition to HTTP/1.1.  HTTP/1.0
+proxies wouldn't add a "Via" header, and you therefore you wouldn't be
+able to tell by just looking at the "Via" header if there is an HTTP/1.0
+proxy in between.
+
+-- 
+Ari LuotonenOpinions my own, not Netscape's.
+Netscape Communications Corp.
+
+attached mail follows:
+
+On Tue, 18 Aug 1998, Ari Luotonen wrote:
+
+> Note that the "Via" header was a new addition to HTTP/1.1.  HTTP/1.0
+> proxies wouldn't add a "Via" header, and you therefore you wouldn't be
+> able to tell by just looking at the "Via" header if there is an HTTP/1.0
+> proxy in between.
+
+  I was confused about this too, but what proxies are supposed to put in
+the Via header is the version they _received_ from the downstream side,
+so a 1.1 proxy forwarding a request from a 1.0 proxy from a 1.1 browser
+would put 1.0 in Via (unless the 1.0 proxy is so broken that it
+forwarded the 1.1 from the browser - which I believe we have seen
+instances of).
+
+
+
+attached mail follows:
+Your 418 proposal fails because, in the absence of a method to indicate - on a
+non-chunked message - the final status code, it would require the proxy to
+buffer the entire object (at which time the point is moot).
+
+Regards,
+Richard L. Gray
+will code for chocolate
+
+
+
+lawrence@agranat.com on 08-18-98 11:12:12 AM
+Please respond to lawrence@agranat.com
+To: mogul@pa.dec.com
+cc: Richard Gray/Raleigh/IBM@ibmus, luotonen@netscape.com, josh@microsoft.com,
+fielding@ics.uci.edu, frystyk@w3.org, jg@w3.org, paulle@microsoft.com,
+masinter@parc.xerox.com
+Subject: Re: Analysis of "chunking, trailers, and buffering" problem
+
+
+>                  hop1            hop2             hop3
+>    OriginServer -------- ProxyA --------- ProxyB ---------- Client
+>    HTTP/1.1             HTTP/1.1         HTTP/1.0         HTTP/1.1
+>
+> ... there is no way for the end-hosts in this scenario
+> (Client or OriginServer) to even know that something has gone
+> wrong.
+
+  They'll know when the authentication fails.
+
+  My conclusion is that there are some aspects of 1.1, including
+  digest authentication and content-md5 that just won't end up working
+  in this scenario and that the proposed cures are worse than that
+  problem given that there are widely deployed 1.1 user agents that
+  won't provide the hints the solutions need.
+
+  The problem with any proposed solution that requires the TE field is
+  that at least some current deployed 1.1 user agents don't send it.
+  The following is a header capture from IE4.0 (with some manual line
+  wrapping):
+
+     GET / HTTP/1.1
+     Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg,
+             application/vnd.ms-excel, application/msword,
+             application/vnd.ms-powerpoint, */*
+     Accept-Language: en-us
+     Accept-Encoding: gzip, deflate
+     User-Agent: Mozilla/4.0 (compatible; MSIE 4.01; Windows NT)
+     Host: birdcage:4042
+     Connection: Keep-Alive
+
+  Note the lack of 'TE: chunked'.
+
+  We may have a problem with deployed origin servers and proxies, but
+  any such problem pales in comparison to replacing all the IE 1.1
+  browsers out there.
+
+> (5) Add a requirement that servers/proxies SHOULD NOT put
+> Authentication-Info or Content-MD5 in the trailer of any message
+> if the request includes a Via field that lists an HTTP/1.0
+> forwarder.
+
+> Also, it violates our duty to ensure interoperability of all of the
+> protocol features (rather than simply the interoperability of
+> features in isolation).
+
+  I don't believe that we have a duty to ensure that all 1.1 features
+  will work in the face of an undetected 1.0 proxy - that is too
+  restrictive a test.  I believe that in this situation all that is
+  required is that it be possible to detect that an error has occured
+  (easy - the expected response field [A-I or C-MD5] will be missing)
+  and why.
+
+  I support solution 1a - do not change the protocol at this very late
+  date, add a note describing the potential backward compatibility
+  problem in the face of certain 1.0 proxy situations.
+
+  If that won't fly, how about this - add a new 4xx error code:
+
+    10.4.19 418 Path Unsuitable
+
+    The request could not be satisfied because the path over which it
+    was received is in some way unsuitable.  The response body SHOULD
+    include an explanation of the problem to aid the recipient.   For
+    example, the response requires the use of chunked encoding with a
+    Content-MD5 header field in the trailer, but the origin server
+    detected a 1.0 proxy server in the request path.
+
+  this is backward compatible because it will be interpreted as 400 by
+  anything and the response body will explain the problem.
+
+
+
+attached mail follows:
+>Note that the "Via" header was a new addition to HTTP/1.1.  HTTP/1.0
+>proxies wouldn't add a "Via" header, and you therefore you wouldn't be
+>able to tell by just looking at the "Via" header if there is an HTTP/1.0
+>proxy in between.
+
+That is why the proxies list the incoming protocol in Via instead of
+their own.  Either 1.0 will be listed or the request itself will be HTTP/1.0
+(which isn't one of the cases because you can't send chunked to a 1.0
+request).
+
+....Roy
+
+attached mail follows:
+I wrote (admitedly in haste):
+
+>     10.4.19 418 Path Unsuitable
+> 
+>     The request could not be satisfied because the path over which it
+>     was received is in some way unsuitable.  The response body SHOULD
+>     include an explanation of the problem to aid the recipient.   For
+>     example, the response requires the use of chunked encoding with a
+>     Content-MD5 header field in the trailer, but the origin server
+>     detected a 1.0 proxy server in the request path.
+> 
+>   this is backward compatible because it will be interpreted as 400 by
+>   anything and the response body will explain the problem.
+
+Richard Gray replies:
+
+> Your 418 proposal fails because, in the absence of a method to 
+> indicate - on a non-chunked message - the final status code,
+> it would require the proxy to buffer the entire object (at which 
+> time the point is moot).
+
+I was perhaps unclear - my intent was that the origin server could decide to
+respond to the original request with a 418 when it saw the 1.0 in the Via
+header on a request it knew that it would need to send trailers for (in the
+case of my server, any qop=auth-int response).  The proxy needs no special
+handling.
+
+-- 
+Scott Lawrence           Consulting Engineer      <lawrence@agranat.com>
+Agranat Systems, Inc.  Embedded Web Technology   http://www.agranat.com/
+
+attached mail follows:
+    >                  hop1            hop2             hop3
+    >    OriginServer -------- ProxyA --------- ProxyB ---------- Client
+    >    HTTP/1.1             HTTP/1.1         HTTP/1.0         HTTP/1.1
+    >
+    > ... there is no way for the end-hosts in this scenario
+    > (Client or OriginServer) to even know that something has gone
+    > wrong.
+    
+      They'll know when the authentication fails.
+
+When the Authentication-Info header field appears in a response,
+will the *client* know whether authentication has failed?  Or
+will it simply become vulnerable to the very man-in-the-middle
+attack that the response-digest is supposed to prevent?  (I
+admit that I don't really understand the details of Digest Auth.)
+    
+But if there is no true security problem that arises when the
+Authentication-Info field is silently dropped, then I suppose
+we could just allow proxies to silently drop it whenever they
+feel like it.
+
+      The problem with any proposed solution that requires the TE field
+      is that at least some current deployed 1.1 user agents don't send
+      it.
+
+Not really.  The new use of the TE field is not required; it
+is only required to allow the optimization that avoids buffering
+the entire message at the origin server.
+
+Remember, this inevitably comes down to: someone has to buffer
+the entire message - is it the origin server or one of the proxies?
+    
+And we could couple this with "or no Via header in the request", and
+solve the problem for all proxy-free paths.
+
+      If that won't fly, how about this - add a new 4xx error code:
+    
+10.4.19 418 Path Unsuitable
+    
+The request could not be satisfied because the path over which it
+was received is in some way unsuitable.  The response body SHOULD
+include an explanation of the problem to aid the recipient.   For
+example, the response requires the use of chunked encoding with a
+Content-MD5 header field in the trailer, but the origin server
+detected a 1.0 proxy server in the request path.
+    
+      this is backward compatible because it will be interpreted as 400 by
+      anything and the response body will explain the problem.
+
+Alternatively (since it's a matter of opinion whether the
+"unsuitable" part of the path is the lack of buffer space in the
+proxy, or the lack of buffer space in the origin server), how
+about just sending
+
+    10.5.1 500 Internal Server Error
+
+    The server encountered an unexpected condition which prevented it
+    from fulfilling the request.
+
+which is, after all, an accurate description of what has happened :-)
+
+-Jeff
+
+attached mail follows:
+This is a bit of a digression, since it's pretty clear that we
+aren't going to follow this path for HTTP/1.1 ... but Roy writes:
+
+    The notion of a buffer negotiation protocol extension doesn't
+    really work.  Use of chunked indicates that the server is not aware
+    of the content length before sending the data, so it wouldn't know
+    if it could send it all in one buffer-limited size or not.
+
+I think you have made the incorrect assumption that the server
+only has two choices:
+
+(1) chunk the response and add a trailer to carry the digest.
+(2) generate an error because it doesn't know the length
+and digest before starting to send the data.
+
+but there is a third choice (however much Scott objects to it)
+
+(3) buffer the entire response and then send it with
+the digest in a header.
+
+Or even a fourth choice 
+
+(4) generate a shorter-than-normal response (i.e.,
+an odd form of content-negotiation).
+
+which is especially useful if the limited-size buffer is
+at the ultimate recipient (e.g., a PDA).  (I would argue,
+as I wrote in my original analysis, for separate end-to-end
+and hop-by-hop buffer size negotiations, since these are
+really separate problems.)
+
+The nice thing about a negotiation protocol is that, when it
+says there *is* enough buffer space at the receiver, the
+sender can safely use choice #1 and know that the message
+won't be lost due to buffering problems.  And when there
+is *not* enough buffer space, the server can make the choice
+between choice #2 and choice #3, rather than leaving the
+result up to chance.
+
+Most disk-based servers could easily implement #3; embedded
+servers might have to use choice #2.  But without some sort
+of explicit negotiation, it's hard to know whether you can
+safely implement #1.
+
+-Jeff
+
+attached mail follows:
+Jeffrey Mogul wrote:
+
+> When the Authentication-Info header field appears in a response,
+> will the *client* know whether authentication has failed?  Or
+> will it simply become vulnerable to the very man-in-the-middle
+> attack that the response-digest is supposed to prevent?  (I
+> admit that I don't really understand the details of Digest Auth.)
+
+In the latest version of Digest, the client also provides a nonce to be used
+by the server, so yes - the client can detect the failure. 
+
+> But if there is no true security problem that arises when the
+> Authentication-Info field is silently dropped, then I suppose
+> we could just allow proxies to silently drop it whenever they
+> feel like it.
+
+If the Authenitcation-Info field (whether in the header or the trailer) is
+removed, then the only indication of a problem is that something that had
+been assumed to require authentication now appears not to - this is possible
+with anyway due to MITM attacks.  Ultimately, that situation must be caught
+by the human user by noticing that the security attributes have changed;
+hence the recommendations in Security Considerations that there be an
+indication.
+
+>       The problem with any proposed solution that requires the TE field
+>       is that at least some current deployed 1.1 user agents don't send
+>       it.
+> 
+> Not really.  The new use of the TE field is not required; it
+> is only required to allow the optimization that avoids buffering
+> the entire message at the origin server.
+
+But the point is that because it is not sent by current 1.1 browsers it
+doesn't even do that.  The proposed change (for the optimization) is based
+on the premise that the buffering problem can be avoided, but without the TE
+it can't be.
+
+> Remember, this inevitably comes down to: someone has to buffer
+> the entire message - is it the origin server or one of the proxies?
+
+Neither - all we need is a way to indicate the problem.  I actually don't
+think it will come up much or persist long.
+
+-- 
+Scott Lawrence           Consulting Engineer      <lawrence@agranat.com>
+Agranat Systems, Inc.  Embedded Web Technology   http://www.agranat.com/
+
+attached mail follows:
+>I think you have made the incorrect assumption that the server
+>only has two choices:
+>
+>(1) chunk the response and add a trailer to carry the digest.
+>(2) generate an error because it doesn't know the length
+>and digest before starting to send the data.
+>
+>but there is a third choice (however much Scott objects to it)
+>
+>(3) buffer the entire response and then send it with
+>the digest in a header.
+
+I discarded that choice because it assumes the server knows that the response
+will be larger than what the downstream client has negotiated.  The server
+can't buffer all responses since that presents an unacceptable amount
+of user-perceived latency, so it would need to know ahead of time which
+ones should be buffered, but if it knew that it wouldn't need chunked.
+
+>Or even a fourth choice 
+>
+>(4) generate a shorter-than-normal response (i.e.,
+>an odd form of content-negotiation).
+
+That's what I meant by the trailing end-code on a chunked.  It works
+from both the performance and negotiation sides of the issue, but it
+would require that the trailer fields be specific to the amount of
+content actually sent in that message.  It would thus also require a
+partial content response delivered across the 1.0 hop that made clear
+which metadata applies to only the partial content.  We could use such
+a thing in any case for multihop request chains when the response
+is only partially available due to a dropped connection or partial cache.
+
+But such a concept would need its own I-D.
+
+....Roy
+
+attached mail follows:
+Jim asked me to try to send something out to the HTTP-WG
+before the IETF meeting.  However, he waited too long, and
+I may have spent too much time in meetings today before
+sending this.  Anyway, I wanted to see if we have any
+consensus among ourselves regarding a solution.
+
+How about the following:
+
+(E2) CONSENSUS RECOMMENDATION FROM THE HTTP/1.1 EDITORIAL GROUP
+
+Use of the Via header to detect potentially incompatible
+proxying paths seems to be the least objectionable solution
+at this point.  Also, it seems unlikely that we could
+enforce a new MUST-level requirement on either servers
+or proxies, since certain implementors of both kinds of
+software believe that they would have to violate it anyway.
+
+Here are the proposed changes for this solution:
+
+In section 3.6.1 (Chunked Transfer Coding), change this paragraph:
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].
+
+to read
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].  A server
+SHOULD NOT send any trailer fields if the request includes
+a Via header field listing one or more HTTP/1.0 hops,
+regardless of the content of any TE field in the request.
+
+    Note: a server that sends a trailer field in response
+    to a request with a Via field listing an HTTP/1.0 hop
+    is taking a risk that the trailer will not be delivered,
+    especially if the message is long.  If the loss of
+    the trailer would lead to significant and unrecoverable
+    problems, and if the server is unable to buffer the
+    entire response (in order to insert an Authentication-Info
+    or Content-MD5 header prior to the message-body), then
+    it might be appropriate to response with an error status,
+    such as 500 (Internal Server Error).
+
+    Note: the use of the "TE: chunked" request-header to
+    indicate a client's willingness to accept trailer fields
+    other than Authentication-Info or Content-MD5 is an
+    artifact of history.
+    
+In section 14.40 (Trailer), change this paragraph
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+to    
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+Note: section 3.6.1 recommends against the use of any
+trailer fields in a response to a request with a Via
+header field listing one or more HTTP/1.0 hops.  Trailers
+sent in violation of this requirement could be silently
+dropped by an intervening proxy, if the message is being
+forwarded to an HTTP/1.0 recipient.
+
+NB: respecting Koen's recent complaints, the change to 14.40
+does not restate the normative requirement in 3.6.1, but does
+remind the implementor why it is there.
+
+[End]
+
+attached mail follows:
+I really really really dislike the continuing use of TE to indicate
+anything about trailers.  In order for trailers to be usable, the
+entire response path must be willing to forward them or be willing
+to buffer the entire message or be allowed to discard them.  TE cannot
+indicate that because it is a hop-by-hop field, so we'd be better off
+removing the exception entirely and leaving that functionality to
+be specified properly in the future.
+
+Likewise, making specific exceptions for Content-MD5 and Authentication-Info
+is unnecessary if we just make a general statement for the condition
+where trailer fields can be included if it is permissible to ignore them.
+
+In other words, I believe the following is substantially better:
+
+In section 3.6.1 (Chunked Transfer Coding), change this paragraph:
+
+        A server using chunked transfer-coding in a response MUST NOT
+        use the trailer for other header fields than Content-MD5 and
+        Authentication-Info unless the "chunked" transfer-coding is
+        present in the request as an accepted transfer-coding in the TE
+        field (section 14.39). The Authentication-Info header is
+        defined by RFC 2069 [32] or its successor [43].
+
+to read
+
+    A server using chunked transfer-coding in a response MUST NOT
+    use the trailer for any header fields unless at least one of 
+    the following are true:
+
+       a) there is no Via header field (indicating a connection without
+          intermediary proxies);
+
+       b) all of the protocols listed in the Via header field are
+          HTTP/1.1 or later; or,
+
+       c) the server grants the recipient(s) the right and ability to
+          discard those trailer fields without forwarding them to any
+          downstream recipient of the remaining message.  This is
+          only possible if the trailer fields consist entirely of
+          optional metadata that is not necessary for the recipient
+          to understand in order to use the message.
+
+    The above requirement exists to avoid an interoperabilty paradox
+    when the message is being received by an HTTP/1.1 (or later) proxy
+    and forwarded to an HTTP/1.0 recipient.  It avoids a situation
+    where compliance with the protocol would have necessitated an
+    infinite buffer on the proxy.
+
+In section 14.40 (Trailer), change this paragraph
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields other than Content-MD5 and
+    Authentication-Info.  A server MUST NOT include any other header
+    fields unless the "chunked" transfer-coding is present in the
+    request as an accepted transfer-coding in the TE field.
+
+to    
+
+    If no Trailer header field is present, the trailer SHOULD NOT
+    include any header fields.  See section 3.6.1 for restrictions
+    on the use of trailer fields in a "chunked" transfer-coding.
+
+....Roy
+
+attached mail follows:
+       a) there is no Via header field (indicating a connection without
+          intermediary proxies);
+       b) all of the protocols listed in the Via header field are
+          HTTP/1.1 or later; or,
+       c) the server grants the recipient(s) the right and ability to
+          discard those trailer fields without forwarding them to any
+          downstream recipient of the remaining message.  This is
+          only possible if the trailer fields consist entirely of
+          optional metadata that is not necessary for the recipient
+          to understand in order to use the message.
+
+Editorially, it may be simpler if we combine (a) & (b). Either you're
+HTTP/1.1 through all proxies (if there are any) or else trailer fields
+may be discarded by recipients or proxies.
+
+Larry
+
+
+

@@ -1,0 +1,115 @@
+docno="lists-000-1697633"
+received="Sat Jul  3 17:04:51 1999"
+isoreceived="19990703210451"
+sent="Sat, 3 Jul 1999 14:03:56 -0700"
+isosent="19990703210356"
+name="Terry Teague"
+email="teague@macbroker.com"
+subject="Memory leaks in Tidy 2 Jul 99"
+id="l03130306b3a424766157@[17.219.105.242]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dear Folks,
+
+I have recently joined this mailing list - although I have been reading all
+the archives, there are number of things I wanted to say, which means
+signing up for the mailing list. I was hoping to reduce the amount of mail
+I was getting <grin>.
+
+Anyway, I am the person responsible for porting "tidy" to Mac OS. I have
+ported all versions of Dave's excellent code to the Mac OS, since the
+version released 01 Sep 98, both as command-line driven applications
+(minimal porting required), and with a GUI front-end.
+
+If you are interested, you can get more info on the ports from my web page :
+
+<http://www.geocities.com/SiliconValley/1057/tidy.html>
+
+I have learnt a lot during this porting process, and as I see questions
+occasionally related to other ports or bugs discovered being posted, I
+think I can provide some input. Originally I was going send this input to
+Dave in private EMail, but I have decided it will benefit others (perhaps
+at the risk of embarrasing Dave <grin>) if I share the info with the list.
+
+OK, here goes the first issue :
+
+Memory leaks in Tidy.
+
+In a command-line environment or other standalone application cases, memory
+leaks are usually not a problem, as memory is cleaned up on quit. But for
+other environments, memory leaks are a problem.
+
+In the process of tracking down some memory management related issues in my
+ports, I threw various debugging tools I had in my possesion, as well as
+some home-grown debugging code, at the problems. A number of memory leaks
+were discovered, primarily starting with the 15 Apr 99 version (since that
+was pretty much a rewrite of a lot of code). Independently, Jeffrey Wang
+found basically the same memory leaks, as per his EMail :
+
+<http://lists.w3.org/Archives/Public/html-tidy/1999AprJun/0032.html>
+
+>(1)
+>inside void FreeEntities(void) in entities.c
+>
+>should call
+>        MemFree(next->name)
+>before calling
+>        MemFree(next)
+>otherwise there is memory leak
+>
+>(2)
+>inside void FreeTags(void) in tags.c
+>
+>should call
+>        MemFree(next->name)
+>before calling
+>        MemFree(next)
+>otherwise there is memory leak
+>
+>(4)
+>inside pprint.c
+>
+>memory leak caused by buffer allocated for linebuf.
+
+These same leaks are still in current versions. And an additional memory
+leak that appeared in recent versions in "config.c".
+
+I haven't decided how I will fix the memory leak that is in "pprint.c" for
+the linebuf, but here is the fix I made for the leak in "config.c" :
+
+In FreeConfig() before the calls to MemFree(), add the following :
+
+   /* TRT */
+    PList *prev, *next;
+    int i;
+
+    for (i = 0; i < HASHSIZE; ++i)
+    {
+        prev = null;
+        next = hashtable[i];
+
+        while(next)
+        {
+            prev = next->next;
+            MemFree(next->name);
+            MemFree(next);
+            next = prev;
+        }
+    }
+
+Somewhat related in FreeConfig() - if you don't use a Config file, 2 NULL
+objects (slide_style and doctype_str ) are freed - passing NULL to free()
+is safe according to K&R; if you use a different memory allocator, as I
+sometimes do in my ports, you may need to check for NULL pointers (my debug
+version of memory management routines trapped these 2 NULL pointers).
+
+If you would like more info on the memory leaks, let me know.
+
+Regards, Terry Teague
+
+
+

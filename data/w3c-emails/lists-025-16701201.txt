@@ -1,0 +1,204 @@
+docno="lists-025-16701201"
+received="Thu Mar 20 15:12:27 2003"
+isoreceived="20030320201227"
+sent="Thu, 20 Mar 2003 12:11:35 -0800"
+isosent="20030320201135"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="RE: [Requirements] Non-requirement for MEPs"
+id="IGEJLEPAJBPHKACOOKHNOEPHDFAA.arkin@intalio.com"
+charset="iso-8859-1"
+inreplyto="EA3ECEFACBE7674789ADE4D9E3ABB6B03E18FA&#64;AMERWEST-EMS1.IONAGLOBAL.COM"
+expires="-1"
+
+To:"Patil, Sanjaykumar"<sanjay.patil@iona.com>
+Cc:<public-ws-chor@w3.org>
+
+
+
+> I completely agree that it will be useful for the choreography
+> layer to handle the business exceptions (product unavailable,
+> quote expired, etc).
+>
+> The issue I was trying to raise is how to deal with the errors
+> that originate in the functional layers  underneath the
+> choreography layer, and which necessarily need attention of the
+> higher layer (choreography in our case) for making progress.
+>
+> For example, a choreography employing Reliable Messaging layer is
+> NOT interested in knowing when the messages are reliable
+> delivered by the RM layer, but it IS interested in knowing if a
+> message can not be delivered after all attempts in the RM layer.
+> Some of its choreography logic subsequent to the activity of
+> sending the message would be assuming successful delivery and may
+> prefer to take alternative course in the case of failures.
+
+This is where faults come into play. A fault should express not the business
+exception but the fact that the operation could not be completed
+successfully. Failure to deliver a message (regardless of cause) is a fault.
+So the choreography must be able to accept that such a fault may occur and
+propose an alternative path.
+
+If you want to know whether the fault occurred because the last delivery
+attempt failed, or the message could not be validated, or there is no route
+to host, then you need very precise definition of what each fault means. If
+you just treat all these faults as "failed to deliver, regardless of cause",
+then simply being able to capture a fault may be sufficient.
+
+WSCI has the notion of a fault handler: one of the participants detects a
+fault and decides on an alternative path that is formalized in the
+choreography definition, so you know what cause leads to what effect. You
+can catch very specific faults, but you can also just catch any fault and
+switch to some alternative flow. In the later case you lose the fine-grained
+distinction between last retry and no route to host, but you can express the
+fact that a fault has occurred and some corrective action will be taken.
+
+Is that something that would meet your requirement?
+
+arkin
+
+>
+> For example, a real time broker hunting for the best price of an
+> item may ignore the vendors who can not be reached by reliable
+> messaging and process the responses from the ones who were
+> reachable at the time of the query.
+>
+> I however agree that not each and every error of the low level
+> stack would be of any value to the higher layers. However, those
+> errors, which if not handled would necessarily violate the
+> assumptions (and therefore interfere with the business logic) of
+> the higher layers need to be popped up. Perhaps the choreography
+> layer needs to be capable of handling such coarse grained/generic
+> errors for the functionality down the stack.
+>
+> Sanjay Patil
+> Distinguished Engineer
+> sanjay.patil@iona.com
+> -------------------------------------------------------
+> IONA Technologies
+> 2350 Mission College Blvd. Suite 650
+> Santa Clara, CA 95054
+> Tel: (408) 350 9619
+> Fax: (408) 350 9501
+> -------------------------------------------------------
+> Making Software Work Together TM
+>
+>
+> -----Original Message-----
+> From: Assaf Arkin [mailto:arkin@intalio.com]
+> Sent: Wednesday, March 19, 2003 11:58 AM
+> To: Patil, Sanjaykumar
+> Cc: public-ws-chor@w3.org
+> Subject: RE: [Requirements] Non-requirement for MEPs
+>
+>
+>
+>
+> > -----Original Message-----
+> > From: public-ws-chor-request@w3.org
+> > [mailto:public-ws-chor-request@w3.org]On Behalf Of Patil, Sanjaykumar
+> > Sent: Wednesday, March 19, 2003 10:20 AM
+> > To: Assaf Arkin
+> > Cc: public-ws-chor@w3.org
+> > Subject: RE: [Requirements] Non-requirement for MEPs
+> >
+> >
+> >
+> >
+> > >> <Assaf>
+> > >> I'm not sure there is much value in identifying specific
+> > faults, I think
+> > >> some coarse distinction will suffice.
+> >
+> > >> For example, the seller may send a message that the buyer
+> > cannot validate.
+> > >> The buyer can send back some fault. But the seller may
+> > validate the message
+> > >> on its side before sending it, determine the fault without
+> > having to receive
+> > >> it from the buyer. The seller may find that it's
+> > implementation is wrong and
+> > >> it cannot proceed. It's able to fix the implementation but
+> > that may take
+> > >> longer than the transaction timeout. So suffice that the
+> seller can say
+> > >> 'oops, something went wrong, let's decide to cancel the
+> transaction'. I
+> > >> don't think there's need to delve into the what went wrong in
+> > much detail,
+> > >> coarse grain would work fine for all the scenarios I've seen.
+> > >> </Asaaf>
+> >
+> > Even to say that "oops, something went wrong, let's decide to
+> > cancel the transaction", you need to know the exact type of the
+> > error. That is, if you wanted to define the behavior of the
+> > system to cancel the transaction for certain types of errors, you
+> > are already assuming that you can identify the types of errors.
+> > Isn't specifying the type of the error already getting into
+> > defining details of the error message!
+>
+> But I can do that in a very generic way.
+>
+> It's possible that a message has a well formed error, validation error,
+> attachment corrupt error, mandatory header not supported error, or
+> decryption failure error. At the choreography level do I care
+> which of these
+> errors prevented the message from being processed? Or can I just forumlate
+> the behavior in terms of a very generic error (like error = SOAP server
+> fault) ignoring the details?
+>
+> This is different from business errors, which may have more
+> specific effect
+> on the flow, errors like:
+>
+> - The product is not available, please update your catalog
+> - The quoted price is no longer accepted, please obtain a new quote
+> - Cannot possibly ship by this date, alternative date provided
+>
+> You would want to clearly define these errors and use suitable messages.
+> Usually these are messages, not specifically faults (in the WSDL
+> term). Even
+> if you decide to use faults, you can still define these faults precisely
+> using WSDL and address them specifically using a fault handler.
+>
+> The issue here - as I understood from reading Edwin's e-mail - is that the
+> faults listed above (invalid, unsupported header, etc) are not
+> well defined.
+> For the implementation this is an issue, but for the choreography
+> I have yet
+> to see a use case that distinguishes between failure due to invalid vs
+> failure due to malformed. I do see a difference between these generic
+> "server faults" and other type of errors, but the other type of errors can
+> be well defined by creating specific message definitions for them.
+>
+> arkin
+>
+>
+> > Once we support certain types of errors,  we may also have to
+> > augment the error message definitions with the exact information
+> > of the error instance. For example, a content-validation-failed
+> > error message can include the details of which element in which
+> > document was the culprit.
+> >
+> > Yes, a coarse grained error type is useful in its own merit and
+> > we could include such a category to account for unidentified
+> > errors. However, for those functionalities that will be directly
+> > supported by the choreography specification, we need to clearly
+> > support the relevant error messages also.
+> >
+> >
+> > Sanjay Patil
+> > Distinguished Engineer
+> > sanjay.patil@iona.com
+> > -------------------------------------------------------
+> > IONA Technologies
+> > 2350 Mission College Blvd. Suite 650
+> > Santa Clara, CA 95054
+> > Tel: (408) 350 9619
+> > Fax: (408) 350 9501
+> > -------------------------------------------------------
+> > Making Software Work Together TM
+>
+
+
+

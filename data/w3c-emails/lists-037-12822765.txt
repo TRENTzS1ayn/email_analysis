@@ -1,0 +1,221 @@
+docno="lists-037-12822765"
+received="Wed Mar 26 03:22:57 1997"
+isoreceived="19970326082257"
+sent="Wed, 26 Mar 1997 00:09:52 -0800"
+isosent="19970326080952"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Three Versioning Examples"
+id="11352BDEEB92CF119F3F00805F14F485026B72C3@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To: DAV Discussion<davdisc@microsoft.com>
+
+1.Versioning Examples
+
+1.1Create a Tree Handle and a new version
+
+If one wants to create a resource that will be under server maintained
+versioning, one needs to create a tree handle. A client can always just
+blindly try their luck by executing:
+PUT http://foo HTTP/1.1
+Version-ID: Request 1.0
+Content-Nature: DAV:STRUCTURE:ITEM:VERSIONED
+
+If successful this creates an empty tree handle. However the server may
+not allow versioned resource at http://foo. So the client will probably
+have to first retrieve the DAV.VersionSpace link to find out where the
+server allows tree handles to be created. The client, happily, discovers
+that http://foo is eligible and performs the PUT.
+
+The response is:
+HTTP/1.1 201 Created
+Location: http://foo/version0
+Version-ID: Set 0
+Etag: "If I were a rich man"
+
+Note that a Content-Nature is not returned in the result. This is
+because http://foo/version0 is a normal resource, it is not versioned.
+It is, however, part of a versioned resource, http://foo. 
+
+The client is about to go out into the field to collect some data.  So
+the client wants to take out a lock on http://foo, where the data will
+be recorded. However the client doesn't know what sort of locking the
+server uses, exclusive write or advisory. So the client executes:
+METAGET http://foo HTTP/1.1
+Attribute-Specify: name = DAV:LOCKTYPE
+
+The result tells the client that the server only supports exclusive
+write locks. So the client executes:
+LOCK http://foo HTTP/1.1
+Lock-Info: LockType = Write LockScope = Exclusive
+TimeOut: NONE
+Comment: "About to update data"
+LockOwner:  mailto://noone@nowhere.net
+
+The client still has a copy of the file that was originally checked in
+so the client just makes changes locally and then executes:
+
+PUT http://foo HTTP/1.1
+Merge: http://foo/version0 "If I were a rich man"
+Version-ID: Request 1.1
+
+Note that the content-nature header is not included. It is not needed
+because the client already knows that http://foo is a tree handle. 
+No one has made any changes to the resource so the e-tag checks out and
+the new version is created. The response is:
+
+HTTP/1.1 201 Created
+Location: http://foo/version1
+Version-ID: Set 1
+Etag: "I sing the body electric"
+
+
+1.2Versioning Projects
+
+A user is going to create a program with two files. The first thing the
+user wants to do is to create a project to hold the program files. So
+the user executes:
+PUT http://foo HTTP/1.1
+Content-Nature: DAV:STRUCTURED:CONTAINER:VERSIONED
+
+http://foo supports versioning so the resource is successfully created.
+The response is:
+HTTP/1.1 201 Created
+Version-ID: Set "Directory 0"
+Location: http://foo/1
+Etag: "It is a far better thing I do..."
+
+The client then locks the container so no one else can add or remove
+anything from it while the client is working.
+
+LOCK http://foo/1 HTTP/1.1
+Lock-Info: LockType = Write LockScope = Exclusive
+TimeOut: NONE
+Comment: "Adding program files"
+LockOwner:  mailto://noone@nowhere.net
+
+HTTP/1.1 200 Success
+Lock-Token: DAV:foo:1234
+
+The client then wants to put in two files.
+
+PUT http://foo/1/main.c HTTP/1.1
+Version-ID: Request "1.0"
+Content-Nature: DAV:STRUCTURED:ITEM:VERSIONED
+Content-Type: text/plain
+< Request Body >
+
+HTTP/1.1 201 Created
+Version-ID: Set "1"
+Location: http://foo/1/main.c/1
+Etag: "Yo ho ho"
+
+PUT http://foo/1/headers.h HTTP/1.1
+Version-ID: Request "1.0"
+Content-Nature: DAV:STRUCTURED:ITEM:VERSIONED
+Content-Type: text/plain
+< Request Body >
+
+HTTP/1.1 201 Created
+Version-ID: Set "1"
+Location: http://foo/1/headers.h/1
+Etag: "Yo ho ho"
+
+Finished the client removes the lock:
+UNLOCK http://foo/1 HTTP/1.1
+Lock-Token: DAV:foo:1234
+
+The user then realizes that the entire first program was a mistake and
+wants to start over. However the old files still need to be kept around
+in case anyone picked them up. So the user decides to create a new
+version of the project.
+
+PUT http://foo HTTP/1.1
+Merge: http://foo "It is a far better thing I do..."
+Comment: "I completely flubbed the first version, I am starting over."
+Content-Nature: DAV:STRUCTURED:CONTAINER:VERSIONED
+
+The Content-Nature is not necessary. Note that the client did not take
+out a lock. As the system only supports exclusive write locks the worst
+that can happen is that the request is rejected.
+
+HTTP/1.1 201 Created
+Version-ID: Set "Directory 1"
+Location: http://foo/2
+Etag: "Yo Ma!"
+
+The user then realizes that a copy of main.c from the first version of
+the directory is needed.
+
+GET http://foo/1/main.c/1 HTTP/1.1
+
+HTTP/1.1 200 Success
+Content-Disposition: filename = main.c
+Etag: "Lama? Stam."
+<Response Body>
+
+If the client had asked for:
+
+GET http://foo/1/main.c HTTP/1.1
+
+Then a history would have been returned rather than the actual item.
+
+1.3Distributed Versioning
+
+There are two different scenarios for distributed versioning. One is
+server mandated. For example, let us say that the previous user wants to
+put a main.c into http://foo/2.
+
+PUT http://foo/2/main.c HTTP/1.1
+Content-Type: text/plain
+< Request Body >
+
+There is no merge header because this is a new resource.
+
+HTTP/1.1 201 Created
+Content-Nature: DAV:STRUCTURED:ITEM:VERSIONED
+Location: http://bar/x51 
+Etag: "Lo Chosuv"
+
+Note that the server has unilaterally decided that the resource will be
+versioned and has chosen to record the result in an entirely different
+name space. If the client wishes to find its tree handle it will have to
+look up the DAV.Versioning.History. Note, that the client can tell it
+has reached the tree handle because the content-nature will be
+DAV:STRUCTURE:ITEM:VERSIONED or DAV:STRUCTURE:CONTAINER:VERSIONED. If
+the destination of DAV.Versioning.History doesn't have that
+content-nature then this version tree doesn't have a tree handle. This
+is typical of repositories.
+
+The other possibility is that the client wishes a versioned resource to
+remain in a certain location but wants it to be a member of a project in
+another location. In this case the client will have to use a
+DAV.*PropagateLink. For example the client has created a new header.h at
+http://bar/header.h and wants to have it included in http://foo/2. 
+
+LINK http://foo/2 HTTP/1.1
+Link: <http://foo/2> ; destination = http://bar/header.h; type =
+DAV.PropagateLink
+
+This same behavior could be used on a tree handle. For example, if there
+is a new version of main.c recorded at http://bar/main.c. In order to
+find the tree root for main.c the client needs to follow the
+DAV.Versioning.History link from http://bar/x51 to its root, which I
+will say is http://foo/2/main.c.
+
+LINK http://foo/2/main.c HTTP/1.1
+Link: <http://bar/x51>; destination = http://bar/main.c; type =
+DAV.Versioning.NextVersion; MergeURI = http://bar/x51; MergeEtag = Lo
+Chosuv"; version-id = "Something I made up"
+ 
+The server now has all the information it needs to create a
+DAV.Versioning.NextVersion link and to properly express this link in the
+history.
+
+In essence atwo pieces of information are needed to link in a new
+version, merge and version-id.
+
+
+

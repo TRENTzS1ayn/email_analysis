@@ -1,0 +1,139 @@
+docno="lists-006-16243308"
+received="Thu Dec 13 08:18:55 2001"
+isoreceived="20011213131855"
+sent="Thu, 13 Dec 2001 12:54:02 +0000"
+isosent="20011213125402"
+name="Tim Ellison"
+email="Tim_Ellison@uk.ibm.com"
+subject="Re: Parallel Development"
+id="OFE849176D.9E898CCE-ON80256B21.004449B1@portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="Parallel Development"
+expires="-1"
+
+To:"Ietf-Dav-Versioning (E-mail)"<ietf-dav-versioning@w3.org>
+
+
+"Kirmse, Daniel" <daniel.kirmse@sap.com> wrote:
+> HI,
+> 
+> its getting complicated! First of all many thanks to everyone
+> anwsering my questions so far! It helped me a lot.
+> 
+> So next question:
+> 
+> Scenario:
+> Suppose a development environment where the development
+> codeline is kept in a workspace. Within this Workspace
+> there is a VCR /DEV/a.c the checked-in property points
+> to version  V1.
+
+Ok, so there are two distinct resources, a version-controlled resource at
+    /DAV/a.c
+
+and a version resource at some server-generated URL, let's say,
+    /versions/vh1/r23
+
+The checked-in property of the version-controlled resource has a value 
+that is the URL of the version.  This means, "the version-controlled 
+resource is checked-in (i.e. `immutable`) and it has identical (i.e. a 
+true copy of) content and dead properties as the version whose URL is in 
+the DAV:checked-in property"  Note that the version-controlled resource 
+may have different live properties to the version resource.
+
+> Now there is a checkout of the checked-in version of /DEV/a.c
+> into a working-resource WR1.
+
+Just to be pedantic, a version is not checked-in (or checked-out for that 
+matter), but applying CHECKOUT to a version creates a new working resource 
+with the same content and dead properties as the version.
+
+> In my understanding of DeltaV the checked-in property of the
+> VCR is not changed by this action.
+
+Correct, the version-controlled resource is unaffected by the creation of 
+the working resource.  It remains a checked-in version-controlled 
+resource.
+
+> Now another checkout of the checked-in version into a working-
+> resource WR2 is done (i.e. two developer working parallel on
+> the same source). Rigth so far?
+
+Sure (assuming liberal fork control) you can create more working resources 
+by applying CHECKOUT to the version resource.
+
+> If not, is there a way in DeltaV to get done the behavior
+> described below?
+
+> Now WR1 is checked in. WR1 disappears the version history
+> (VH) of /DEV/a.c contains a new version V2 that is a descendant
+> of V1.
+
+Correct.
+
+> In my understanding the checked-in property of the
+> VCR is set to V2 during this checkin. Still right?
+
+Nope (we were doing so well up to this point :-)
+
+The version-controlled resource is not updated since there is no tie 
+between the working resource created by checking out the version, and the 
+version-controlled resource.  So in this scenario, the version-controlled 
+resource would still have the same content and dead properties as the 
+version V1.
+
+If you did want to update the version-controlled resource there are two 
+ways to do this.
+
+(1) Rather than check-out the version to create a working resource you 
+could have just checked-out the version-controlled resource 'in-place'. 
+You would then modify the version-controlled resource (PUT, PROPPATCH, 
+etc.) and check-in the version-controlled resource to create a new 
+version.  However, modifying the resource in-place obviously means that 
+other clients would see your work in progress.  In the trivial case this 
+is state that you didn't want to version because it was incomplete; but 
+more seriously it could be a state that is inconsistent because there is 
+no way to modify the properties and content simultaneously (imagine a 
+"FOOBAR:last-modified-by" property).  So the alternative way is...
+(2) send CHECKOUT to the version-controlled resource _with_ a 
+DAV:apply-to-version flag.  Now you have a (hidden) working resource that 
+is coupled to the version-controlled resource, as evidenced by it's 
+DAV:auto-update property.  Since the working resource is effectively 
+hidden from other clients, you can modify the content and properties, 
+numerous times, and finally CHECKIN the working resource.  This check-in 
+will create the new version, delete the working resource, *and* update the 
+version-controlled resource identified by the DAV:auto-update property.
+
+> Now WR2 is checked in. Checkin fork is forbidden. Because there
+> is a descendent to V1 allready and the checkin fork is forbidden.
+> So a merge must be forced (how?). After that done the checked-in
+> property of the VCR points to the merged version of V2 and the
+> checked in version of WR2. Right?
+
+So now, hopefully, you see that you can't get into this mess<g>.
+
+> Background:
+> I have a development codeline. A file to edit is a VCR. I want
+> the possibility of two (or more) developers working parallel
+> with this file. But I want them to do a merge of their work at
+> the second checkin (the checkin of the first developer causes
+> no problems).
+
+So you would have the DAV:checkin-fork property set to DAV:forbidden for 
+each version to force the second checking to fail, and force a merge.
+
+> And I want the VCR point to the most current checked-in version
+> of its VH automatically. Is this achieveable?
+> I think it must be, since this is what can be done using
+> Perforce.
+
+Again, by checking out the version 'through' the version-controlled 
+resource, i.e. by using <DAV:apply-to-version/> you can get the 
+DAV:auto-update behaviour described above.
+
+
+Regards,
+Tim
+
+
+

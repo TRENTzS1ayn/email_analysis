@@ -1,0 +1,168 @@
+docno="lists-040-10645945"
+received="Thu Mar  1 01:48:09 2001"
+isoreceived="20010301064809"
+sent="Wed, 28 Feb 2001 22:57:05 -0800"
+isosent="20010301065705"
+name="John Glavin"
+email="john@riverfrontsoftware.com"
+subject="Re: UTF-8 Encoding Question"
+id="000c01c0a21c$d3fed090$0c77b2d1@win2k"
+charset="iso-8859-1"
+inreplyto="20010228165415.N2297&#64;lyra.org"
+expires="-1"
+
+
+To:"Greg Stein"<gstein@lyra.org>,"John Glavin"<john@riverfrontsoftware.com>
+Cc:<w3c-dist-auth@w3.org>
+
+Thanks, this makes sense now.  I guess what I can do is see if the URI
+contains a valid UTF-8 sequence and if it does then assume it's UTF-8
+encoded.  I got the following text from RFC-2279
+
+UTF-8 strings can be fairly reliably recognized as such by a
+      simple algorithm, i.e. the probability that a string of characters
+      in any other encoding appears as valid UTF-8 is low, diminishing
+      with increasing string length.
+
+Webfolders must be doing something similar to this since it understands both
+UTF-8 and Latin-1.
+
+John Glavin
+RiverFront Software
+john@webdrive.com
+http://www.webdrive.com
+
+
+----- Original Message -----
+From: "Greg Stein" <gstein@lyra.org>
+To: "John Glavin" <john@riverfrontsoftware.com>
+Cc: <w3c-dist-auth@w3.org>
+Sent: Wednesday, February 28, 2001 4:54 PM
+Subject: Re: UTF-8 Encoding Question
+
+
+> We just had a discussion related to this on mod_dav's mailing list.
+>
+> On Wed, Feb 28, 2001 at 03:52:37PM -0800, John Glavin wrote:
+> >...
+> > But I run into a problem with the mydocsonline.com DAV server which says
+> > it is using UTF-8 Encoding but returns the href as href: Magn%FCs.txt
+> > This is not UTF-8 encoded, because characters > 0x80 in UTF-8 will be
+> > encoded in a multibyte sequence.  This is normal ISO-8859 (Latin)
+Encoding.
+>
+> There are two references to UTF-8 in the response: the Content-Type header
+> and the XML document header:
+>
+>     Content-Type: text/xml; charset="utf-8"
+>     <?xml version="1.0" encoding="utf-8"?>
+>
+> Both of these refer to the *response body*. In that sense, all characters
+in
+> the body are properly UTF-8 encoded.
+>
+> The URL itself is in its "escaped" form. See sections 2.4.2 of RFC 2396
+for
+> more info. Section 2.1 covers the general problem of UTF-8 encodings for
+> URLs.
+>
+>
+> To be more concrete. Section 2.1 defines two types of characters: "URI
+> characters", and "original characters". The "utf-8" above refers to the
+URI
+> characters since that is what is sitting in the body of the response.
+>
+> The % escaping will give you a set of octets. The question then becomes,
+> "what encoding will transform those octets into the 'original'
+characters?"
+> At the moment, you do not have enough information to do that. There is no
+> attribute or header or other item that you can inspect for that.
+>
+> > In this case I am not sure what to do.  I use the Windows API call
+> > MultiByteToWideChar function but I need to tell it to use either UTF-8
+or
+> > ANSI code pages.  For the mydocsonline server I need to use ANSI however
+> > they are telling me to use UTF-8 and using UTF-8 wont work.
+> >
+> > When I use Webfolders it works properly on the mydocsonline server and
+> > somehow knows to not use UTF-8 decoding.  Does anyone have any idea why
+it
+> > works or how I could really detect which code page to use ?
+>
+> I think your statement about it "working" for some servers, and not
+working
+> for mydocsonline (which is based on an early mod_dav; the current mod_dav
+> has the same issue, tho) is based on a presumption that the character set
+> for the URI characters == the charset of the original characters. That
+> assumption is being made by servers and clients today.
+>
+> In mod_dav's case, we take the URI's (unescaped) octets and simply save
+the
+> resource under that name. We then return it using the same octet sequence
+> (properly escaped). The net effect is that we keep the same encoding of
+the
+> "original characters" for the client. Of course, the problem arises when
+one
+> client saves using a UTF-8 encoding and another reads as Latin-1.
+>
+> But mod_dav does not have enough information from the client to decode the
+> URL into (say) Unicode, and save that. If it could, then we could always
+> return a UTF-8 encoding for the original characters (although we would
+still
+> have no way to tell that encoding to the client; clients would just
+continue
+> to assume the response encoding matches that encoding and it would
+*happen*
+> to match).
+>
+>
+> To be really clear, let's go with a little diagram here:
+>
+>     Unicode resource name ("original characters")
+>        |
+>      [ UTF-8 encoding ]
+>        |
+>     URI octet sequence
+>        |
+>      [ URI %-escaping ]
+>        |
+>     Returned URI ("URI characters")
+>
+> But another totally legal scenario is:
+>
+>     Latin-1 resource name ("original characters")
+>        |
+>      [ identity (no) encoding ]
+>        |
+>     URI octet sequence
+>        |
+>      [ URI %-escaping ]
+>        |
+>     Returned URI ("URI characters")
+>
+> There is nothing in the response body to indicate which of the above two
+> forms is occurring. Similarly, there is nothing in the request body to
+> indicate which was used for the Request-URI. Because of the latter,
+servers
+> are just as broken if they make an assumption about how to decode from the
+> URI octets into original characters.
+>
+> mod_dav does not attempt to decode/encode between octets and original
+> characters. It just keeps them as octets. But that does imply that the
+> encoding used by the client when it stored the resource better be the same
+> encoding used when accessing the resource and the same decoding used for a
+> PROPFIND result.
+>
+> RFC 2396, section 2.1 explicitly punts this issue to a future date. It
+seems
+> that I recall an internet draft, or even possibly a new RFC, but I'm not
+> immediately aware of it.
+>
+> Cheers,
+> -g
+>
+> --
+> Greg Stein, http://www.lyra.org/
+
+
+

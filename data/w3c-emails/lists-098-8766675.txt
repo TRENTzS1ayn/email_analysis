@@ -1,0 +1,73 @@
+docno="lists-098-8766675"
+received="Fri Jul  5 18:13:51 2002"
+isoreceived="20020705221351"
+sent="Fri, 5 Jul 2002 23:13:39 +0100"
+isosent="20020705221339"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Fix for stringToN3 in notation3.py [was Re: CWM bug [...]]"
+id="013001c22471$39c4d320$35560150@localhost"
+charset="iso-8859-1"
+inreplyto="012301c2246b$fc6d0920$35560150&#64;localhost"
+expires="-1"
+
+
+To:"Dan Connolly"<connolly@w3.org>,"Sampo Syreeni"<decoy@iki.fi>
+Cc:"Tim Berners-Lee"<timbl@w3.org>,<www-archive+n3bugs@w3.org>
+
+
+> it gave this output:-
+>
+>          :con_Street "K\u00c3\u00a4mnerintie 4 A 22" .
+>
+> which is still wrong.
+
+I found that the problem was in the "stringToN3" function in notation3.py,
+which assumed that the string input was a python unicode string when it
+fact it was being passed a UTF-8 encoded string. The function needed to be
+updated anyway, so I've completely re-written it:-
+
+[[[
+def stringToN3(s):
+    Escapes = {'\a':  '\\a',
+               '\b':  '\\b',
+               '\f':  '\\f',
+               '\r':  '\\r',
+               '\v':  '\\v',
+               '"':   '\\"'}
+    # if this is not a unicode string, make it so
+    if type(s) is type(''): s = unicode(s, 'utf-8')
+
+    literal = '"""%s"""'
+    if not ((len(s) > 20) and (s[-1] != '"')
+        and (('"' in s) or ('\n' in s))):
+        Escapes['\n'] = '\\n'
+        Escapes['\t'] = '\\t'
+        literal = '"%s"'
+
+    s = s.replace('\\', '\\\\')
+    for k in Escapes.keys(): s = s.replace(k, Escapes[k])
+
+    # to just UTF-8 encode: s = s.encode('utf-8')
+    # but we'll convert them into \uXXXX codes
+    s = re.sub(ur'([\u0080-\uffff])',
+               lambda m: '\\u%04X' % ord(m.group(1)), s)
+
+    return literal % s
+]]]
+
+now it gives the following output for the utf8lit.n3 test case:-
+
+         :con_Street "K\u00E4mnerintie 4 A 22" .
+
+
+and it should also be a bit quicker.
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://purl.org/net/swn#> .
+:Sean :homepage <http://purl.org/net/sbp/> .
+
+
+

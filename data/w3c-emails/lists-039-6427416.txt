@@ -1,0 +1,269 @@
+docno="lists-039-6427416"
+received="Tue Aug 10 23:21:32 1999"
+isoreceived="19990811032132"
+sent="Tue, 10 Aug 1999 20:15:55 -0700"
+isosent="19990811031555"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="Oslo IETF WG Minutes"
+id="NDBBIKLAGLCOPGKGADOJOEMKCCAA.ejw@ics.uci.edu"
+charset="iso-8859-1"
+expires="-1"
+
+To: WebDAV WG<w3c-dist-auth@w3.org>
+
+
+Just received a message in my inbox that reminded me that the minutes from
+the last IETF were never sent out to the mailing list.  My apologies for the
+delay, I should have gotten them out sooner.
+
+Major, major thanks go out to Lisa Lippert for her excellent note taking
+during the meeting.
+
+- Jim
+
+----------------------
+
+WebDAV WG Minutes
+Oslo IETF 45
+Thursday, July 15, 1999
+
+
+A meeting of the WebDAV working group was held on Thursday, July 15, 1999,
+from 9:00AM to 11:30AM.  Geoff Clemm was the acting chair for the duration
+of the meeting.  Minutes were recorded by Lisa Lippert.
+
+BINDING SEMANTICS
+-----------------
+There was not enough consensus on what a direct reference should be, how it
+should interact with locking/collections/versioning, so this was dropped and
+the redirect bindings were used.
+
+New method:  BIND
+
+Larry Masinter:  It seemed that the model for these representations did map
+into the underlying architecture, is that true?  Is it widespread?  Do BIND
+and ordered collections map to existing capabilities or is it new capability
+that people are comfortable adding?
+
+Geoff Clemm:  People want this behaviour.  The proposal already takes into
+account some subtleties of existing implementations.
+
+Yaron Goland:  Essentially it started with Unix, 'ln' type functionality.
+How can we best represent it in the protocol as closely as possible to
+existing linking functionality?  On the other hand, ordered collections have
+apparently been implemented in very advanced doc mgmt systems, nevertheless
+Judy Slein did a good job of specifying this functionality.
+
+Geoff: There are a couple of other people on the ML saying this is required
+functionality.
+
+Geoff returned to discussing bindings:  bindings allow you to bind
+"/a/b/foo.html" to "/a/b/bar.html", so that a resource has two names, a
+PROPPATCH will affect both.  It does cause interesting issues with LOCK --
+if you lock one, can you MOVE the other?
+
+Explanation of how a binding to a collection works -- rather than have a
+shadow resource created for every resource within the collection, just the
+collection link is created.  The purpose of the collection binding is,
+however, to have available all the collection resources under the new link.
+
+Jules?  worried about whether this was specifying the implementation, and
+Geoff clarified that the implementation discussion was only to ensure that a
+compliant implementation was possible, and any other way of implementing
+consistent with the protocol is valid.
+Geoff explained how a collection binding requires that new resources in the
+source collection results in new resources available under the link
+collection.
+Jules asked whether the protocol violated the reversibility of the bindings,
+and Geoff does not think this has been violated.
+
+Geoff discussed circular bindings:
+
+BIND /x/ to /x/circle-x/
+
+This results in
+   /x/
+   /x/y/
+   /x/circle-x/
+   /x/circle-x/y
+   /x/circle-x/circle-x/
+   ...
+
+We strongly distinguish bindings, which connect a name and a resource, and a
+mapping, which is a connection between some legal name and a resource.  The
+creation of one new binding can induce an infinite number of mappings, i.e.
+names that are now linked to a resource.  A delete of a binding can remove
+an infinite number of mappings.
+
+Because of this, a circularity check is required.  PROPFIND depth infinity
+does include a circularity check that only needs to be done by servers that
+support bindings.  There is a new response code to be returned rather than
+return a 500 server error.
+
+Yaron pointed out that servers may just ignore this requirement as roughly
+equivalent.
+Nick Shelness:  I have a hunch this breaks the model where resources know
+what they belong to.  You might have an infinite number of membership.
+Geoff thinks this is OK though.  Nick will think more about this.
+
+Question:  Why do we even allow circularity?
+
+Geoff: it was argued that it was tougher to prevent circularity than to deal
+with it, but the more important argument is that it should be possible to
+just classify a collection as part of a set which contains itself, that
+there were contains-itself relationships that people wanted to model.
+Example from "include" files:  a collection which contained all the files
+included might include itself.  These might be excluded by some kind of
+#ifdef behaviour... Everybody in the design team had their own favourite
+example of why circularity should be allowed (otherwise would be faked in
+some way more painful than asking the server to do the circularity check)
+
+Yaron:  We've created a situation where any PROPFIND depth infinity request
+will generate an error if there is a circularity.
+
+Geoff:  We thought of some custom stuff to tell the server to "ignore
+circularities", but figured it's most useful for clients to be able to deal
+with the circularity error by controling depth more carefully in requests.
+
+Yaron:  These relationships have kind of poisoned effects.  E.g. Depth
+infinity DASL requests will be the rule, and these will now result in errors
+because of a cycle somewhere, and that seems problematic.  I would like to
+see some kind of discussion of what circularities would result in for other
+areas of DAV, like searching, versioning, etc.
+
+Geoff: Yes, we wanted to open this up for discussion.  If anybody else
+requires this feature, add your vote.
+
+Question:  Note that circular references might be much more complex, and
+involve many levels before the circularity is discoverable.  This is a hard
+problem to find out when the binding is created:  a complete tree traversal
+would be required every time a reference is created.  It might make sense,
+when doing these traversals, to indicate to the server not to traverse
+links, just like in Unix.
+
+Geoff:  This was one of the reasons for removing support for direct
+bindings.  There is no difference between the original URL to a resource and
+the new bound URL, they are both bindings to the actual resource.  The
+result is that instead of paying on deep traversals, you pay on every
+binding.  To require the server to do this check on every creation of a
+binding was actually the more serious implementation check than to do this
+only on PROPFIND depth infinity.
+
+Lisa Lippert:  The price for not checking when the binding is created could
+me more than we can know now, covering more than just PROPFIND depth
+infinity.
+
+Geoff:  Yes.
+
+Yaron:  MOVE and COPY are like this.
+
+Geoff:  MOVE is very like BIND, it just creates a new link between a name
+and a resource.  If anybody else can identify the methods which concern
+them...
+
+Yaron:  That's why I'm pounding on the model.  I think we just have to say
+we're running with scissors with this feature.
+
+John Stracke:  But since a MOVE is a COPY followed by a DELETE...
+
+Yaron:  NO.  In the webDAV spec, MOVE is not defined as a copy followed by a
+delete.  We said that a MOVE is logically equivalent to an atomically
+performed (with fixup) COPY then DELETE.  It was an attempt to inherit
+certain behaviours that applied to COPY, without specifying implementation.
+We knew that certain servers would end up deleting a resource (i.e. in the
+case of a MOVE from one server to another).  We needed a way to say that if
+a MOVE operation implementation did involve a DELETE, it would operate in a
+certain way to comply with requirements from the military.
+
+Geoff:  I need to explain how MOVE works with respect to bindings.  A MOVE
+is, in the case of a binding, like a BIND followed by a DELETE.  The
+difference is in all the other bindings to the thing that is being moved:
+the other bindings (other than the ones being moved) are unchanged; they
+continue to have the same name and point to the same resource.  This is
+important, because the result does not involve creating a brand new copy of
+the resource, which is what a COPY then DELETE would cause.
+
+Summary:  the core of bindings is pretty simple, but it has some interesting
+implications.  Modulo a few problems, the WebDAV base has been a good one to
+work on, it's a very effective base to work on for both the design teams I'm
+on.
+
+PROCESS QUESTIONS
+-----------------
+Question:  Do you feel the ordering sections of advanced collections are
+complete?
+Geoff:  We (the authors, at least) only agree that clients should be able to
+tell the server that this should be after that.  We don't know what
+server-maintained orderings are or mean.  Client-defined orderings are less
+controversial.
+
+Question:  It sounds like there are actually three independent
+specifications in advanced collections, at different levels of completion...
+
+Geoff:  Yes, the status of ordering is that not many cared, and the few who
+did only agree on client-side ordering.  It would be a shame to hold up the
+rest of the protocol while we're resolving that issue.  There's less
+administrative need to separate the redirect references from the binding
+functionality; on the other hand their connection is gratuitous.
+Keith:  Just put redirect references in a separate document.
+
+Larry:  Historically, redirect references were a response to requirements
+for collection-based functionality.
+
+Geoff:  I am happy to follow Keith's direction so if anybody else has a
+problem take it up in mail. Are there other issues with respect to these
+specifications -- is it OK for them to fall under the "finishing up WebDAV"
+WG?
+
+Keith:  Is it close to being done?
+
+Geoff:  Yes
+
+Yaron:  No
+
+Keith:  Take 3 months to finish, then decide what to do, but don't go under
+the assumption that the current WebDAV WG will continue to exist to do this.
+I bet you could get the bindings done in under 3 months.  Do them in the
+order of how you think you can get them done.
+
+Larry:  Just split up the document and last-call the pieces.
+
+Geoff: Whichever are done in 3 months fall under this WG...
+
+Larry:  It's not that there is less consensus for ordering, there are just
+fewer people interested in seeing this functionality.  That doesn't mean it
+will drag out any longer than bindings.
+
+Geoff:  Any other issues?
+
+Larry:  There are two elements of functionality which I think need to be
+worked out before we can say we've accomplished a protocol that can be used
+to do distributed authoring:
+
+ - variants
+ - compound documents
+
+This doesn't meet the charter until we've resolved those.
+
+Keith:  A lot of people have been chewing over those for decades.  I'm not
+sure you can do anything.
+
+Larry:  I'm interested in pursuing protocol elements that would further this
+functionality, whether within this WG or elsewhere.  This could be done in
+DMA.
+
+Yaron:  I would much rather this happen in IETF.  We would have to do a lot
+of work before the work could continue in DMA with the same kind of
+openness.
+
+Geoff:  One could use the same gating function for a subset of the
+versioning work that is of sufficient maturity that it could be closed off
+in 3 months.
+
+Keith:  No.
+
+*** Meeting Adjourned ***
+
+
+

@@ -1,0 +1,197 @@
+docno="lists-041-15604340"
+received="Thu Nov 21 10:49:35 2002"
+isoreceived="20021121154935"
+sent="Thu, 21 Nov 2002 16:49:15 +0100"
+isosent="20021121154915"
+name="Stefan Eissing"
+email="stefan.eissing@greenbytes.de"
+subject="Re: Submitting lock tokens without a validity check"
+id="C993ADA4-FD68-11D6-BA1D-00039384827E@greenbytes.de"
+charset="ISO-8859-1"
+inreplyto="000001c2916a$fd886310$620afea9&#64;xythoslap"
+expires="-1"
+
+Cc:"'Clemm, Geoff'"<gclemm@rational.com>,"'Webdav WG'"<w3c-dist-auth@w3c.org>
+To:"Lisa Dusseault"<lisa@xythos.com>
+
+
+
+Lisa,
+
+the use case which started the whole thread is "the client wants the
+request to succeed irregardless of wether the lock is still there or 
+not".
+The addition of "*" to the If header does not help to solve this case.
+
+The introduction of "*" addresses the problem where the client is not
+sure for exactly which URIs it must provide lock-tokens in the IF 
+header.
+
+That is also a problem worth addressing. Jason mentioned some weeks
+ago that 2518 does not clearly define when a lock-token is "submitted"
+and how the methods should check for submitted tokens.
+
+As I see it, the IF header is used for two purposes:
+P1) resource state checking
+P2) submitting "known" lock tokens
+
+P1 is, IMHO, pretty good defined. A client puts the URI of the resource
+to check in the IF header. If the URI is omitted, the request URI is 
+silently
+substituted.
+All mentioned resource states are then verified by the server. Should
+a state not match (e.g. a lock token no longer there), the server will
+fail the request immediatly.
+
+For P2 we should define that server implementations should regard all
+lock-tokens supplied in the IF header as "submitted tokens".
+When verifying locks on resources affected by methods (such as COPY
+or MOVE), servers should for locked resources look into the set of
+"submitted tokens". If the lock is there, the request can proceed.
+Otherwise it will fail with a 423.
+
+Defining this behaviour will increase interoperability and ease life for
+clients. Clients just memorize the lock token together with the URI
+the lock was created on. They can then simply place those tuples
+in the IF headers of requests and everything should work fine.
+
+More optimizing clients might more carefully chose the locks to
+submit, but that is left up to their implementation.
+
+//Stefan
+
+Am Donnerstag, 21.11.02, um 15:33 Uhr (Europe/Berlin) schrieb Lisa 
+Dusseault:
+
+>
+> If a client uses "If: urlA (tokenA) (Not tokenA)" then the client will
+> *not* find out that their lock is invalid.   So that's not a real
+> advantage of the existing header depending on how the client chooses to
+> use it.  Since the client could still choose to use the If header if a
+> new header were defined, the two proposals you outline are equivalent 
+> in
+> that regard.
+>
+> There is, however, another way to solve this that does have the 
+> property
+> of consistently letting the client know when it has bad tokens: extend
+> the existing If header to use * to indicate "any resource".  This is
+> consistent with If-Match and If-None-Match (HTTP 1.1) which use * to
+> indicate "any token".
+>
+> To provide a token in this manner the client would use the * for the 
+> URL
+> with the lock token they wanted to use:
+>
+>     If: * (<lock-token-A>)
+>
+> Or several in one header:
+>     If: * (<lock-token-A>) * (<lock-token-B>) <urlC> (<lock-token-C>)
+>
+> The way the server evaluates this: if <lock-token-A> matches any
+> resource, AND <lock-token-B> matches any resource, AND <lock-token-C>
+> matches the resource <urlC>, then the request succeeds.
+>
+> This gives the advantage (not found with the two proposals discussed
+> previously), of letting the server return an error if the lock token is
+> invalid.  The client can use the lock token more easily as long as it's
+> valid, and the client gets its state corrected if its token is invalid.
+>
+> ---
+>
+> Side note on header length: this is an improvement over the 
+> If-OR-NOT-If
+> syntax in length terms (it has one fewer lock token and a
+> single-character URL).  However, we might still want to add commas to
+> the If header.
+>
+> Side note on backward compatibility: Adding commas and a '*' syntax to
+> the if header (assuming no OPTIONS flag) would cause some
+> interoperability issues.  However, it shouldn't last too long (I think
+> servers can pick this up rather quickly in particular) and is fairly
+> easy to deal with.  If a client sends the */, syntax to a server that
+> doesn't yet support it, a 400 Bad Request is the most likely response,
+> so I expect for a few years clients that want to use the */, syntax 
+> will
+> see this and fail back to the older syntax.  Servers should be able to
+> parse the If header with or without tokens, and the addition of the '*'
+> URL is simply an extension of the syntax that doesn't affect how the
+> existing URL stuff works.  (And of course, we could also add a "I
+> support rfc2518 bis" flag to the OPTIONS response to prevent the error
+> roundtrip for the case of new client --> old server.)
+>
+> Side note on how I came up with "four times" larger: Assuming the new
+> header requires one copy of the token and zero URLs, and the
+> If-OR-NOT-If solution requires two copies of the token and one URL (per
+> resource), I should have said "three times" larger.  Just an off by one
+> error.  But in my experience URLs are twice as long as lock tokens so
+> maybe in practice it is four times larger :)
+>
+> Lisa
+>
+>
+> -----Original Message-----
+> From: Clemm, Geoff [mailto:gclemm@rational.com]
+> Sent: Wednesday, November 20, 2002 7:52 PM
+> To: 'Webdav WG'
+> Subject: Submitting lock tokens without a validity check
+>
+> One of the topics discussed at this weeks WebDAV working group meeting
+> was how to provide a mechanism that would allow a client to submit a
+> set of lock tokens without a validity check (i.e. the request could
+> succeed even if some or all of those lock tokens have expired).
+> Note that a client needs to submit an If header with etags with such
+> a request, to avoid lock protection.
+> There are currently two alternative proposals for this (the semantics
+> of these two proposals are identical, so this is a marshalling
+> question):
+> Proposal One: Extend the If header so that it can take a comma
+> separated list of arguments (and therefore can be split into multiple
+> If statements).? To submit a set of lock tokens without a validity
+> check, the following pattern would be used:
+> ? If: urlA (tokenA [etagA]) (Not tokenA [etagA])
+> ? If: urlB (tokenB [etagA]) (Not tokenB [etagB])
+> ? ...
+> Proposal Two: Add a new header for a comma separated list of lock
+> tokens that indicate possession of the lock token but do not cause the
+> request to fail if they are invalid (I neglected to write down the
+> proposed name, so I'll just call it New-Header).? Since the etag list
+> can be long when the client holds a large number of locks, the
+> extension defined in alternative one is also required, to handle the
+> possibly large number of etags.? The pattern of usage for this
+> proposal would be:
+> ? New-Header: tokenA
+> ? If: urlA ([etagA])
+> ? New-Header: tokenB
+> ? If: urlB ([etagB])
+> ? ...
+>
+> Advantage of proposal 1:
+> - It does not require defining an extra header.
+> Advantage of proposal 2:
+> - It requires 40% fewer strings per resource (3 non-constant strings
+> instead of 5 non-constant strings).? Lisa: You calculated that
+> proposal one requires four times as many non-constant strings ... how
+> did you get that number?
+>
+> I believe that it is not appropriate to add a new header to the 
+> protocol
+> just to decrease the header length for this particular use case by 40%.
+> I am particularly disinclined to optimize this kind of request,
+> because I believe that it is significantly simpler for a client to
+> use a standard If header, and if locks have expired, the request
+> fails, the client deletes from its state those expired locks, and then
+> resubmits the request, replacing the expired locks with etags.? This
+> allows the client to just issue very simple If header requests,
+> i.e. if the lock token for urlA is still valid but the lock token for
+> urlB has expired:
+> If: urlA (tokenA)
+> If: urlB ([etagB])
+> Cheers,
+> Geoff
+>
+>
+>
+
+
+

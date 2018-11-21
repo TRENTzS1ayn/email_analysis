@@ -1,0 +1,114 @@
+docno="lists-103-6760319"
+received="Fri Mar 24 20:31:42 2000"
+isoreceived="20000325013142"
+sent="Fri, 24 Mar 2000 20:19:11 -0500 (EST)"
+isosent="20000325011911"
+name="Raph Levien"
+email="raph@acm.org"
+subject="Re: Proposed change in removeEventHandler semantics"
+id="200003250118.RAA23550@adsl-63-196-208-218.dsl.snfc21.pacbell.net"
+inreplyto="Proposed change in removeEventHandler semantics"
+expires="-1"
+
+
+To:keshlam@us.ibm.com
+Cc:www-dom@w3.org,timj@gtk.org,plh@w3.org
+
+keshlam wrote:
+
+> 1) Handlers on a single EventTarget and within a single phase are
+> unordered. Therefore the handler may be invoked either before or after the
+> one that's performing the removal. There's no guarantee of consistancy from
+> implementation to implementation, or even necessarily from invocation to
+> invocation.
+
+Understood, and quite reasonable.
+
+> Are you sure you like not knowing whether the removal will occur before or
+> after invocation better than you like knowing that it won't?
+
+I don't understand this. I prefer knowing that the removal suppresses
+subsequent invocation of the handler being removed, even if there is
+an event pending for that handler. I'm not sure that corresponds
+exactly to either of your preferences.
+
+> (_I_ prefer the uncertainty because it may simplify my DOM implementation.
+> I'm not sure that folks who are actually trying to use the DOM will agree.)
+
+Is your DOM implementation Xerces-J? Timj, Philippe, and I looked at
+this code at the time we discussed the change, and believe that the
+change can be implemented with a dozen line patch. To do it roughly
+analogously to Gtk+, you keep a reference counter in the data
+structure you use to hold the listener (not having the source in front
+of me at the moment, the name escapes me). It is initially 1,
+incremented before invoking the listeners on an EventTarget, and
+decremented afterwards. To implement removeEventListener, you
+invalidate the listener (for example, by setting the "type" to null)
+and decrement the reference count. At the time the reference count
+becomes zero, it is removed from the list. This technique may add a
+small bit of complexity, but I don't see it as being decisive.
+
+> 2) You've only proposed a change to removeEventHandler. What about
+> addEventHandler on the active EventTarget -- does that also become
+> unspecified in its timing, rather than taking effect only after this phase
+> ends? I would expect so, for symmetry.
+
+Actually, I like the existing semantics. You generally add an event
+handler when creating a new View. Usually, the state of the View is
+initialized to be consistent. So, as long as the Controller creates
+the new Views after updating the state of the Model, you're fine.
+
+> What about the opposite order. The View's listener fires, doesn't know that
+> the event should no longer be shown, delivers your "unexpected behavior"...
+> and only then does the Controller's listener fire and realize that the
+> element can be hidden.
+
+I disagree here. For the View's listener to fire while the View is
+still in the state of showing the element should be fine. It should be
+pretty much the same behavior as if you had two events in sequence -
+the first event updates the View (for example, by unhighlighting a
+clicked button), while the second removes it. A little more drawing
+than strictly necessary, perhaps, but not "unexpected behavior".
+
+> And you may not realize that this requirement exists until you ship your
+> code and someone runs it on a different DOM.
+
+Well, this is my concern. Since the order is unspecified, we should be
+careful not to create the situation where "it works for me" but
+displays subtle and nasty bugs when ported.
+
+> I took a quick look at this. It's not very clear, but if I'm reading it
+> correctly, Gtk+'s event listeners are ordered. "As stated above, you may
+> have as many callbacks per signal and per object as you need, and each will
+> be executed in turn, in the order they were attached." (With some issues of
+> adding them before/after the default handler; there are two separate calls
+> to access those two spaces.)
+>
+> In that scenario, the scenario described above makes more sense; you can
+> talk about one listener reliably preceeding another, and thus ordered
+> cancellation or removal.
+
+Well, Gtk+ is more deterministic than DOM in this way, but that's not
+really the issue. I am talking about making it easier to write code
+that does the right thing with any ordering.
+
+> If that's the goal, it may be a reasonable one... but it's a much larger
+> change than simply changing removeEventListener in isolation.
+
+I am not proposing to change the nondeterminism of invoking event
+listeners.
+
+> Our current design says that if you care about the ordering of listeners,
+> it's your responsibility to build and register a listener which dispatches
+> to other listeners in the desired order, and register your order-sensitive
+> listeners with that rather than directly on the DOM.
+
+Understood. But my motivations here are strictly to make it easier to
+write code which does _not_ care about the ordering of listeners.
+
+I hope this clears up my position. Please feel free to ask if not.
+
+Raph
+
+
+

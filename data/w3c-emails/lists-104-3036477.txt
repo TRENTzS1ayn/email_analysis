@@ -1,0 +1,75 @@
+docno="lists-104-3036477"
+received="Wed Oct 17 03:27:24 2001"
+isoreceived="20011017072724"
+sent="Wed, 17 Oct 2001 02:25:28 -0500"
+isosent="20011017072528"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: Patterns for NamedNodeMap implementation (was Hi)"
+id="002601c156dc$e583f9b0$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="20011017052602.87390.qmail&#64;web14704.mail.yahoo.com"
+expires="-1"
+
+
+To:"anu sha"<anusha_2002gva@yahoo.com>
+Cc:<www-dom@w3.org>
+
+There are several open-source implementations (Xerces-C, Xerces-J, Crimson,
+Mozilla, DOM4J, libxml, etc) that you can examine for implementation
+patterns, asking the list for an narrative when you can see through running
+code from several independent (but conforming) implementations seems to be a
+poor use of time.
+
+In Xerces-C's implementation
+(http://cvs.apache.org/viewcvs.cgi/xml-xerces/c/src/dom/NamedNodeMapImpl.cpp
+)
+, a linked list of attributes was walked to implement getAttributeNS et al.
+Since the number of attributes on an element are typically small, an more
+complicated algorithm could be slower than just a simple walk through the
+elements.
+
+http://cvs.apache.org/viewcvs.cgi/xml-xerces/java/src/org/apache/xerces/dom/
+NamedNodeMapImpl.java appears to be similar.
+
+Crimson also appears to use a simple linear search
+http://cvs.apache.org/viewcvs.cgi/xml-crimson/src/org/apache/crimson/tree/At
+tributeSet.java
+
+DOM4J also uses a linear search (attribute method around line 315)
+http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/dom4j/dom4j/src/java/org/dom4
+j/dom/DOMElement.java
+
+It seems like most implementators thought that using a hash map algorithm is
+overkill for attribute lists.
+
+>  So,please tell me,according to DOM specification what
+>  should be the key of NamedNodeMap?Is it
+>  qualifiedName(two-part name containing prefix and
+>   localName) or two-part name
+>   containing localName and namespaceURI?
+
+The DOM specification doesn't tell you how you have to implement it, not
+what the results have to be.  Per the previous patterns, you can definitely
+implement NamedNodeMap without using something like an std::map.  However,
+if you were going to use std::map's and were trying to achieve the
+prescribed behavior, your NamedNodeMap would have to have two independent
+maps, one keyed by the "full" name and one keyed by {namespaceURI,
+local-name}.  If you were trying to use an existing map class that used a
+string key, you could create a concatentate the namespaceURI, a space (which
+is not legal in a URI or a local-name), and the local name.  If the
+namespaceURI was null, you could just use the local name as a key.
+
+However, given the relative small size of most attribute lists, the cost of
+maintaining two distinct hash-maps is probably not justified.
+
+You seem intent on writing your own DOM implementation, though you haven't
+explained your motivation.  Since there are several implementations that
+have very generous licensing terms, it would seem that you could take one of
+those and then apply any performance tweaks you need for your specific
+application.  At least, you should have a fairly good understanding of the
+existing public implementations (and their performance characteristics)
+before you start.
+
+
+

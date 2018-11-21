@@ -1,0 +1,159 @@
+docno="lists-012-1854939"
+received="Sun Apr  5 17:09:19 1998"
+isoreceived="19980405210919"
+sent="Mon, 6 Apr 1998 02:00:25 +0200"
+isosent="19980406000025"
+name="Life is hard... and then you die."
+email="Ronald.Tschalaer@psi.ch"
+subject="Re: More comments on draft-ietf-http-authentication01.txt"
+id="98040602002493@psicla.psi.ch"
+inreplyto="More comments on draft-ietf-http-authentication01.txt"
+expires="1"
+
+
+To:GISLE@aas.no,HTTP-WG@cuckoo.hpl.hp.com
+
+
+[Gisle Aas wrote:]
+> 1) It is not perfectly clear to me if the namespace of realms are
+> separate for each authentication scheme or even separate when using
+> the server as a proxy and when not.  I matters to me becase I try to
+> index authentication objects in the client per "server/realm".
+> 
+> This sentence:
+> 
+>   The realm value (case-sensitive), in combination with the canonical
+>   root URL (see section 5.1.2 of [2]) of the server being accessed,
+>   defines the protection space.
+> 
+> make me believe that I can assume that it would not be possible to
+> have to deal with all the following as separate "protection spaces"
+> the same time:
+> 
+>    Authorization: Basic realm="foo"
+>    Authorization: Digest realm="foo"
+>    Proxy-Authorization: Basic realm="foo"
+>    Proxy-Authorization: Digest realm="foo"
+
+Hmm, I assumed the protection space to be defined by the tuple
+(host, port, scheme, realm), but you are right that it's not clearly
+specified. However, I would not differentiate between Authorization and
+Proxy-Authorization, although at least one popular server will allow
+different auth info to be set up for a proxy and server on the same
+host and port.
+
+> 2) How to interpret the URIs in the 'domain' attribute of the Digest
+> WWW-Authenticate is not clear to me either.  Are the URIs in this
+> list path prefixes that define protection spaces or must there be
+> an exact match.  If it is a prefix, what happens if the URI contains a
+> query part.
+
+An exact match. Although in my implementation I actually use these to
+create new protection space tuples (if the host or port is different)
+and to update a cache of URL's. This cache is then used to guess if a
+specific URL needs authentication (for preemptive auth header
+generation). I think this fits the intent too.
+
+> 3) Section 3.6 does not seem to know about the "407 Proxy
+> Authentication Required" status code.  I though that a
+> "Proxy-Authenticate" header could only be present in a 407 response.
+> That is at least how I read <draft-ietf-http-v11-spec-rev-03>.  I
+> would like this paragraph to go away (it would complicate my
+> implementation if it stays):
+> 
+>   Note that in principle a client could be asked to authenticate
+>   itself to both a proxy and an end-server. It might receive an
+>   "HTTP/1.1 401 Unauthorized" header followed by both a WWW-
+>   Authenticate and a Proxy-Authenticate header. However, it can
+>   never receive more than one Proxy-Authenticate header since such
+>   headers are only for immediate connections and must not be passed
+>   on by proxies. If the client receives both headers, it must
+>   respond with both the Authorization and Proxy-Authorization
+>   headers as described above, which will likely involve different
+>   combinations of username, password, nonce, etc.
+
+How come this would complicate the implementation? Instead of doing
+
+  if (status == 401)
+      handle_auth_header
+  if (status == 407)
+      handle_proxy-auth_header
+
+it becomes
+
+  if (status == 401)
+      handle_auth_header
+      handle_proxy-auth_header
+  if (status == 407)
+      handle_proxy-auth_header
+
+Actually, now that you mention it, I'm not even really sure why the 407
+is needed at all. The Authorization vs. Proxy-Authorization header gives
+you enough info on where the challenge is coming from. Can anybody shed
+some light on why 407 exists?
+
+> 4) Are there any servers that already implemented that that knows
+> about "MD5-sess" and "auth-int" I can test against?
+
+I waiting too...
+
+> For those that can read Perl, I even include the source for my
+> implementation here.  This code might even be of use to others
+> implementing Digest or perhaps somebody can tell me if I misunderstood
+> something in the spec by looking through the code.
+
+I think there is a problem with the nonce-count and the MD5-sess
+implementation. Assuming that _set_authorization is only called upon
+receipt of a Authentication or Proxy-Authentication header (i.e. it's
+not used for preemptively sending auth info) you need the following
+changes:
+
+> sub _set_authorization
+> {
+[snip]
+>     my $uri = $req->url->full_path;
+>     my $nonce = $self->{nonce};  $nonce = "" unless defined $nonce;
+>     my $nc = sprintf "%08x", ++$self->{nonce_count};
+
+You need to reset the counter when a new nonce is received. Something
+like
+
+      if ($self->{prev_nonce} ne $self->{nonce}) { $self->{nonce_count} = 0; }
+      $self->{prev_nonce} = $self->{nonce};
+      my $nc = sprintf "%08x", ++$self->{nonce_count};
+
+>     my $cnonce = sprintf "%x", rand(0x1000000);
+> 
+>     my $a1;
+>     if ($algorithm eq "md5") {
+> # A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+> $a1 = MD5->hexhash("$user:$realm:$pass");
+>     } elsif ($algorithm eq "md5-sess") {
+> # The following A1 value should only be computed once
+> $a1 = $self->{'A1'};
+> unless ($a1) {
+
+should be
+
+unless ($a1  &&  ($self->{stale} eq "true"))
+
+(I believe this will be clarified in the next draft)
+
+>     # A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+>     #         ":" unq(nonce-value) ":" unq(cnonce-value)
+>     $a1 = MD5->hexhash("$user:$realm:$pass") . ":$nonce:$cnonce";
+>     $a1 = MD5->hexhash($a1);
+>     $self->{'A1'} = $a1;
+> }
+>     } else {
+> return;
+>     }
+[snip]
+
+
+  Cheers,
+
+  Ronald
+
+
+

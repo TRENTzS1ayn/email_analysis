@@ -1,0 +1,107 @@
+docno="lists-013-16455690"
+received="Tue May 28 05:59:47 1996"
+isoreceived="19960528095947"
+sent="Tue, 28 May 1996 02:59:44 0700"
+isosent="19960528095944"
+name="Phil Karlton"
+email="karlton@netscape.com"
+subject="preencrypted files"
+id="31AACE90.167E@netscape.com"
+charset="usascii"
+expires="1"
+
+
+To:ietf-tls@w3.org
+
+Of all the changes presented in the Microsoft STLP proposal, I found
+the support for pre-encrypted files to be the most useful.
+Pre-encrypted files were considered for SSL 3.0, but we felt that there
+was not time to finish the design without holding back the rest of the
+specification.
+
+There are two main reasons why a special mechanism for dealing with
+pre-encrypted files is interesting. One is to keep plain-text versions
+of the file off the disk of the distributing site. This has the
+advantage of protecting the file from those that manage to get
+unauthorized read access to the contents.
+
+The second reason for special-casing pre-encrypted files is that there
+may be a performance advantage for the distributor of the file if the
+identical contents needs to be made available to multiple recipients.
+It is this latter reason that seems to motivate the desire to include
+this in the TLS proposals.
+
+There are several issues to keep in mind while folding this support
+into the existing SSL specification. None of them are compelling
+reasons not to do the work.
+
+The record layering model will end up being reflected all the way up to
+how the pre-encrypted file is stored on the disk.  SSL records are
+limited to 16K bytes and each fragment is separately MACed.
+
+The STLP proposal suggests a particularly weak MAC algorithm merely to
+allow the MACs to be (mostly) precomputed for the pre-encrypted files.
+Whatever protocol this group ends up with will be used to support more
+protocols than merely HTTP. The correct MAC algorithm to use is HMAC
+which will soon (if not already) be an RFC. The (potentially) weaker
+integrity requirements for some files (say images) that are broadcast
+many times, does not allow us to weaken that integrity check for all
+data for all higher level protocols.
+
+If I have time, I'll say more about MACs in a subsequent message.
+
+The STLP proposal had the new encryption key arriving in the
+ChangeCipherSpec message. This is a mistake. The ChangeCipherSpec
+message is NOT a handshake message; it sits directly on top of the
+record layer so that there is explicit separation of the different
+sub-protocols. It also means that there can be a number of changes
+staged for triggering at a single point.
+
+The STLP proposal also used the security of the current stream to
+protect the new encryption key. This leads to problems if the stream is
+currently at a less secure mode (null encryption or 40-bit encryption)
+than the required security of the new data. You do have to be careful
+not to increase the entropy of a current key above that allowed by
+U.S.  export laws. (This is extremely unfortunate for an international
+protocol, but that is the reality of the situation.)
+
+The STLP proposal includes a stacking method to recover an earlier key
+value. There is no indication of the stack limit that implementations
+must support.
+
+A more straightforward approach would be to add another SSL handshake
+message: set write key. Since the two ends already share a 128-bit
+master key, the originating end could use a new salt together with the
+current master key to compute a hash and an XOR offset from the desired
+new encryption key. This could be used by either end and would take
+effect when the next ChangeCipherSpec message was sent. It has the
+advantage of not leaking a subsequent key when the previous was
+compromised. (Keeping the appropriate (according to U.S. export rules)
+amount of entropy in the new key is left as an exercise to the reader.)
+
+It might be tempting to try and transmit a constant (for a file across
+all users) MAC key using the same method used for the encryption key,
+but this would be a mistake.  An earlier recipient of the file would
+then have enough information to successfully pull off a MITM attack
+against a later recipient.
+
+There may be a need to be able to set the compression method as well as
+the encryption key.  You could either assume that the compression
+method will not change for a particular stream (meaning that the server
+may have to keep multiple copies of the pre-encrypted file ready) or
+you could introduce another handshake message that would allow the
+server to choose among the compression methods originally proposed by
+the browser.
+
+PK
+--
+Philip L. Karltonkarlton@netscape.com
+Principal Curmudgeonhttp://home.netscape.com/people/karlton
+Netscape Communications
+
+     They that can give up essential liberty to obtain a little
+     temporary safety deserve neither liberty nor safety.
+- Benjamin Franklin
+
+
+

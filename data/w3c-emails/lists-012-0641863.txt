@@ -1,0 +1,115 @@
+docno="lists-012-0641863"
+received="Thu Mar  5 03:42:26 1998"
+isoreceived="19980305084226"
+sent="Thu, 05 Mar 1998 03:36:37 0800"
+isosent="19980305113637"
+name="Roy T. Fielding"
+email="fielding@kiwi.ics.uci.edu"
+subject="Re: Rigorously defining the interaction of conditional headers"
+id="9803050338.aa11249@paris.ics.uci.edu"
+inreplyto="9803042318.AA01009&#64;acetes.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+We already had an Issues list item for this (IMS_INM_MISMATCH)
+based on
+
+   http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q4/0110.html
+
+from last November.  The ambiguities regarding multiple conditionals
+were first mentioned (by me) at the last LA IETF, and a solution was
+posted a year ago in
+
+   http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q1/0251.html
+
+>Dave and I have spent several days coming up with pseudo-code
+>that, we believe, correctly represents the specified behavior
+>in all possible cases.  It was agreed during this week's editorial
+>teleconference that the next draft should include such pseudo-code,
+>as an explanation of how to interpret the existing specification.
+
+I am less interested in specifying pseudocode that represents strictly
+what the specification (incompletely) says than I am in simply specifying
+the precedence according to what the specification *should* say and then
+fixing the contradictions in the spec.  This is not an easy problem, as I
+warned when the WG insisted on separate conditional fields instead of
+a single IF header field.  However, I cannot believe that the right
+solution is to specify it in unreadable pseudocode -- at least choose
+a language with structure.  It is in fact far less readable than the
+actual code from Apache (and I know that the code works).
+
+In any case, the pseudocode given does not do the right thing.
+
+The order of the checks is important, since ETag checks are supposed
+to be more accurate than checks relative to the modification time.
+None of the checks are made if the response would already be an error.
+Furthermore, some of the conditionals (If-Match and If-Unmodified-Since)
+demand stronger action (higher precedence) due to their semantics
+(i.e., a response of 412 always overrides a check of 200/304).
+Finally, if a strong validation check is available, we do not care about
+the result of any weaker validation check (and thus the weaker check must
+not be performed).  These observations need to be added to the current
+specification, preferably by grouping all of the conditional fields
+under a single section and defining the precedence at the start.
+
+The right procedure to follow is described in the Apache code+comments:
+
+=======================================================================
+   if (the server has already decided to respond with an error)
+   {
+      return with the error status;
+   }
+
+   SRV := the selected resource variant
+
+   if ((an If-Match request-header field was given) AND
+       ((SRV does not have an ETag defined) OR
+        ((SRV's ETag does not match any of the entity tags in that field) AND
+         (the field value is not "*" [meaning match anything])))
+   {
+      return with a status of 412 (Precondition Failed);
+   }
+   else if ((a valid If-Unmodified-Since request-header field was given) AND
+            (SRV has been modified since the IUS time))
+   {
+      return with a status of 412 (Precondition Failed);
+   }
+
+   if ((an If-None-Match request-header field was given) AND
+       ((the field value is "*" [meaning match anything]) OR
+        ((SRV has an ETag defined) AND 
+         (SRV's ETag matches any of the entity tags in that field))))
+   {
+      if (the request method was GET or HEAD)
+      {
+         return with a status of 304 (Not Modified);
+      }
+      else
+      {
+         return with a status of 412 (Precondition Failed);
+      }
+   }
+   else if ((a valid If-Modified-Since request-header field was given) AND
+            (the request method was GET or HEAD) AND
+            (SRV has not been modified since the IMS time))
+   {
+      return with a status of 304 (Not Modified);
+   }
+
+   return SRV with the appropriate success status;
+=======================================================================
+
+That can be added to the spec if desired, but the important thing is that
+the specification must define a precedence in order to avoid contradictions.
+Since precondition checks >> validation checks and etag checks > last_mod,
+the only sensible precedence is
+
+    If-Match > If-Unmodified-Since > If-None-Match > If-Modified-Since
+
+.....Roy
+
+
+

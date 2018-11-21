@@ -1,0 +1,157 @@
+docno="lists-005-14971667"
+received="Fri Dec 22 04:10:54 2000"
+isoreceived="20001222091054"
+sent="Fri, 22 Dec 2000 01:12:54 -0800"
+isosent="20001222091254"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: Subversion support"
+id="20001222011254.Y22947@lyra.org"
+charset="us-ascii"
+inreplyto="200012211632.LAA07109&#64;tantalum.atria.com"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>
+Cc:ietf-dav-versioning@w3.org
+
+
+On Thu, Dec 21, 2000 at 11:32:32AM -0500, Geoffrey M. Clemm wrote:
+>    From: Greg Stein <gstein@lyra.org>
+>...
+>    24.xxx  Subversion 1.0 (http://subversion.tigris.org/)
+> 
+>       A. Subversion client
+>  i. Required options:
+>     a. RFC 2518, Class 1  (but not Class 2)
+>     b. Core versioning (but not: VERSION-CONTROL, UNCHECKOUT, or
+>        SET-TARGET)
+>     c. Client-Workspace option
+>     d. Label option  (probably; not entirely sure because our "label"
+>        may simply be a COPY)
+>        [ this also presumes Label will be split from Client-WS ]
+> 
+> Yes, the label option is split from client-ws option.  I think you'll
+> end up wanting to support the baseline option instead of the label option,
+> but that is of course up to you.
+
+Yup. Not sure on Labels, and baselines will probably be post-1.0. I'll take
+a look at them (with your feedback to the SVN list) and see if/how they
+apply and whether there is any "impedance" with introducing baselines.
+
+>     e. Activity option
+>     f. Version-History-Resource option
+>     g. Version-Controlled-Collection option
+>     h. Fork-Control option
+>     i. Subversion-specific items: a custom report,
+> 
+> I'd be interested in hearing about the custom report.
+
+I'm reporting the status of the client files to the server as the *input*,
+and it returns information about what is out of date.
+
+The status report is somewhat compressed. For example, "this dir (and
+everything in it) is v7, except <this> file is v8 and <that> is v6." The
+server then returns info for each item that needs to be updated. These
+updates are in one of two forms:
+
+1) the client side resource is up to date, except its version has changed.
+   <here> is the new version URL and version-name (where the version-name is
+   actually the repository-global version number)
+
+or
+
+2) the resource is out of date. here is the version URL and version-name.
+   [ the client then fetches a diff to patch from the old version up to the
+     new version ]
+
+Case (1) happens a lot when you have global version numbers (foo.c gets
+updated, which causes a global version bump, which means every version URL
+must be updated to the new version number). I might have to figure out a way
+to compress the response. Either let the version URL stagnate, or tell the
+client how to reconstruct version URLs for <all files in this subtree>.
+
+In any case... the basic scenario is to report the client state to the
+server, and have the server tell the client what is needed to update itself.
+
+[ yes, this can be made interoperable through the use of PROPFIND, but you
+  would need to PROPFIND across the whole repository to look for updates. we
+  send a compressed state and the server tells what bits will need to be
+  updated ]
+
+>        DAV:version-name must be an integer representing
+>        repository-global-change,
+> 
+> DAV:version-name is server defined, so that can be whatever you want
+> it to be.
+
+On the server, yes. I put this under "required client options." The client
+*expects* this to be an integer.
+
+>        atomic CHECKIN of activities,
+> 
+> I added atomic checkin of activities in the MERGE
+> request, so that's now part of the activity option.
+
+Hmm. I read the new draft. I'm unsure if the "MERGE <activity>" does the
+checkin now. It seems to imply that a merge of an activity will cause all
+checked-out resources to be checked in first, then the merge to the VCR is
+performed.
+
+Is that the general sense?
+
+(presuming so, then I can review it to assist with clarifying it)
+
+>        DAV:prop supported within the DAV:checkin
+>        element (to enable returning post-checkin information, such as
+>        new version resource URLs),
+> 
+> I believe you can get this information by using a property REPORT
+> on the DAV:version-set of the activity.  We should verify this.
+
+If the activity sticks around after a CHECKIN or MERGE, then yah... I'd have
+the version-set. Sounds about right.
+
+>...
+> UNCHECKOUT and SET-TARGET are no longer in core,
+
+Cool. No need to worry about them, then :-)
+
+Hmm. I see CHECKOUT isn't there either... off in the client/server workspace
+options. Quick question/point: what should a server return for a CHECKOUT
+against the wrong type of resource? e.g. should I return 409 (Conflict) if
+somebody does a CHECKOUT on a VCR? Is there a specific <DAV:error code> to
+return for this situation?
+
+> and since Subversion
+> auto-version-controls, you actually *do* support VERSION-CONTROL (i.e.
+> applying VERSION-CONTROL to something that is already version-controlled
+> is explicitly OK and required behavior).
+
+True. I'll just need to check the code to ensure it Does The Right Thing.
+
+> So that means you will be a fully compliant core versioning server
+> (not quite as good as a fully operational death-star, but less
+> susceptible to rebel bombing runs :-).  In particular, this should
+> give you a non-trivial degree of interoperability in even your 1.0
+> server.
+
+Neat :-)
+
+I'll review the core in the 10.11 draft and verify my core support.
+Presuming you're going to start a doc on webdav.org for this, then I'll just
+post changes as they come up.
+
+It seems like a core server is awfully thin now. And does the
+DAV:version-tree report go into the "Version History Option" since it
+operates against a version history? And presuming so, the text for this
+report should say it "goes to the DAV:version-history of the DAV:target" or
+somesuch.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

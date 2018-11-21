@@ -1,0 +1,258 @@
+docno="lists-011-4843450"
+received="Mon Jul 21 23:08:05 1997"
+isoreceived="19970722030805"
+sent="Mon, 21 Jul 1997 23:03:12 0700 (PDT)"
+isosent="19970722060312"
+name="Josh Cohen"
+email="josh@netscape.com"
+subject="OPTIONS Spec"
+id="ML3.3.869551392.7543.josh@birdcage"
+charset="USASCII"
+inreplyto="33D104B9.A0FA22F2&#64;segnali.it"
+expires="1"
+
+To:josh@netscape.com
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Here is the draft changes for the specification of the OPTIONS
+method.
+
+As stated in the attachment, there is some overlap with PEP.
+Overall, PEP is much more flexible and efficient.
+OPTIONS is simpler at the possible expense of efficiency.
+ 
+However, OPTIONS is simple and easy to implement, and thus
+more likely to be accepted in the HTTP/1.1 spec.  I think
+that since many things which were once supposed to be
+part of the HTTP/1.1 spec are now on their own track,
+Its essential to have a simple mechanism of detecting
+support for those extensions as a part of the core
+HTTP/1.1 protocol.
+
+
+-----------------------------------------------------------------------------
+Josh Cohen      Netscape Communications Corp.
+Netscape Fire Department                #include<disclaimer.h>
+Server Engineering
+josh@netscape.com                          http://people.netscape.com/josh/
+-----------------------------------------------------------------------------
+
+Options Method specification:
+
+Overall Changes:
+ the URI '*' refers to the server, independent of any specific URI.
+
+ The host: header may be used to specify a named proxy or origin 
+ server in a chained environment
+
+ The max-forwards: header may be used to specify a maximum number
+ of hops the request may be forwarded in a chained environment
+
+ The actual OPTIONS message is contained in the request/response
+ body.
+
+Editing changes:
+In section 5.1.2:
+-   If a proxy receives a request without any path in the Request-URI and
+-   the method specified is capable of supporting the asterisk form of
+-   request, then the last proxy on the request chain MUST forward the
+-   request with "*" as the final Request-URI. For example, the request
+-
+-          OPTIONS http://www.ics.uci.edu:8001 HTTP/1.1
+-
+-   would be forwarded by the proxy as
+-
+-          OPTIONS * HTTP/1.1
+-          Host: www.ics.uci.edu:8001
+-
+-   after connecting to port 8001 of host "www.ics.uci.edu".
+
++   Proxy Servers should use the Host: or max-forwards: header
++   to determine whether or not to forward the reqeust as 
++   specified in section 9.2
+
+In section 9.2:
+
+   If the Request-URI is an asterisk ("*"), the OPTIONS request is
+   intended to apply to the server as a whole. A 200 response SHOULD
+   include any header fields which indicate optional features
+   implemented by the server (e.g., Public), including any extensions
+   not defined by this specification, in addition to any applicable
+-   general or response-header fields. As described in section 5.1.2, an
+-   "OPTIONS *" request can be applied through a proxy by specifying the
+-   destination server in the Request-URI without any path information.
+
++   general or response-header fields.
+
++   OPTIONS messages may be passed through a proxy by using
++   either the host: header to indicate the intended destination
++   of the OPTIONS message.  The max-forwards: header may also
++   be used to indicate that the destination is the Nth hop,
++   as specified by the max-forwards: header.
+
++   Origin servers supporting 'virtual interfaces' or 
++   'virtual servers' may use the Host: header or the max-forwards:
++   header to determine the intended destination as well.
+
+New definitions:
+
+9.2.1 OPTIONS Messages
+
+9.2.1.1 The REQUEST:
+
+ The body of the OPTIONS request will containt the specific
+ information requested.
+
+ The body will be of mime type TBD (text/ietf-http-options)
+
+9.2.1.2 The REPLY:
+
+ The server will respond with 200 if it supports the OPTIONS
+ method.
+
+ The OPTIONS reply will contain a content of mime type
+ TBD ( text/ietf-http-options )
+
+9.2.2.1 Body definition:
+
+9.2.2.2 REQUEST:
+
+ The body will be a text formatted content, where:
+
+body = 1(header-token) #(request)
+
+header-token = "OPTIONS" options-version new-line
+
+options-version = "1.0"
+
+request = command-token (feature-token | "*" ) new-line
+
+new-line = CRLF
+
+command-parameters = token
+(defined per command )
+
+
+9.2.2.3 REPLY:
+body = 1(header-token) #(response)
+
+header-token = "OPTIONS" options-version new-line
+
+options-version = "1.0"
+
+response = command-token feature-token response-parameters new-line
+
+new-line = CRLF
+
+feature-token = token
+
+response-parameters = token
+(defined per command )
+
+9.2.3 OPTIONS commands
+
+9.2.3.1 COMPLIANCE
+
+ command-token =  "COMPLIANCE"
+REQUEST
+command-parameters = feature-token | "*"
+
+REPLY
+feature-token = opaque string representing a feature/extenstion
+response-parameters = token representing feature/extension
+specific parameters
+
+9.2.4 Usage:
+
+ The first line contains:
+ OPTIONS <options spec version>
+
+ Followed by a series of answers, as defined according to the 
+ command issued:
+
+ COMPLIANCE:
+  The COMPLIANCE response is a list of COMPLIANCE indications,
+  one per line:
+  COMPLIANCE <feature-name> <parameters>
+
+  where feature-name was the argument to the COMPLIANCE request.
+  parameters is an optional opaque string indicating parameters
+    for that feature.
+
+9.2.5 Examples
+
+9.2.5.1 To list all extensions supported by proxy "proxy4.mcom.com"
+
+ OPTIONS * HTTP/1.1
+ Host: proxy4.mcom.com
+ Content-type: text/ietf-http-options
+ Content-length: 44 (or whatever)
+
+ OPTIONS 1.0
+ COMPLIANCE * 
+
+ HTTP/1.1 200 OK
+ Server: SuperServer/1.0
+ Content-type: text/ietf-http-options
+ Content-length: 44 ( feh )
+
+ OPTIONS 1.0
+ COMPLIANCE http://foobar.pep.org/pepmeister/
+ COMPLIANCE set-proxy
+ COMPLIANCE wonder-bar-http-widget-set
+ COMPLIANCE rfc1543
+
+9.2.5.2 Probing for a feature which is NOT supported:
+
+ OPTIONS * HTTP/1.1
+ Host: proxy4.mcom.com
+ Content-type: text/ietf-http-options
+ Content-length: 44 (or whatever)
+
+ OPTIONS 1.0
+ COMPLIANCE http://foobar.pep.org/evil-not-implemented
+
+ HTTP/1.1 200 OK
+ Server: SuperServer/1.0
+ Content-type: text/ietf-http-options
+ Content-length: 44 ( feh )
+
+ OPTIONS 1.0
+
+
+9.2.5.3 Probing a 1.0 server/proxy ( response will vary )
+
+ OPTIONS * HTTP/1.1
+ Content-Type: text/ietf-http-options
+ Content-length: 40
+  
+ HTTP/1.0 400 Malformed URL
+ Proxy-agent: Netscape-Proxy/2.52
+ Date: Wed, 16 Jul 1997 02:35:54 GMT
+ Content-type: text/html
+ Content-length: 157
+ 
+ <HTML><HEAD><TITLE>Malformed URL</TITLE></HEAD>
+ <BODY><H1>Malformed URL</H1>
+ Your browser sent a request that this proxy could not understand.
+ </BODY></HTML>Connection closed by foreign host.
+
+9.2.6 Applicability
+
+  The OPTIONS method is intended to provide a mechanism by which
+ a downstream client or proxy may query an upstream proxy or
+ origin server about what HTTP/1.1 extensions it supports.
+
+  While this has some overlap with the PEP[ref] specification,
+ it only provides functionality for the lower spectrum of PEP.
+ It is simple to implement and should be a MUST for implementations.
+ Along with the simplicity comes a cost. OPTIONS request need a
+ network round trip, while PEP does not.  Therefore, should
+ PEP become a standard, or be rolled into this specification,
+ implementations are encouraged to use PEP where applicable
+ to gain extra flexibility and performance, however, they MUST
+ support OPTIONS as well.
+
+
+

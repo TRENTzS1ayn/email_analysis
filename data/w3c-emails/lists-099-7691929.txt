@@ -1,0 +1,172 @@
+docno="lists-099-7691929"
+received="Mon Oct 13 18:01:42 2003"
+isoreceived="20031013220142"
+sent="Mon, 13 Oct 2003 17:01:39 -0500"
+isosent="20031013220139"
+name="Dan Connolly"
+email="connolly@w3.org"
+subject="Re: [CWM] Trignometric Module"
+id="1066082498.13832.2183.camel@dirk.dm93.org"
+inreplyto="BAB2C2FC-EEC9-11D7-AD8F-0003934BEBF0&#64;w3.org"
+expires="-1"
+
+To: Karl Dubost<karl@w3.org>
+Cc: Tim Berners-Lee<timbl@w3.org>, www-archive+n3bugs@w3.org, Sandro Hawke<sandro@w3.org>
+
+
+
+I just updated and tried to run the regression tests
+and I got:
+
+$ make
+rm ../*.pyc
+touch pyc-check
+PYTHONPATH=`/bin/pwd`/.. python retest.py -c regression.n3
+list/detailed.tests
+online.tests norm/detailed.tests
+Traceback (most recent call last):
+  File "retest.py", line 274, in ?
+    main()
+  File "retest.py", line 162, in main
+    kb = loadMany(testFiles)
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/myStore.py", line 98, in
+loadMany
+    return _checkStore().loadMany(uris)
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/myStore.py", line 45, in
+_checkStore
+    store = storeClass() # Make new one
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/llyn.py", line 1150, in
+__init__    import cwm_trigo   # Trignometry
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/cwm_trigo.py", line 96
+    def evaluateSubject(self, obj_py):
+                                      ^
+IndentationError: unindent does not match any outer indentation level
+
+that was easy enough to fix... (checked in 1.6) but then I tried
+pychecker (http://pychecker.sourceforge.net/) on it:
+
+$ pychecker cwm_trigo.py
+Processing cwm_trigo...
+ 
+Warnings...
+
+[... stuff about term.py elided ...]
+
+cwm_trigo.py:19: Variable (__cvsid__) not used
+cwm_trigo.py:22: Imported module (math) not used
+cwm_trigo.py:22: Imported module (re) not used
+cwm_trigo.py:22: Imported module (urllib) not used
+cwm_trigo.py:32: Module (sys) re-imported
+cwm_trigo.py:70: No global (acos) found
+cwm_trigo.py:74: No global (asin) found
+cwm_trigo.py:78: No global (atan) found
+cwm_trigo.py:83: No global (atan2) found
+cwm_trigo.py:84: Function returns a value and also implicitly returns
+None
+cwm_trigo.py:87: No global (cos) found
+cwm_trigo.py:91: No global (cosh) found
+cwm_trigo.py:95: No global (degrees) found
+cwm_trigo.py:97: No global (radians) found
+cwm_trigo.py:101: No global (sin) found
+cwm_trigo.py:105: No global (sinh) found
+cwm_trigo.py:109: No global (tan) found
+cwm_trigo.py:113: No global (tanh) found
+
+This code doesn't look like this code can work. I think you
+need to write math.sin(foo) rather than just sin(foo), or
+else change
+ import math
+to
+ from math import sin
+
+Has this code been tested? Please try to test any changes
+to cwm before you check them in.
+
+Hmm... it seems there's a test file in the regression
+suite that's trying to run...
+
+$ make
+PYTHONPATH=`/bin/pwd`/.. python retest.py -c regression.n3
+list/detailed.tests
+online.tests norm/detailed.tests
+  1/76 list/detailed.tests#t10394      Various trigo builtins
+Traceback (most recent call last):
+  File "../cwm.py", line 652, in ?
+    doCommand()
+  File "../cwm.py", line 495, in doCommand
+    think(workingContext, mode=option_flags["think"])
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 58, in
+think
+    return InferenceTask(knowledgeBase, ruleFormula, mode=mode,
+repeat=1).run()  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py",
+line 206, in run
+    return self.runSmart()
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 195, in
+runSmart    total += cy.run()
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 301, in
+run
+    return rule.once()
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 400, in
+once
+    total = query.resolve()
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 541, in
+resolve
+    return self.unify(self.queue, self.variables, self.existentials)
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 704, in
+unify
+    nbs = item.tryBuiltin(queue, bindings, heavy=0, evidence=evidence)
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/query.py", line 980, in
+tryBuiltin
+    result = pred.evalObj(subj, queue, bindings.copy(), proof,
+self.query)
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/term.py", line 686, in
+evalObj
+    return self.store._fromPython(self.evaluateObject(subj.value()))
+  File "/home/connolly/w3ccvs/WWW/2000/10/swap/cwm_trigo.py", line 70,
+in evaluateObject
+    return acos(numeric(subj_py))
+NameError: global name 'acos' is not defined
+diff: list/ref/trigo.n3: No such file or directory
+Files differ, result= 512
+######### from normal case detailed.tests_t10394.out: cwm
+math/trigo-test.n3 --think --purge-rules
+make: *** [all] Error 255
+
+
+ok, fixed those problems... (v1.7)
+
+Now I'm getting...
+
+diff: list/ref/trigo.n3: No such file or directory
+
+and I can't find it in CVS:
+
+$ cvs update ref/trigo.n3
+cvs server: nothing known about ref/trigo.n3
+
+did you check it in?
+
+eek! you seem to have clobbered lots of stuff
+in detailed.tests
+revision 1.5
+date: 2003/09/25 22:28:30;  author: kdubost;  state: Exp;  lines: +4 -73
+
+so I backed out to v1.4 of detailed.tests
+
+But now I'm losing at this test...
+
+13/87 norm/detailed.tests#norm10      Bug with RDF output in bySubject
+mode
+
+Looks like it's time to re-affirm the following agreement:
+
+"Cwm developers agree that all the tests have to pass before code is
+checked in. To run the tests, do make in the swap/test directory."
+  -- http://www.w3.org/2000/10/swap/doc/cwm.html#dev
+
+
+-- 
+Dan Connolly, W3C http://www.w3.org/People/Connolly/
+
+
+

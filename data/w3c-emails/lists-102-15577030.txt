@@ -1,0 +1,131 @@
+docno="lists-102-15577030"
+received="Thu Sep  2 05:42:37 1999"
+isoreceived="19990902094237"
+sent="Thu, 2 Sep 1999 05:34:42 -0400 (EDT)"
+isosent="19990902093442"
+name="Raph Levien"
+email="raph@acm.org"
+subject="DOM2 Events are badly broken"
+id="37CE44E8.D2648420@acm.org"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-dom@w3c.org
+
+I wrote about this issue before and got no response, and this irritates
+me quite a bit. I'm still very much concerned with the technical issues,
+so this time I will use stronger language. Basically, the current draft
+of the DOM2 Event model sucks pretty badly for the specific context of
+using it as the core interface for a Model/View DOM application.
+
+Some context: I'm principal author of Gill, the Gnome SVG editor. SVG is
+one of the more exciting XML/DOM applications out there, and one of the
+first substantial such to be designed with DOM in mind from the
+beginning, rather than patched on later. I am doing my best to structure
+Gill so that it follows spirit and letter of the relevant standards,
+including the DOM. In particular, I'm trying to do the rendering using
+the Model/View pattern, and using the DOM2 Event API to connect the
+Model (the DOM) with the View (my renderers). But I find that it's
+simply not meeting my requirements.
+
+The main issue is event propagation with multiple listeners. One of the
+great strengths of the Model/View pattern is that a single Model can
+have multiple Views. The DOM2 obviously makes at least a gesture in this
+direction (earlier DOM's had listeners as properties of nodes, so you
+could really only have on). In any case, the ability to support multiple
+Views is one of my requirements.
+
+Another requirement is that there be some event propagation mechanism.
+In particular, I would like to make listeners on individual nodes
+optional. If a renderer chooses to listen to events and incrementally
+re-render itself, fine. If not, events should propagate up the tree
+until they reach a generic container, which can simply re-render the
+entire child subtree from scratch. Because the alternative is basically
+to connect a listener to each node in the tree, event propagation of
+this type is also a requirement.
+
+Now, looking at these requirements, and also at the DOM2 draft, it's
+pretty easy to see that it just doesn't work. Basically, while you can
+register multiple event listeners, when you stop the propagation, it
+affects _all_ the listeners. Thus, if two of my Views need to stop the
+propagation at two different points (which is quite likely), then the
+earlier one wins, and the other never recieves the event.
+
+So the techical issue here is fairly simple. On we go to procedural
+issues, which is where my stronger language is going to come into play.
+
+Using the W3C standard DOM to implement the Model/View pattern is
+stretching the original scope quite considerably. In the original
+context of providing scripting for HTML document elements, the renderer
+is just assumed to be an implicit part of the browser. It is expected to
+magically cause the correct rendering to appear on the screen whenever
+the script changes the document through the DOM interface. Theres'
+nothing fundamentally wrong with this design, it's just not what I'm
+trying to do, which is Model/View.
+
+It looks like supporting true Model/View is a goal (while not explicitly
+stated, it does seem to be implicit in the requirement that the spec
+support multiple listeners at a single Node). Since I'm actually
+implementing this, when I brought up my concerns (on 24 Jun 1999), I
+thought the working group would listen. I was under the impression that
+this mailing list existed in large part so that the W3C could hear
+concerns of people who will be using the spec, especially early
+implementors, who might have _some_ early insight into potential
+problems. However, more than two months have passed with no response of
+any kind.
+
+It would seem, then, that in trying to make DOM a general foundation for
+XML applications, rather than just a formalized compilation of the
+various DHTML hacks perpetrated during the bad old days of the browser
+wars, this working group is overreaching its abilities, most likely both
+in technical competence and procedural agility. If this is the case (and
+I seriously hope it's not), the rest of the world should find out sooner
+rather than later. In particular, other working groups like the SVG one
+should be aware of the fact that they're basing their work on a
+foundation that is likely to turn out fundamentally broken.
+
+In the meantime, as far as moving the implementation of Gill forwards, I
+have several choices, none of them particularly appealing.
+
+One of my choices is to attach a listener to each node. This implies
+that I have to attach lots of new listeners in response to an "insert"
+event. The memory consumption and speed overhead are enough to make this
+approach unacceptable, but I'm also concerned about the added code
+complexity. I have to make sure that every single node has a listener,
+which is then responsible for routing the event to the appropriate
+place.
+
+Note that with this architecture, I'm deriving none of the benefits of
+the event propagation model. In fact, I'm faced with implementing a
+rather complex and large API just to obtain the functionality of "tell
+me when _this_ node gets an event." Thus, it seems more appealing to
+implement a very simple event model in my DOM engine, use that for all
+the Views that I implement, and if I need to implement DOM2 compatible
+events for scripting, I just simulate those by attaching listeners to
+the entire tree and doing the DOM2 event propagation, in much the same
+way that the listeners are responsible for event propagation in the
+Views.
+
+So my other choice is to implement an event propagation mechanism that
+does not have the brokenness of the DOM2 draft. In particular, if there
+are multiple sets of listeners that apply to a particular event, then
+cancellation of the event will only affect a single set of listeners.
+Getting this right will require some design, but at least I won't have
+to worry about compatibility with existing APIs, so that should afford
+me some opportunity to simplify.
+
+And of course that's fairly unappealing as well, because it's a whole
+API that's not standards-compliant, which means that each View faces a
+difficult choice - be nonstandard and perform reasonably, or be standard
+and crippled.
+
+So here is my challenge: does this working group care? If so, I would be
+happy to help work out concrete solutions. But if not, I need to go
+forward with my own stuff, and let other people know not to expect too
+much either.
+
+Raph
+
+
+

@@ -1,0 +1,178 @@
+docno="lists-005-11114494"
+received="Wed Oct  4 23:38:34 2000"
+isoreceived="20001005033834"
+sent="Wed, 4 Oct 2000 23:37:53 -0400 (EDT)"
+isosent="20001005033753"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: Fewer new versioning methods, please!"
+id="200010050337.XAA08773@tantalum.atria.com"
+inreplyto="IAEBKAABDEIIBHMILFBPMEHECAAA.lisa&#64;xythos.com"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+Note:  I'll omit issues that have already been addressed in previous
+postings.
+
+
+   From: "Lisa Dusseault" <lisa@xythos.com>
+
+   General principles:
+    - New methods require new code.  Old methods may allow reuse of more,
+   perhaps all code, either on the client or the server or both.
+
+New methods do not necessarily require much new code.  They just
+require new entry points that are free to call existing code whenever
+appropriate.
+
+    - New methods require new specification.  This seems easy, but I find the
+   cost to be actually high.  Don't forget, not only must the draft-writers
+   define the new method in all its combinatorial glory, but also every
+   implementor has to fill in the holes which necessarily exist. 
+
+A new method does require a new specification, but this can be based
+on inheritance or delegation (i.e. this is the same as foo but adds
+the following postconditions).  This the approach taken by the
+advanced versioning extensions to the core versioning methods.
+
+Whether or not the extension has a new method name or not shouldn't
+affect this much one way or the other.
+
+    - New methods may require firewall or proxy attention.  What if the
+   adminstrator forgets to add MKACTIVITY to the list of methods that their
+   firewall allows?
+
+If you care about firewall penetration, then you'll just use CONNECT,
+because you can't be sure that even PROPPATCH will make it through.
+
+   The specific commands I'd like to see NOT invented:
+
+   SET-TARGET
+   ----------
+
+   Here is a case where I strongly feel that too much extra implementation (and
+   specification, and test) effort is required to implement this functionality
+   with new methods.  Isn't this an easy one to replace with PROPPATCH?
+
+Not on the server side, because the content and all the dead
+properties have to be updated as well, and there is nothing in
+existing PROPPATCH that will do this.
+
+   The
+   only reason I can imagine for having a new method is so that I can name a
+   version-name or label in SET-TARGET, and the server can then turn around and
+   put the full version URL in the DAV:target property.  But it doesn't seem
+   that versions have URLs any more, or at least I'm confused about whether you
+   have version URLs any more.
+
+Yes, versions have URL's.  We just don't use a special name like
+"version URL's" for them anymore.  (After all, there had to be
+something in all those properties containing href's that refer to versions :-).
+
+   LABEL
+   -----
+
+   I would even prefer a new method called "ADDPROPVALUE" or "MVPROPPATCH" or
+   "ADDVALUE" that serves to add a new value to any multi-value prop, rather
+   than this extremely specialized LABEL method.
+
+Clients need a reliable way of saying "fail if this label is already
+set on another version".  They also need a way of saying "remove this
+label from another version if its already on that other version".
+There's no way of making this important distinction with a simple
+PROPPATCH.
+
+   VERSION-CONTROL
+   ---------------
+
+   Obviously, the server needs to have special code to deal with the case where
+   "isversioned" is changed with a PROPPPATCH: it needs to set a few other
+   properties and create a version-history.  The server would have to have
+   special code to deal with VERSION-CONTROL, too.
+
+And a new initial version ... this seems like a lot of side effects for
+setting a boolean property to "T".
+
+   I'd like to note, however, that you shouldn't require a version-history to
+   be created when a resource is made versioned.  There's only one version at
+   the time, the "current" one.  The server can easily go create the
+   version-history when the second version is created.  This improvement, which
+   I recommend anyway, makes the "isversioned" property even easier to
+   PROPPATCH.
+
+This does make the model significantly less regular, for little
+obvious benefit.
+
+   I know this one is a little difficult, but I have a strong reason to ask for
+   it:  current state of DAV client APIs.   I'd like to be able to use an
+   existing DAV client library and start do do versioning without a lot of
+   extra trouble.  This is mostly possible:  with auto-versioning, I don't need
+   to do CHECKOUT and CHECKIN; mostly RFC2518 actions can be used to interact
+   with versioned resources.   The more behaviour we allow with PROPPATCH
+   instead of SET-TARGET and VERSION-CONTROL, the closer we come to quick and
+   easy client implementation.  I may even be able to use a completely
+   un-altered DAV client, as long as it allows me to enter in values to set for
+   random properties: just turn versioning ON with PROPPATCH, and I've now got
+   a version history,  Although it may be difficult for me to navigate to old
+   versions immediatley, at least I know they're there.
+
+It doesn't seem likely that a generic PROPPATCH client will make a
+very effective versioning client, so it doesn't seem like a
+compelling reason to force the protocol through the property mechanism.
+
+   UNCHECKOUT
+   ----------
+
+   This is a minor one, but I thought that UNCHECKOUT might as well be modeled
+   as a CHECKIN with "cancel-checkout" in its body.  It seems much simpler to
+   state requirements then -- "A CHECKOUT must be followed by a number of write
+   operations, followed by a CHECKIN".
+
+Actually, I proposed this a while back, and it didn't get a warm
+reception.  I didn't really care that much one way or another, so I
+just let it drop.
+
+
+   BASELINE-CONTROL
+   ----------------
+
+   Like VERSION-CONTROL, I believe this can be done with PROPPATCH.  First, it
+   sets the "DAV:baseline-selector" on the collection.  That's easily done with
+   PROPPATCH.
+
+   The other is more complicated, and would require a little rethinking but the
+   result is I think an easier model all around.  It requires not having a
+   resource that is a "baseline selector".  What is the point of this resource?
+   Why isn't the information contained in this resource instead part of the
+   property set of the baseline collection itself?  Does a baseline selector
+   have a URL?  Can it be deleted?  Who is the owner?  What properties does it
+   have?   Where is it located?  How do I delete a baseline -- do I have to
+   delete the baseline selector resource AND proppatch the
+   "DAV:baseline-selector" property on the collection?  Can the two be
+   inconsistent?  What about the period of time inbetween the two actions?
+
+A baseline selector is just a version selector, where the versions happen
+to be baselines.  So a baseline selector just has all the properties and
+methods of a version selector.  This makes it very simple and regular to model.
+
+   I do feel that MERGE is a completely appropriate new method, doing something
+   quite unlike any previous method. Just to prove I know some moderation.  :)
+
+OK, we'll keep MERGE then (:-).
+
+The most vocal advocate of new methods for everything was Chris Kaler
+(he even wanted separate methods for querying version information,
+and not even use properties for that).  So we seem to have ended up
+in a compromise between your position and Chris's position ... new methods
+for operations that have side effects beyond setting the value of a
+single property, but using properties to determine the current versioning
+state.
+
+Cheers,
+Geoff
+
+
+

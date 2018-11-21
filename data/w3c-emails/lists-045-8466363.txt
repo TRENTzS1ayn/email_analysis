@@ -1,0 +1,159 @@
+docno="lists-045-8466363"
+received="Mon Jan 29 17:16:46 2001"
+isoreceived="20010129221646"
+sent="Sun, 28 Jan 2001 14:55:38 -0800"
+isosent="20010128225538"
+name="Brian LaMacchia"
+email="bal@microsoft.com"
+subject="RE: KeyInfo Extensibility poll"
+id="0C682B70CE37BC4EADED9D375809768A0D050E@red-msg-04.redmond.corp.microsoft.com"
+inreplyto="KeyInfo Extensibility poll"
+expires="-1"
+
+
+To:"'Carl Wallace'"<cwallace@erols.com>
+Cc:w3c-ietf-xmldsig@w3.org,"'merlin'"<merlin@baltimore.ie>,"'Donald E. Eastlake 3rd'"<lde008@dma.isg.mot.com>
+
+[Carl wrote...]
+>How can we avoid having option 1?  If we only permit option 2 or 3 then we
+>are assuming that all future extensions are going to be related to one of
+>the types we have defined.  The question is whether to support option 2 or
+3
+>in addition to option 1.  Since processing for option 1 must exist, i.e. we
+>must be able to discard children of KeyInfo we don't understand, why
+clutter
+>the model with similar processing one layer down?
+
+You're correct that we cannot avoid option 1, and there's never been any
+serious discussion of that.  The issue is whether we're creating a system
+that will have known backward-compatibility problems in it.  I believe
+Option 1 guarantees this.
+
+>One of the problems with option 2 with regard to the required KeyValue is
+>that the contents of KeyValue can be completely replaced by custom content.
+>This renders the interoperability intent of KeyValue moot.
+
+I don't understand this comment.  First, none of the options under
+discussion have any bearing on KeyValue.  Second, as support for DSAKeyValue
+is required; DSA is the only guaranteed interoperable structure.  
+
+>Option 1 does not impose a "fixed, non-extensible scheme".  It simply
+allows
+>us to define what we believe are reasonable structures that may be used in
+>the interim, before other WGs define alternative structures, or beyond, if
+>they serve an applications needs.  If someone wants to use an alternative
+or
+>custom structure they can, as a child of KeyInfo.  I'm puzzled by the need
+>for "extensibility everywhere".  Why must all of the structures be
+>extensible or all of the structures absent?  This seems like a drastic
+>assessment.
+
+Option 1 most certainly does create a fixed schema for X509Data, SPKIData
+and PGPData.  As Don wrote:
+
+(1) Prohibit any elements, other than what we define in our
+namespace,
+inside SPKIData, X509Data, and PGPData.
+
+>Options 2 and 3 provide the ability to decorate the primitive types we
+>define.  For an application that does not understand one of these
+adornments
+>what is the proper course of action?  Should it discard the entire element
+>or only the adornment?  
+
+You drop the "adornment" on the floor, assuming it is an immediate child of
+the data type (e.g. X509Data).  That's always guaranteed to be OK in our
+model, at least as we now have the data types defined.  In each of the three
+datatypes under discussion (X509, PGP, SPKI), we have defined multiple
+subelements for carrying related data, but we have never explicitly required
+any sort of element-presence relationship among sibling children of
+X509Data/PGPData/SPKIData.  (We *have* defined such relationships one level
+down, e.g., X509IssuerSerial, but none of the extensibility options under
+discussion would impact that.)
+
+>How do new, custom elements color the meaning of the
+>DSIG defined elements or vice-versa?  
+
+They don't, by definition.  They can't, in fact.  Remember, *everything*
+contained within KeyInfo is optional; there is no way that any particular
+piece of evidence contained within a KeyInfo blob can change the data
+contained within another piece of evidence within KeyInfo.  (Of course, the
+policy management system may choose to view two pieces of KeyInfo as in
+conflict under its particular policy and take some action, but that's its
+perogative.)
+
+>Options 2 and 3 beg for criticality flags and no one wants that.  
+
+Again, I don't see how this can possibly be true, given the definition of
+KeyInfo that we've been working with since the beginning.
+
+>Even if criticality flags are not explicitly
+>present, their behavior is implicit if we define a scheme to permit
+>ignorable content in the primitive types and "critical" content in an
+option
+>1 style extension.  When you move material to an option 1 style extension
+>you lose the relationship to the DSIG structure, which is presumably the
+>goal.  
+
+By definition, no content in an Option 1 extension can be per se "critical".
+The loss of relationship when moving data to a new subelement of KeyInfo is
+exactly what creates backward- and forward-compatibility problems.  A V1
+client has no way to know that your new data type/subelement of KeyInfo
+contains the equivalent of the X509Data info it needs.  V2 clients will be
+forced to include both old & new data types, thus bloating KeyInfo.
+
+>Further how do we relate new elements to DSIG elements in a
+>structure.  Take X509Data as an example.  This structure currently permits
+a
+>dizzying array of names, serial numbers, certs and crls that may identify
+>the signer or a CA from one of multiple paths.  If a new element is added,
+>how does an application know which sibling it relates to?  
+
+I don't understand your question here.  Any new child of X509Data, which is
+all we're talking about here, would "live" at the same level as the other
+permissable X509Data children.  Their relationship would be the same; they
+all "relate" to a particular subject key.
+
+>Everyone acknowledges there are issues with the X.509 extension mechanism:
+>criticality flags, interoperability woes, etc.  Imagine if in addition to
+>custom extensions applications could alter, replace or add to the content
+of
+>basicConstraints or other X.509 defined extensions.  That is what options 2
+>and 3 propose to do for DSIG.  
+
+No, they do not.  Your comment here illustrates a misconception about the
+role of KeyInfo elements in DSIG, which I think is the root cause of all
+this confusion.  In your X.509 example, extensions explicitly modify the
+meaning of the signed statement contained within a certificate.  You are
+correct that allowing clients to arbitrarily extend/change the meaning of
+extensions and add new extensions destroys any interoperability on the
+*meaning* of a particular signed statement (cert).  Of course, this is
+exactly where PKIX Part 1 finds itself now: any extension has the ability to
+completely change the meaning of the other extensions, and there's no
+definition of what it means to "understand" an extension, thus any extension
+potentially throws interop out the window.
+
+But that's not the case in XMLDSIG, because nothing in KeyInfo can, in any
+way, change the meaning of the signature.  Just to be perfectly clear let me
+restate that: no element or subelement of KeyInfo *ever* has impact on the
+meaning of a digital signature.  By definition.  Period.  That's why it is
+*always* OK to remove any all elements of KeyInfo from a signature block
+(absent, of course, an explicit Reference to the KeyInfo element or
+something like that which would break the signature).
+
+>The real question may be do we want to define
+>an extensibility mechanism for relating elements from DSIG structures to
+new
+>content at this point in time?  I think the ability to add children under
+>KeyInfo should be a sufficient extensibility mechanism for this version of
+>DSIG, if not beyond.
+
+Except that our past (and current!) experience with X509Data argues
+otherwise.  Without an extensibility mechanism in X509Data we are condemned
+to reconciliation problems between "our" X509Data and the PKIX:X509Data that
+will surely be specified in the future.
+
+--bal
+
+
+

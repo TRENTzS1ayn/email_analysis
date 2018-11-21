@@ -1,0 +1,103 @@
+docno="lists-011-2173516"
+received="Thu Apr 17 00:20:08 1997"
+isoreceived="19970417042008"
+sent="Wed, 16 Apr 1997 15:33:38 0700 (PDT)"
+isosent="19970416223338"
+name="Andrew Daviel"
+email="andrew@andrew.triumf.ca"
+subject="Re: Issues-list item &quot;CACHINGCGI&quot;"
+id="Pine.LNX.3.91.970416150725.21496A100000@andrew.triumf.ca"
+charset="USASCII"
+inreplyto="9704162132.AA18610&#64;acetes.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@nospam.org>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+On Wed, 16 Apr 1997, Jeffrey Mogul wrote:
+
+> the practice in the Squid world seems to be different.  I'm
+> not sure I fully understand the Squid code, but the version
+> I looked at seems to allow caching of a response without
+> a Last-Modified header.
+
+Looking at Squid 1.1 (1.0 was slightly different)
+
+Default : cache_stoplist cgi-bin ?
+ (don't cache queries or anything with cgi-bin in the path)
+Default : refresh_pattern   . 0 20% 4320
+
+Given :
+
+    AGE is how much the object has aged *since* it was retrieved:
+                
+        AGE = NOW - OBJECT_DATE
+
+    LM_AGE is how old the object was *when* it was retrieved:
+
+        LM_AGE = OBJECT_DATE - LAST_MODIFIED_TIME
+
+    LM_FACTOR is the ratio of AGE to LM_AGE:
+
+        LM_FACTOR = AGE / LM_AGE
+
+    CLIENT_MAX_AGE is the (optional) maximum object age the client will
+    accept as taken from the HTTP/1.1 Cache-Control request header.
+
+    EXPIRES is the (optional) expiry time from the server reply headers.
+
+and
+  refresh_pattern <URL regular expression> MIN_AGE PERCENT MAX_AGE
+
+then
+
+    if (CLIENT_MAX_AGE)
+        if (AGE > CLIENT_MAX_AGE)
+            return STALE
+    if (AGE <= MIN_AGE)
+        return FRESH
+    if (EXPIRES) {
+        if (EXPIRES <= NOW)
+            return STALE
+        else
+            return FRESH
+    }
+    if (AGE > MAX_AGE)
+        return STALE
+    if (LM_FACTOR < PERCENT)
+        return FRESH
+    return STALE
+
+(from Release-Notes-1.1.txt)
+
+So, if I understand this correctly, with a stock config file:
+
+Objects with a Last-Modified header are cached for 3 days, or when they 
+expire, or for 20% of their age when cached, whichever is shortest.
+
+Objects without a Last-Modified header are cached for 3 days, or until 
+they expire.
+
+Queries are not cached at all.
+
+One can modify the config, as I have done, to cache queries, perhaps 
+pattern-matched to expire sooner than text or images.
+
+Apart from CGI, server-side includes in Apache without XBitHack will
+typically not have a Last-Modified date. 
+
+(Incidentally, from a recent survey I did, I see 
+  91% with Date
+  70% with Content-Length
+  64% with Last-Modified
+  12% with Etag 
+   4% with Expires
+   1% with Set-Cookie
+   1% with Cache-Control 
+though I know we're discussing the future, not the present)
+
+Andrew Daviel
+
+
+

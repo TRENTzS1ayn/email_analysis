@@ -1,0 +1,203 @@
+docno="lists-039-3935698"
+received="Mon Feb 22 01:36:28 1999"
+isoreceived="19990222063628"
+sent="Sun, 21 Feb 1999 22:36:18 -0800"
+isosent="19990222063618"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Collections Protocol Review"
+id="3FF8121C9B6DD111812100805F31FC0D08792F4A@RED-MSG-59"
+expires="-1"
+
+
+To:"'ejw@ics.uci.edu'"<ejw@ics.uci.edu>, WEBDAV WG<w3c-dist-auth@w3.org>
+
+The following comments are based on
+http://www.ics.uci.edu/pub/ietf/webdav/collection/draft-ietf-webdav-collecti
+on-protocol-03.txt:
+
+(Issue #1) Section 2 - Definition of the term Collection - What does the
+word "contains" mean in the definition of a collection? Does this mean if I
+perform a GET I will get a list of them?
+
+(Issue #2) Section 2- Definition of the term Referential Resource - It
+should be explicitly pointed out that this is a new resource type. I think
+this would make the definition clearer.
+The term "body" as used in RFC 2068 and 2518 refer exclusively to
+messages, not resources. Hence the phrase "body of its own" does not have a
+definition in either spec.
+In general I find this definition confusing as it indicates that a
+reference is a resource but has some relationship with a target somehow
+involving properties. I think the problem is that the authors have cleaved
+too tightly to the file system heritage of this feature. First off, I think
+we need to cease viewing direct references and redirect references as
+children of the same mother. They are two very different creatures with
+largely unrelated functionality. It would probably be in everyone's interest
+if they were given names which shared no common words.
+A direct reference is really just an HTTP object which practices
+inheritances. Its sole purpose being to passthrough any methods it receives
+to its target. Thus if a PROPFIND comes the direct reference will simply
+pass it through to the target. This behavior can then be stopped by
+explicitly marking the request as being addressed to the reference resource
+itself. Describing direct references as "passing through" methods lets us
+avoid discussions of undefined terms like "body" and discussions involving
+vague references to properties.
+A redirect reference is just a 3xx machine. It is a resource which
+always returns 3xx to all requests which are not appropriate marked as being
+direct at the reference. By describing redirect resources in such concrete
+terms we avoid the maddening ambiguities inherent to the current
+specification.
+
+Section 4.1 - I would like to congratulate the authors for the section on
+why referential integrity is not supported. It is a very well written
+explanation.
+
+(Issue #3) Section 4.2 - Problems with the Location header and redirect
+reference responses - I never liked the location header very much because it
+only allows one to return a single URI. Thus if the target resource has
+multiple names by which it is accessible one can only return one of them.
+This isn't terribly robust. As such I would propose that this specification
+provide an extension header to Location which allows for additional URIs to
+be returned.
+
+(Issue #4) Section 4.3.1 - The Ref-Integrity header and its support for the
+enforce value - If I send in an "enforce" value for Ref-Integrity, can I
+delete a target which still has references? If I don't send in a
+Ref-Integrity header, can I be sure if I can delete a target which still has
+references? As beautifully explained in the same spec, the answer currently
+is "we don't know." This means that creating a reference without a
+Ref-Integrity header or with the value "enforce" is a blind act. You have no
+idea what the results will be and this very clearly violates the Hardie
+Rule.
+The na?ve solution would be to just rip out the ref-integrity
+header, however the current language in the spec says that in this case it
+is a gamble as to what one will get. Again, this violates the Hardie Rule.
+As such I propose that the Ref-Integrity header MUST be included in
+all requests and that the only defined value be DAV:do-not-enforce. A server
+receiving this header with an unrecognized value MUST fail the request. We
+do not act in the interests of interoperability by allowing referential
+integrity when as this spec so elegantly argues, no one can even define what
+this means. As such defining an "enforce" header does not help
+interoperability and so should not be in the spec. For now let various
+implements put out RFCs defining their particular implementation along with
+a URL for the Ref-Integrity header that requires their particular
+implementation. Hopefully at some point in the future there will be
+convergence and a standardized URL can be specified.
+
+(Issue #5) Section 4.3.1 - Why DAV:reftarget, reftype and refintegrity are
+stand alone properties - I do not understand why DAV:reftarget, DAV:reftype
+and DAV:refintegrity are all defined as properties. As these values help to
+define the nature of the resource type should they not have their values
+included inside the DAV:reference element in the DAV:resourcetype property?
+
+(Issue #6) Section 4.3.1 - MKREF and the use of bodies - Why doesn't MKREF
+follow the same rules that MKCOL has regarding the possible inclusion of a
+body? They provide for the inclusion of a body but specify that if the
+content-type of the body is not understood then the request MUST be
+rejected. I believe the same rational that merited the inclusion of this
+language in MKCOL's definition applies here.
+
+(Issue #7) Section 4.4.1 - Do references to collections have to provide
+references for all the members of the collection? - If one creates a
+reference to a collection is one also required to create references to all
+the members of that collection? I suspect the answer is yes but this is not
+clear from the specification. For example, the referential resource in the
+example is http://www.svr.com/MyCollection/tuva/ and it points to a
+collection which has a member called history.html. Does this mean that a GET
+on http://www.svr.com/MyCollection/tuva/history.html MUST succeed? In other
+words, that by creating a reference to a collection one is required to
+create references to its entire tree? Again, I suspect the answer is yes
+(this would explain the PROPFIND response format for direct references as
+well as the COPY behavior for direct references) but this requirement is
+never explicitly stated in the spec.
+
+(Issue #8) Section 4.5.5 - Requiring reftype and reftarget in COPY responses
+- Why must one return the reftype and reftarget information for COPY
+requests? As this information is available from a PROPFIND on the
+destination requiring it to be supplied as part of the COPY response seems
+redundant. Including this information also would most likely break RFC 2518
+clients who would expect an empty body on a fully successful copy.
+
+(Issue #9) Section 4.6 - Banning passthrough behavior on DELETE and MOVE - I
+have a direct reference http://foo/bar to http://bar/blaz. I can define a
+MOVE on http://foo/bar to http://icky/bik as meaning that http://bar/blaz is
+to be moved to http://icky/bik. Following the logic discussed in Issue #7 I
+can even properly define how to move any children that http://bar/blaz might
+have. With DELETE I can define a DELETE of http://foo/bar as meaning that
+http://bar/blaz should be deleted. So there doesn't seem to be any technical
+reason to ban passthrough behavior on MOVE and DELETE involving direct
+references.
+I suspect the real reason that passthrough behavior is disallowed on
+direct references is because of concerns regarding interactions with
+existing WebDAV clients. In most file systems that support links if one
+deletes or moves a link, only the link is deleted or moved. I suspect the
+authors are concerned that allowing passthrough on DELETE and MOVE would
+mean that if an existing WebDAV client asks for a DELETE or MOVE then the
+resource being pointed at would be deleted/moved as well, which wasn't
+something the non-reference enabled client would have intended. As such I
+think it is completely reasonable to design the protocol such that if a RFC
+2518 client issues a DELETE or MOVE then only the direct reference and not
+the target is affected. In fact I would propose the design rule that when
+moving/deleting a resource the resource should retain its type unless
+explicit instructions to the contrary are given. That is, if you are a
+direct reference at the source then you should be a direct reference at the
+destination unless explicit instructions to the contrary are provided.
+The way to easily implement this rule is to give no-passthrough a
+value and define the default for that value on a method by method basis.
+PROPFIND and COPY, for example, would default to no-passthrough: f.
+MOVE/DELETE would default to no-passthrough: t.
+The previous all applies to direct references. Redirect references
+are obviously a different animal since one can only directly manipulate the
+reference and never the target. Thus the only issue is - should a 302 ever
+appear in a COPY/MOVE/DELETE response? Following the law of minimum surprise
+an RFC 2518 client getting a 302 would be very surprised. They ordered that
+all resources be copied, redirect references are resources, therefore they
+should be copied. As such I propose that redirect references on
+COPY/MOVE/DELETE always behavior as if no-passthrough equals t, regardless
+of its actual value.
+
+(Issue #10) Section 4.7.1 - Passthrough locks on direct references - I'm
+thoroughly confused regarding why a passthrough lock doesn't lock both the
+reference and the target. I read the spec a couple of times and I still
+don't get it. For example, imagine an RFC 2518 client issued a lock on
+http://foo/bar which is a direct reference to http://bar/blaz. To the RFC
+2518 client it appears that they have locked http://foo/bar which will act
+exactly as http://bar/blaz. This seems the much more reasonable behavior.
+I'm sure there is a scenario here I'm missing but whatever it is, I wasn't
+able to discern it from the spec. I apologize if the scenario is staring me
+in the face and I am just failing to see it.
+
+Section 4.7.3 - Returning reftype and reftarget on LOCKs of redirect
+resources - The text says that a reftype and a reftarget element is returned
+in the result but the actual result does not contain them. I'm not marking
+this as an issue because I assume it is just a minor editorial glitch.
+
+Section 4.7.4 - While there is a title for this section, there is no
+example. I'm not marking this as an issue because I assume it is just a
+minor editorial glitch.
+
+(Issue #11) Section 4.7.5 - LOCK on a Collection that contains a direct
+reference and a redirect reference - First off, the format is not backwards
+compatible with RFC 2518 and thus will break existing RFC 2518 clients. Such
+clients are expecting to get back a prop response, not a multistatus. They
+will ignore the multistatus (since they won't recognize it in this context)
+and thus "see" an empty response body.
+It would seem that returning reftype and reftarget information is
+not necessary. A client can retrieve this information from a PROPFIND. This
+is a similar argument to Issue #8. The best counter argument is that not
+returning this information would cause reference enhanced clients to always
+perform a PROPFIND after a LOCK. While this is not necessarily the end of
+the world (LOCKs tend to be rare) it could still be bad. However, if we
+adopt the behavior proposed in Issue #10 then there won't usually even be a
+good reason to perform the PROPFIND. In addition, this behavior is
+consistent with what an RFC 2518 client would expect.
+
+I believe I have provided more than a sufficient number of issues to keep
+the authors busy for some time and that providing even more would just
+overload the authors. I look forward to returning to my review once these
+concerns have been appropriately addressed.
+
+Yaron
+
+
+

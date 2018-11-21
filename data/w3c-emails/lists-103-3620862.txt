@@ -1,0 +1,82 @@
+docno="lists-103-3620862"
+received="Tue Jun  6 16:38:25 2000"
+isoreceived="20000606203825"
+sent="Tue, 6 Jun 2000 16:37:53 -0400"
+isosent="20000606203753"
+name="keshlam@us.ibm.com"
+email="keshlam@us.ibm.com"
+subject="Re: TreeWalker, NodeIterator"
+id="852568F6.00715515.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="TreeWalker, NodeIterator"
+expires="-1"
+
+To:kboone@ebt.com
+cc:"DOM (E-mail)"<www-dom@w3.org>
+
+
+>1.  TreeWalker.getParentNode() returns an ancestor, not necessarily the
+>parent.  Should it not be renamed getAncestorNode() to reflect the
+>semantics?
+
+You've missed a subtle point: TreeWalker presents a filtered view of the
+DOM tree. All navigational operations on a TreeWalker are in terms of that
+filtered view, _not_ in terms of the "real" DOM it's walking over.
+
+For example, consider:
+     <a><skipMe><b/></skipMe><c/></a>
+
+If the TreeWalker has a filter which skips the <skipMe/> element, it will
+present a view of the tree as if <skipMe/> didn't exist:
+     <a><b/><c/></a>
+
+In this view, b's parent is a and its next-sibling is c -- even though
+those aren't the relationships in the original document. In some sense,
+that's the whole point of having a filtered view; it behaves more-or-less
+like a standard DOM tree, but you see only those parts of the document
+structure which are meaningful for the task at hand.
+
+
+>2.  TreeWalker.getFirstChild()/getLastChild() apparently don't drill down,
+>but only return "direct" offspring.  Can you confirm this/clarify the
+>specification.
+
+Again, think in terms of the filtered view. In the above example, if the
+TreeWalker's current node is node a, TreeWalker.getFirstChild() will "drill
+down" to node b -- because it's walking over the filtered view, where b
+really is considered a's first child.
+
+
+>The implementation of TreeWalker [especially in light of the "live" nature
+>of TreeWalkers] would benefit from a detach() method, like that found in
+>NodeIterator.
+
+TreeWalker really shouldn't need a detach() method.
+
+NodeIterator, with its maintain-current-position semantics, needs callbacks
+when the DOM's structure changes. This imposes some computational overhead.
+The detach() operation was added as a way of saying "I'm done with this
+object" so the DOM can stop doing that work. (Think about NodeIterator in a
+garbage-collected environment like Java; without detach(), abandoned
+iterators would continue to consume cycles until the system got around to
+garbage-collecting them.)
+
+TreeWalker, on the other hand, uses "pure current node" semantics; all
+operations occur in terms of a specific current node, and if you move that
+current node the TreeWalker moves with it. That means that the TreeWalker
+probably won't need callbacks from the DOM tree, which means there's no
+computational cost for having one floating around after you're done with
+it. Hence detach() should be unnecessary.
+
+
+> That said, adding detach() to TreeWalker gives this interface
+> a signature that would allow it to be an extension of NodeIterator.
+
+That option was discussed. Our conclusion was that since the semantics of
+TreeWalker and NodeIterator under document mutation were so different, it
+really didn't make sense to derive one from the other. If anything, both
+would derive from a common abstract traversal type... but our best guess is
+that nobody will really need to view them that way.
+
+
+

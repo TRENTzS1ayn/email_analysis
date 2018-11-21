@@ -1,0 +1,231 @@
+docno="lists-006-5499729"
+received="Thu Feb  1 23:22:48 2001"
+isoreceived="20010202042248"
+sent="Thu, 1 Feb 2001 20:21:49 -0800"
+isosent="20010202042149"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="Core versioning issues and nits"
+id="CNEEJCPIOLHKIOFNFJDPAENKCCAA.lisa@xythos.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:<ietf-dav-versioning@w3.org>
+
+
+
+I've had a fresh pair of eyes (thanks Barry!) look at the core
+versioning sections of
+http://www.webdav.org/deltav/protocol/draft-ietf-deltav-versioning-12.ht
+m, and here is the list of issues -- often things which a pair of
+reasonably intelligent folks couldn't reliably infer from the draft, or
+things in core which refer to or require things outside of core.
+
+1) URLs
+
+One fact: The draft currently defines versions, version histories, and
+version-controlled "things" as resources (not, for example, as URLs).
+One more fact: The definiton of resources in 2518 states that a URLs
+which differ only in their parameter set MUST refer to the same
+resource.  When I add one and one together, my value for "two" is that
+it's illegal to take a base URL to refer to a VCR, and add parameters to
+get individual versions and VHRs.
+
+That would mean we cannot have URLs of the form (partial URLs shown
+only):
+VCR:/lisa/index.html
+VR:/lisa/index.html?version=1203987150
+VHR:/lisa/index.html?version=version-history
+
+That would mean we must use URLs like:
+VCR:/lisa/index.html now
+VR:/__versions/lisa/index.html__1203987150
+VHR:/__vh/lisa/index.html
+
+The draft ought to state clearly whether parameterized URLs are
+acceptable or not as URLs for VRs, VHRs.  IMHO, it would be perfectly
+fine to use parameterized URLs to refer to versions and VHRs.  Yes, it's
+ugly, but it's less ugly than the alternative.
+
+(BTW, he second class of URLs above is clearly only suitable for
+automated access in some fashion, not by somebody typing in the URL.  I
+can't think of a good way to make them prettier without using up
+valuable URLs that users might want for other purposes.  I know I've
+covered this in earlier mails, but I'll repeat: I'm unhappy with that,
+it would be nasty to force all implementations to have rather ugly URLs,
+by the combination of requiring non-reusable version URLs and not
+allowing parameterized URLs.  Failing changes along those lines, does
+somebody have a better legal suggestion for pretty URLs?)
+
+2) Versioning of Properties
+
+We need a kind of property that applies to all versions, or to put
+another way, properties that apply to the version-controlled resource
+itself.  For example, the "owner" property maybe ought to apply to the
+whole shebang:  when you change the owner, the new owner has to be
+responsible for everything, from the first version to the last and
+including the version-controlled resource and version history.
+
+Other properties might change every day, and we don't necessarily want
+to create a new version of the document (a copy of the body??!!) every
+time that property changes.  One way of dealing with this is to make the
+frequently-changed properties apply to the VCR.
+
+This doesn't seem possible with the current draft, because PROPFIND and
+PROPPATCH methods applied to the VCR's URL are interpreted with respect
+to the default version.  This is related to "passthrough" issue which
+I'll bring up in another email.
+
+3) Definiton of Version History Resource
+
+The draft states 'A "version history" is a resource that contains all
+the versions of a particular version-controlled resource.'
+
+ - What does 'contains' mean?
+ - How does this mesh with later implications, that there can be more
+than one version history resource for a VCR?  This may be a
+misunderstanding however please clarify.
+
+
+4) The existence of version history resources
+
+Section 2.1.1 "In core versioning, a version is exposed as an HTTP
+resource with a server-defined URL, but a version history is exposed as
+an HTTP resource only when the server supports the version-history
+option (see Section 5)."
+
+Section 2.4: "If the request-URL identifies a versionable resource, a
+new version history resource is created."
+
+Do core versioning servers need to create VHRs and not expose them, or
+not create them at all?  Please clarify that core need not create new
+version history resources at all :)
+
+
+5) Definitions of precursor-set and predecessor-set
+
+These definitions are circular.  The predecessor set is defined as
+containing the set of predecessors.  This does not define what a
+predecessor is, or how it is different from a precursor (aren't they
+more or less synonyms?).  Also, what's the meaning of these on the VCR,
+vs the same properties on the version?  Why do you need these properties
+on a VCR when they're already on the version?
+(Do these belong in CORE at all?)
+
+6) DAV:version
+
+I think somebody already pointed out that the DAV:version property was
+redundant since it only contained the URL for the version it was on...
+
+7) How do you distinguish between:
+ - A versionable resource
+ - A non-versionable resource
+ - A version-controlled resource
+
+Let's say the client wishes to present a simple UI which lists all the
+resources in a collection, and can tell what each resource is, allowing
+operations like "show me the version history" or "turn versioning on" to
+be available only when appropriate.  How, exactly, is this accomplished?
+What property is retrieved?
+
+8) Clarify status reporting functionality early
+
+The document uses the headers "Postconditions" and shows strings like
+"DAV:put-under-version-control", throughout the document.  However, the
+way status reporting is handled is only explained very late in the
+document.  Please explain this early on.
+
+Also the draft MUST define for each response string, what numerical HTTP
+response code MUST be used in the response header.  Don't leave this up
+to variation among implementations.
+
+9) What is DAV:checkout-response
+
+The definition of the "DAV:already-under-version-control" status message
+(er, I mean 'postcondition') uses the "DAV:checkout-response" element.
+That's not part of core.
+
+10) Interactions between LOCK and VERSION-CONTROL
+
+State whether a locked resource can be placed under version-control, and
+whether the lock-token must be supplied with the VERSION-CONTROL method.
+
+11) Interaction between existing headers and new methods
+
+What happens when Depth is applied to the VERSION-CONTROL method?  It
+seems that this is being addressed in a mail thread, but the
+specification must define the behaviour.  What exactly happens if
+anything in the scope can't be turned into a VCR?
+
+Or Depth and the REPORT method?  Is Overwrite header ignored on REPORT?
+FOrbidden?
+
+What about existing HTTP headers such as Chunked-encoding and MD5?  Do
+any of them apply?  Are they ignored? Forbidden?
+
+12) Version-tree report
+
+In 2.5, the version-tree report is required to be a "DAV:multistatus".
+The response could for that could reasonably be 200 Success or 207
+multistatus.  Your example shows 200.  Please state normatively, which
+response code is required.
+
+13) Root versions
+
+In 2.9, the root version of a version history "must not be deleted".
+Why is that?  This seems like an implementation issue, not a
+protocol/interoperability issue.  Please leave this issue up to the
+implementation to decide whether or not to allow deletion of old
+versions, and how to deal with any subsequent rearrangements that might
+be necessary.
+
+14) (DAV:initialize-precursor)
+
+"(DAV:initialize-precursor): If the source of the COPY was a version and
+if the destination of the COPY supports the DAV:precursor-set property,
+the DAV:precursor-set of the destination MUST identify that version.  If
+the source of the COPY was a version-controlled resource, the
+DAV:precursor-set MUST identify the DAV:checked-in or DAV:checked-out
+version of that resource."
+
+We don't understand this paragraph at all.  We don't know what a
+precursor is, or what to identify, or what this is doing in CORE.
+Please move this entirely out of CORE.
+
+15) Version-history-is-tree
+
+"(DAV:version-history-is-tree): If the request-URL identifies a
+version-controlled resource that was automatically checked out because
+DAV:auto-version was DAV:when-locked, then the versions identified by
+the DAV:predecessor-set of the checked-out resource MUST be descendants
+of the root version of the version history for the DAV:checked-out
+version."
+
+What does locking have to do with whether the versions must be
+descendants of the root version?  Wouldn't this also apply when doing
+autoversioning when unlocked?  We don't really understand this
+paragraph.  Again, we wonder what this is doing in core.
+
+16) New definition of Overwrite
+
+Please clarify the new definition of Overwrite.
+
+If you COPY directory 'mydir' with 'mydir/foo' and 'mydir/bar' to a
+directory elsewhere with 'mydir/baz', do you end up with a directory at
+the destination with TWO children, or THREE children?  In other words,
+do resources at the destination which do not overlap resources from the
+source get deleted?
+
+I prefer 'no', btw.
+
+17) OPTIONS supported-method-set
+
+Section 23.6:  this defines 'supported-method-set', but in fact there's
+already a header that expresses this.  How are you dealing with that
+redundancy?
+
+
+Lisa
+
+
+

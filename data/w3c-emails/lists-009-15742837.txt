@@ -1,0 +1,89 @@
+docno="lists-009-15742837"
+received="Sat Mar  2 12:24:41 1996"
+isoreceived="19960302172441"
+sent="Sat, 02 Mar 96 15:22:47 0500"
+isosent="19960302202247"
+name="hallam@w3.org"
+email="hallam@w3.org"
+subject="Some randomness concerning chunked encoding."
+id="9603022022.AA21404@zorch.w3.org"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Hi,
+
+I'm just looking into the chunked encoding stuff and writing 
+a little code. I had an idea which may save us a compatibility problem 
+at a later date but which could probably be implemented now without
+difficulty:-
+
+The point is that in future we may want to have attributes
+associated with each chunk, eg a running message digest or the like.
+There is also the question of multiplexing channels. forget for the
+moment the issue of client/server compatibility but consider the action
+of a gateway. We may wish to avoid having to upgrade proxies etc if
+we incorporate channel type features into the spec.
+
+The spec at present is for chunks of the following form:-
+
+
+1A
+abcdefghijklmnopqrstuvwxyz
+10
+0123456789
+0
+Footer: foo
+
+
+What I would like to do is to require parsers to be tolerant of 
+additional garbage on the chunk size line:-
+
+
+1A ajwiuwenbq3iuy3ig23==
+abcdefghijklmnopqrstuvwxyz
+10 This will be ignored but might be an MD5 of the chunk
+0123456789
+0
+Footer: foo
+
+
+The 1.1 spec would not define semantics for the additional parameters but
+would require parsers to be tolerant.
+
+This effectively means that the parser needs to introduce a "throw
+away data loop" into the FSM:-
+
+Start -- hex --> Number
+Number-- hex -->Number
+Number-- CR -->GotCR
+Number-- LF -->Start[If NUMBER > 0]
+Footer[Otherwise]
+
+# We add the following transitions :
+
+Number  -- SP -->Junk
+Junk-- CR -->GotCR
+Junk-- ANY -->Junk
+
+
+Naturally no 1.1 compliant generator would generate such data.
+
+
+For the price of three extra transitions in the state table of the
+parse we get a really big win. Is there anyone who would get trodden
+on if we went this route?
+
+
+This raises another problem. If I want to release a product that has
+a subset of 1.1 implemented what do I report in the protocol? If I
+report 1.0 this may be wrong because I may have used a non 1.0 feature.
+If I report 1.1 then this may also be wrong.
+
+
+Phill
+
+
+

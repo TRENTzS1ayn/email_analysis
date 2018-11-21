@@ -1,0 +1,162 @@
+docno="lists-103-0563287"
+received="Fri Oct  8 17:03:43 1999"
+isoreceived="19991008210343"
+sent="Fri, 08 Oct 1999 14:03:01 -0700"
+isosent="19991008210301"
+name="David Brownell"
+email="david-b@pacbell.net"
+subject="Re: DOM L2 comments, various"
+id="37FE5C05.AB4BF38E@pacbell.net"
+charset="us-ascii"
+inreplyto="37EE8F5B.2199FB5C&#64;pacbell.net"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+Well, today's the day "last call" ends.  So here are a few more
+comments I'd queued up.  This should be the last set of new "last
+call" comments from me.
+
+- Dave
+
+1.3DocumentType ... this shouldn't expose _only_ the external DTD
+subset.  If it exposes that, it should expose the internal DTD
+subset too -- else it's deleting half the key information!!
+
+FIX BY:  exposing the other half of the DTD.
+
+- Add "readonly attribute DOMString internalSubset" to
+  DocumentType, containing the literal text of the internal
+  subset.  (The very same kind of text found in the resource
+  identified by the systemId URI ...)
+
+- Add an "in DOMString internalSubset" parameter to the
+  DOMImplementation.createDocumentType() method.
+
+If you don't fix this, then remove the external DTD subset info;
+having one half of the information isn't a good idea.
+
+7.1While I appreciate the intent, I'd like to see the words "simple
+and efficient" struck from the description.  Or at least see them
+made to apply only to the application code, not the implementation.
+
+These aren't "simple" since they must interact with selected node
+deletions from their backing document.  They aren't "efficient"
+since that interaction increases the cost of those deletions;
+I've measured a 12%-15% increase.  These iterators push costs out
+of the application into the DOM -- so applications that wouldn't
+normally incur those costs are slowed down, getting no benefit.
+
+7.1I'd like to see some motivation of the "liveness" here.  It's clear
+to me that most servers don't need or want "liveness".  Given that
+there is a cost to being sensitive to deletions, why must all
+implementations pay that cost?  I'd probably like these APIs if I
+didn't have to pay that cost.
+
+7.1.1The explanations in 7.1.1.1 and 7.1.1.2 have made a step forward
+by adding the notion of a "reference node", but they still have
+that confusing notion of a position "between" two nodes.
+
+Can we get those explanations made _purely_ in terms of the
+reference node?  For the majority of implementations, using an
+object to represent each node in the DOM tree, representing a
+position "between" nodes is an unnatural act.  Not so for
+anything using a reference node -- and of course, from the user
+perspective, all they can ever see is nodes, so an explanation in
+terms of nodes (not between-ness) can't help but be clearer.
+
+I think that references to "position" can be turned into references
+to an internal flag that seems to be necessary.  "Before the
+reference node" is "direction flag is left"; and "after the reference
+node" is "direction flag is right".  Then one can fully define
+the behaviors of nextNode() and previousNode() ... since if the
+direction flag isn't going in the right direction, all they do is
+toggle the flag and return the reference node (right??).  Note that
+such a flag is almost suggested in the first para of 7.1.1.2; it's
+clearly not newly introduced state.
+
+7.1.1.1I found the explanation (not quite algorithmic) to be problematic.
+
+For example, it states at the end that the reference node is at
+a particular position when the iterator is first created.
+
+Hmm, I didn't implement it that way, yet from what I can tell
+my code is fully conformant.  So the text is either incorrect or
+it's incomplete, or both.
+
+Similarly it defines the reference node to be the last node
+returned -- which clearly can't cover the initial state, where
+no value has been returned.
+
+7.1.1.2More of the same -- unclear.
+
+2nd para, "changes to the iterated list" ... what changes is the
+DOM document (a tree!) backing the iterator.  The whole point of
+this is to make the iterated list react to such changes, since
+that list can't be directly manipulated.
+
+6th para, "If the reference node is before the iterator, which
+is usually the case after nextNode() has been called" ... the
+iterator is an object outside the DOM tree.  Surely you mean
+"position", not iterator.  Similar in paragraph 8.  (But again,
+I'd like to see reference to "position" removed.  Those two can
+be simple references to the implicit direction flag.)
+
+"One special case arises..."  Hmm, danger sign!!  There should be
+a corresponding special case for the _other_ end of the list ...
+the text is clearly incomplete, it doesn't capture the problem's
+esential symmetry.  (These cases should have one general rule to
+cover them, of course!)
+
+7.1.1.31st para penultimate sentence, "the reference node is the last node
+in the list, whether or not it is visible".  Strike that.  It's in
+fundamental conflict with the definition of the reference node as
+the last node returned.
+
+7.2A familiar GC issue rears its ugly head.  Because NodeIterator (and
+also TreeWalker) require deletions of particular nodes (or their
+ancestors) to affect the iterator, this specification has REQUIRED
+the backing tree to be coupled to the iterators/walkers traversing it.
+
+However, there is no way to break that coupling once it's been set
+up.  Accordingly, iterators can never be GC'd until the node which
+establishes that coupling becomes garbage.  (No, it's not OK to force
+all DOM Level 2 implementations to use Java2 "weak references", or to
+preclude using traversal in other platforms without such support, or
+even to say that you can't use .)
+
+FIX BY:  add a new method to NodeIterator (and TreeWalker) which
+is defined more or less as follows:
+
+void finished ()
+Marks the traversal object as no longer needed,
+permitting the DOM to release all resources that
+are associated with it.  Subsequent calls to nextNode
+and previousNode() will report an exception.
+
+Of course, COM (and JavaScript implementations built on it, such
+as Mozilla's) can play refcounting tricks and arrange to have the
+last "real" reference release those resources.  But finished() will
+not hurt those implementations, either, and can help avoid the need
+for such tricks -- always healthy.
+
+I know this GC issue got discussed earlier in the context of
+problems providing an acceptably performant "live NodeList".
+It can be more or less sidestepped with a NodeList since there's
+no notion of "current" node there -- you can implement NodeList
+liveness by tracking a document mutation count, and if it changes
+then doing the getElementByTagName() search over again from the
+beginning.  Slow as all get-out, but correct.  (Some implementations
+have proprietary parser integration, and only restart if the change
+wasn't from a parser "appending" more data after existing nodes.)
+
+7.2TreeWalker is exactly a NodeIterator with some new methods, and should
+be defined as such:  inherit from NodeIterator.  Repeating that much
+text is a bad idea.  Ether differences are intended, so the text
+should be very different; or they're not, in which case all the identical
+interface features should be shared through the sharing mechanism
+(inheritance of interface).
+
+
+

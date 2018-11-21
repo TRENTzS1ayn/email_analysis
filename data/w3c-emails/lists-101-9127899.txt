@@ -1,0 +1,93 @@
+docno="lists-101-9127899"
+received="Tue Jun  4 01:11:01 2002"
+isoreceived="20020604051101"
+sent="Tue, 4 Jun 2002 00:10:03 -0500"
+isosent="20020604051003"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Events tests, transform changes, well-formedness &amp; validity changes to HTML tests"
+id="011f01c20b86$16038d90$a800a8c0@CurtMicron"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+
+I had intended to commit these changes Friday evening, but there was an announced power outage for the W3C servers.  I hope to do some more work over the next few days and finally get to the point that I can look at Bob's work.
+
+I changed to a handful of the Level 1 HTML tests to fix well-formedness or validity issues.
+
+I have added about 20 tests to level2/events and made corresponding changes to the dom-to-xsd.xsl, dom-to-dtd.xsl, test-to-java.xsl and build.xml.  The tests basically cover most of the prescribed exceptional conditions, but don't yet cover normal event propagation or normal mutation events.  Hopefully, this will get the infrastructure in place for Jeroen to be able to build the Load/Save tests.
+
+dispatchEvent8 - 12.xml demonstrate the use of a stock implementation (EventMonitor) of EventListener to capture and test dispatched events.
+
+dispatchEvent13.xml demonstrates defining a test-specific implementation of EventListener.  The following fragment:
+<!-- definition of private class instance that implements EventListener -->
+<var name="listener1" type="EventListener">
+    <!-- instance scope variables, 
+        value attributes are passed via constructor -->
+    <var name="events" type="List" value="events"/>
+    <var name="listeners" type="List" value="listeners"/>
+    <!-- implementation of handleEvent method
+        any parameters (in this case 'evt') are
+        predefined -->
+    <handleEvent>
+      <!-- method scope variables -->
+        <var name="target" type="EventTarget"/>
+        <var name="listener" type="EventListener"/>
+        <!-- add event to the collection -->
+        <append collection="events" obj="evt"/>
+        <!-- remove this and the other listener -->
+        <currentTarget var="target" obj="evt"/>
+        <for-each collection="listeners" member="listener">
+            <removeEventListener obj="target" type='"foo"' listener="listener" useCapture="false"/>
+        </for-each> 
+    </handleEvent>
+</var>
+
+
+gets converted to:
+
+public class dispatchEvent13 extends DOMTestCase {
+...
+    private class EventListenerd45e38 implements EventListener {
+        List events;
+        List listeners;    
+        public EventListenerd45e38(List events, List listeners) { 
+            this.events = events;
+            this.listeners = listeners;
+        }
+        public void handleEvent(Event evt) {
+            EventTarget target;
+            EventListener listener;
+            events.add(evt);
+            target = evt.getCurrentTarget();
+            for(int _index = 0; _index < listeners.size();_index++) {
+                listener = ( EventListener ) listeners.get(_index);
+                target.removeEventListener("foo",listener,false);
+            }
+        }
+    }
+
+...
+public void runTest() throws java.lang.Throwable {
+...
+    EventListener listener1 = new EventListenerd45e38(events, listeners );
+
+
+Changes to the DOMTSML:
+
+added assertImplementationException to capture implementation specific exceptions like NullPointerExceptions.
+Changed <EventMonitor.getAllEvents/> and similar to <allEvents/>
+Changed xs:key and xs:keyref to not attempt to check for undeclared variables in anonymous classes.
+
+Changes to build.xml
+
+dom2-events-jar will create a dom2-events.jar.  Xerces-J will pass all current tests except dispatchEvent01 which expects an implementation exception for passing a null event.  Will need to see what other implementations do and possibly ask for a clarification.
+
+dom1-html-jar now includes submittedtests/netscapeHTML for evaluation of Netscape submitted tests.
+
+I'm in the process of patching Xerces-J's HTML DOM implementation to work with XHTML and hope to use that to provide another reference implementation for evaluating the HTML tests.
+
+
+

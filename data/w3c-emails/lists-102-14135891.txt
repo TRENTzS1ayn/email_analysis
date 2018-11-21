@@ -1,0 +1,197 @@
+docno="lists-102-14135891"
+received="Tue Feb 23 19:52:02 1999"
+isoreceived="19990224005202"
+sent="23 Feb 1999 16:51:34 -0800"
+isosent="19990224005134"
+name="Jean-Michel Leon"
+email="jmleon@Eng.Sun.COM"
+subject="comments on DOM2 Event Model"
+id="lm0u2wcoc89.fsf@eng.sun.com"
+charset="US-ASCII"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+
+
+[ the following suggestions are based on WD-DOM-Level-2-19990222. ]
+
+
+Event Flow
+==========
+
+this paragraph suggest that there is a top-down dispatch of events, but
+this dispatch mechanism is not specified. Plus, although it seems quite
+natural for UI events, because you can defined how theses events are
+dispatched down the DOM tree, using x,y coordinates, or knowing which Node
+has the focus, I'm not sure what this means for other kind of events
+(logical & mutation events). Maybe 'dispatching' should be defined only for
+x,y related events
+
+I think Event Flow should describe both 'Dispatching' and 'Bubbling', and
+both of these should be detailed like bubbling is.
+
+
+Capturing:
+=========
+
+Once you've described how dispatching works, you realize that the capturing
+stuff is not well defined anymore. In fact (especially since this is
+currently using the same interfaces) 'capturing' simply means 'dispatching
+cancellation', just like you have 'bubbling cancellation'. I think this
+should be symmetrical: you should either have a reserved term for 'bubbling
+cancellation', or you should not talk about 'capturing'.
+
+I also have one special grief against Event.cancelCapture, which is a poor
+name for specifying 'please do not propagate this event to my
+descendents'. I'd rather see something like 'cancelDispatch', which would
+be more consistent to 'cancelBubble'.
+
+The bottom line is that I think the event flow should talk more about
+dispatching, and dispatching and bubbling should be more symmetrical.
+
+
+Event Cancellation
+==================
+
+what's the rationale behind using a property for cancellation instead of a
+method ?
+
+this seems more a risk than a feature to me, because it forbids to specify
+cancellation policy when more than one listener are set. Typically, using
+the existing mechanism, you cannot predict what happens if one listener
+sets this attribute to true and the other sets it to false. 
+
+I can see two different options that would be much easier to specify:
+
+    - use a method (cancelBubble() or cancel()), and specify that
+    bubbling is cancelled if at least one of the listeners calls this
+    method.
+
+    - use handleEvent return value to specify that bubbling is cancelled
+    if at least one of the listeners return 'true'
+
+
+Listening vs. Capturing
+=======================
+
+Right now, if I set a listener on a given Node, there is no way to know if
+the listener is triggered during the dispatch phase, or the bubbling phase
+(well, you implicitly know it, because you set the useCapture flag
+accordingly to what you want this listener to do - but nothing prevents you
+to try to use a listener designed for capture as a bubbling listener).
+
+This also prevents you to set one Listener both as 'capturer' and
+'listener', since the same method is going to be called in both contexts.
+
+I think there should be a distinction somewhere for these different
+contexts. I can see two different options:
+
+   - define different Listener types (you would add Filters for listening
+   to the dispatch phase, and you would add Listeners for listening to the
+   the bubbling phase).
+   
+    so EventTarget would be:
+
+    interface EventTarget {
+        void addEventFilter(in DOMString type, 
+                            in boolean postProcess, 
+    in EventFilter listener);
+
+        void removeEventFilter(in DOMString type, 
+                               in boolean postProcess, 
+       in EventFilter listener);
+
+        void addEventListener(in DOMString type, 
+                              in boolean postProcess, 
+      in EventListener listener);
+
+        void removeEventListener(in DOMString type, 
+                                 in boolean postProcess, 
+         in EventListener listener);
+    };
+
+
+
+   so we could have:
+
+   interface EventListener {
+       void handleEvent(in Event event);
+   };
+
+
+   interface EventFilter {
+       void filterEvent(in Event event);
+   };
+
+
+    and Event could simply have a cancel() method, specified as 'cancelling
+    the event flow (both dispatching and bubbling) as soon as one listener
+    calls it.
+
+
+    - have two methods on Listeners, one for capturing, and one for
+    listening.
+
+   interface EventListener {
+       void handleEvent(in Event event);
+       void filterEvent(in Event event);
+   };
+
+    But this would imply calling the filtering method many times when it's
+    not required.
+
+
+EventTarget.removeEventListener 
+===============================
+
+the spec should say what happens if a listener removes itself, while it is
+handling an event. 
+
+On the same topic, it should also say what happens to the Event Flow if you
+remove the dispatching node (or any ancestor) inside an event handler.
+
+
+addEventListener / postProcess
+==============================
+
+I'd like to understand what's behind this. My feeling is that when you
+write a script, you are relying on an unknown DOM implementation. So how
+would you know if you should set postProcess to true or not ?
+
+
+
+Actions
+=======
+
+these objects are mentioned when describing. I think this is linked to my
+question about postProcessing: whether we have an idea what a DOM
+implementation is doing (what the default actions are), and the spec should
+mention where/when and how these actions take in the event flow, or actions
+are not well defined, and the spec shouldn't mention them. My feeling is
+that something's missing here, maybe it's just an entry in the terminology.
+
+
+Mutating Events
+===============
+
+the spec should say if events can be mutated (their properties can be
+changed) by a filter or a handler, and what effect this has on the event
+flow. Typically, what happens if I, as an event filter, modify the X,V
+coordinates of an event ? Does this modifies subsequent dispatch or not ?
+
+
+
+Misc questions
+==============
+
+can a script generate an event from a given node ?
+
+
+
+
+jm.
+
+
+

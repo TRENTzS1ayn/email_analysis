@@ -1,0 +1,90 @@
+docno="lists-042-7423526"
+received="Mon Sep  1 06:55:24 2003"
+isoreceived="20030901105524"
+sent="Mon, 1 Sep 2003 12:55:15 +0200 "
+isosent="20030901105515"
+name="Nevermann, Dr., Peter"
+email="Peter.Nevermann@softwareag.com"
+subject="BIND and write locks"
+id="DFF2AC9E3583D511A21F0008C7E6210605C48060@daemsg02.software-ag.de"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'w3c-dist-auth@w3c.org'"<w3c-dist-auth@w3c.org>
+
+I am trying to figure out, how write locks should behave WRT binding.
+
+Take the following scenario:
+- a collection C11
+- a collection C1 containing a binding "foo" to C11 and mapped to URI "u1"
+- a resource R2
+- a collection C2 containing a binding "b" to R2 and mapped to URI "u2"
+
+   u1|
+     C1
+  foo|    |u2
+    C11   C2
+          |b
+          R2
+
+Now the following requests are issued (' marks locked resources):
+- LOCK /u1 (write, exclusive, depth=infinity)
+  --> C11 is automatically added to the write-lock
+- PUT /u1/foo/a (passing locktoken)
+  --> creates R1 which is added to the write-lock (RFC2518, Section 7.5)
+- BIND /u1/foo (b->/u2/b, passing locktoken)
+  --> R2 is added to the write-lock (RFC2518, Section 7.5)
+
+   u1|
+     C1'
+  foo|    |u2
+    C11'  C2
+    a| b\ |b
+     R1'  R2'
+
+- REBIND /u2 (a->/u1/foo/a, passing locktoken)
+  --> R1 is removed from the write-lock (RFC2518, Section 7.7)
+
+   u1|
+     C1'
+  foo|    |u2
+    C11'  C2
+       b\ |b \a
+          R2' R1
+
+The described behavior for BIND and REBIND is what I suppose it should be.
+Is it correct?
+
+BTW, what happens if, afterwards, the following UNLOCK on R2 is issued:
+- UNLOCK /u1/foo/b (passing locktoken)
+  --> a) request is rejected, UNLOCK must be issued of C1 (/u1)
+  or
+  --> b) all associated resources (C1, C11, R2) are unlocked (RFC2518,
+Section 8.10.4)
+
+I suppose, that it is not possible to remove single resources from the
+write-lock by means of UNLOCK, isn't it?
+
+Thanks,
+Peter
+
+
+P.S.:
+At http://www.webdav.org/specs/ I found a link to
+http://ftp.ics.uci.edu/pub/ietf/webdav/collection/bind-issues.html, which
+contains the following entry:
+
+   "ID: 41
+   Source: Reuter/Hunt
+   Description: Specify how BIND interacts with a write lock.
+   Status: Closed
+   Resolution: Declined
+   Locking semantics is in too confused a state currently to
+   be able to make any reliable statements. Don't want to hold
+   up binding spec till lock settles down."
+
+Is that still prevailing?
+
+
+

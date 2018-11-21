@@ -1,0 +1,140 @@
+docno="lists-005-12055174"
+received="Thu Oct 19 04:29:51 2000"
+isoreceived="20001019082951"
+sent="Thu, 19 Oct 2000 09:25:43 +0100"
+isosent="20001019082543"
+name="Tim_Ellison@uk.ibm.com"
+email="Tim_Ellison@uk.ibm.com"
+subject="further baseline-related comments on deltav-10.1"
+id="8025697D.002E57CF.00@d06mta07.portsmouth.uk.ibm.com"
+charset="us-ascii"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+
+
+Geoff's reply brings up a general problem with baselines and unversioned
+collections.
+
+As currently specified, a baseline captures the targets of version
+selectors at, or below, the baselined collection. If there are unversioned
+collections at, or below, the collection being baselined, there is
+insufficient information to make the baseline useful for restoring that
+configuration.
+
+Here's a simple scenario that shows the problem:
+
+1. Create a new workspace in the server-blessed collection
+     MKWORKSPACE http://example.org/ws/ws1
+
+2. Create file1 in that workspace
+     PUT http://example.org/ws/ws1/file1
+
+3. Put the file under version control
+     VERSION-CONTROL http://example.org/ws/ws1/file1
+     => http://example.org/vers/vh1/v1
+
+4. Put the workspace root collection under baseline control. This should
+create a new baseline history, baseline selector, and baseline version. It
+returns the URL of the baseline version.
+     BASELINE-CONTROL http://example.org/ws/ws1
+     ==> http://example.org/bh1/b1
+
+This baseline version captures the current targets of the version selectors
+in the workspace, namely the one for file1. It's DAV:version-set contains:
+     http://example.org/vers/vh1/v1
+
+6. Some time later, create another workspace
+     MKWORKSPACE http://example.org/ws/ws2
+
+7. Put the workspace root collection under baseline control specifying the
+previously-created baseline version
+     BASELINE-CONTROL http://example.org/ws/ws1
+
+<baseline-control><baseline><href>http://example.org/bh1/b1</href></baseline></baseline-control>
+
+     ==> http://example.org/bh1/b1
+
+The hope would be that this would create a version selector at
+http://example.org/ws/ws1/file1 with target http://example.org/vers/vh1/v1,
+making the new workspace isomorphic to the workspace when it was baselined.
+However, this would only be possible if the baseline remembered more
+information than just the DAV:version-set; it would also need to remember
+that the collection had a "file1" internal member, and the associated
+target version is http://example.org/vers/vh1/v1.
+
+While the above scenario shows that there's a hole in the story for the
+root collection of a baseline, the same problem exists for unversioned
+collections anywhere below the root.
+
+The main requirement is that a useful baseline is one that can be restored.
+The issue to decide is what constitutes being "restored". Two general
+approaches:
+
+(A) Only allow baselining of versioned collections. Effectively, "baseline"
+becomes an optional add-on to "versioned-collection", and baselines cannot
+be offered by a server that is not prepared to offer versioned collections.
+This supports a fairly hi-fi notion of "restore". It is not perfectly
+fidelity, since non-versioned members are not captured; but this is
+compatible with the general philosophy for versioning collections.
+
+(B) Allow baselining of arbitrary collections, but capture relevant
+namespace information along with the version selector.
+For example, the DAV:version-set might instead contain (path, version)
+pairs:
+     <version-set>
+          <item>
+               <href>file1</href>
+               <href>http://example.org/vers/vh1/v1</href>
+          </item>
+This would supports a weaker notion of "restore" for non-versioned
+collections with versioned members; it would allow these non-versioned
+collections to be re-created when the baseline is restored, although they
+would not be restored with any of their dead properties.
+
+Approach (B) feels more general, and allows baselines to be offered by a
+server that does not offer versioned collections (e.g., something like
+CVS). Moreover, the additional information captured in the baseline should
+not represent a significant burden for servers planning to offer both
+baseline and versioned collections.
+
+Other baseline-related problems with draft 10.1:
+
+section 15.10 CHECKOUT [p. 45-6]
+
+- Needs to specify the semantics of checking-out a baseline selector. In
+particular, what is the initial value of the DAV:version-set of the
+checked-out baseline selector. Presumably it contains the targets of all
+check-in version selectors at or below the collection to which the baseline
+selector is attached.
+It also needs to be specified whether the DAV:version-set property of a
+checked-out baseline selector is updated live as the baselined collection
+is modified; i.e., can I query the DAV:version-set property of a
+checked-out baseline selector at any time to discover a perfectly accurate
+picture of the baseline collection?
+
+- Needs to specify the semantics of checking-out a baseline version. It's
+not clear that that this is a particularly useful thing to do. Since the
+baseline version is divorced from the baseline selector, there wouldn't
+been to be any way to affect its DAV:version-set between checkout and
+check-in.
+
+section 15.11 CHECKIN [p. 45-6]
+
+- Needs to specify the semantics of checking-in a checked-out baseline
+selector. In particular, what is the value of the DAV:version-set of the
+newly created baseline version, and how does it relate to the value of that
+property on the baseline selector, and the configuration of the baselined
+collection, at check-in time. What happens to version selectors below the
+baselined collection that are currently checked-out? They should eithe be
+ignored, or the operation should fail in their presence.  What happens to
+non-versioned resources below the baselined collection? They should be
+ignored when capturing the baseline.
+
+- Needs to specify the semantics of checking-in a baseline working
+resource.
+
+
+

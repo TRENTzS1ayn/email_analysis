@@ -1,0 +1,182 @@
+docno="lists-007-1914694"
+received="Thu Jan 10 14:15:22 2002"
+isoreceived="20020110191522"
+sent="Thu, 10 Jan 2002 14:14:14 -0500"
+isosent="20020110191414"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: LOCATE-BY-HISTORY report"
+id="3906C56A7BD1F54593344C05BD1374B103F8AE74@SUS-MA1IT01"
+inreplyto="LOCATE-BY-HISTORY report"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+   From: Konstantin Knizhnik [mailto:KKnizhnik@togetherlab.com]
+
+   If server doesn't support workspaces (or server supports workspaces
+   but client is not using this feature), is there any chance to get
+   version controlled resource for the given version or version
+   history?
+
+The DAV:locate-by-history report is part of the version-history
+feature, not part of the workspace feature, so any server that
+supports version histories should support this report.
+
+   Suppose the following scenario:
+
+   MKDIR MyProject
+   PUT MyProject/foo.txt
+   VERSION-CONTROL MyProject
+
+   So now version controlled resource, version history and initial version
+   are created for all resources in MyProject.
+
+Note that this VERSION-CONTROL request will only place the collection
+"MyProject" under version control.  It does *not* place any of the 
+members of MyProject under version control (VERSION-CONTROL is not
+a depth operation).
+
+You would have to explicitly apply VERSION-CONTROL to each member of
+MyProject that you wanted to be under version control (unless of course
+your server puts every resource under version control, in which case
+no VERSION-CONTROL request is required for MyProject or any other
+resource).
+
+   Now I set the label to the project:
+
+   LABEL MyProject
+   Depth: Infinite
+   <DAV:label xmlns:DAV="DAV:">
+     <DAV:set>
+<DAV:label-name>
+  ALPHA-RELEASE
+</DAV:label-name>
+     </DAV:set>
+   </DAV:label>
+
+   Later I want to extract this state of the project. Certainly I know
+   that BASELINE is write way for doing it,
+
+Yes.
+
+   but
+   1. What if server doesn't support baselines (labels belong to the
+   basic versioning stuff, while baselines belong to advanced)?
+
+Just to avoid any misunderstanding, the label feature is only
+part of the basic-client-workspace package, not part of all basic
+versioning packages, so in general a client cannot count on the presence of
+the label feature from a basic versioning server.
+
+(A server can of course decide to support both the basic-server-workspace
+package and the label feature, but a client should not expect this).
+
+   2. Once labels are defined by specification, it should be clear how to
+   use them, right?
+
+Yes, but you shouldn't expect to be able to do with labels what
+you can with baselines (i.e. if you need baseline functionality,
+you should get it from the server, not try to fake it with labels).
+
+   So I do:
+
+   PROPFIND MyProject
+   depth: Infinite
+   <DAV:propfind xmlns:DAV="DAV:">
+     <DAV:prop>
+<DAV:displayname/>
+<DAV:creationdate/>
+<DAV:contenttype/>
+...
+     </DAV:prop>
+   </DAV:propfind>
+
+I assume you meant to have a "Label ALPHA-RELEASE" header in the
+request?
+
+   So I will be given information about all versions in MyProject labeled
+   by "ALHPA-RELEASE". Is is ok, but now I want to extract this files to
+   the client's local disk. In here is a trouble - I don't know path of
+   the resources. In report I will be given:
+
+   <DAV:response>
+     <DAV:href>
+/.repo/vh1/ver1.1
+     </DAV:href>
+     <DAV:displayname>
+MyProject
+     </DAV:displayname>
+     ...
+   </DAV:response>
+   <DAV:response>
+     <DAV:href>
+/.repo/vh2/ver1.1
+     </DAV:href>
+     <DAV:displayname>
+foo.txt
+     </DAV:displayname>
+     ...
+   </DAV:response>
+   ...
+
+Yes, that is correct.
+
+   How the client will understand that foo.txt should be saved in the
+   file \MyProject\foo.txt at local disk?
+
+You should also have asked for the DAV:version-history property, and
+then you can use a single DAV:locate-by-history report to find the pathname
+to the VCRs for those histories in the MyProject collection.
+
+This is of course trivial when a server supports baselines.  The Label
+mechanism is mostly useful for doing things one resource at a time.
+
+   The only way is to find out version controlled resource for the
+   givven version (or version history).  Report locate-by-history
+   requires workspace as request target. But client knows nothing
+   about workspaces and my be that are not even supported by server.
+   So what should I do?
+
+The simple answer is to only provide this functionality for servers
+that support baselines.  It's good to interoperate with any server,
+but trying to "fake" missing server functionality (e.g. faking
+baselines with labels) will result in a complex (and often inefficient)
+client.  But you can use the DAV:locate-by-history report if you
+really want to do this.
+
+   If version history will be specified as target of LOCATE-BY-HISTORY
+report
+   and workspace can be optionally specified in request body, then
+   this report can be used to get versioned resource even if server
+   doesn't support workspaces or it support workspaces and when workspace
+   is not explicitly specified by client, then resource is implicitly
+   placed in some default workspace.
+
+The request-URL for the DAV:locate-by-history identifies any collection
+(i.e. it doesn't have to be a workspace).  The version-historys are
+specified in the request body to allow you to ask for several in
+one request.
+
+   But even in this case getting resource name require two additional
+   requests: PROPFIND to get version history by version and
+   locate-by-history REPORT to give versioned resource reference.
+
+   Another way is to add property <DAV:defaultdisplacepath/> with the
+   following semantic:
+   - for version controlled resource, it returns its URL
+   - for version and version history - URL of version controlled resource
+     in default workspace if such exists
+
+There is no concept of a "default workspace", so there is no
+particular path that could be displayed here.  It is unlikely that we
+would add a new concept like "default workspace" just to allow one
+feature (i.e. labels) to better simulate another existing feature
+(i.e. baselines).
+
+Cheers,
+Geoff
+
+
+

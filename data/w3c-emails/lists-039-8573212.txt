@@ -1,0 +1,144 @@
+docno="lists-039-8573212"
+received="Wed Sep 15 17:01:52 1999"
+isoreceived="19990915210152"
+sent="Wed, 15 Sep 1999 17:01:47 -0400"
+isosent="19990915210147"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: Bindings, Locks, and MOVE"
+id="9909152101.AA03652@tantalum"
+inreplyto="8E3CFBC709A8D21191A400805F15E0DBD2444B&#64;crte147.wc.eso.mc.xerox.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+   From: "Slein, Judith A" <JSlein@crt.xerox.com>
+
+   <jas>
+   I do have trouble following your description of the fixup stage, though.  I
+   take it you don't think we face the awkward situation Kevin described, where
+   there end up being 2 resources where there used to be only one.  But how do
+   you avoid this?
+
+<gmc/> That's right.  That's what the "fixup" step takes care of.
+
+   Before the MOVE we have:
+
+   /a/b.html   /x/y.html         /c/d.html
+       \         /                   |
+\       /                    |
+ \     /                     |
+    R                        S
+
+   and user1 has a lock on R through /a/b.html
+
+<gmc/> Yup.
+
+   Now user2 attempts to MOVE /c/d.html to /x/y.html.  First the binding y.html
+   is removed from collection /x/.  Then S is duplicated, say to S' and a new
+   binding y.html is created in /x/ to S'.  That's the COPY step.  At this
+   point we have:
+
+   /a/b.html     /x/y.html      /c/d.html
+      |             |              |
+      |             |              |
+      R             S'             S
+
+<gmc/> Yup again.
+
+   The DELETE step is to remove the binding d.html from /c/.  It doesn't look
+   as if there needs to be any fixup, but we do have the awkward result that we
+   now have 2 resources R and S' where there used to be just R.
+
+<gmc>
+And that awkward result is exactly what the fixup step "fixes up",
+namely before the DELETE on /c/d.html, it issues a DELETE on /x/y.html
+and then creates a binding to S named "y.html" in the collection "/x".
+So immediately after the fixup step you have:
+
+   /a/b.html     /x/y.html     /c/d.html
+      |                   \    /
+      |                    \  / 
+      R                      S
+
+A MOVE at the very least must guarantee that the GUID property of a
+resource remains the same after a MOVE, and the only way that can be is
+if /x/y.html is mapped to S (and not some copy of S) after the MOVE
+successfully completes.
+<gmc/>
+
+Cheers,
+Geoff
+
+  -----Original Message-----
+  From: Geoffrey M. Clemm [mailto:gclemm@tantalum.atria.com]
+  
+   From: "Slein, Judith A" <JSlein@crt.xerox.com>
+  
+   I like everything that you say here, but the MOVE / COPY 
+  TO cases raise a
+   red flag for me.  We claim in the bindings spec that the 
+  MOVE semantics we
+   present  is equivalent to the COPY + fixup + DELETE 
+  semantics defined in RFC
+   2518.  But I doubt it when I look at this case.
+  
+  <gmc/> The author of the statement that "MOVE is logically equivalent
+  to COPY+fixup+DELETE" (who will remain nameless although we all know
+  who he is :-) has publicly renounced this statement.  The problem of
+  course is the wonderfully undefined "fixup" stage.  *ANY* semantics is
+  acceptable for MOVE, for some definition of "fixup".  So let's see if
+  all is well for this case with some suitably defined value of "fixup".
+  
+   Leave aside for a minute intuitions about what should 
+  really happen, and
+   just see what would follow from the underlying semantic model:
+  
+   Suppose we define MOVE as "remove the binding identified 
+  by the Request-URI
+   and add the binding identified by the Destination header".
+  
+   Now consider your case: /a/b.html and /x/y.html both point 
+  to resource R,
+   and I have an exclusive write lock on /a/b.html.  User2 
+  tries to MOVE
+   /c/d.html (which points to some other resource S) to 
+  /x/y.html.  It seems
+   this should be possible, because all that is happening is 
+  that the binding
+   y.html in collection /x/ is being replaced with one that binds to a
+   different resource.  Nothing happens to resource R.
+  
+   But if we use the COPY + fixup + DELETE semantics for 
+  MOVE, resource S would
+   have to be duplicated, overwriting R.  And this would not 
+  be allowed,
+   because R is locked.
+  
+  <gmc/> It doesn't overwrite R.  A COPY to an existing resource will
+  either fail (if Overwrite=FALSE) or issue a DELETE on the destination
+  of the COPY.  The DELETE of /x/y.html succeeds just fine (since DELETE
+  is properly defined to just remove the binding named "y.html" from the
+  collection "/x"), the COPY proceeds, and then the "fixup" step
+  replaces the binding to the new resource created by the COPY with a
+  binding to R, and then a DELETE is issued on the request URL of the
+  MOVE, which then deletes the binding named "d.html" from the
+  collection "/c".
+  
+   Of course, we can legislate this problem away by, for 
+  example, accepting
+   your proposal that a MOVE or COPY like this one fail no 
+  matter which
+   semantics you use.  But I'm afraid other cases will turn 
+  up that reveal
+   inconsistencies between the 2 models of MOVE.
+  
+  <gmc/> I believe there are no inconsistencies here ... just 
+  suitably creative
+  definitions of "fixup" (:-).
+  
+  
+
+
+

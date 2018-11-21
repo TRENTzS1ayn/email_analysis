@@ -1,0 +1,84 @@
+docno="lists-009-5443003"
+received="Mon Jul 24 16:17:52 1995"
+isoreceived="19950724201752"
+sent="Mon, 24 Jul 95 16:11:58 MDT"
+isosent="19950724221158"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Content-TransferEncoding &quot;packet&quot;"
+id="9507242311.AA14626@acetes.pa.dec.com"
+inreplyto="199507242238.AA135435482&#64;hplb.hpl.hp.com"
+expires="1"
+
+
+To: Rick Troth<TROTH@ua1vm.ua.edu>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    >In other words, the result looks like a normal message, with
+    >the Content-Length computed by the unpacketizer.  In actuality,
+    >it is often faster to read packet-size + 1 bytes, slurping in
+    >the next packet-size as part of the prior packet read.
+    
+    That's an optimization that works on some systems;
+    not on others.   Keep the protocol free from platform specifics.
+
+Although I strongly favor the use of ASCII encodings of "packet"
+lengths (perhaps we could use a term besides "packet", which will
+cause untold confusion for years to come), I agree that it might
+be nice to use an encoding that occupies a fixed number of bytes.
+It's not exactly "platform-specific" to optimize things in this
+way; it's basically a tradeoff between these two algorithms:
+
+[*** Anti-paranoia warning: I'm writing these examples using UNIX
+ *** APIs for concreteness, NOT because this is the the only API
+ *** I care about.  So don't flame me about that, please.]
+
+   Naive algorithm:
+
+while (not done)
+fgets(length, sizeof(length), stream);
+n = decode(length);
+fread(buffer, n, 1, stream);
+end
+
+   Clever algorithm:
+
+fgets(length, sizeof(length), stream);
+n = decode(length)
+while (not done)
+fread(buffer, n+sizeof(length), 1, stream);
+n = decode(&buffer[n]);
+end
+
+The clever algorithm uses M+1 instead of 2*M reads from the
+input stream.  This is especially important if your code
+doesn't want to read past the end of the input stream (cf.
+the NCSA httpd server), in which case you would write this
+using read() system calls instead of using stdio buffering.
+
+Note also that if we use a simple ASCII encoding, you need
+to parse the input stream to figure out where the end of
+the "packet" length string is.  If we use an encoding that
+takes a fixed number of columns, then you don't need to parse
+anything, you just grab a bunch of bytes.
+
+Since I also don't see any reason to limit the "packet" size
+to just 256 bytes, or to any small value, I recommend that the
+length field be fairly large.  For example, suppose that the
+standard says "use 6 digits + CR + LF".  Then this leaves
+the following data nicely aligned (even for 64-bit machines),
+and allows almost a million bytes per "packet".  Better yet,
+use a hexadecimal encoding; this allows >16 million bytes, and
+is much easier to encode and decode.
+
+Example:
+0 0 0 0 0 8 CR LF
+eight bytes of data
+1 0 0 0 0 0 CR LF
+1,048,576 bytes of data
+0 0 0 0 0 0 CR LF
+
+-Jeff
+
+
+

@@ -1,0 +1,86 @@
+docno="lists-014-0928396"
+received="Mon Sep  2 19:20:40 1996"
+isoreceived="19960902232040"
+sent="Mon, 02 Sep 96 16:11:08 0700"
+isosent="19960902231108"
+name="ma@pa.dec.com"
+email="ma@pa.dec.com"
+subject="Re: I-D ACTION:draft-ietf-tls-ssh00.txt"
+id="9609022311.AA26208@torino.pa.dec.com"
+inreplyto="9606171411.aa24268&#64;IETF.CNRI.Reston.VA.US"
+expires="1"
+
+
+To:ietf-tls@w3.org
+Cc: Tatu Ylonen<ylo@ssh.fi>
+
+
+The SSH protocol was mentioned a few times on this list. A pointer 
+to the SSH Internet draft of June 13, 1996 was posted some time ago:
+ftp://ds.internic.net/internet-drafts/draft-ietf-tls-ssh-00.txt
+
+I recently read that Internet draft. As described, the SSH client 
+authentication is flawed. If a client A is willing to talk to a server 
+S1, then S1 can impersonate A in establishing a session with another 
+server S2. Some details on this are below. 
+
+The mistake in SSH seems to be fairly common; I spotted it in several 
+protocols in the last few years. In summary, the mistake consists 
+in not applying a digital signature to enough material to resolve 
+ambiguities about the intended meaning of the signature. (Future 
+protocol designers, beware.) It is not enough to use digital signatures 
+for authentication---the right material must be signed. 
+
+In SSH, the client signs the message SSH_MSG_HOSTAUTH, which is the 
+analogue of the SSL message ClientVerify. Unfortunately, SSH_MSG_HOSTAUTH 
+does not unambiguously identify the connection it is for. This problem 
+should not be too hard to fix (cf. SSL's ClientVerify). Tatu Ylonen 
+is thinking about it. 
+
+The currently deployed implementation of SSH is based on an older 
+specification. It may have weaknesses, but not this one; client authentication 
+works differently. 
+
+Martin Abadi 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some details on the attack, for any SSH experts:
+
+Suppose that B is a server, A a client, and C wants to masquerade 
+as A with respect to B. Suppose further that A is interested in having 
+a session with C as server. I am going to write MESSAGE_TYPE(n) to 
+show an instance of MESSAGE_TYPE. We can have the following message 
+sequence: 
+
+A -> C : SSH_MSG_KEXINIT(1)  /* A starts talking to C           */
+C -> B : SSH_MSG_KEXINIT(1)  /* C forwards A's message to B     */
+B -> C : SSH_MSG_KEXINIT(2)  /* B replies to C, including       */
+                             /* a cookie Nb                     */
+C -> A : SSH_MSG_KEXINIT(3)  /* C replies to A, with the server */
+                             /* cookie Nb it got from B         */
+B -> C : SSH_MSG_KEXRSA_HOSTKEY(1)                          
+C -> A : SSH_MSG_KEXRSA_HOSTKEY(2)         
+                             /* B and C show their respective   */
+                             /*                    public keys  */               
+A -> C : SSH_MSG_KEXRSA_SESSIONKEY(1)   
+                             /* A sends a session key to C,     */
+                             /* under C's public keys           */
+C -> B : SSH_MSG_KEXRSA_SESSIONKEY(2)   
+                             /* C sends a corresponding message */
+                             /* to B                            */
+                             /* after this point, everything is */
+                             /* encrypted under session keys    */
+                             /* which are both known to C       */
+A -> C : SSH_MSG_HOSTAUTH(1) /* A signs A's name, A's cookie,   */     
+                             /* and Nb                          */
+C -> B : SSH_MSG_HOSTAUTH(1) /* C forwards A's signed message!  */
+                             /* after reencrypting under the    */
+                             /* appropriate session key         */
+
+At this point, C has a connection with B, and a corresponding session 
+key. B presumably believes that the connection is with A, because 
+A has signed the server cookie that B generated. A is not confused. 
+
+
+

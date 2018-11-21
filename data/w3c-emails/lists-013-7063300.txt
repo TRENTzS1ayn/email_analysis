@@ -1,0 +1,89 @@
+docno="lists-013-7063300"
+received="Fri Apr 30 18:34:31 2004"
+isoreceived="20040430223431"
+sent="Fri, 30 Apr 2004 15:23:53 0700"
+isosent="20040430222353"
+name="Jeffrey Mogul"
+email="Jeff.Mogul@hp.com"
+subject="Re: PATCH thoughts..."
+id="200404302223.i3UMNsP1021754@wera.hpl.hp.com"
+inreplyto="E214FC72-9AE9-11D8-8BCF000A95B2BB72&#64;osafoundation.org"
+expires="1"
+
+
+To: Lisa Dusseault<lisa@osafoundation.org>
+Cc: HTTP working group<ietf-http-wg@w3.org>, Jamie Lokier<jamie@shareable.org>, Justin Chapweske<justin@chapweske.com>
+
+
+    I originally thought all HTTP messages with bodies needed to
+    indicate Content-Type.  I assumed that if the Content-Type header
+    were used then that was the obvious place to say what diff format
+    is being provided.  Thus PATCH has currently:
+    
+ PATCH /file.txt HTTP/1.1
+ Host: www.example.com
+ Content-Type: application/gdiff
+ If-Match: "e0023aa4e"
+ Content-Length: 100
+    
+[body]
+    
+    However, clearly RFC3229 doesn't take that approach -- some
+    responses are shown with bodies (implied) but with only a
+    Content-encoding header to indicate that there's even a body on the
+    message.
+
+Note that the examples in RFC3229 were meant to be barely-legal
+HTTP, not necessarily including all of the header fields that
+one might actually want to send.
+
+In any case, the example responses in RFC3229 are for delta-encoded
+results that are meant to be applied to an *existing* cache entry.
+Therefore, the Content-type of that cache entry defines the
+content type of the updated instance.  (In theory, I suppose,
+the update could change the content-type of the original ...
+that is, you could start with an image/gif and update via a
+delta to an image/jpeg, in which case the delta-encoded response
+would indeed require a Content-type header.  But somehow this
+feels like a ghastly thing to do!)
+
+Remember also that "Content-Type" really is a property of the
+underlying resource, rather than of the response message per se.
+RFC2616 uses poor terminology in almost all the places where
+it matters for this issue, but there's a statement in 7.2.1:
+
+   Content-Type specifies the media type of the underlying data.
+
+as opposed to the "additional content codings applied to the data".
+
+    Modelling on the RFC3229 approach, PATCH could look like
+    this instead:
+    
+   PATCH /file.txt HTTP/1.1
+   Host: foo
+   If-Match: "def"
+   Content-encoding: gzip
+   IM: vcdiff
+    
+           [body]
+
+Seems reasonable to me :-)
+
+    One compromise is to inlude Content-Type with a reasonably appropriate
+    MIME type, but one that doesn't need to specify the diff format used.
+    
+   PATCH /file.txt HTTP/1.1
+   Host: foo
+   If-Match: "def"
+   Content-encoding: gzip
+   IM: gdiff
+   Content-Type: application/octet-stream
+    
+That's actually a good idea -- then the server can check to
+make sure that the client's idea of the resource's content-type
+is consistent with the server's idea.
+
+-Jeff
+
+
+

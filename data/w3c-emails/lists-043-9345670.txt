@@ -1,0 +1,168 @@
+docno="lists-043-9345670"
+received="Tue Jun 15 17:01:31 1999"
+isoreceived="19990615210131"
+sent="Tue, 15 Jun 1999 14:03:29 -0700"
+isosent="19990615210329"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="Requirements Feedback: Solving a Security Hole and the Namespace Resolution Problem"
+id="003501beb772$85160480$9ccbf4cc@kuratowski.uwi.bc.ca"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<reagle@w3.org>,"Dsig group"<w3c-ietf-xmldsig@w3.org>
+
+Before starting, let me first send my regrets regarding the Oslo meeting.  I
+made prior arrangements months ago which cannot be moved now.  Instead, I'd
+like to provide this document describing some problems I found in the
+current thinking about signed XML.  I hope it is possible for the group to
+address the concerns and recommendations below, and I hope that the concerns
+will be added to the current Brown IETF draft.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+jboyer@uwi.com
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------
+
+1. Introduction
+
+This document will describe a solution to a security hole in the current
+thinking on signed XML.  For those of you who remember my presentation at
+the first signed XML workshop, I discussed the importance of formulating a
+good message M to be signed, and I used an HTML submission as an example of
+a bad message.  The current requirements document specifies that we will be
+able to sign internal and external resources "by use of a Manifest" as
+defined in the Brown IETF draft.  Though it is more difficult to see the
+problem, this idea also suffers from the 'poor message' problem.
+
+This assertion is made in the context of many recent emails to the xml-dsig
+list regarding the canonicalization of namespace references.  From these
+emails, it is my understanding that the group wants to perform a replacement
+of namespace references with something that retains the information of the
+namespace binding provided by an xmlns attribute in an ancestor element.  I
+hope to show that the current attempts to resolve this problem are futile
+insofar as they do not and cannot address the generalized problem.
+
+2. The General Problem
+
+The problem many have been addressing is that of canonicalizing an element
+that includes a namespace reference.  The problem is that the namespace
+binding may appear as an attribute of an ancestor element such that the
+reference must be resolved as part of canonicalizing the descendant element.
+The generalization of this is that ancestor elements may contain attributes
+which 'qualify' or 'change the meaning of' an element.  It is not sufficient
+to solve this problem only for the xmlns attribute.  Furthermore, since XML
+is a grammar devoid of lexicon, we cannot know which attributes of a given
+XML extension language have this property.
+
+The ancestor attribute problem is only a specific instance of a further
+generalization:  in a given XML extension language, elements can derive
+meaning based on the tag names and attributes of ancestor elements, based on
+their element depth relative to those ancestor elements, and even based on
+sibling elements.
+
+3. The Security Hole
+
+The current Manifest definition in the Brown IETF draft permits a resource
+to be all or portions of a document using an XLink.  Suppose that a number
+of non-contiguous element blocks must be signed within a document.  An
+XPointer identifies each contiguous block of elements, and a hash of each
+block would be stored in the Manifest.  When it comes time to generate a
+signature, a canonical representation of the Manifest is hashed, and the
+result is encrypted.  The problem is that the order in which the resource
+definitions appear in the manifest is not guaranteed to be the order in
+which those elements appeared in the source document.  The depth of the
+signed elements within the source document is also not preserved, nor are
+qualifying attributes from ancestor elements.  Failing to capture any of
+this information is as much of a security hole as if we left out whatever
+was *inside* the element's start and end tags.
+
+4. A Proposed Solution
+
+Is there really a secure solution to this problem?  It is possible for a
+program to present anything to a signer, then apply the user's digital
+signature to anything else.  It is always possible to fool the signer since
+we are allowed to run code on the signer's computer.  This problem cannot be
+solved by a signed XML specification.  It is solved by people who download
+signed programs from reputable development establishments and test those
+programs for proper operation.
+
+A signed XML spec can, however, simplify this code verification process by
+producing signed messages that are as close as possible to the messages
+processable by the signed code.  This does not simply mean that signatures
+on XML resources should be XML.  It means that if a message to be signed
+pertains to an XML document, then the message should actually be the same
+type of document (as defined by the root element).  An application developer
+would need to work harder to design both the manifest and DTD should
+validation be required, but it is at least possible to take the message that
+actually got signed and provide that to a 'viewer' during verification so
+that the verifier could see (or sense) exactly what the signer signed.
+
+Hence the proposal is this.  A resource element should pertain to a whole
+computer file.  Within a resource element, multiple XPointers should
+indicate the portions of the document to be signed.  The message to be
+hashed would be constructed by sequentially passing through the entire
+document, retaining all elements indicated as well as the start and end tags
+(with attributes and unaltered namespace qualifiers) of all ancestors of the
+required elements.  The fingerprint attached to the resource is expected to
+be a hash of this message.  Rather than trying to find ways of storing the
+information inside the element, the solution is simply to keep it on the
+outside where it appears naturally.  In this way, the hash represents a
+message that retains the order of required elements, their depth, and all
+possible ancestor element qualifiers (tags, attributes).
+
+This method should also be applied to the generation of the signature
+message containing the manifest so that information outside of the manifest
+element that affects the interpretation of the manifest can be signed.
+
+With respect to the root element, it should also be noted that preservation
+of leading and trailing comments, processing instructions and so forth, as
+well as the DTD must be preserved.  With respect to all elements, comments
+appearing before the start tag and after the end tag should also be
+preserved.  It seems that external entities (e.g. externally defined dtd's)
+can be left out of the message for a given file since they can be validated
+separately by another resource entry in the manifest.
+
+5. Application-Independent Verification
+
+The method described in the previous section is actually a canonicalization
+algorithm (or at least part of one).  It may suffice as a signed XML
+requirement to A) impose a requirement on the XML canonicalization group to
+provide this method as an alternative, and B) require that this
+canonicalization method be used by XML signatures.
+
+A number of times the group has asserted that the calculation of resource
+fingerprints should be offloaded to the specific application.  However, we
+should instead be specifying the canonicalization algorithm used (or stick
+to having the one proposed above).  This is no different that being required
+to specify the hash algorithm used to generate the fingerprint.
+Furthermore, the requirement moves signed XML closer to the ideal of
+globally secure resources.  By defining how to formulate the message to be
+hashed, it becomes possible to create application-independent XML document
+processors (like workflow packages) that can verify the signature as well as
+any internal and external resources that may need to be verified.
+
+6. Conclusion
+
+There are other possible methods for solving the problems, but the proposed
+solution solves all of the given problems by a single method, so it may be
+preferrable to those who ascribe to Occam's razor.  The proposed solution
+simplifies the task of offering a "What you sense is what you sign"
+paradigm, it solves the namespace problem in a simple way, and indeed solves
+the general problem of requiring ancestor attributes, ancestor tags, depth
+information and order of relevant siblings.  Finally, by specifying exactly
+how all applications should generate the message to be hashed, we move
+closer to the goal of globally secure resources.  Rather than trying to push
+information inside an element, we leave it where it was, on the outside.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+jboyer@uwi.com
+
+
+

@@ -1,0 +1,118 @@
+docno="lists-000-2852768"
+received="Fri Aug 20 18:01:29 1999"
+isoreceived="19990820220129"
+sent="Fri, 20 Aug 1999 16:59:05 -0500"
+isosent="19990820215905"
+name="Gary Deschaines"
+email="garyd.deschaines@netmechanic.com"
+subject="Problems with mapping OL to BLOCKQUOTE."
+id="37BDCFA9.23E6DE0E@netmechanic.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dave,
+
+The following invalid content HTML script will cause an infinite looping
+problem discarding
+unexpected </OL> at line 11 when processed by the 26th July 1999 version
+of HTML Tidy.
+
+<HTML>
+<HEAD>
+<TITLE>The Title</TITLE>
+</HEAD>
+<BODY>
+<OL>
+<FONT color="blue"><B>Blue Bold Text
+<LI>Item 1</LI>
+<LI>Item 2</LI>
+</B></FONT>
+</OL>
+</BODY>
+</HTML>
+
+The infinite looping problem can be prevented with the following code
+patch for the ParseBlock
+routine in the parser.c file.
+
+Orignal source code (starting around line 550 in parce.c):
+...
+else /* things like list items */
+{
+     ...
+
+    UngetToken(lexer);
+
+    if (node->tag->model & CM_LIST)
+    {
+        if (element->parent->tag == tag_ul || element->parent->tag ==
+tag_ol)
+        {
+         ...
+         }
+
+         node = InferredTag(lex,"ul");
+    }
+    else if ( node->tag->model & CM_DEFLIST)
+    {
+     ...
+
+Modified source code:
+...
+else /* things like list items */
+{
+    ...
+
+    UngetToken(lexer);
+
+    if (node->tag->model & CM_LIST)
+    {
+        if (element->parent->tag == tag_ul || element->parent->tag ==
+tag_ol)
+        {
+         ...
+         }
+
+         if ( element->was == tag_ol )
+        {
+             node = InferredTag(lex,"ol");
+         }
+         else
+         {
+             node = InferredTag(lex,"ul");
+         }
+    }
+    else if ( node->tag->model & CM_DEFLIST)
+    {
+     ...
+
+The repaired HTML script produced by HTML Tidy with the above code patch
+is as follows.
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>The Title</TITLE>
+</HEAD>
+<BODY>
+<BLOCKQUOTE><FONT color="blue"><B>Blue Bold Text</B></FONT>
+<OL>
+<LI><FONT color="blue"><B>Item 1</B></FONT></LI>
+<LI><FONT color="blue"><B>Item 2</B></FONT></LI>
+</OL>
+</BLOCKQUOTE>
+</BODY>
+</HTML>
+
+Although the code patch fixes the infinite looping problem and correctly
+repairs the invalid HTML script presented above, I am not certain the
+code patch is %100 correct.
+
+Respectfully,
+Gary Deschaines
+
+
+

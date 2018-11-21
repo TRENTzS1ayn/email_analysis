@@ -1,0 +1,92 @@
+docno="lists-009-3522233"
+received="Wed Mar  8 03:26:25 1995"
+isoreceived="19950308082625"
+sent="Wed, 08 Mar 1995 11:24:20 +0000"
+isosent="19950308112420"
+name="Adrian Colley"
+email="aecolley@sse.ie"
+subject="Re: HTTP should be able to transfer part of a document"
+id="12503081117.AA15500@terpsichore.sse.ie"
+charset="USASCII"
+inreplyto="1DE9E260DDF&#64;ksvi.mff.cuni.cz"
+expires="1"
+
+
+To: http-wg (will serve files for coffee)<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+In message <1DE9E260DDF@ksvi.mff.cuni.cz> of Wed, 08 Mar 1995 11:17:04
+  +0100, Adam Dingle <DINGLE@ksvi.mff.cuni.cz> wrote:
+
+> One possibility would be to address partial HTTP documents using URI
+> fragment identifiers, so that, for example, a hypertext page could
+> refer to an individual file within a tar archive, or to a group of
+> several paragraphs within the text of a book.  For example, we might
+> use a syntax such as
+> http://www.cuni.cz/a/b/xxx#(1500000,1600000)
+> to mean bytes 1500000 through 1600000 of the given document.
+
+WN already uses a syntax like http://www.cuni.cz/a/b/xxx;bytes=1500000-1600000
+to return ranges.
+
+> Of course, such number-based addressing is somewhat dangerous to use in a
+> static URL,
+
+Well, you could protect it with if-modified-since.  If you want a link
+which will get the index to any .zip file on a remote machine even after it
+changes, then you have to decide where to put the zip-interpreting code.
+
+Putting it on the server is obviously nice because it'll help the users of
+all the non-hacked clients.  In general, however, someone's going to want
+to use a format not supported by someone else's server.
+
+Adding it to the client means a kind of request-wrapping processor has to be
+defined.  So, here's how I think it might work:
+
+1. Client gets a document via http for display in the normal way.  The
+   server responds with Content-type: application/x-zip.  The client
+   recognises this type from its table of content-type interpreters, and
+   fires up the Zip Interpreting Algorithm.
+2. Under the zip-specific code, the client aborts the http request [*] and
+   starts a new one, retrieving the portion of the zip file which contains
+   the index [&].
+3. When it arrives, it's decoded into a menu of files.  Where links into
+   the zipfile are needed, you can use a URL like:
+
+     internal-zip:name=readme.txt&start=577&end=16320/http://host/big.zip
+
+   (meaning: bytes 577-16320 of http://host/big.zip, to be interpreted as
+    a file named readme.txt).  As you can probably guess, I just made this
+    format up.  But since I'm proud of it, let's take a closer look at
+    its structure:
+
+    <method>:<arguments>/<recursive-url>
+
+    The <arguments> are encoded identically to those used in form responses,
+    and are arguments to the client-side processing identified by <method>.
+    The <recursive-url> identifies the input data to the <method>.  (This
+    allows you to browse tar files inside zip files.)
+
+    For referring to the readme.txt in a static URL, you might use
+
+     internal-zip:name=readme.txt/http://host/big.zip
+
+    (leaving out the byte ranges).  This would cause extra processing in
+    the client to get the index first, but would survive if the zipfile
+    changed [%]
+
+[*] Server implementors may now yelp in pain
+[&] Of course, you have to check that the server can return byte-ranges,
+    perhaps through a server-extensions line in the original reply.
+[%] In fact, if the internal-zip algorithm is stateful or can use a cache,
+    the byte ranges can be left out completely even in the generated menu.
+
+Comments?
+
+-- 
+Adrian.Colley@sse.ie   <g=Adrian;s=Colley;o=SSE;p=SSE;a=EIRMAIL400;c=ie>
+phones:- work: +353-1-6769089; fax: +353-1-6767984; home: +353-1-6606239
+employer: Software and Systems Engineering (+=disclaimer)  (Perth)->o~^\
+Y!AWGMTPOAFWY? 4 lines, ok? qebas perl unix-haters kill microsoft  \@##/
+
+
+

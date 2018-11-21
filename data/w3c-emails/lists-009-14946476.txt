@@ -1,0 +1,158 @@
+docno="lists-009-14946476"
+received="Sun Dec 31 11:37:49 1995"
+isoreceived="19951231163749"
+sent="Sun, 31 Dec 1995 11:39:10 0800"
+isosent="19951231193910"
+name="Allan M. Schiffman"
+email="ams@terisa.com"
+subject="Vulnerabilities in digest-aa ID"
+id="v02130502ad0c8bd8de8e@[205.226.39.192]"
+charset="usascii"
+expires="1"
+
+
+To:www-security@ns1.rutgers.edu,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:ekr@terisa.com
+
+I've only spent about an hour looking at the most recent I-D (with some
+help from Eric Rescorla), but we've found quite a few problems in that
+time. I think that digest-aa should not proceed at least until these
+problems are addressed.
+
+There are five vulnerabilities which struck us immediately:
+
+1) The gross structure of the digests allows for the exploitation of MD5
+collisions. This is possibly not worth worrying about, since the best
+attack we can come up with requires effort on the order of 2^64 operations.
+In general, the sharing of long common prefixes between the digests and the
+lack of secret or random material beyond the initial amount leads us to
+suspect that there might be many other cryptoanalytic attacks we haven't
+thought of.
+
+2) The fine structure of the digests allows one to be substituted for
+another. This allows for straightforward splicing and reflection attacks
+which undercut the rationale for the protocol. This could be fixed by
+insisting that each digest type have some sort of type-distinguishing data
+or structure in them (there are three specified in the document: client
+plain digests, client "message-digests" [sic], and server "message-digests"
+[sic again]). Vulnerability to substitution is increased given the
+one-sided and unstructured nature of the freshness material. One could
+easily arrange that the client always provided freshness material, and
+insist that freshness have structure that the either side can count on (say
+that it must monotonically increase).
+
+3) The "optional-ness" of the client message-digest and server
+message-digests means that neither can be used for authentication given a
+downgrade attack (the attacker removes the digest and substitutes
+unauthenticated material).
+
+4) The fact that no headers are included in the digesting process combined
+with the fact that HTTP headers change the semantics of requests (and
+replies) means that authenticated requests and replies can be transformed
+by an attacker undetectably. For example, consider byte ranges where the
+authorized request or only wants one portion of a document and the attacker
+transforms the request into one for the entire document. This is difficult
+to fix while retaining the spirit of the proposal.
+
+5) There is no treatment of the security implications of retries and
+multiple authorization headers. Absent this, I can imagine many flawed
+implementation possibilities. Also, I think that it is assumed that this
+mechanism works for proxy authentication, and if this is permitted, new
+sorts of attacks are possible.
+
+Outside of these immediate security vulnerabilities, I wonder about the
+wisdom of wiring-in a single digest algorithm (the selection of MD5 could
+easily be parameterized with no damage to the spec). I also wonder about
+the wisdom of referencing Dave Kristol's extension mechanism (sounds like
+what used to be called at PARC "error 33" -- making one risky project
+dependent on another).
+
+Given the above, here's an off-the-top-of-my-head attempt at addressing
+these vulnerabilities, while retaining as much spirit of the design as
+possible. It is an admittedly bad practice I am indulging in here -- this
+is not a thought-out design, it's only meant to illustrate fixes.
+
+=====================================
+
+1) The nonces are mandatory, and have the following structure:
+        <host-id><sep1><tod><sep2><integer>
+host-id is the principal's DNS name or the "realm", I don't care.
+tod is seconds since Unix epoch in hex.
+discrim is a hex integer so that multiple nonces generated in a given
+second monotonically increase.
+I don't care what sep1 and sep2 are (slashes?).
+This is so the principals can check for replay with finite memory.
+Clients have nonces too.
+
+2) The client auth header is:
+Authorization: Digest
+        algorithm=MD5,
+        username="<username>",
+        realm="<realm>",
+        snonce="<server-nonce>",
+        cnonce="<client-nonce>",     -- must be fresh
+        uri="<requested-uri>",       -- [Why was this in the original I-D?]
+        request="<client-digest>",
+        message="<message-digest>",
+        opaque="<opaque>"            -- required if provided by server
+where:
+        <client-digest> := H( H(A1) + CN + SN + OP + BI + H(H(A1) + A2) )
+        <message-digest> := H( H(A1) + <client-digest> + H(H(A1) + CB) )
+and:
+        A1 := 'MD5' + U + R + P
+        A2 := <Method> + <requested-uri>
+        BI := "cbody" | "no cbody"                      -- depending
+        OP := "opaque" + <opaque> | "no opaque"         -- depending
+        CB := "cbody" + <message-body> | "no cbody"     -- depending
+with:
+        SN, CN -- server and client nonce values
+        U -- username
+        R -- realm
+        P -- password
+        <Method> -- entire request header line 0
+        <requested-uri> -- uri sans proxy/routing
+
+3) server response
+When authorization succeeds, the Server MUST provide the following:
+
+HTTP/1.1 200 OK
+Authorization-Response: Digest
+        algorithm=MD5,
+        username="<username>",
+        realm="<realm>",
+        snonce="<server-nonce>",
+        cnonce="<client-nonce>",
+        response="<server-digest>"
+where:
+        <server-digest> := H( H(A1) + CD + SB + H(H(A1) + <Response>))
+and with:
+        A1 as above
+        CD := <client-digest> -- from above
+        SB := "sbody" + <message-body> | "no sbody" -- depending
+        <Response> -- entire response header line 0
+
+4) This mechanism must be outlawed for "Proxy-Authentication:" or it we need
+to make the structure of A1 dependent on proxy vs. non-proxy use.
+
+5) The headers that change the effect of a request or response such as:
+        Range, Unless, If-Modified-Since
+(I'm worried that there are others) must either be outlawed when using
+Digest-Authentication, or these headers must be accounted-for in the
+digests. Figuring-out which are the headers that have this property is a
+surprisingly hard problem.
+
+6) Multiple Authorization headers are forbidden.
+
+7) Servers must either disregard the request line 0 URI (in favor of the
+uri field of the authorization header) or reject requests where these are
+not identical. Even better would be to drop the uri field from the
+authorization header.
+
+=====================================
+
+Happy Holidays,
+
+-Allan
+
+
+

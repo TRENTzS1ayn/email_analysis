@@ -1,0 +1,155 @@
+docno="lists-101-10556205"
+received="Sun Mar 24 07:43:49 2002"
+isoreceived="20020324124349"
+sent="Sun, 24 Mar 2002 13:48:06 +0100 (CET)"
+isosent="20020324124806"
+name="jvrdam@xs4all.nl"
+email="jvrdam@xs4all.nl"
+subject="Re: Writing DOM Level 3 Load &amp; Save tests"
+id="4913.62.163.200.152.1016974086.squirrel@webmail.xs4all.nl"
+charset="iso-8859-1"
+inreplyto="Writing DOM Level 3 Load &amp; Save tests"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+
+Curt wrote:
+
+<curt>
+  handleEvent basically was intended to be used to define something 
+  like an anonymous inner class.
+
+  <var name="myHandler" type="EventListener">
+     <handleEvent return="true">
+        <!--  body of method goes here -->
+     </handleEvent>
+  </var>
+</curt>
+
+Ok, sounds promising.
+Lets have a look at a simple example derived from our testsuite to verify 
+the setup. (bare in mind that this is the first test I'm writing using the 
+framework...)
+
+----------
+public class LSTest {
+
+  DOMImplementation   implementation  ;
+  DOMImplementationLS lsImplementation;
+  Document            document        ;
+  DOMBuilder          builder         ;
+  MyDOMBuilderFilter  myfilter        ;
+
+  ......
+
+  public void testFilterStartNode() throws Exception {
+
+    lsImplementation = (DOMImplementationLS) implementation;
+    builder          = lsImplementation.createDOMBuilder
+(DOMImplementationLS.MODE_SYNCHRONOUS);
+    myfilter         = new MyDOMBuilderFilter();
+
+    builder.setFilter(myfilter);
+    document = builder.parseURI(getURL("test.xml").toString());
+
+    assertEquals("elt2 is skipped, so document element has only one child", 
+1, document.getDocumentElement().getChildNodes().getLength());
+    assertEquals("That one child is elt1", "elt1", 
+document.getDocumentElement().getFirstChild().getNodeName());
+  }
+
+}
+
+class MyDOMBuilderFilter implement DOMBuilderFilter{
+
+      public int startNode(Node element) {
+        boolean accept = ! element.getNodeName().equals("elt2");
+        if (accept) {
+          return NodeFilter.FILTER_ACCEPT;
+        } else {
+          return NodeFilter.FILTER_REJECT;
+        }
+      }
+
+      public int endNode(Node enode) {
+        return NodeFilter.FILTER_ACCEPT;
+      }
+
+      public int getWhatToShow() {
+        return NodeFilter.SHOW_ELEMENT;
+      }
+}
+-------------
+
+The XML file for the actual test would look something like:
+
+<test xmlns="http://www.w3.org/2001/DOM-Test-Suite/Level-3" 
+name="builderfilter">
+
+  <metadata>
+    <title>attrSpecifiedValue</title>
+    <creator>X-Hive</creator>
+    <description></description>
+    <contributor>X-Hive</contributor>
+    <date qualifier="created">2002-03-23</date>
+    <subject resource="http://www.w3.org/TR/DOM-Level-3-ASLS/load-
+save.html#LS-Interfaces-DOMBuilderFilter"/>
+  </metadata>
+
+  <var name="implementation"   type="DOMImplementation"/>   
+  <var name="lsImplementation" type="DOMImplementationLS"/> 
+  <var name="document"         type="Document"/>            
+  <var name="builder"          type="DOMBuilder"/>          
+
+  <var name="myfilter"         type="MyDOMBuilderFilter"> 
+
+     <var name="accept" type="boolean"/>
+
+     <startNode return="returnValue" snode="element">
+        <nodeName var="accept" obj="element"/>
+        <if>
+            <equals actual="accept" expected="elt2" ignoreCase="false"/>
+            <assign var="returnValue" value="FILTER_REJECT"/>            
+          <else>
+            <assign var="returnValue" value="FILTER_ACCEPT"/>            
+          </else>
+        </if>
+     </startNode>
+
+     <endNode return="returnValue" enode="endnode">
+        <assign var="returnValue" value="FILTER_ACCEPT"/>            
+     </endNode> 
+
+     <getWhatToShow return="returnValue">
+        <assign var="returnValue" value="SHOW_ELEMENT"/>            
+     </getWhatToShow>
+  </var>
+
+  <implementationLS var="lsImplementation"/>
+  <createDOMBuilder var="builder" obj="lsImplementation"
+                                  mode="MODE_SYNCHRONOUS"/>
+  <setFilter obj="builder" filter="myfilter"/>
+  <parseURI  var="document" obj="builder" uri="test.xml"/>
+
+  -----asserts-----
+
+</test>
+
+
+--------------
+
+If this is somehow correct than I guess the dtd needs some work, especially 
+when you look at the definition of <var>
+By the way, how are constants handled ?
+
+jeroen
+
+--
+Jeroen van Rotterdam
+X-Hive Corporation
+http://www.x-hive.com
+jeroen@x-hive.com
+
+
+

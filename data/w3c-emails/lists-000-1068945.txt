@@ -1,0 +1,136 @@
+docno="lists-000-1068945"
+received="Sun May 30 13:42:16 1999"
+isoreceived="19990530174216"
+sent="Sun, 30 May 1999 13:42:08 -0400"
+isosent="19990530174208"
+name="Scott Kenney"
+email="saken+tidy@hotel.rmta.org"
+subject="[jeremyp&#64;gsmx07.alcatel.com.au: ports/11903: File descriptor leak in ports/www/tidy/tidy15apr99]"
+id="19990530134208.A13770@hotel.rmta.org"
+charset="us-ascii"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+Hi,
+
+I'm the maintainer of the FreeBSD "port" of tidy.  
+
+The FreeBSD Documentation Project
+<href="http://www.FreeBSD.ORG/docproj/docproj.html"> uses tidy as an
+integral part of building the HTML version of the FreeBSD handbook.
+
+Attached below is a problem report (with fix) concerning how tidy deals
+with error file handling.  This problem is probably only manifest on
+systems with limited resources.
+
+
+----- Forwarded message from Peter Jeremy <jeremyp@gsmx07.alcatel.com.au> -----
+
+Delivered-To: freebsd-ports@freebsd.org
+Date: Thu, 27 May 1999 16:08:19 +1000
+From: Peter Jeremy <jeremyp@gsmx07.alcatel.com.au>
+Reply-To: peter.jeremy@alcatel.com.au
+Subject: ports/11903: File descriptor leak in ports/www/tidy/tidy15apr99
+
+
+>Number:         11903
+>Category:       ports
+>Synopsis:       File descriptor leak in ports/www/tidy/tidy15apr99
+>Confidential:   no
+>Severity:       non-critical
+>Priority:       medium
+>Responsible:    freebsd-ports
+>State:          open
+>Quarter:        
+>Keywords:       
+>Date-Required:
+>Class:          sw-bug
+>Submitter-Id:   current-users
+>Arrival-Date:   Wed May 26 23:10:01 PDT 1999
+>Closed-Date:
+>Last-Modified:
+>Originator:     Peter Jeremy
+>Release:        FreeBSD 4.0-CURRENT i386
+>Organization:
+Alcatel Australia Limited
+>Environment:
+
+Running FreeBSD 4.0-CURRENT from mid-May, building cvs/www/en from
+cvs-cur 5361 with tidy from tidy15apr99 (tidy-0.4.99.2).
+
+>Description:
+
+When an error file is specified to tidy (-f file), the error file
+is fopen()d for every HTML file specified on the command line,
+but not closed until all HTML files have been processed.
+
+If a large number of files are specified on the command line
+(eg processing the FreeBSD handbook), this can overflow the
+process or system file descriptor table.
+
+>How-To-Repeat:
+
+cd .../cvs/www/en
+CVSROOT=... make -DENGLISH_ONLY
+
+>Fix:
+
+The following fix opens the error file whenever a `-f' option is seen.
+Multiple -f options can be specified and the previous error file will be
+closed before the new one is opened.
+
+--- tidy.c~Fri Apr 16 05:34:32 1999
++++ tidy.cThu May 27 15:55:33 1999
+@@ -732,9 +732,18 @@
+             {
+                 if (argc >= 3)
+                 {
++    if (errfile)
++fclose(errout);
+                     errfile = argv[2];
+                     --argc;
+                     ++argv;
++    if (errfile)
++    {
++fp = fopen(errfile, "w");
++
++if (fp != null)
++    errout = fp;
++    }
+                 }
+             }
+             else if (strcmp(argv[1], "-wrap") == 0 ||
+@@ -779,14 +788,6 @@
+ 
+         /* ensure config is self-consistent */
+         AdjustConfig();
+-
+-        if (errfile)
+-        {
+-            fp = fopen(errfile, "w");
+-
+-            if (fp != null)
+-                errout = fp;
+-        }
+ 
+         if (argc > 1)
+         {
+
+>Release-Note:
+>Audit-Trail:
+>Unformatted:
+
+
+To Unsubscribe: send mail to majordomo@FreeBSD.org
+with "unsubscribe freebsd-ports" in the body of the message
+
+
+----- End forwarded message -----
+
+-- 
+Scott Kenney  >|<  saken@hotel.rmta.org
+
+
+

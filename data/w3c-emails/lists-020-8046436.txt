@@ -1,0 +1,152 @@
+docno="lists-020-8046436"
+received="Wed Mar 24 06:40:03 2004"
+isoreceived="20040324114003"
+sent="Wed, 24 Mar 2004 11:33:49 -0000"
+isosent="20040324113349"
+name="Michael Kay"
+email="mhk@mhk.me.uk"
+subject="Re: qt-2003Nov0304-01"
+id="20040324113948.D9A90A0EDB@frink.w3.org"
+charset="US-ASCII"
+inreplyto="qt-2003Nov0304-01"
+expires="-1"
+
+To:"'xpath'"<w3c-xsl-query@w3c.org>
+Cc:<public-qt-comments@w3.org>
+
+
+
+This note follows up on
+
+qt-2003Nov0304-01 : [XQuery] SAG-XQ-003 Run-time access to static namespace
+context
+
+In doing so, it also attempts to solve the issues concerned with casting
+between QNames and strings.
+
+Note that I am now detached from the company on whose behalf I originally
+raised the comment.
+
+The original note points out that it is a heavy overhead to require XQuery
+implementations to keep the static namespace context around at run-time,
+that there are very few constructs that actually require it, and that it
+would actually be clearer to users if namespace prefixes used in the query
+(like variable names and function names) were purely compile-time
+constructs, inaccessible at run-time.
+
+(In XSLT, run-time access to the namespace context is a fact of life, there
+are many constructs like the key() and format-number() functions that
+require it. We can't change this, much though I would like to. However,
+these constructs are detectable at compile time, so the namespace context
+never needs to be retained "just in case").
+
+Following discussion of the initial proposal, I was invited to prepare a
+detailed proposal describing all the changes required. This affects two
+areas: casting between QName/NOTATION and string (which also affects XPath),
+and computed element and attribute constructors (which are XQuery only).
+
+
+1. Casting QName/NOTATION to/from string/UA
+
+
+(I use "string/UA" as shorthand for "string or untypedAtomic")
+
+The current status here is somewhat chaotic. Currently [F+O Christmas
+Edition]:
+
+* casting QName to string/UA is disallowed; 
+
+* casting NOTATION to string/UA is allowed (although it is exactly the same
+operation); 
+
+* casting string/UA to QName is "maybe" allowed, (it works if the prefix
+used in the lexical QName is declared in the static context)
+
+* casting string/UA to NOTATION is disallowed (it has to be, because
+NOTATION is an abstract type).
+
+I believe that the right solution to this problem is for an xs:QName or
+xs:NOTATION to carry a prefix with the value in the same way as a dateTime
+carries a timezone. This prefix can be empty. The prefix plays no part in
+comparison operations. When an xs:QName or xs:NOTATION is obtained as a
+result of schema validation the prefix is taken from the lexical value
+supplied. When a QName is returned as a result of the node-name() function,
+the prefix is the same as would be returned in the result of the name()
+function. When a QName is constructed using the expanded-QName() function,
+the second argument ($paramLocal) is allowed to be a lexical QName, and the
+prefix is taken from this lexical QName (if the second argument is an
+NCName, the prefix is empty).
+
+When casting from an xs:QName or xs:NOTATION to a string, the result is a
+lexical QName formed using the prefix and the local name components of the
+value. This operation always succeeds, though it does not always produce a
+useful result. As a result, every atomic value can now be converted to a
+string without risk of failure, and the result is context-independent.
+
+Casting from string/UA to QName/NOTATION should in general be disallowed,
+because the result is context-dependent. It currently works only if the
+prefix is declared in the static context, in which case the user knows what
+the required namespace URI is, and can therefore use expanded-QName() to
+construct it. To make this easier, I propose shortening the name of the
+expanded-QName() function to simply QName().
+
+However, for convenience in situations where names are commonly unprefixed,
+I propose that we should allow casting from string/UA to QName only in the
+case where the string/UA is in the form of an NCName. The result is then an
+xs:QName in no namespace. This operation is still context-independent.
+
+The one useful facility that this loses is the ability to write a "literal"
+QName using the constructor syntax, for example xs:QName("xsi:type"). I
+propose that we provide custom syntax for this case, specifically
+QName{xsi:type}.
+
+
+
+2. Dynamic element and attribute constructors
+
+In a computed constructor of the form "element {Expr1} {Expr2}", or
+"attribute {Expr1} {Expr2}", the value of Expr1 is allowed (after
+atomization) to be either an xs:QName, or a string/UA. In the latter case it
+is cast to an xs:QName, invoking the casting rules. Under the rules above
+this option becomes meaningless, except in the case where the name is
+unprefixed (a very common case). I therefore propose no change to the rules
+for constructors, other than adding a note that the option to supply a
+string rather than an xs:QName is useful only in the case where the element
+or attribute is to be in the null namespace.
+
+
+SUMMARY OF PROPOSAL
+
+1. expanded QNames and NOTATION values are held as triples, including a
+prefix. The prefix is used 
+   (a) when converting the QName to a string
+   (b) when a QName-valued attribute is attached to an element, to generate
+a namespace node (the prefix forms a preferred prefix, but may be overridden
+if it clashes with another). The prefix is not used in any comparison
+operations.
+
+2. casting QName/NOTATION to string/UA is always allowed, and uses the
+prefix stored in the value
+
+3. casting string/UA to QName is allowed only in the case where the
+string/UA is an NCName, in which case the resulting QName is in no namespace
+
+4. casting string/UA to NOTATION is disallowed (no change)
+
+5. the construct "QName" "{" qname "}" is introduced to represent a literal
+QName value
+
+6. no change to the rules for element and attribute constructors, other than
+to note the consequences of the changes to the casting rules.
+
+7. the expanded-QName() function is renamed QName(), and allows its second
+argument to be a string in the form of a lexical QName
+
+8. the node-name() function returns a QName that contains a prefix generated
+in the same way as the name() function
+
+
+Michael Kay
+
+
+

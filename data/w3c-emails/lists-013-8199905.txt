@@ -1,0 +1,135 @@
+docno="lists-013-8199905"
+received="Tue Mar 16 11:42:26 2004"
+isoreceived="20040316164226"
+sent="Tue, 16 Mar 2004 09:42:19 0700 (MST)"
+isosent="20040316164219"
+name="Alex Rousskov"
+email="rousskov@measurementfactory.com"
+subject="Re: Can the response entity be transmitted before all the request  entity has been read?"
+id="Pine.BSF.4.58.0403160909260.72171@measurementfactory.com"
+charset="USASCII"
+inreplyto="20040316060035.GA13637&#64;mail.shareable.org"
+expires="1"
+
+To: Jamie Lokier<jamie@shareable.org>
+Cc: HTTP WG<ietf-http-wg@w3.org>
+
+
+
+On Tue, 16 Mar 2004, Jamie Lokier wrote:
+
+> Alex Rousskov wrote:
+> > >      write "Status: 200\n\n";
+> > >      write "Thank you for your submission.\n";
+> > >
+> > >      while ($x = read (...)) { store ($x) }
+> > >
+> > >      write "Great, all done.\n";
+> >
+> > While it is easy to imagine such an application, tasking a proxy
+> > to "rewrite" or "fix" application logic to fit HTTP restrictions
+> > seems like a bad idea. IMO, upon receiving "Status: 200\n\n" and
+> > sending off response headers, your proxy should become a "tunnel"
+> > and not try to second-guess the application intent.
+>
+> By the way, pure tunnelling leads to deadlock: the application can
+> get stuck writing if the client isn't reading the response until it
+> transmits all the request, and all the TCP windows fill up.
+
+Yes, but that's client- or application-caused deadlock, not a
+server-caused deadlock. I am arguing that a general-purpose server
+cannot resolve such deadlocks using a simple tunnel interface.
+Applications acting unusually should bare the responsibility of
+avoiding deadlocks, not the server.
+
+> I don't like that deadlock because it isn't necessary and it is
+> practical to eliminate it in the server.  It's messier to eliminate
+> it in the application, and anyway why do it once per application
+> instead of once in the server?
+
+I do not know of a way to resolve the said deadlock in the server, in
+a general way that will not break some valid applications.
+
+> To avoid deadlock, this is what I do: If writing would block, and
+> there is data available to read, read it.  The buffer holds _read_
+> data, and is therefore limited by the maximum permitted request
+> entity size.  The maximum is asserted both for content-length and
+> chunked requests.  The buffer is required *somewhere*, either in the
+> server or in the application itself, or in backing storage for them,
+> so there is no added resource consumption from this technique when
+> it's implemented properly.
+
+Sorry, I do not follow. You seem to be limiting request bodies to
+maximum buffer size, which seems like a bad idea to me (but I am not
+sure).
+
+Here are the facts: An application does not read until it writes a lot
+of data. An application wants to write more than your server can
+buffer. Your server can either pass those writes through or block
+them. If your server passes those writes through, then your server
+cannot break the application (the application may still block due to
+client behavior, but that is not your problem). If your server blocks
+those writes, the application author will be after you with bug
+reports and tomatoes ("It worked fine with Foo server!").
+
+Of course, if you develop a specialized server for specialized set of
+applications, it is totally up to you how to handle early writes.
+
+> Note that the response doesn't get buffered infinitely.  Response
+> generation is blocked while the request is being buffered up for
+> whatever reason.
+
+And if request body is larger than your server buffer? Temporary
+buffering is like network delay, it cannot cause new deadlocks.
+Buffering that depends on other buffer state may cause new deadlocks.
+
+> It's not possible to omit the buffering *somewhere*: for clients which
+> send a whole request before reading the response, the entire request
+> has to be buffered or stored *somewhere*, either in the server or in
+> the application, to resolve the deadlock.
+
+For a baseline server algorithm, I would let broken clients and broken
+applications to resolve their problems without server participation.
+The server has to buffer request headers to set environmental
+variables and such. After request headers are processed, the server
+establishes a tunnel for the application to talk to the client and
+just does chunk coding and/or connection termination management.
+
+> > Imagine an application that writes more than you can buffer before
+> > it reads anything.
+>
+> No.  The application can't do that: it will block when writing blocks.
+
+With a simple tunneling server it will not block unless the client
+does not read. Again, it becomes a client-application problem which is
+what you want, as a server author, in a general case.
+
+> The server's large buffer is the size of a maximum _request_ entity,
+> and that storage is unavoidable one way or another.  Everything else
+> is limited to an appropriate I/O block size.
+
+I assume that request bodies should not be limited to your maximum
+buffer size.
+
+> The reason I asked all this is that if practically all real clients
+> fail with it (I haven't reached the stage of testing yet), then the
+> server may as well constrain the app, probably by complaining at it.
+
+And then you will find a customer who deploys your server in a
+controlled environment where clients and applications need an
+HTTP-compliant tunnel and your server breaks it...
+
+> I'd like to know whether it a common or rare client weakness, so
+> whether I should consider using that technique or not.
+
+I do not know because we have not tested clients yet. If you have
+insufficient information, I would suggest to allow possibly compliant
+behavior by default. You can always implement complex
+optimizations/restrictions later.
+
+$0.02,
+
+Alex.
+
+
+

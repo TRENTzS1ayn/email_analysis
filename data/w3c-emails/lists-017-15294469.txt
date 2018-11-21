@@ -1,0 +1,110 @@
+docno="lists-017-15294469"
+received="Mon Aug 19 15:05:43 2002"
+isoreceived="20020819190543"
+sent="Mon, 19 Aug 2002 20:05:41 +0100"
+isosent="20020819190541"
+name="Jeni Tennison"
+email="jeni@jenitennison.com"
+subject="Data Model WD: infoitem-to-textnodes() function"
+id="67624967605.20020819200541@jenitennison.com"
+charset="usascii"
+expires="1"
+
+
+To:public-qt-comments@w3.org
+
+
+Hi,
+
+I might be missing something, but I think that the definition of
+infoitem-to-text-nodes() function is wonky. The definition in the Data
+Model WD is:
+
+define function infoitem-to-text-nodes(Node* $nodes)
+       returns Node* 
+{
+  if (xf:empty($nodes)) then return empty-sequence()
+  else
+    let $head:= op:item-at($nodes, 1), 
+        $tail:= xf:subsequence($nodes, 2)
+    return
+      if (dm:node-kind($head) = "text") then
+        /* Collapse two consecutive text nodes and apply 
+           infoitem-to-text-nodes recursively */
+        if (xf:empty($tail)) then $head
+        else if (dm:node-kind(op:item-at($tail,1))="text") then 
+          infoitem-to-text-nodes(
+            op:concatenate(
+              dm:text-node(xf:concat(dm:string-value($head),
+                   dm:string-value(op:item-at($tail,1)))), 
+              xf:subsequence($tail, 2)
+            )
+          )
+        else op:concatenate($head,
+               op:concatenate(op:item-at($tail,1),
+                              infoitem-to-text-nodes($tail)))
+      else op:concatenate($head, infoitem-to-text-nodes($tail))
+  }
+
+Consider the operation over the content of the foo element in:
+
+  <foo> blah <bar /></foo>
+
+Here, the sequences of nodes is a text node, followed by a bar
+element. I'll call these $node[1] and $node[2]. Running through the
+function we get:
+
+1st recursion:
+  $head = ( $node[1] )
+  $tail = ( $node[2] )
+
+  // $head is text; $tail[1] isn't empty and isn't text
+  
+  return
+    op:concatenate($node[1],
+      op:concatenate($node[2],
+                     infoitem-to-text-nodes( ($node[2]) )))
+
+2nd recursion:
+  $head = ( $node[2] )
+  $tail = ()
+
+  // $head isn't text
+  
+  return
+    op:concatenate( $node[2], () )
+
+So we end up with:
+
+  ( $node[1], $node[2], $node[2] )
+
+whereas I think we want:
+
+  ( $node[1], $node[2] )
+
+The problem is here:
+
+        else op:concatenate($head,
+               op:concatenate(op:item-at($tail,1),
+                              infoitem-to-text-nodes($tail)))
+
+which I think should be:
+
+        else op:concatenate($head,
+               op:concatenate(op:item-at($tail, 1),
+                 infoitem-to-text-nodes(xf:subsequence($tail, 2))))
+
+or possibly, for simplicity:
+
+        else op:concatenate($head,
+                            infoitem-to-text-nodes($tail))
+  
+Cheers,
+
+Jeni
+---
+Jeni Tennison
+http://www.jenitennison.com/
+
+
+

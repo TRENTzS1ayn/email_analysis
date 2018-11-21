@@ -1,0 +1,148 @@
+docno="lists-041-1367449"
+received="Sat Apr  6 10:51:32 2002"
+isoreceived="20020406155132"
+sent="Sat, 6 Apr 2002 17:51:08 +0200"
+isosent="20020406155108"
+name="Julian Reschke"
+email="julian.reschke@gmx.de"
+subject="RE: WebDAV property schema lookup"
+id="JIEGINCHMLABHJBIGKBCOEJCEFAA.julian.reschke@gmx.de"
+charset="iso-8859-1"
+inreplyto="01e301c1da23$af380840$3bab2382&#64;us.oracle.com"
+expires="-1"
+
+To:"Eric Sedlar"<eric.sedlar@oracle.com>
+Cc:"DAV"<w3c-dist-auth@w3.org>
+
+
+> From: w3c-dist-auth-request@w3.org
+> [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Eric Sedlar
+> Sent: Tuesday, April 02, 2002 10:52 AM
+> To: Julian Reschke
+> Cc: DAV
+> Subject: Re: WebDAV property schema lookup
+>
+>
+> I don't think that deciding which dead properties are editable
+> will be done
+> on the client, but rather via some server-specific mechanism.
+
+I agree. The question being, how a server decides this for a given dead
+property (it may not be able to do it).
+
+> For example,
+> we would probably say that all dead properties not in the DAV or Oracle
+> namespaces are editable by default, and possibly allow some
+> configuration in
+> a parameter file to list uneditable ones.
+
+That's certainly something that *can* be done.
+
+So how do we proceed?
+
+- I think that what our current draft says is needed as a basis anyway
+- One possible approach would be to get into the schema / model business, ?
+la Exchange 2000 and Sharepoint
+- A simpler approach would be to define marshalling for the additional
+information you asked for as extensions to PROPFIND/PROPPATCH
+
+For instance, the first two things you asked for (editability and
+visibility) can trivially be marshalled in new property attributes (this
+could be easily added to our existing datatype marshalling):
+
+Proppatch request:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:propertyupdate xmlns:D="DAV:"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+   xmlns:Z="http://www.w3.com/standards/z39.50"
+   xmlns:x="http://webdav.org/property-attribute">
+  <D:set>
+    <D:prop>
+      <Z:released xsi:type="xs:boolean" x:hidden="true"
+x:editable="false">false</Z:released>
+    </D:prop>
+  </D:set>
+</D:propertyupdate>
+
+..
+
+Propfind response:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:multistatus xmlns:D="DAV:"
+   xmlns:Z="http://www.w3.com/standards/z39.50"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+   xmlns:x="http://webdav.org/property-attribute">
+  <D:response>
+    <D:href>http://www.foo.com/bar.html</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:getcontenttype>text/html</D:getcontenttype>
+        <Z:released xsi:type="xs:boolean" x:hidden="true"
+x:editable="false">1</Z:released>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>
+
+
+Note that this is compatible with RFC2518 as
+
+- old clients will never send the new attributes upon PROPPATCH
+- servers can add the two attributes two the existing property values
+transparently (because they sit in a new namespace which should be ignored
+by old clients)
+
+
+Adding textual descriptions is a bit harder, because it's not as easy to
+marshall them in attribute values (we need to make sure that we properly
+treat language negotation/xml:lang). I wouldn't want to send this
+information with every PROPFIND reply, so we probably would require that a
+client specifically asks for them:
+
+Propfind request:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:"
+  xmlns:Z="http://www.w3.com/standards/z39.50"
+   xmlns:x="http://webdav.org/property-attribute">
+  <D:prop x:include-descriptions="true">
+    <D:getcontenttype/>
+    <Z:released/>
+  </D:prop>
+</D:propfind>
+
+
+Propfind response:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:multistatus xmlns:D="DAV:"
+   xmlns:Z="http://www.w3.com/standards/z39.50"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+   xmlns:x="http://webdav.org/property-attribute">
+  <D:response>
+    <D:href>http://www.foo.com/bar.html</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:getcontenttype>text/html</D:getcontenttype>
+        <Z:released xsi:type="xs:boolean" x:hidden="true"
+x:editable="false"><x:description
+xml:lang="en">released?</x:description>1</Z:released>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>
+
+
+Feedback appreciated.
+
+Julian
+
+
+

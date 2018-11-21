@@ -1,0 +1,163 @@
+docno="lists-037-12319413"
+received="Fri Mar 21 04:10:33 1997"
+isoreceived="19970321091033"
+sent="Fri, 21 Mar 1997 01:09:47 -0800"
+isosent="19970321090947"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Proposal for LOCK &amp; UNLOCK"
+id="11352BDEEB92CF119F3F00805F14F485026B7220@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+1LOCK Method
+
+1.1Problem Description
+
+Locks exist to arbitrate access to a resource amongst principals that
+have equal access rights to that resource. The need for this arbitration
+results from a desire to avoid having to constantly merge results. In
+fact, users so dislike having to merge that they would serialize their
+access to a resource rather than have to constantly merge.
+
+1.2Request-URI
+
+The request-URI is the resource to be locked.
+
+1.3Lock-Info Header
+
+LockInfo = "Lock-Info" ":" LockType SP LockScope CRLF
+LockType = "LockType" "=" ("Write" | #Token)
+LockScope = "LockScope" "=" ("Exclusive" | #Token)
+
+The Lock-Info header specifies the type of lock. I propose that the DAV
+specification only allow for Exclusive Write locks. These are locks that
+prevent those without the lock from performing any method on the
+resource other than HEAD, META*, LINK/UNLINK, and UNLOCK.
+
+1.4Time-Out Header
+
+TimeOut = "Time-Out" ":" TimeType CRLF
+TimeType = "Second" SP TimeOutVal | "NONE" | *(Token | LWS)
+TimeOutVal = 1*digit
+
+The Time-Out header specifies the number of time units that may pass
+without action from the lock owner before the owner's lock will be
+released. The time out counter is reset whenever the lock owner executes
+a method of any kind on the locked resource.
+
+I propose that the DAV specification define the "Second" TimeType which
+specifies a number of seconds which may elapse before the lock is lost.
+A server is only required to accept a "Second" value of up to 2^32 and
+may reject time out values greater than that with a 400 Bad Request.
+
+I also propose that the DAV specification define the "NONE" TimeType
+which specifies that the lock may only be removed via an UNLOCK.
+
+The Lock-Token header can be used along with the Time-Out header in a
+LOCK method call to change the time-out setting.
+
+1.5Owner Header
+
+Owner = "Owner" ":" URI CRLF
+
+1.6Additional Legal Headers
+
+PropagateLinks
+
+1.7Range Locks
+
+The Range header may be used with a LOCK method to specify that a lock
+only applies to part of a resource. While a ranged lock is in process no
+PUT request on the resource, either to a locked or unlocked range of the
+resource, may be submitted with the Write-Type header set to INSERT.
+
+The purpose of this restriction is to simplify the implementation of
+lock. Currently no system that I am aware of allows insertion writes
+while a ranged lock is active.
+
+The method restriction on Exclusive Write only applies to the range of
+the resource that is locked.
+
+1.8Example
+
+LOCK http://blah HTTP/1.1
+Lock-Info: LockType = Write LockScope = Exclusive
+TimeOut = NONE
+Range: bytes=12-13
+LockOwner = http://www.uci.edu/Jim_Whitehead
+
+The previous will create an exclusive write lock on the byte range 12-13
+of the resource referred to by the URL http://blah with no time out and
+a lock owner of http://www.uci.edu/Jim_Whitehead.
+
+1.9Lock-Token Header
+
+LockToken = "Lock-Token" ":" Token CRLF
+
+The LockToken header may never appear in the same request as a Lock-Info
+header.
+
+1.10Item Behavior
+
+A lock on an item only locks that item. A successful response will
+contain a Lock-Token header with the token for that lock. If the item is
+deleted then all locks on that resource are lost.
+
+1.11Structure Behavior
+
+The default behavior when locking a structure is to lock the structure
+and all its primary members. If the PropagateLinks header is included
+then secondary members are also locked.
+
+If all members of the structure are locked then the server should return
+a 200 Success with a response body containing a web collection
+specifying individual lock tokens for each member of the structure.
+
+The lock on the structure itself prevents the addition or removal of
+resources from the structure. Thus attempts to add or remove resources
+in the structure's namespace will fail. Attempts to add
+DAV.PropagateLink links will also fail. The DAV.PropagateLinks
+restriction is added because the rules for this link are under DAV's
+control as we define the semantics of the link.
+
+If it was not possible to lock all members of the structure then a 207
+Partial Success should be returned along with a web collection with lock
+tokens and return results.
+
+1.12Discussion
+
+I have prevented restricting access to meta-data because that would
+interfere with the choice of large chunk meta-data management system. I
+have prevented restricting access to LINKs, with the exception of the
+DAV.PropagateLink because I would like to leave maximum flexibility in
+that area.
+
+I have also not allowed for one to just lock the STRUCTURE and not its
+members. The reason is that I didn't want to complicate things by
+putting the PropagateLevel header back into the spec. It was originally
+created to handle situations like this, though in this case its value
+would either be 0 or Infinity. I am not religious on the issue.
+
+2UNLOCK Method
+
+The purpose of the UNLOCK method is to remove a lock. The Lock-Token
+header is used to identify the lock to be removed.
+
+2.1Example
+
+UNLOCK http://blah HTTP/1.1
+Range: bytes=12-13
+Lock-Token: 1343293
+
+2.2Discussion
+
+Administrators can find the lock tokens on a resource by using the lock
+link presented in the current DAV spec. They can then submit an UNLOCK
+with that token. If they have proper access the system will acknowledge
+the UNLOCK.
+
+
+

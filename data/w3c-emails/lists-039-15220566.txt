@@ -1,0 +1,225 @@
+docno="lists-039-15220566"
+received="Sat Jan 15 01:15:34 2000"
+isoreceived="20000115061534"
+sent="Sat, 15 Jan 2000 01:15:24 -0500"
+isosent="20000115061524"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="GULP, version 3"
+id="10001150615.AA23572@tantalum"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+Jason just pointed out that the "ref-counting" lock token approach
+in GULP fails in the presence of cycles (an embarassing mistake :-).
+So here is GULP version 3.
+
+**************************
+
+GULP: Part I
+
+- A URL is a string that can identify a resource.
+
+- A collection is a resource that contains a set of named members.
+
+- A lock is 7-tuple, consisting of a target, token, type, scope,
+depth, timeout, and owner.
+
+- Locking a resource means to add a lock to that resource.
+
+- When a resource is locked, certain requests will fail with a 423
+(Locked) status code, where that request would have succeeded if the
+lock had not been present.
+
+- A resource can be locked by multiple locks concurrently.
+
+- A LOCK request locks one or more resources.
+
+- Locking a collection can lock one or more members of the collection.
+
+- The depth of a lock can be a 0 or infinity.  If a collection is the
+target of a depth infinity lock, all members of that collection are
+also locked.
+
+- An UNLOCK request unlocks one or more resources.
+
+- Adding or removing members from a locked collection can add or remove
+locks on those members.
+
+- A lock protects which resource is identified by that lock.
+
+- If a resource has an exclusive lock, that resource cannot be locked
+with another lock with the same type and target but a different token.
+
+- If a resource has a write lock with target ".", the body and
+properties of that resource are protected from unauthorized
+modification.
+
+
+**************************
+
+GULP: Part II
+
+
+- A URL is a string that can identify a resource.
+
+A server initially defines what resource (if any) is identified by a
+URL.  Most URL's do not identify a resource, but a client can cause
+a URL to identify a resource, and later change which resource is
+identified by that URL.
+
+Examples of methods that can cause a URL to identify a resource (or
+change the resource identified by a URL) are PUT, MKRESOURCE, MKCOL,
+BIND, MOVE, and COPY.  Examples of methods that can cause a URL to no
+longer identify a resource are DELETE and MOVE.
+
+
+- A collection is a resource that contains a set of named members.
+
+A collection contains a set of bindings, where a binding is a mapping
+from a URL segment to a resource.  If a URL identifies a collection,
+that URL extended by the URL segment will identify the bound resource.
+
+For example, If "/path" identifies a collection C, and C contains a
+binding that binds the segment "x" to resource R, then the URL
+"/path/x" identifies resource R.
+
+
+- A lock is 7-tuple, consisting of a target, token, type, scope, depth,
+timeout, and owner.
+
+The "target" is an extension to locks as defined in rfc2518.  This new
+field is defined to distinguish the implicit locks on the state of a
+collection implied by the locking semantics of rfc2518, from the
+explicit locks that are defined by rfc2518.  The explicit locks in
+rfc2518 correspond to locks with target "." in this proposal.
+
+Since all locks with the same token will share the same type, scope,
+depth, timeout, and owner, a lock will be represented in this proposal
+as a string of the form "[target, token]".
+
+For example, ["x/.", "K"] defines a lock with target "x/." and token "K".
+
+
+- Locking a resource means to add a lock to that resource.
+
+The current set of locks on a resource can be obtained from the
+DAV:lockdiscovery property of the resource.
+
+
+- When a resource is locked, certain requests will fail with a 423
+(Locked) status code, where that request would have succeeded if the
+lock had not been present.
+
+Whether a particular request will fail can depends on the
+target, token, type, scope, and owner of the lock.
+
+
+- A resource can be locked by multiple locks concurrently.
+
+Some lock combinations will be disallowed
+based on information such as the the scope of the lock.
+
+
+- A LOCK request locks one or more resources.
+
+R1: When a LOCK request succeeds, a lock is added to the resource
+identified by shortest sequence of initial segments of the request URL
+that identifies a WebDAV resource.
+
+For example, if "LOCK /seg1/seg2/seg3/.../segN" succeeds, and if
+/seg1 does not identify a WebDAV resource but /seg1/seg2 does,
+then a lock is added to the resource identified by "/seg1/seg2".
+
+The lock target is the relative URL formed by using standard URL
+transformations to remove all segments of the request-URL named "." or
+"..", then removing the prefix that identifies the locked resource,
+and then appending a segment named ".".
+
+For example, if "LOCK /seg1/seg2/../seg3/./seg4" succeeds, and if "/"
+does not identify a WebDAV resource but "/seg1" does, then a lock with
+target "seg3/seg4/." is added to the resource identified by "/seg1".
+
+The type and scope, and owner of the lock is specified in the LOCK
+request body.  The depth and timeout of the lock is specified in the
+LOCK request headers.  The token of the lock is a unique string
+allocated for that LOCK request by the server.
+
+The principal that issued the LOCK request is called the "owner" of
+the lock.
+
+
+- Locking a collection can lock one or more members of the collection.
+
+R2: If a collection C has a binding from "segX" to resource R, and a
+request adds a ["segX/pathZ", "K"] lock to C, then the request adds a
+["pathZ", "K"] lock to R.  This rule is applied recursively.
+
+
+- The depth of a lock can be a 0 or infinity.  If a collection is the
+target of a depth infinity lock, all members of that collection are
+also locked.
+
+R3: If a collection C has a binding to resource R, and a request adds
+a Depth:infinity [".", "K"] lock to C, and there is no [".", "K"] lock
+on R, then the request adds a [".", "K"] lock to R.  This rule is
+applied recursively.  If the lock cannot be added to R, the request
+fails.
+
+
+- An UNLOCK request unlocks one or more resources.
+
+R4: When a request of the form "UNLOCK /pathX; Lock-Token K" succeeds,
+then all locks with token "K" are removed.
+
+
+- Adding or removing members from a locked collection can add or remove
+locks on those members.
+
+R5: If a collection C has a lock with token "K" and a request adds
+or removes a member from C, all locks with token "K" are removed except for
+those that would result from re-executing the LOCK command that
+created the token "K" locks.   If any of these locks cannot be added,
+the request MUST fail.
+
+
+- A lock protects which resource is identified by that lock.
+
+R6: If a collection has a ["X/....", "K"] lock, a request cannot delete
+the member named X from that collection unless the principal of the
+request owns all locks with target "X/..." and the tokens of all those
+locks are specified in an IF header.
+
+
+- If a resource has an exclusive lock, that resource cannot be locked
+with another locks with the same type and target but a different
+token.
+
+R7: Two locks are said to "overlap" if the targets of those locks are
+equal or if one of the locks is a depth:infinity lock and the target
+of that lock is a prefix of the target of the other lock.  If a
+request attempts to add a type T lock to a resource that has an
+overlapping exclusive type T lock with a different token, the request
+MUST fail.  Similarly, if a request attempts to add an exclusive type
+T lock to resource that already has an overlapping type T lock with a
+different token, the request MUST fail.
+
+
+- If a resource has a write lock with target ".", the body and
+properties of that resource are protected from unauthorized
+modification.
+
+R8: If a resource has a write lock with target ".", a request cannot
+modify the body or dead properties of that resource unless the
+principal of the request owns a write lock with target "." on that
+resource and the token of that write lock is specified in an IF
+header.
+
+
+**************************
+
+
+

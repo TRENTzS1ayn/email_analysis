@@ -1,0 +1,150 @@
+docno="lists-102-11124058"
+received="Mon Nov 16 21:58:46 1998"
+isoreceived="19981117025846"
+sent="Mon, 16 Nov 1998 18:58:40 -0800 (PST)"
+isosent="19981117025840"
+name="Michael Allen"
+email="Michael.R.Allen@Eng.Sun.COM"
+subject="Re: DOM Level 2 Core Features"
+id="199811170258.SAA21986@doppio.eng.sun.com"
+charset="us-ascii"
+inreplyto="DOM Level 2 Core Features"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+
+I think one of the key missing features for me would be a Visitor 
+pattern method on Node.  I suggested something like this earlier to this list, 
+and I might even be able to dig up my past e-mail, which will be much more 
+detailed than this one.
+
+The justification for a Visitor pattern interface on Node is to remedy 
+the fact that, given the current implementation, you often have to cast Nodes 
+back up to whatever specific HTML class they are.  Since iterator-like classes, 
+such as NodeList and NamedNodeMap are constantly returning base Node objects, 
+the casting costs are quite high, especially in a strongly-typed language like 
+Java.  
+
+Here's the text of my original message to the list:
+
+-- begin --
+
+With all this talk of quickly casting to subclasses from a base class 
+reference, I wonder if anyone has ever thought of putting Visitor design pattern 
+functionality into Node?  I have also heard the Visitor pattern referred to as 
+"double dispatch".  It would look something like this (in pseudo-Java):
+
+public interface Node {
+
+    // rest of node methods and stuff
+
+    public void visit(NodeVisitor v);
+
+}
+
+public interface NodeVisitor {
+
+    public void visitNode(Node n);
+    public void visitElement(Element e);
+    public void visitAttribute(Attribute a);
+    public void visitData(Data d);
+        
+
+}
+
+And then in the actual implementation:
+
+public class Foo {
+
+    public void bar() {
+        // Somehow this thing gets a Node:
+        
+        Node n = getTheNode();
+        
+        MyNodeVisitor visitor = v;
+        
+        n.visit(v);
+    }
+
+}
+
+public class MyNodeVisitor implements NodeVisitor {
+    public void visitNode(Node n) {
+    // do the right thing for plain nodes
+    }
+    
+    public void visitElement(Element e) {
+        // do the right thing for elements
+    }
+    
+    public void visitAttribute(Attribute a) {
+        // do the right thing for attributes
+    }
+    
+    public void visitData(Data d) {
+        // do the right thing for data
+    }
+
+}
+
+
+
+public class MyElement extends MyNode implements Element {
+
+    // ... other element methods ...
+
+    public void visit(NodeVisitor v) {
+        v.visitElement(this);
+    }
+
+}
+
+public class MyData extends MyNode implements Data {
+
+    // ... other data methods ...
+
+    public void visit(NodeVisitor v) {
+        v.visitNode(this);
+    }
+}
+
+The implementations of Node and the descendants of those implementations 
+each override the visit(NodeVisitor); method and call the appropriate 
+NodeVisitor method, passing themselves in as parameters.  This pattern obviates 
+the need for any casting; all the type checking is done by the compiler and any 
+internal type checking mechanisms.  To extend this pattern to encompass the HTML 
+specific classes, you just extend the NodeVisitor interface to take more 
+methods.  To avoid type checking what kind of NodeVisitor a Node has received, 
+you might make NodeVisitor an abstract base class with an Enumerated type field 
+which contains an int (or bitfield, maybe) which specifies its type.  That way, 
+subclasses which the base NodeVisitor doesn't cover could check the type of 
+visitors without doing an instanceof test (which, I believe, does not exist in 
+C++ anyway; however, I could be wrong, it's been a long time since I did any C++ 
+programming) and cast as appropriate.  
+
+The Visitor pattern really excels at quickly and efficiently digesting 
+structures like the DOM's Node hierarchy, where a program needs to differentiate 
+by their subclasses a tree of objects which all inheret from the same base 
+class.  It is far more effcient than instanceof/casting tests with big 
+if-then-else statements, and faster again than checking something like a string 
+which contains the "name"of the subclass in it (up to 8x faster than the 
+latter, according to some tests I ran under JDK1.1.6 on my Solaris box).  The 
+only structure that approached it in speed was a switch() statement off of an 
+Enumerated int field in the object.
+
+-- end --
+
+This message was based off an earlier version of the spec, so some of 
+the specific data types might be off, but the spirit remains the same.
+
+Thanks for your attention,
+
+Michael Allen
+
+
+
+
+
+

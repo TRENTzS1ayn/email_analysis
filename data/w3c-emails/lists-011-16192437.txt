@@ -1,0 +1,99 @@
+docno="lists-011-16192437"
+received="Thu Jan 29 09:24:16 1998"
+isoreceived="19980129142416"
+sent="Thu, 29 Jan 1998 05:49:02 GMT"
+isosent="19980129054902"
+name="Adrien de Croy"
+email="adrien@qbik.com"
+subject="HTTP/1.1 : Chunking"
+id="2.2.32.19980129063546.00f412dc@192.168.0.1"
+charset="usascii"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Hi all, sorry if I am not following correct protocol in mailing to this
+group.  First a bit of background - Our company develops WinGate, a fairly
+popular proxy server for NT/95, and so we have a lot of vested interest in
+the HTTP/1.1 protocol.
+
+Reading through the proposed standard again today, and some of the issues
+raised on http://www.w3.org/Protocols/HTTP/Issues/Overview.html I would just
+like to raise a small suggestion with regard to chunking.  I have another
+with regard to real-time streamed media sent through HTTP, but depending on
+the response to this, that may form the entity body of another posting.
+
+To my understanding, chunking was included in HTTP/1.1 for one reason only -
+that being where the server could not know beforehand, the size of the
+entity it was sending, most likely because it was being created by some
+other process (e.g CGI etc).  So, Chunking was added to allow the client to
+KNOW when it had received the entire entity.
+
+However, this adds a couple of problems/questions:
+
+1. The chunk size may be arbitrary, and the resulting latency introduced at
+the server (since chunking at the server requires some form of buffering)
+may cause performance degradation in applications such as streamed media
+through HTTP.  Is there any recommendation on how to chunk the data?
+
+2. Any intermediary (proxy) must continually monitor the transfer through
+itself. Is it allowed to re-chunk the data, and if so under what guidelines.
+
+So, I have a proposal to achieve the same desired objective as chunking.
+
+Proposal:
+
+Addition of a new option to specify that transmission of the entity is
+terminated by a certain sequence of octets (like an end tag) transmitted by
+the server before closing the TCP connection.  The receiver would then know
+if had received the whole entity by examining the last packet received
+before the connection was closed.  If the end tag was there, then it got the
+lot, else it didn't - simple. 
+
+This method provides no less information to the client than the current
+chunking method, since there is no progress information in chunking anyway
+(one does not know how many chunks are coming through), but is MUCH less
+intrusive into the entity body data, and would therefore be much more
+robust.  A proxy for instance could simply pass the data as it received it,
+and if talking to an HTTP/1.0 client would simply strip out the end tag.  
+
+This would involve holding back the last n bytes (length of end tag) from
+every packet relayed through itself until it received the next packet, which
+it would hold back the last n bytes of.  When notified of a close, if would
+look at those n bytes, and if they were the tag, it would discard them, and
+close the client connection, else it would send them to the client and let
+the client deal with the problem of not having received all the data.  
+
+For an HTTP/1.1 client, it would simply pass everything blindly.  If the
+entity were cachable, it could be written directly to file as received, and
+the end tag removed at the end of the session.  Even if the end tag were
+sent through to an HTTP/1.0 client, chances are it would not cause problems,
+unlike the current chunking system.
+
+A proposal for the end tag could be say a 4 byte magic number. So there
+would be a 1 in 4 billion chance of there being a natural conflict caused by
+a premature close on the connection with the last 4 bytes of the last packet
+being the magic number.  If this were thought too risky, simply increasing
+the length would serve to render this event less likely. 
+
+I believe this method would simplify client, server and intermediary
+implementations, achieving the same objective, and thereby increase software
+reliability, reducing the opportunities for bugs.
+
+Regards
+
+Adrien de Croy
+
+
+
+----------------------------------------------------------------------------
+------
+Adrien de Croy - adrien@qbik.com.  Qbik New Zealand Limited, Auckland, New
+Zealand
+                 See our pages and learn about WinGate at http://www.qbik.com/
+----------------------------------------------------------------------------
+------
+
+
+

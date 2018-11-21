@@ -1,0 +1,183 @@
+docno="lists-056-0367848"
+received="Sun Jun 15 15:00:30 1997"
+isoreceived="19970615190030"
+sent="Sun, 15 Jun 1997 11:56:32 -0700"
+isosent="19970615185632"
+name="Joe English"
+email="jenglish@crl.com"
+subject="Re: Update on namespaces"
+id="199706151857.AA26159@mail.crl.com"
+inreplyto="199706100606.XAA08152&#64;boethius.eng.sun.com"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+
+
+On 9 Jun 1997 Jon.Bosak@eng.sun.com (Jon Bosak) wrote:
+
+> In order to better understand the requirements for namespaces, several
+> members of the SGML ERB met in phone conference with key participants
+> in the PICS-NG effort last Friday. [...]
+>
+> 1. One workable way to universally disambiguate the names of elements
+> is to associate them somehow with specific URIs.  Not everyone agrees
+> that this is the best way -- some of us would prefer a mechanism like
+> the SGML formal public identifier -- but there seems to be a general
+> acknowledgement that it will work.
+
+Presumably a namespace will define several names, so a single
+declaration to identify the namespace as a whole should suffice.
+In other words, instead of associating a URI or an FPI with
+individual elements, it would be better to declare the URI or 
+FPI of the namespace itself in one place.
+
+Regarding URIs vs. FPIs:  what would the URI point to?  Unless
+the ERB defines a concrete, machine-processable notation for
+namespace definitions, there is little need for a machine-resolvable 
+address.  A unique name is good enough for identification purposes.  
+It seems to me that a PUBLIC identifier is a more appropriate way to 
+reference a namespace than a URI.
+
+Then again, we already have a machine-processable notation for
+defining element types: the (formal part of a) DTD!
+
+Proposal: allow XML documents to import a namespace via
+a NOTATION declaration:
+
+<!NOTATION foo PUBLIC "bar" [ SYSTEM "baz" ]>
+
+where "foo" is the local identifier for the namespace, "bar" is
+its global identifier, and "baz", if supplied, is a URI which
+resolves to a DTD subset containing ELEMENT and ATTLIST
+declarations for each element type defined by the namespace.
+
+(<!NOTATION> is used because it's already in XML, in accordance
+with goal 5 below, that no new syntax should be introduced.)
+
+We might also need one more declaration to specify which
+NOTATIONs refer to namespaces (as opposed to being "regular"
+notations); how about a PI:
+
+<?NAMESPACE foo ...>
+
+
+> 2. While some namespaces may be specified in a machine-interpretable
+> form, other namespaces (and perhaps a certain component of all
+> namespaces) will be in a form that cannot be interpreted by a machine.
+
+This sounds a lot like a DTD: there's a machine-processable
+formal part, and there's an informal part that is only interpretable
+by human beings.  For namespaces there's no a priori need for the
+formal part (come to think of it, this is largely true for XML
+in general), but in the event that it is to be supplied we
+might as well re-use the existing machinery of ELEMENT and
+ATTLIST declarations.
+
+
+> 3. There seemed to be general agreement that validatable structural
+> information is not among the things that minimally need to be conveyed
+> by a namespace identifier. [...]  In other words, as
+> far as we can tell at the moment, the namespace problem does not
+> require a solution that involves DTDs.  This does not mean that such a
+> solution would not be useful, but it does seem to imply that it can
+> wait for the SGML revision.
+
+For the case where there are no structural constraints,
+the namespace-DTD could use:
+
+<!ELEMENT QWERTY ANY>
+
+Alternately, the namespace could be entirely defined by the informal
+part and the formal part omitted altogether.
+
+I think structural information will be useful in many cases,
+though, to give guidance as to how the different element
+types in a namespace are intended to be used.
+
+For example, suppose the namespace FOO defines element types
+PERSON, NAME, and BIRTHDATE; a declaration like:
+
+    <!ELEMENT PERSON ((NAME, BIRTHDATE) | (BIRTHDATE, NAME))>
+    <!-- or: (NAME & BIRTHDATE) if we're not picky
+about meta-DTDs strictly conforming to XML -->
+
+provides useful information to people who wish to use the FOO
+namespace; it shows how the pieces are supposed to fit together.
+
+> 4. As indicated in the example just given, it is necessary to be able
+> to get more than one category of "meaning" about a given element.
+> These different semantic axes may have to come from different places.
+> For example, in <birthday>19850527</birthday> it may be necessary to
+> point to one specification in order to indicate that the content
+> refers to someone's date of birth and to a different specification to
+> indicate that content happens in this case to be in ISO format.  This
+> is multiple inheritance, but of a kind that can apparently be dealt
+> with simply by providing the ability to attach multiple namespace
+> identifiers to a given element.
+
+This is rather tricky, especially considering that an element
+may wish to inherit constructs that have different names in different
+namespaces.
+
+Proposal:  Allow elements to inherit from a namespace via
+attribute value specifications.  The attribute name identifies a
+namespace, and the attribute value identifies a name within that
+namespace.
+
+Taking the above example, we would have:
+
+<!-- in the DTD (internal or external subset) -->
+
+<!NOTATION foo PUBLIC "bar">
+    <!-- defines PERSON, NAME, and BIRTHDATE as above -->
+<!NOTATION xml-type PUBLIC "-//W3C//DTD XML data types//EN">
+    <!-- something along the lines of Tim Bray's typing proposal -->
+
+
+<!-- in the instance: -->
+
+<birthday FOO=BIRTHDATE XML-TYPE=ISO-DATE>19850527</birthday>
+
+<!-- Or, if you're not concerned about DTD-unaware parsers
+     and want to save space, in the DTD: -->
+
+<!ATTLIST birthday
+    FOO NAME #FIXED BIRTHDATE
+    XML-TYPENAME #FIXED ISO-DATE
+>
+<!-- and in the instance: -->
+<birthday>19850527</birthday>
+
+
+
+> 5. There is hope that the additions to xml-lang needed in the short
+> term can be reasonably small, just enough to enable the solution of
+> the more general problem later on.
+
+
+The above proposal meets all the criteria, I think:
+(1) it universally disambiguates namespaces (via FPIs);
+(2) it provides for separate formal and informal specifications;
+(3) it allows, but does not require, structural constraints
+to be expressed; (4) it supports multiple inheritance; and
+(5) it adds no new syntax to XML-LANG.
+
+And, it's compatible with XML-LINK's link recognition mechanism
+(part 2, section 2), and is virtually identical to the core
+parts of SGML's architectural forms mechanism [*].
+
+
+--Joe English
+
+  jenglish@crl.com
+
+[*] The AFDR uses a different mechanism for locating meta-DTDs,
+has several additional features (mostly having to do with attribute
+renaming), and uses the term "architecture" instead of "namespace";
+other than that the AFDR is substantially the same as what's proposed
+above.
+
+
+

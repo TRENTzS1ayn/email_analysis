@@ -1,0 +1,164 @@
+docno="lists-020-8158772"
+received="Fri Mar 26 11:49:57 2004"
+isoreceived="20040326164957"
+sent="Fri, 26 Mar 2004 11:49:16 -0500"
+isosent="20040326164916"
+name="Achille Fokoue"
+email="achille@us.ibm.com"
+subject="[FS] errors in the semantics of &quot;expands to&quot; and &quot;extended with union  interpretation&quot;"
+id="OFB9F0FB89.2D130D97-ON85256E63.000D0334-85256E63.005C5199@us.ibm.com"
+charset="ISO-2022-KR"
+expires="-1"
+
+To:public-qt-comments@w3.org
+
+
+$)CHi,
+
+It seems to me that there are a couple of errors in the semantics of 
+!0expands to!1 defined in section 7.1.9 and the semantics of its auxiliary 
+judgment !0extended with union interpretation of!1 defined in section 
+7.1.10.
+
+Section 7.1.10 defined !0extended with union interpretation of!1 by the 
+following rule:
+
+statEnv.typeDefn(expanded-QName) => define type TypeNameR,1 restricts 
+TypeName0 Mixed? { TypeR,1? }
+!$ !$ !$
+statEnv.typeDefn(expanded-QName) => define type TypeNameR,n restricts 
+TypeName0 Mixed? { TypeR,n? }
+statEnv |- TypeR,1' is TypeR,1 extended with union interpretation of 
+TypeNameR,1
+!$ !$ !$
+statEnv |- TypeR,n' is TypeR,n extended with union interpretation of 
+TypeNameR,n
+statEnv.typeDefn(expanded-QName) => define type TypeNameE,1 extends 
+TypeName0 Mixed? { TypeE,1? }
+!$ !$ !$
+statEnv.typeDefn(expanded-QName) => define type TypeNameE,m extends 
+TypeName0 Mixed? { TypeE,m? }
+statEnv |- TypeE,1' is TypeE,1 extended with union interpretation of 
+TypeNameE,1
+!$ !$ !$
+statEnv |- TypeE,m' is TypeE,m extended with union interpretation of 
+TypeNameE,m
+Type1 = TypeR,1' | !$ !$ !$ | TypeR,n' | (Type0, TypeE,1' ) | !$ !$ !$ | 
+(Type0,TypeE,m')
+--------------------------------------------------------------------------------
+statEnv |- Type1 is Type0 extended with union interpretation of TypeName0
+
+This rule seems incorrect because the union defining Type1 should 
+obviously contain Type0 itself: Type1 = Type0 | TypeR,1' | !$ !$ !$ | 
+TypeR,n' | (Type0, TypeE,1' ) | !$ !$ !$ | (Type0,TypeE,m'). The example 
+given in section 7.1.10 is consistent with this definition of !0extended 
+with union interpretation of!1 judgment.  I think that, in the previous 
+rule,  (Type0, TypeE,k!/) should be replaced by TypeE,k!/!/ such that  Type0 
+extended by TypeE, k!/ is TypeE,k!/!/. 
+
+Finally, I find suspicious the fact that "Mixed?" information is not used 
+at all.  Maybe we should add the following premises:
+
+Type0 extended by TypeE, 1!/ is TypeE,1!/!/
+!$ !$ !$ 
+Type0 extended by TypeE, m!/ is TypeE,m!/!/
+
+MixedE,1? TypeE,1!/!/ adjusts to TypeE,1!/!/!/ 
+!$ !$ !$ 
+MixedE,m? TypeE,m!/!/ adjusts to TypeE,m!/!/!/
+
+MixedR,1? TypeR,1!/ adjusts to TypeR,1!/!/
+!$ !$ !$ 
+MixedR,n? TypeR,n!/ adjusts to TypeR,n!/!/
+
+Type0 adjusts to Type0!/
+
+The result type Type1 would then be as follows : Type1 = Type0!/ | 
+TypeR,1!/!/ | !$ !$ !$ | TypeR,n!/!/| TypeE,1!/!/!/|!$ !$ !$ |TypeE,m!/!/!/. Note that the 
+adjustment is done at a finer level, not at the top level (in  the last 
+premise of "expands to" rule), so that only derived types with mixed 
+content model will have their content model  interleaved with sequence of 
+text nodes and xdt:anyAtomicType.  I think the proposed modified rule 
+should work provided that the absence of "Mixed" in the definition of a 
+type means that its content model is not a mixed content model regardless 
+of whether or not its base type has a mixed content model. If this 
+assumption is not correct, we should consider the "effective mixed value" 
+computed by  taking into account the "Mixed" attribute explicitly 
+specified in the type definition and whether or not the base type has a 
+mixed content model. 
+
+Minor error in the rule: statEnv.typeDefn(expanded-QName) is invoked n+m 
+times, and each time yields a different definition. expanded-QName needs 
+to be indexed (Expanded-QNameI for 1<=I<=n+m). Mixed? also needs to be 
+indexed.
+
+In section 7.1.9, the second rule does not take into account the content 
+model and the attributes inherited from the base type.  Maybe we need to 
+introduce a judgment that "flattens" the attribute and element contents of 
+a type by taking into account attributes and elements from its base type. 
+Let's call "flattens to" that judgment, it can be defined by the following 
+rules:
+
+statEnv |- TypeName of elem/type expands to expanded-QName 
+statEnv.typeDefn(expanded-QName) => define type TypeName  extends 
+BaseTypeName Mixed? { Type1? } 
+BaseTypeName flattens to Type2
+Type2 extended by Type1? is Type3
+----------------------------------------------------------
+statEnv |- TypeName flattens to Type3
+
+
+statEnv |- TypeName of elem/type expands to expanded-QName 
+statEnv.typeDefn(expanded-QName) => define type TypeName  restricts 
+BaseTypeName Mixed? { Type1? } 
+----------------------------------------------------------
+statEnv |- TypeName flattens to Type1?
+
+
+statEnv |- TypeName of elem/type expands to expanded-QName 
+statEnv.typeDefn(expanded-QName) => define type TypeName  Mixed? { Type1? 
+} 
+----------------------------------------------------------
+statEnv |- TypeName flattens to Type1?
+
+
+
+Thus, in order to take into account information from the base type, the 
+second rule defined in section 7.1.9 could be modified as follows (the 
+third premise has been added to take into account constraints from the 
+base type. Also note, as explained earlier, that the adjustment has been 
+pushed inside "extended with union interpretation" judgement):
+
+statEnv |- TypeName of elem/type expands to expanded-QName
+statEnv.typeDefn(expanded-QName) => define type TypeName extends 
+BaseTypeName Mixed? { Type1? }
+TypeName flattens to Type2
+statEnv |- Type3 is  Mixed? Type2 extended with union interpretation of 
+TypeName
+--------------------------------------------------------------------------------
+statEnv |- of type TypeName expands to Type3
+
+We also need two additional rules to cover the two other forms of type 
+definition:
+
+statEnv |- TypeName of elem/type expands to expanded-QName
+statEnv.typeDefn(expanded-QName) => define type TypeName Mixed? { Type1? }
+statEnv |- Type2 is Mixed? Type1? extended with union interpretation of 
+TypeName
+--------------------------------------------------------------------------------
+statEnv |- of type TypeName expands to Type2
+
+
+statEnv |- TypeName of elem/type expands to expanded-QName 
+statEnv.typeDefn(expanded-QName) => define type TypeName restricts 
+BaseTypeName Mixed? { Type1? } 
+statEnv |- Type2 is Mixed? Type1? extended with union interpretation of 
+TypeName 
+--------------------------------------------------------------------------------
+statEnv |- of type TypeName expands to Type2
+
+Best regards,
+Achille Fokoue
+
+
+

@@ -1,0 +1,135 @@
+docno="lists-005-15172343"
+received="Sat Dec 23 01:14:32 2000"
+isoreceived="20001223061432"
+sent="Fri, 22 Dec 2000 22:18:21 -0800"
+isosent="20001223061821"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="COPY and retain history (was: Re: Subversion support)"
+id="20001222221821.M22947@lyra.org"
+charset="us-ascii"
+inreplyto="200012230501.AAA09432&#64;tantalum.atria.com"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+On Sat, Dec 23, 2000 at 12:01:15AM -0500, Geoffrey M. Clemm wrote:
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    SVN can do a copy-by-reference, so they're cheap as hell. I can label
+>    something simply by doing:
+> 
+>      COPY http://www.lyra.org/svn/project
+>      Destination: http://www.lyra.org/svn/labels/1.0a1
+> 
+> According to the protocol, that would create a bunch of new
+> non-version-controlled resources.  They could be automatically put
+> under version control, but then as far as the protocol is concerned,
+> they would be completely unrelated to the resources that they came
+> from (i.e. changes couldn't be merged back to /svn/project).
+
+eek.
+
+[looking, looking...]
+
+Well, I need to figure out exactly where I want to go with this. To create a
+true copy-by-ref, I'd want to use VERSION-CONTROL on a null resource to
+point(*) at the appropriate version (and an existing version history). Then
+I'd want to fork a new line of descent from that version.
+
+The fork would probably happen in some kind of lazy fashion. Hmm... yes, in
+SVN, the two VCRs would point at the same version resource. As soon as you
+go to modify one or the other, a fork is created.
+
+Ah. Actually, the VERSION-CONTROL would be executed within a working
+collection. When the working collection is checked in, a new pair of version
+resources are created (which internally reference the same content). For
+example:
+
+    CHECKOUT /repos/$svn/ver/67/somedir
+
+    VERSION-CONTROL /repos/$svn/wrk/activity-name-here/67/somedir/foo.c
+    (pointing at /repos/$svn/ver/67/otherdir/foo.c)
+    
+    CHECKIN (activity)
+
+Now, we'd have two new version resources(++):
+    /repos/$svn/ver/68/somedir/foo.c
+    /repos/$svn/ver/68/otherdir/foo.c
+
+Since we have two version resources, but the same version history, we
+effectively have the beginning of our fork.
+
+Note: S5.10 of the 10.11 draft should be moved. I'd say Section 3 offhand,
+but it would seem that you could do a VERSION-CONTROL on a null resource
+even without version histories. Sure, once you bring in version histories,
+the semantics (pre/post conditiosn) might change a bit. But S5.10 has no
+relation to server-side workspaces. I'd say the null resource part goes into
+core, and then behavior gets modified/refined by the options.
+
+(++) hmm. One thought. Whenever a checkin anywhere occurs, a complete set of
+version resources are created, whether a specific version resource was
+actually involved in the checkin or not. While allowed by the spec (it would
+be as if some Invisible Bob was creating new version resources), there may
+be some implication that I'm missing. Need to think on this one.
+
+Oh. I might have the answer already :-). I can avoid creating new version
+resources if I simply jigger them a bit:
+
+    /repos/$svn/ver/17.3/somedir/foo.c
+    /repos/$svn/ver/17.3/otherdir/foo.c
+
+Here, the "17.3" refers to the internal, stored content. As new repository
+versions are creatd, the 17.3 remains stable, so we aren't implicitly
+creating new version resources any more.
+
+Now to think on this model some more, and see whether the repository can
+work using this model.
+
+>...
+> In other words, you "instantiate" a baseline in a baseline-controlled
+> collection whenever you want to expose that baseline as a namespace.
+
+For a label... yah. This would work great.
+
+If we do true labels, rather than just copies, then I'll probably go ahead
+and add some formalized baseline code.
+
+Darn... I just keep adding more and more of the DeltaV draft. What's next?
+Workspaces?! :-)
+
+>...
+> Well, if they want to "slash through" the names of the labeled copy,
+> they pretty much have to instantiate it somewhere in the namespace.
+
+Yup.
+
+> But I agree that they probably don't want to instantiate all their
+> labels as copies in the namespace (even if subversion can do it
+> cheaply :-),
+
+It's an O(1) operation :-)
+
+> so I guess I'll withdraw my objection to labels, as long
+> as they are used on baselines (which I believe is the only place
+> subversion would place them?) and not on individual file versions.
+
+We would definitely be doing labels on baselines. I never investigated them
+thoroughly (as you can tell, we aren't even sure what kind of label
+functionality we want, let alone the modelling of them via DAV). But your
+label-a-baseline idea is exactly spot on :-)
+
+The copy functionality will always exist, so creating a new VCR from the
+ether is important.
+
+Cheers,
+-g
+
+(*) if somebody says that a VCR doesn't "point", I'll kick 'em in the shins
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

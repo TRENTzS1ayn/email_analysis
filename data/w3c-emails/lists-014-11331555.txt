@@ -1,0 +1,136 @@
+docno="lists-014-11331555"
+received="Sun Feb 29 15:23:03 2004"
+isoreceived="20040229202303"
+sent="Sun, 29 Feb 2004 15:22:58 0500"
+isosent="20040229202258"
+name="Tim BernersLee"
+email="timbl@w3.org"
+subject="[closed] Re: Surreality: &#64;keywords prefix ."
+id="10ADF445-6AF5-11D8-B007000A9580D8C0@w3.org"
+charset="USASCII"
+expires="1"
+
+
+Cc: Sean Palmer<sean@mysterylights.com>
+To:public-cwm-bugs@w3.org
+
+
+> This does very strange things indeed:
+>
+> $ echo '@keywords prefix . @prefix : <#> . prefix q r . p q r .' | cwm
+>
+>       @prefix : <#> .
+>      :rp     :rq :rr .
+>
+
+Strange in, strange out. :-)  First, you declare that "prefix" is a 
+keyword
+and will there not need "@" to work. Fine.
+
+Then you declare "prefix q r."   @prefix takes a qname specifying the 
+namespace,
+which  here is q  or  :q, in other words the empty prefix.
+Then it takes the namespace given as a resource, normallty a urui in <>.
+But here you use  a qname for this too.
+There is no prefix on it, so "r" is taken being in the document's 
+namesapce.
+(As you have no document URI, as you are piping from standard input,
+the current working directory is used)
+So the effect of this is the same as the effect of
+@prefix  :  <$PWD/r> .
+where $PWD is your pwd.
+Now you say "p q r."
+This is in the default namespace, which is now  <$PWD/r>
+so you have said
+   <$PWD/rp>  <$PWD/rq>  <$PWD/rr>
+When outputting to standard output, again there is no URI and the$PWD
+is used as a base. The default namespace is is set to that, and the
+triple you gave is clearly:
+:rp :rq :rr
+
+QED.
+
+
+> Oftentimes, triples using prefix are just ignored:
+>
+> $ echo '@keywords prefix . @prefix : <#> . p q r . prefix q r .' | cwm
+>
+>       @prefix : <#> .
+>      :p     :q :r .
+
+I think you have the meaning of "keyword" backwards.
+When you declare something a keyword, it means it is a keyword,
+not a qname.
+
+The "triple using prefix" there is just a prefix declaration.
+
+> This, however, works as expected:
+>
+> $ echo '@keywords prefix . @prefix : <#> . p q r . q prefix r .' | \
+>     cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+>
+>       @prefix : <#> .
+>      :p     :q :r .
+>      :q     "prefix" :r .
+>
+
+That is very weird.  Thanks for the pointer.  It should certainly not 
+return a literal
+string.  That bug has been found.  I have a negative test for it 
+test/syntax/neg-keywords3.n3,
+but currently no negative test harness.
+
+
+> Similar oddnesses can be gained from @keywords keywords .:
+>
+> $ echo '@keywords prefix, keywords . @prefix : <#> . \
+>     keywords q r . prefix q r .' | cwm
+
+Yes, you have declared "keywords" as a keyword, and then you
+use it like a qname.
+
+> Traceback (most recent call last):
+>    File "/misc/tools/cwm/cwm.py", line 653, in ?
+>      doCommand()
+>    File "/misc/tools/cwm/cwm.py", line 350, in doCommand
+>      p.load("", baseURI=_baseURI)
+>    File "/misc/tools/cwm/notation3.py", line 212, in load
+>      return self.loadBuf(stream.read())    # self._formula
+>    File "/misc/tools/cwm/notation3.py", line 220, in loadBuf
+>      self.feed(buf)
+>    File "/misc/tools/cwm/notation3.py", line 238, in feed
+>      i = self.directiveOrStatement(str,j)
+>    File "/misc/tools/cwm/notation3.py", line 248, in 
+> directiveOrStatement
+>      j = self.directive(str, i)
+>    File "/misc/tools/cwm/notation3.py", line 293, in directive
+>      "'@keywords' needs comma separated list of words")
+> notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+>     Bad syntax ('@keywords' needs comma separated list of words)
+>     at ^ in: "@keywords prefix, keywords . @prefix : <#> .
+>     keywords q r . prefix q r .^..."
+>
+> Clearly the bug is that declaration keywords are interfering in some
+> way with standard @-less keywords, but I've no idea how to explain
+> that ":rp :rq :rr" output without using the word cwmic :-)
+>
+
+:)  When you look at the meaning of "keywords" the right way up,
+then it all makes sense.  Except for the string weidness generating 
+"prefix".
+
+I think what this points to is the need for some documentation about 
+@keywords.
+I have put some on the end of
+http://www.w3.org/2000/10/swap/doc/Shortcuts
+
+Thanks for trying it out, Sean.
+
+Tim
+
+> -- 
+> Sean B. Palmer, <http://purl.org/net/sbp/>
+> "phenomicity by the bucketful" - http://miscoranda.com/
+
+
+

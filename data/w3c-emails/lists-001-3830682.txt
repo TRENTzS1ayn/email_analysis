@@ -1,0 +1,86 @@
+docno="lists-001-3830682"
+received="Tue Apr 17 00:20:53 2001"
+isoreceived="20010417042053"
+sent="Tue, 17 Apr 2001 06:22:12 +0200"
+isosent="20010417042212"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="Re: Tidy and xsl:text"
+id="07hndto0bc367caf036hklu1fd2mc2p54j@4ax.com"
+charset="ISO-8859-1"
+inreplyto="73D442A50CD5D4119ABD00B0D06893AA612705&#64;WIN40EXCHANGE"
+expires="-1"
+
+To:"Don Kirkby (Rez)"<DKirkby@rezrez.com>
+Cc:html-tidy@w3.org
+
+
+* Don Kirkby (Rez) wrote:
+>>Message-ID: <001901c00ad2$41c84df0$a22090d4@de>
+>>From: "Bjoern Hoehrmann"
+>>Date: Sun, 20 Aug 2000 20:07:57 +0200
+>>Subject: Tidy and xsl:text
+
+>>[...]
+>>Q:\xhtml>tidy -v
+>>HTML Tidy release date: 4th August 2000
+>>See <http://www.w3.org/People/Raggett> for details
+>>
+>>Q:\xhtml>tidy -xml
+>>    <xsl:text>mailto:</xsl:text>
+>>line 1 column 22 - Warning: unexpected </xsl:text>
+>>[...]
+
+>Hi, I saw your question on the HTML Tidy mailing list archive. I'm having
+>the same problem, and I didn't see an answer in the archive. Did you ever
+>solve the problem?
+
+Well, I think the problem is in ParseXMLEelement() which currently
+reads:
+
+static void ParseXMLElement(Lexer *lexer, Node *element, uint mode)
+{
+    Node *node;
+
+    /* Jeff Young's kludge for XSL docs */
+
+    if (wstrcasecmp(element->element, "xsl:text") == 0)
+        return;
+
+If we return here, no new token will be fetched; then the caller fetches
+the next token and raises the mentioned warning. I think this should be
+
+    if (wstrcasecmp(element->element, "xsl:text") == 0)
+        mode = Preformatted;
+
+So simply apply this patch file:
+
+--- parser.old  Fri Aug 04 16:32:04 2000
++++ parser.c    Tue Apr 17 06:03:27 2001
+@@ -3308,7 +3308,7 @@ static void ParseXMLElement(Lexer *lexer
+     /* Jeff Young's kludge for XSL docs */
+
+     if (wstrcasecmp(element->element, "xsl:text") == 0)
+-        return;
++        mode = Preformatted;
+
+     /* if node is pre or has xml:space="preserve" then do so */
+
+and recompile it.
+
+By the way:
+
+% tidy -xml
+<xsl:text>
+^Z
+<xsl:text>
+</xsl:text>
+
+Tidy should produce here an error message.
+-- 
+Bj?rn H?hrmann { mailto:bjoern@hoehrmann.de } http://www.bjoernsworld.de
+am Badedeich 7 } Telefon: +49(0)4667/981028 { http://bjoern.hoehrmann.de
+25899 Dageb?ll { PGP Pub. KeyID: 0xA4357E78 } http://www.learn.to/quote/
+
+
+

@@ -1,0 +1,193 @@
+docno="lists-006-14109415"
+received="Tue Oct  2 00:58:14 2001"
+isoreceived="20011002045814"
+sent="Mon, 01 Oct 2001 21:46:51 -0700"
+isosent="20011002044651"
+name="Roy Seto"
+email="Roy.Seto@oracle.com"
+subject="Re: Why does MERGE automatically checkin resources related to act   ivities?"
+id="3BB946BB.47783F10@oracle.com"
+charset="UTF-8"
+inreplyto="3906C56A7BD1F54593344C05BD1374B103F8AC1D&#64;SUS-MA1IT01"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+My implementation has two use cases where we need to MERGE from an activity
+source without checking in that activity's DAV:activity-checkout-set. I
+strongly favor Geoff's proposal (activity checkin). If that's not feasible
+because there is a requirement for atomic activity checkin/merge, I'd like
+to make the activity checkin an optional part of the activity merge. In
+fact, I was writing a proposal to extend the protocol with such an option
+before Peter raised this question. Here's my proposal below.
+
+--
+
+My implementation has a requirement that the changes in
+multiple activities be logically merged into a shared
+line of descent upon completion. I would like to model
+the shared line of descent as an activity.
+
+Here's a summary of my overall use case:
+
+  1. Each user's client initializes a separate
+     workspace so its version-controlled members'
+     DAV:activity-set values include the shared
+     activity. I'll call this the "integration
+     activity" for the rest of this discussion.
+
+  2. Each user's client issues MKACTIVITY to create a
+     non-shared activity for making changes on a
+     separate line of descent from the integration
+     activity. I'll call this the "isolation activity"
+     for the rest of this discussion. The client then
+     PROPPATCHES the DAV:current-activity-set of its
+     workspace to the isolation activity and issues a
+     number of CHECKOUT, GET, PUT, and CHECKIN requests
+     whose request-URLs are members of the workspace.
+
+  3. At certain times while working on their isolation
+     activities, users would like to logically merge
+     the latest versions in the integration activity's
+     DAV:activity-version-set to their
+     workspaces. (This is the step at which I'd like
+     the option to make checkins of an activity's
+     DAV:activity-checkout-set optional when that
+     activity resource is the DAV:source of a MERGE
+     request. I also have a secondary use case for this
+     extension.)
+
+  4. When users complete work on their isolation
+     activities, their clients issue a series of
+     requests so that the changes in the isolation
+     activities are logically merged to the integration
+     activity. To support this, I will propose (in a
+     separate note) to define the semantics of UPDATE
+     where the source is an activity resource.
+
+Extension proposal: Make checkins of an activity's
+DAV:activity-checkout-set optional when that activity
+resource is the DAV:source of a MERGE request.
+
+Primary use case: One way to implement step 3 in my
+overall use case above would be to do something like
+
+  MERGE /ws/user_x_work HTTP/1.1
+  Host: www.webdav.org
+  Content-Type: text/xml; charset="utf-8"
+  Content-Length: xxxx
+
+  <?xml version="1.0" encoding="utf-8" ?>
+  <D:merge xmlns:D="DAV:">
+    <D:source>
+    <D:href>http://www.webdav.org/act/integ_act</D:href>
+    </D:source>
+    <D:no-activity-checkin-on-merge/>
+  </D:merge>
+
+In this step of my use case, it would be undesirable to
+checkin all the VCR's in /act/integ_act's
+DAV:activity-checkout-set. Those checked-out resources
+could be members of other workspaces whose owners were
+in the middle of logically merging their own isolation
+activities to /act/integ_act. The
+<D:no-activity-checkin-on-merge/> option in the request
+body would suppress the DAV:atomic-activity-checkin
+precondition and DAV:checkin-activity postcondition in
+Section 13.12.
+
+I understand that similar results can be achieved by
+merging from a baseline (where the members of the
+baseline's DAV:baseline-collection's DAV:checked-in
+versions include the integration activity in their
+DAV:activity-set). However, merging from the
+integration activity gives users another option when
+they wish to incorporate changes newer than the latest
+baseline into their workspace.
+
+Secondary use case: Support a process in which multiple
+workspaces perform their checkouts directly in a shared
+activity (because the workspaces share the same
+DAV:current-activity-set). Each workspace can pick up
+the latest versions created in the shared activity by
+the other workspaces by doing a MERGE similar to the
+one above.
+
+Informal proposed marshalling: Add an optional element
+(like "DAV:no-activity-checkin-on-merge") to the
+request body of MERGE. This would change the semantics
+of Section 13.12 in draft-18. If this optional element
+was present in the request body, the server SHOULD NOT
+(MUST NOT?) checkin the activity's
+DAV:activity-checkout-set before determining the merge
+sources.  Also, add a property (something like
+"DAV:no-activity-checkin-on-merge" ?) to activity
+resources that did the same thing, to enable clients
+which did not know about this option to support my use
+case.
+
+Compatibility considerations: Existing clients would be
+compatible with this change since they would not have
+to use the new optional request-body element, there are
+no additional response-body elements, and optionally
+the new activity property could be PROPPATCHED to allow
+existing clients to get the new behavior without
+understanding the additional marshalling. Existing
+servers would be compatible with the change if it were
+specified as a SHOULD NOT, since RFC 2518 Section 14
+requires that servers ignore XML elements they don't
+understand in request bodies. Existing servers would
+need changes to support the change if it were specified
+as a MUST NOT. (SHOULD NOT/MUST NOT is a tradeoff
+between simplicity and compatibility in this case,
+since MUST NOT would simplify clients which used the
+option.)
+
+
+"Clemm, Geoff" wrote:
+
+>    From: Peter Raymond [mailto:Peter.Raymond@merant.com]
+>
+>    I was reading section 13 with a group of other staff in MERANT and
+>    we came across section 13.12 which talks about automatically
+>    checking-in any checked-out resources referenced by an activity
+>    which is specified as part of the DAV:source set for the MERGE.
+>
+>    Why does MERGE behave like this for activities and not for other
+>    resources (see the precondition
+>    DAV:cannot-merge-checked-out-resource in section 11.2.
+>
+>    This auto-checkin behaviour seems to add more complexity to the
+>    implementation of MERGE and seems to be inconsistent.  What was the
+>    use case for including this auto-checkin behaviour only for
+>    activities?
+>
+> This was added to allow for an "atomic" activity checkin/merge request
+> (something needed by the Subversion system), which only supports
+> DAV:no-checkout merge requests.  With the new DAV:auto-update
+> functionality, an alternative way of supporting this functionality
+> would be to allow CHECKIN to be applied to an activity (and having it
+> mean "checkin everything in that activity").  The DAV:auto-update
+> functionality would do the MERGE.
+>
+> Greg: This just means you would replace your activity MERGE request
+> with an activity CHECKIN request.  This would also significantly improve
+> interoperability, since more systems are likely to support
+> activity CHECKIN than are likely to support the MERGE feature.
+>
+> I believe this would be a significant improvement in consistency, and
+> only requires moving a postcondition from the MERGE method to the
+> CHECKIN method.  In addition, these two methods happen to be on the
+> same page of the text draft, so I could make this change without the
+> dreaded repagination.
+>
+> If there are no objections, I can make this change.  If there
+> are *any* objections, I will not make the change, since we are
+> so late in the draft process.
+>
+> Cheers,
+> Geoff
+
+
+

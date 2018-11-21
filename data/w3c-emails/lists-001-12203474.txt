@@ -1,0 +1,57 @@
+docno="lists-001-12203474"
+received="Fri Oct  5 13:58:40 2001"
+isoreceived="20011005175840"
+sent="Fri, 05 Oct 2001 12:01:53 -0600"
+isosent="20011005180153"
+name="Lee Passey"
+email="lee@novonyx.com"
+subject="Re: Convering directly the chinese character encoding html to wellformed   xml??"
+id="3BBDF591.F5587CE7@novonyx.com"
+charset="us-ascii"
+inreplyto="mlefrtgfcvs0qn6jkftm0v1rrajnu3pene&#64;4ax.com"
+expires="-1"
+
+
+To:"html-tidy@w3.org"<html-tidy@w3.org>
+
+
+
+Bjoern Hoehrmann wrote:
+> 
+> * Surfbird Fang wrote:
+> >>[-raw for unknown character encodings]
+> >Although it seems to work for everybody, but still something trouble. The
+> >&nbsp entity is parsed with '?' (the HEX code is #A030 ).
+> 
+> Could you please give some example? To me, &nbsp; is converted to a
+> single byte value, i.e. 0xA0. Ok, this may cause some trouble, but
+> -raw is in general said to cause trouble, especially for entities.
+
+This is not really responsive, but ...
+
+Walking through the code in the debugger, it appears that &nbsp; _is_
+converted to 0xA0, but because the internal representation of text is in
+UTF8, this is stored internally as a _double_ byte value, 0xC2A0.  This
+can cause confusion as the second byte of the pair is identical in value
+to the single byte value!  Thus if you do something like:
+
+//  convert non-breaking space to space
+if ((unsigned char) lexer->lexbuf[i] == 0xA0)
+lexer->lexbuf[i] = ' ';
+
+you will leave a 0xC2 dangling in the buffer, becoming a UTF8 0xC220
+character (I don't know what this will become, but I don't think it's
+valid).
+
+Someone attempted to work around this in the function NormalizeSpaces()
+in clean.c by getting a UTF8 character, comparing it to 160 (0xA0), and
+then replacing it with ' '.  Unfortunately, the node->end value is not
+adjusted when one of these is found, replacing a two-byte sequence with
+a single byte, potentially leading to garbage characters appearing in a
+text node.
+
+Of course, on output, a raw 0xA0, or "&#160;" or "&nbsp;" is exactly
+what we would expect to see.
+
+
+

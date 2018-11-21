@@ -1,0 +1,128 @@
+docno="lists-039-10467281"
+received="Mon Oct 18 08:15:53 1999"
+isoreceived="19991018121553"
+sent="Mon, 18 Oct 1999 08:15:48 -0400"
+isosent="19991018121548"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Simplifying RFC-2518 Locking: A second proposal"
+id="9910181215.AA21066@tantalum"
+inreplyto="380ABFD4.F3D0D6B6&#64;de.bosch.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+First, thanks to JimW for pointing out several areas of poor word
+choice in the original proposal.  I didn't mean to eliminate the ability
+to refresh a lock, and didn't mean to say that the live properties were
+not part of the state of a resource ... just that they were not part
+of the *lockable* state of the resource.
+
+   From: Edgar Schwarz <Edgar.Schwarz@de.bosch.com>
+
+   <jc>  I suspect Geoff didn't mean it, but I think he said (by using the
+   word "identify") that the server "tells" the client where the resource
+   has moved to. </jc>
+
+   <es> My idea was that the server will tell the client in this case just the
+   new URI. Then he can forget the mapping because the client now knows
+   the new URI and can reaccess it. Also the client can signal his user
+   that the resource has moved. If it is moved again before accessing it
+   (a rare event I think) the client will just get a new URI again.  Do
+   you see any problems ? </es>
+
+<gmc>
+I actually see any problem with this ... I just wasn't thinking
+along those lines (even though after reviewing the mail archives, it's
+something that both you and Jason have brought up).  And the more that
+I (finally! :-) do think about it, the more I like it.
+
+Returning a 302 is enshrined HTTP behavior (for good reason).  We're
+even defining a new resource type (redirect references) just so that
+we can give the client the ability to specify this useful functionality.
+So clients in general will be designed to handle this case.
+
+Jason raised the issue of a "race" condition (i.e. every time you try
+to access your locked resource, you get back a new "302" because some
+other client keeps moving it).  My response is that if your client
+just updates it's location table (as opposed to trying to move it back),
+there is no race condition.  The probability of someone trying to rapidly
+move it around to a different locations is so low that I really don't
+think that we need to be concerned with that possibility.
+
+Finally, I think that the 302 approach gives us the best of both
+worlds.  An implementation can chose to just fail any DELETE or MOVE
+that would make a locked resource no longer appear at the locking URL.
+Clients need to handle DELETE's and MOVE's failing anyway (e.g. the
+collection containing the resource is locked).  Alternatively, an
+implementation can chose to allow the DELETE or MOVE, as long as it
+is tracking an alternative URL that it can give back to the client for
+the 302 response.  Again, clients need to handle 302's anyway, so this
+is again straightforward for a client to deal with.  Flexibility for server
+implementors with little/no additional cost to clients.
+
+   <es> BTW, I also don't want depth locks and lock null resources complicating
+   my client. </es>
+
+<gmc> In my earlier proposal, I included static depth locking as a
+"compromise" for the depth locking advocates.  But as JimW (as depth
+locking spokesman :-) points out, that's not what depth locking advocates
+want ... they want dynamic depth locking.
+
+So it's time to rev the lock simplification proposal: Add in the 302
+behavior that Edgar advocates, and take out depth locking altogether.
+A couple of notes about depth locking:
+
+(1) I don't see client writers clamoring for it ... the only strong
+voices in its support appear to be the 2518 authors.  It would be great
+if the client writers on this list would weigh in here with some
+opinions/guidance.
+
+(2) The reality is that depth locking is not provided in one of the
+key WebDAV platforms (Office 2000).  As fun as it is to bash
+Microsoft, the Microsoft file system guys probably know as much or
+more than anyone about the proper use of file locks for concurrent
+access management.  The fact that they chose not to support them is in
+my opinion significant.  If nothing else, it is significant in that
+any client that wants to work against the Office 2000 server had
+better not expect a depth lock request to succeed.  Obviously this
+can't be our sole reason for taking them out, but if it seems like a
+50/50 call, it is a factor.
+
+So without more ado, here's the modified simplified locking proposal.
+
+Cheers,
+Geoff
+
+***** Simplified RFC-2518 Locking, Version-2 *****
+
+A LOCK/UNLOCK request places/removes a lock on exactly one resource
+(the resource identified by the request-URL).  A LOCK/UNLOCK request
+on a URL that is not mapped to a resource will fail with a 404.
+
+Only an explicit LOCK request ever adds a lock to a resource, and only
+an explicit UNLOCK request ever removes a lock from a resource.  In
+particular, locks are not deleted as a side effect of a MOVE or a
+DELETE, and locks are not added as a side effect of a MOVE due to
+"inheriting a lock" from a collection.
+
+A request fails with a 423 if the request would modify the state of a
+write-locked resource for which you don't hold (and specify) the lock
+token.  The state of a basic resource that is affected by a lock is
+its body and its dead properties.  The state of a collection that is
+affected by a lock is its set of bindings, its body, and its dead
+properties.  A write-lock request on a resource that is already
+write-locked will fail with a 423 unless it is an explicit "refresh"
+of an existing lock.
+
+When a Lock-Token header is included in any request, if the locked
+resource is no longer available at that URL, the server MUST return a
+302 indicating a new URL at which the locked resource is available.  A
+server MAY refuse to perform a MOVE/DELETE that would cause a locked
+resource to no longer be available at the locked URL.
+
+***** End: Simplified RFC-2518 Locking, Version-2 *****
+
+
+

@@ -1,0 +1,231 @@
+docno="lists-051-11218738"
+received="Mon Sep  2 07:17:53 2002"
+isoreceived="20020902111753"
+sent="Mon, 02 Sep 2002 12:16:59 +0100"
+isosent="20020902111659"
+name="Dave Beckett"
+email="dave.beckett@bristol.ac.uk"
+subject="Re: RDF/XML Syntax problems with datatyping literals"
+id="6681.1030965419@hoth.ilrt.bris.ac.uk"
+inreplyto="Patrick.Stickler&#64;nokia.com"
+expires="-1"
+
+To: w3c-rdfcore-wg<w3c-rdfcore-wg@w3.org>
+cc:"Patrick.Stickler"<Patrick.Stickler@nokia.com>
+
+
+
+>>>"Patrick.Stickler" said:
+> Dave Beckett [mailto:dave.beckett@bristol.ac.uk] said:
+> > Here is what I consider a fatal case.
+> >
+> > Consider a datatyped literal that has a lexical form which is the
+> > null string.  The datatype URI is, for example,
+> > http://example.org/datatype1
+> >
+> > So the RDF/XML proposed would be:
+> >
+> >   <ex:prop rdf:type="http://example.org/datatype1"></ex:prop>
+> >
+> > This is, by XML rules, equivalent to
+> >   <ex:prop rdf:type="http://example.org/datatype1" />
+> > but that's not the issue.
+> >
+> > The problem is that this form already has a different meaning in the
+> > RDF/XML defined in M&S and the current draft.  An empty property
+> > element with property attributes is equivalent to the
+> > expansion below, which adds a blank node to hang the property off:
+> >
+> >   <ex:prop>
+> >     <rdf:Description>
+> >       <rdf:type rdf:resource="http://example.org/datatype1" />
+> >     </rdf:Description>
+> >   </ex:prop>
+> >
+> > which isn't what you wanted. 
+> 
+> Well, I'm not convinced that this is a problem. After all, if
+> they don't specify any lexical form at all, then all we *could*
+> use to represent the property value would be a bnode.
+
+I found support in the last telecon from Jeremy Carroll (who is the
+other major parser writer in the group) and Dan Brickley who found
+this example compelling.
+
+
+Repeating again
+
+ 1) <ex:prop rdf:type="http://example.org/datatype1"></ex:prop>
+ 2) <ex:prop rdf:type="http://example.org/datatype1" />
+
+are both equivalent to
+
+ 3)  <ex:prop>
+       <rdf:Description>
+         <rdf:type rdf:resource="http://example.org/datatype1" />
+       </rdf:Description>
+     </ex:prop>
+
+and forms 1),2),3) give the same triples:
+
+   _:a <http://example.org/ns#prop> _:b .
+   _:b <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/datatype1> .
+
+
+Your proposed form for datatyping a literal, which in this case has a
+lexical form of the empty string
+  <ex:prop rdf:type="http://example.org/datatype1"></ex:prop>
+
+should give a single triple with a datatyped-literal value:
+
+   _:a <http://example.org/ns#prop> <http://example.org/datatype1>"" .
+
+And it is not possible to determine that the latter form is wanted.
+It is ambiguous.
+
+
+rdf:type (attribute or element) currently always generates a
+property, now it would be used in an entirely different way to set
+"properties" of a literal, without actually generating any
+properties.  This is inconsistent and will be confusing to explain.
+
+
+> No, that's not particularly useful, but that's not really wrong.
+
+I don't see a reason to restrict lexical forms to non-empty strings.
+
+> They're just saying that the value is "something" of the
+> specified type, and how else would we capture that than by
+> a bnode of the specified type?
+> 
+> If, however, they also specify a lexical form then we are
+> able to say what the value is more accurately in the form
+> of a typed literal node.
+> 
+> So I don't see that the above result is not what is wanted.
+> 
+> I.e, it doesn't seem to me to be a fatal case, but in fact
+> the correct result.
+> 
+> > If the lexical form is not the null string, say
+> >   <ex:prop rdf:type="http://example.org/datatype1">a</ex:prop>
+> > then that is bad syntax and will very likely break all
+> > existing parsers.
+
+i.e you wanted
+   _:a <http://example.org/ns#prop> <http://example.org/datatype1>"a" .
+
+but existing parsers will likely break, emit nothing.
+
+> 
+> I knew this, but was thinking it would be an easy thing
+> to support -- and of course, no matter what we call the
+> attribute, we'd have to expand the grammer to allow both
+> attribute and data content for the property element.
+
+It is not easy to support.
+
+The grammar would have to be expanded and here some more good reasons
+related to the grammar not to do this:
+
+* It makes the most complex parts of the grammar, more complex again:
+    http://www.w3.org/TR/rdf-syntax-grammar/#emptyPropertyElt
+    http://www.w3.org/TR/rdf-syntax-grammar/#propertyElt
+
+* It makes the grammar continue to be less context-free, you need to
+  do even more calculations and token-lookahead to determine what is
+  the correct grammar term to match (in propertyElt)
+
+
+> I.e. even if we use rdf:ltype, parsers will still break.
+
+Not necessarily.  I already said that most unknown rdf: things are
+ignored.  In fact we already made that decision:
+
+  [[The WG decided that an RDF processor SHOULD emit a warning when
+  encountering names in the RDF namespace which are not defined, but
+  should otherwise behave normally.]]
+  -- http://www.w3.org/2000/03/rdf-tracking/#rdfms-rdf-names-use
+
+> The only change to the parsing is simply licensing the
+> occurrence of the rdf:type attribute when there is also
+> data content, and in that special case, producing a typed
+> literal node.
+> 
+> Is that really all that ambiguous or difficult?
+
+Oh yes.
+
+> 
+> > This is better done using any new rdf: term such as rdf:ltype.
+> >
+> >   <ex:prop rdf:ltype="http://example.org/datatype1">a</ex:prop>
+> >
+> > which may either give a warning or error with a current parser as an
+> > unknown rdf: term, but should not be interpreted as a property.
+> 
+> Well, the same warning or error will occur with rdf:type as well,
+> and rdf:type does precisely reflect the semantics, so if the
+> above case of an empty property element with rdf:type defined
+> is no longer a problem (and I don't think it is) than better to
+> use the most precise attribute rather than create a new one,
+> right?
+
+No the same warning or error will not be given.  rdf:type (attribute)
+already has defined semantics that are different. Using it in this
+case will break existing parsers or cause them to emit nothing.  But
+I'm repeating myself.
+
+> 
+> > It can be defined to work something like xml:lang, i.e. sets a
+> > property (sic) of the contained literal.
+> 
+
+I see datatyping a literal RDF/XML analagous to adding a language to
+a literal - it sets part of the literal structure.  So in the same
+way that if you have
+
+   <ex:prop>a</ex:prop>
+giving
+   _:a <http://example.org/ns#prop> "a" .
+
+adding an xml:lang attribute:
+   <ex:prop xml:lang="en">a</ex:prop>
+gives a Lang-string literal value
+   _:a <http://example.org/ns#prop> "a"-en .
+
+then if you have
+   <ex:prop>10</ex:prop>
+giving
+   _:a <http://example.org/ns#prop> "10" .
+
+adding an rdf:ltype attribute:
+   <ex:prop rdf:ltype="http://example.org/datatype1">a</ex:prop>
+will give you a datayped literal value:
+   _:a <http://example.org/ns#prop> <http://example.org/datatype1>"10" .
+
+> Well, that would only be true if folks agree that literals are
+> now 4-tuples, but that doesn't seem to be a very popular
+> idea.
+>
+> Also, if we end up not saying anything about the semantics of
+> untyped inline idioms, it's probably good to keep untyped literals
+> as 3-tuples and define the typed literal as something else.
+
+That's a disjoint issue and not important for the rdf/xml
+representation.  The structure can be 3/4 parts or we can have more
+than one type of structure.  Any change to the structure will be
+reflected into the definition of how literals are written in
+N-Triples.
+
+
+I've explained this syntax support for datatyped literals in detail,
+given plenty of examples, proposed something that will do the job
+with the minimal change, be easy to change in the grammar, easy to
+implement (I checked) and not be ambiguous or inconsistent.  I hope
+this meets with the groups support.
+
+Dave
+
+
+

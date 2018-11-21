@@ -1,0 +1,182 @@
+docno="lists-048-9445697"
+received="Fri Oct 19 18:08:19 2001"
+isoreceived="20011019220819"
+sent="Sat, 20 Oct 2001 00:08:07 +0100"
+isosent="20011019230807"
+name="jos.deroo.jd@belgium.agfa.com"
+email="jos.deroo.jd@belgium.agfa.com"
+subject="Re: use of log:semantics"
+id="OFF73AA06E.50D91FA8-ON41256AEA.007ED306@bayer-ag.com"
+charset="us-ascii"
+inreplyto="use of log:semantics"
+expires="-1"
+
+To:timbl@w3.org
+Cc:w3c-rdfcore-wg@w3.org
+
+
+
+> Tim,
+> >
+> > > I was going to ask you about whether your were thinking of building
+> > > in functions to Euler.
+> >
+> > Yes, and I was thinking the last couple of weeks to ask you
+> > about which ones and this is the nicest work I can imagine!
+> >
+> > > The functional Properties I am using for this sort of stuff at the
+> moment
+> > > are:
+> > >
+> > > log:semantics    - The graph (formula) you get if you get a
+> representatioon
+> > > of somthing and parse its semantics
+> >
+> > ok, seems a must
+> >
+> > > log:conjunction - The graph you get from merging a list of graphs
+> > > log:conclusion  -  The graph you get from taking all the rules in a
+> graph
+> > > and applying them
+> > >                           the graph, putting new statements into the
+> graph.
+> > > Closure under forward chain inference.
+> > >                           Same as cwm -think
+> >
+> > log:conclusion will be a challenge
+> > we've done attempts with a query _:s _:p _:o .
+>
+> I would suggest then you don't use it - define a log:entails  (say) which is
+> the equivalent of
+> the combination   of  conclusion and includes.   Because in this case, it is
+> what the test case needs, after all, and what Euler will naturally test.
+
+indeed, equivalent
+and log:entails is a good name if we are explicit
+about the rdf, rdfs, dpo, etc axioms at the lhs
+so it is then something like
+
+====
+@prefix log: <http://www.w3.org/2000/10/swap/log#> .
+@prefix x: <http://example.org/nt/> .
+@prefix y: <http://example.org/n3/> .
+    [ log:conjunction x:g1, x:g2, x:g3, y:a1 ] log:entails x:g4 . #@@use/mention
+====
+
+or in N-Triples
+
+====
+    _:a0 <http://www.w3.org/2000/10/swap/log#conjunction> <http://example.org/nt/g1> .
+    _:a0 <http://www.w3.org/2000/10/swap/log#conjunction> <http://example.org/nt/g2> .
+    _:a0 <http://www.w3.org/2000/10/swap/log#conjunction> <http://example.org/nt/g3> .
+    _:a0 <http://www.w3.org/2000/10/swap/log#conjunction> <http://example.org/n3/a1> .
+    _:a0 <http://www.w3.org/2000/10/swap/log#entails> <http://example.org/nt/g4> .
+====
+
+or in RDF/XML
+
+====
+<!-- Processed by Id: cwm.py,v 1.80 2001/10/15 19:02:52 timbl Exp -->
+<!--     using base file:/n3/entail.n3-->
+<rdf:RDF xmlns="http://www.w3.org/2000/10/swap/log#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:x="http://example.org/nt/"
+    xmlns:y="http://example.org/n3/">
+    <rdf:Description>
+        <conjunction rdf:resource="http://example.org/n3/a1"/>
+        <conjunction rdf:resource="http://example.org/nt/g1"/>
+        <conjunction rdf:resource="http://example.org/nt/g2"/>
+        <conjunction rdf:resource="http://example.org/nt/g3"/>
+        <entails rdf:resource="http://example.org/nt/g4"/>
+    </rdf:Description>
+</rdf:RDF>
+====
+
+> I think maybe we will need mixtures of forward and backward reasoning.  When
+> dealing
+> with small datasets, cwm can always replace   F log:entails :G with
+> F log:conclusion [ log:includes :G ]  --- it just doesn't scale well!
+
+we actually (already) do some forward chaining when we do
+auto generated rules for premis and query statements with anonymous nodes
+(that comes down to "existential introduction" rules)
+well, maybe forward chaining...
+but I agree, we will need mixtures of forward and backward reasoning
+
+> > > log:includes     -  A binary operator, true if one graph is a subgraph
+> of
+> > > the other, modulo a bit of inference and
+> > >                          variable subsitution.
+> > > log:directlyIncludes     -  A binary operator, true if one graph is a
+> > > subgraph of the other, modulo only
+> > >                          variable subsitution.
+> >
+> > we try that along the 'entail' way, and control
+> > the kind of inferencing with what Pat calls 'namespace entailment'
+> >
+> > > I haven't got conjunction and conclusion running yet.
+> > > http://www.w3.org/2000/10/swap/test/includes/check.n3
+> > > is an example of using some of these to check that predicates
+> > > used in a document are indeed defined in the schema.
+> > >
+> > > I have not used "entails under RDFS" - I just merge the RDFS axioms and
+> then
+> > > use log:conclusion.
+> > >
+> > > So, I would write a test something like
+> > >
+> > > { this log:forAll :p, :r, :x, :z.
+> > >   {    :p rdfs:range :r .  :x :p  :z } log:shouldEntail { :z a :r }.
+> > > } a :test.
+> > >
+> > > Then I would define use of shouldEntail with something *like*
+> (untested!!)
+> > >
+> > > { :T a :test.
+> > >    :T log:includes { :F log:shouldEntail :G}.
+> > >    <rdfsRules.n3> log:semantics :R.
+> > >   [  log:conjunction ( :F  :R) ] log:conclusion  [ log:includes :G ]. }
+> > > log:implies { :T a :success }.
+> > >
+> > > plus a few combinations with notIncludes to do negative tests.
+> >
+> > haven't thought how to support that one...
+>
+> notIncludes in cwm has to involve a recursive call back to a new query,
+> testing the result, and returning it.   It is quite different to includes.
+> notIncludes is the way you can spoecifically introduce defaults, and specify
+> definitive documents without relying on falacious closed world assumptions.
+>
+> > > I expect if one had a  backward chainer, one would use a proof search
+> > > instead of
+> > > the conclusion...includes combination:
+> > >
+> > >   [  log:conjunction ( :F  :R) ] euler:supportsProofOf G ]. }
+> log:implies
+> > > { :T a :success }.
+> >
+> > I will start with the log:semantics
+> > (and also do () lists) and then log:conjunction
+> > This is of real great help, thanks!
+>
+> I am really embarassed that I haven't gone to the trouble of setting up
+> Euler -- I must!
+
+I'm blushing (and that since a very long time...)
+
+> It is interesting and encouraging that we have forward and backward chaining
+> systems usefully using the same
+> data and the same rules!
+
+You couldn't be more right than that :-)
+
+Jos
+
+>
+> Tim
+>
+> > Jos
+> >
+
+
+

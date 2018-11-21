@@ -1,0 +1,115 @@
+docno="lists-104-3351315"
+received="Thu Nov  1 14:52:18 2001"
+isoreceived="20011101195218"
+sent="Thu, 1 Nov 2001 11:43:05 -0700 "
+isosent="20011101184305"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="DOM Xpath comments"
+id="70E215722F6AD511820A000103D141D40AA648@thor.aeathtl.com"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+contextNode parameters: 
+
+I would have expected EntityReference to have appeared in the list of acceptible context node types since it plays an equivalent role to Text or CDataSection.  Maybe it would be clearer if the
+prohibited node types were enumerated and why they were inappropriate.
+
+The following are reiterations of issues previously raised.  I still believe they are legitimate and have not been adequately addressed publically.
+
+XPathResult reuse:
+
+I believe that the attempt to enable XPathResult reuse does not provide a significant benefit and has several significant negative consequences.
+
+Having XPathResult implementations being mutable (which would be required for reuse) means that you cannot trust any XPathResult that has been publically exposed or passed as an argument to remain
+constant.  This would require defensive copying of XPathResults in many uses offsetting any benefit from minimizing XPathResult creation.
+
+Having XPathResult reusable requires (or at least strongly encourages) that there only be one implementation class for the XPathResult interface in an implementation.  Without the requirement for
+reuse, then an implementation could create distinct implementations for XPathResult corresponding to different result types.
+
+For example:
+
+public class StringXPathResult implements XPathResult
+{
+private string result;
+public StringXPathResult(String result) { this.result = result; }
+public short getResultType() { return XPathResult.STRING_TYPE; }
+      public double getNumberValue() { throw new XPathException(TYPE_ERR); }
+      public String getStringValue() { return result; }      
+public boolean getBooleanValue() { throw new XPathException(TYPE_ERR); }
+public Node getSingleNodeValue() { throw new XPathException(TYPE_ERR); }
+public Node getSetIterator(boolean ordered) 
+{ throw new XPathException(TYPE_ERR); }
+public Node getSetSnapshot(boolean ordered) 
+{ throw new XPathException(TYPE_ERR); }
+}
+
+public class NumberXPathResult implements XPathResult...
+public class BooleanXPathResult implements XPathResult...
+public class SingleNodeXPathResult implements XPathResult...
+
+If an implementation did this, then discovering if the passed XPathResult set was potentially reusable could offset the cost of creating an appropriate XPathResult.  
+
+If passing a result parameter to evaluate compels the implementation to reuse or throw an exception, then the implementation would be effectively barred from creating type specific implementations of
+XPathResult.
+
+Two step query:
+
+That the result set should be ordered or that a snapshot should be taken is not communicated in the evaluate call, but on a subsequent call on the XPathResult.  This prevents either requires the
+implementation to defer completely executing the query until the second call (with the possibly of an interim document mutation) or forcing the implementation to do an ordered snapshot at the initial
+evaluation call.
+
+One possible resolution would be to remove the NODE_SET_TYPE and replace it with the four possible permutations: ORDERED_NODE_SNAPSHOT_TYPE, UNORDERED_NODE_SNAPSHOT_TYPE, ORDERED_NODE_ITERATOR_TYPE,
+UNORDERED_NODE_ITERATOR_TYPE.  That would allow the implementation to optionally schedule the execution of the query at the time of the evaluate call.
+
+One possibility (but not a requirement) after doing this is that the methods from XPathSetSnapshot and XPathSetIterator could be merged into XPathResult.  A resulting XPathResult interface might look
+like:
+
+public interface XPathResult
+{
+const unsigned short      ANY_TYPE                       = 0;
+  const unsigned short      NUMBER_TYPE                    = 1;
+  const unsigned short      STRING_TYPE                    = 2;
+  const unsigned short      BOOLEAN_TYPE                   = 3;
+  const unsigned short      SINGLE_NODE_SNAPSHOT_TYPE      = 4;
+      const unsigned short      ORDERED_NODE_SNAPSHOT_TYPE     = 5;
+      const unsigned short      UNORDERED_NODE_SNAPSHOT_TYPE   = 6;
+      const unsigned short      ORDERED_NODE_ITERATOR_TYPE     = 7;
+      const unsigned short      UNORDERED_NODE_ITERATOR_TYPE   = 8;
+
+  readonly attribute unsigned short  resultType;
+  readonly attribute double          numberValue;
+                                        // raises(XPathException) on retrieval
+
+  readonly attribute DOMString       stringValue;
+                                        // raises(XPathException) on retrieval
+
+  readonly attribute boolean         booleanValue;
+                                        // raises(XPathException) on retrieval
+
+  Node                               next();
+                                        // raises(XPathException) if type is not
+                                        //     [UN]ORDERED_ITERATOR_TYPE 
+                                        // raises(DOMException) if document has
+                                        //     mutated
+
+  Node                               item(in unsigned long index);
+                                        // raises(XPathException) if not
+                                        //      [UN]ORDERED_SNAPSHOT_TYPE
+                                        //      or SINGLE_NODE_SNAPSHOT_TYPE
+
+  readonly attribute unsigned long   length;
+                                        //  raises(XPathException) if not
+                                        //      [UN]ORDERED_SNAPSHOT_TYPE
+                                        //      or SINGLE_NODE_SNAPSHOT_TYPE
+}
+
+
+(This example merges the SINGLE_NODE_TYPE as a special case of a SNAPSHOT_TYPE, XPathResult.item(0) would be the equivalent of the previous XPathResult.singleNodeValue)
+
+XPathSetIterator and XPathSetSnapshot would be eliminated.
+
+
+

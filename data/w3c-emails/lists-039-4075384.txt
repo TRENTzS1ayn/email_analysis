@@ -1,0 +1,429 @@
+docno="lists-039-4075384"
+received="Thu Feb 25 15:41:20 1999"
+isoreceived="19990225204120"
+sent="Thu, 25 Feb 1999 15:41:07 -0500"
+isosent="19990225204107"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: Collections Protocol Review"
+id="9902252041.AA06625@tantalum"
+inreplyto="3FF8121C9B6DD111812100805F31FC0D08792F59&#64;RED-MSG-59"
+expires="-1"
+
+
+To:yarong@microsoft.com
+Cc:w3c-dist-auth@w3.org
+
+
+Judy: I think Yaron raised all of the issues that I had promised
+you some backup material, so I'll use his message as a motivator for
+finally getting it to you (:-).
+
+   From: Yaron Goland <yarong@microsoft.com>
+
+   The purpose of a spec is to help implementers and we should choose
+   definitions that aid in that cause. Redirect references are based on 3xx and
+   should be defined as such. This makes the situation extremely clear to
+   anyone writing code.
+
+I believe redirect references are *not* intended to be an abstraction that
+means "things that return 3xx".  They *are* intended to be an abstraction
+for "references that are visible to downlevel clients", and 3xx was a
+convenient mechanism to do that.  So their semantics is determined by
+"what is a good way to expose references to downlevel clients", and not
+"always return 3xx".  Although the later semantics is simpler to implement,
+it is a much less valuable abstraction to introduce (in my opinion).
+
+   .... Continue to use Location and define an addition header
+   LocationEx (a nod to my MS roots =). The definition is "First use Location
+   and if that doesn't work then try the list of URIs in LocationEx." 100%
+   compatible with existing systems and better functionality for advanced
+   collection enhanced clients.
+
+One of the advantages of a redirect reference is that it does not require
+the server to hop off to other servers to see what's there (and gives the
+downlevel client more control of where it wants the server to go hopping).
+The LocationEx header loses these advantages.
+
+
+   > > (Issue #5) Section 4.3.1 - Why DAV:reftarget, reftype and 
+   > > refintegrity are
+   > > stand alone properties - I do not understand why 
+   > > DAV:reftarget, DAV:reftype
+   > > and DAV:refintegrity are all defined as properties. As these 
+   > > values help to
+   > > define the nature of the resource type should they not have 
+   > > their values
+   > > included inside the DAV:reference element in the 
+   > > DAV:resourcetype property?
+
+I disagree.  The DAV:reftarget is much more like the "value"
+of the resource, than it is the "type" of the resource.  The DAV:refintegrity
+property could be orthogonal to each of these, in that it is easy
+to imagine a server where the integrity properties of a reference
+can be changed, without changing either the reftarget or the
+direct/redirect "type" of the reference.
+
+   > > (Issue #6) Section 4.3.1 - MKREF and the use of bodies - Why 
+   > > doesn't MKREF
+   > > follow the same rules that MKCOL has regarding the possible 
+   > > inclusion of a
+   > > body?
+
+I agree.  I personally feel that all MKxxx methods should allow an
+XML body that initializes any and all of the contents/properties of
+the resource being created.  Just like a PROPPATCH.
+
+   > > (Issue #7) Section 4.4.1 - Do references to collections have 
+   > > to provide
+   > > references for all the members of the collection?
+
+No.  A reference is a member of a collection.
+What collection would these "references to members" be part of?
+The reference to the collection is not itself a collection, it is
+a reference, so it cannot contain these "references to members",
+and there doesn't seem to be any other candidate to do so either.
+
+Or we could just look at the kinds of things references are there to model:
+things like symbolic links in Unix file systems, and shortcuts in NT
+(or symbolic links in NT, once they finally appear :-).  When you
+create a symbolic link to a directory or shortcut to a folder, you
+don't create symbolic links or shortcuts to all the members of that
+directory or folder.
+
+   > > - If one creates a
+   > > reference to a collection is one also required to create 
+   > > references to all
+   > > the members of that collection? I suspect the answer is yes 
+   > > but this is not
+   > > clear from the specification.
+
+The answer is no.
+
+Judy: let's add words to the effect that "References to collections
+allow clients to introduce multiple URL's for the same resource."  to
+avoid this potential source of confusion.
+
+   > > For example, the referential 
+   > > resource in the
+   > > example is http://www.svr.com/MyCollection/tuva/ and it points to a
+   > > collection which has a member called history.html. Does this 
+   > > mean that a GET
+   > > on http://www.svr.com/MyCollection/tuva/history.html MUST 
+   > > succeed?
+
+If  http://www.svr.com/MyCollection/tuva/ is a reference to
+http://www.other.com/YourCollection/, then
+http://www.svr.com/MyCollection/tuva/history.html and
+http://www.other.com/YourCollection/history.html are two different
+URL's for the *same* resource.
+
+So a GET on one will succeed if a GET on the other will succeed.
+The server does the dereferencing for direct references.  The client
+does the dereferencing for redirect references.
+
+   > > In other
+   > > words, that by creating a reference to a collection one is 
+   > required to
+   > > create references to its entire tree? Again, I suspect the 
+   > > answer is yes
+   > > (this would explain the PROPFIND response format for direct 
+   > > references as
+   > > well as the COPY behavior for direct references) but this 
+   > > requirement is
+   > > never explicitly stated in the spec.
+
+You are assuming that every distinct URL selects a distinct resource.
+This is not the case, and references to collections allow clients
+to explicitly make this not be the case.
+
+   HTTP defines that there are HTTP URLs and that HTTP URLs point to resource.
+
+Yes.
+
+   If creating a reference called http://foo/bar that points to a collection
+   with a member baz and thus I can perform a GET on http://foo/bar/baz, even
+   though the MKREF only created http://foo/bar, then there exists a resource
+   called http://foo/bar/baz
+
+Yes.
+
+   and it is a reference.
+
+No.  References are not in HTTP-1.1, so there's no way it could require that
+this resource be a reference.
+
+   Thus the only possible
+   conclusion is that creating a reference to a collection causes references to
+   be created to all the members of that reference's entire tree. Otherwise
+   http://foo/bar/baz would fail.
+
+No, http://foo/bar/baz is a resource that just happens to have another URL
+that can be used to refer to it.
+
+   > > (Issue #9) Section 4.6 - Banning passthrough behavior on 
+   > > DELETE and MOVE - I
+   > > have a direct reference http://foo/bar to http://bar/blaz. I 
+   > > can define a
+   > > MOVE on http://foo/bar to http://icky/bik as meaning that 
+   > > http://bar/blaz is
+   > > to be moved to http://icky/bik.
+
+True.
+
+In the presence of references, there are always two possible
+interpretations of every request, namely, apply it to the reference
+itself, or apply it to the target.  For methods where both of
+these interpretations are useful, the question is not which to
+support (we will support both), but rather, which interpretation
+is the default and which interpretation  requires Adv.Col. methods
+or properties to achieve.
+
+The desired behavior for downlevel clients will significantly affect
+the choice of a default.  Note that it will *affect* the choice of a
+default, but will not determine it, since there could be uplevel
+considerations that override the downlevel ones.
+
+For most methods (e.g. GET, PUT, LOCK), the only way to make the results
+of the method visible to a downlevel client is to have it affect
+the target.  This is actually unfortunate for "write" operations, because
+the downlevel client can unknowingly affect what is seen at a
+whole bunch of other URL's.  (Yaron mentions this below).
+
+This would be *especially* unfortunate for heavyweight operations like
+DELETE and MOVE, which can result in all references to those other URL's
+to dangle, the bane of Web management.
+
+Happily, we can fulfill the semantics of DELETE and MOVE for downlevel
+clients *without* the damaging effect on these other URL's, by having
+the default behavior of the method be "no-passthrough".  A client using
+the URL(s) explicitly named in the DELETE and MOVE will see the desired
+effect, without trashing all the other references to the target of
+that reference.
+
+Now an uplevel client can find out the URL of the target, and do the
+DELETE/MOVE on it (knowingly trashing all references to that target).
+It requires them to do an explicit PROPFIND, and is not something
+downlevel (or uplevel!) clients end up doing by mistake.
+
+   > > Following the logic discussed 
+   > > in Issue #7 I
+   > > can even properly define how to move any children that 
+   > > http://bar/blaz might
+   > > have. With DELETE I can define a DELETE of http://foo/bar as 
+   > > meaning that
+   > > http://bar/blaz should be deleted. So there doesn't seem to 
+   > > be any technical
+   > > reason to ban passthrough behavior on MOVE and DELETE 
+   > involving direct
+   > > references.
+
+Agreed.  It is a downlevel usability argument that bans it.
+
+   > > I suspect the real reason that passthrough behavior is 
+   > > disallowed on
+   > > direct references is because of concerns regarding interactions with
+   > > existing WebDAV clients. In most file systems that support 
+   > > links if one
+   > > deletes or moves a link, only the link is deleted or moved. I 
+   > > suspect the
+   > > authors are concerned that allowing passthrough on DELETE and 
+   > > MOVE would
+   > > mean that if an existing WebDAV client asks for a DELETE or 
+   > > MOVE then the
+   > > resource being pointed at would be deleted/moved as well, 
+   > which wasn't
+   > > something the non-reference enabled client would have 
+   > > intended.
+
+Exactly.
+
+   > >  As such I
+   > > think it is completely reasonable to design the protocol such 
+   > > that if a RFC
+   > > 2518 client issues a DELETE or MOVE then only the direct 
+   > > reference and not
+   > > the target is affected.
+
+Having it do one thing for 2518 clients, and another thing for other
+clients would be very confusing, and cause all sorts of mistakes.
+(Or did you not intend to imply that we would do something different
+for non-2518 clients?)
+
+   > > In fact I would propose the design 
+   > > rule that when
+   > > moving/deleting a resource the resource should retain its 
+   > type unless
+   > > explicit instructions to the contrary are given.
+
+Agreed.
+
+   > > That is, 
+   > if you are a
+   > > direct reference at the source then you should be a direct 
+   > > reference at the
+   > > destination unless explicit instructions to the contrary 
+   > are provided.
+
+Agreed (for a MOVE operation).
+
+   > > The way to easily implement this rule is to give 
+   > > no-passthrough a
+   > > value and define the default for that value on a method by 
+   > > method basis.
+   > > PROPFIND and COPY, for example, would default to no-passthrough: f.
+   > > MOVE/DELETE would default to no-passthrough: t.
+ 
+Sounds fine to me (as long as these rules are not HTTP-level dependent).
+
+   > > The previous all applies to direct references. Redirect 
+   > > references
+   > > are obviously a different animal since one can only directly 
+   > > manipulate the
+   > > reference and never the target. Thus the only issue is - 
+   > > should a 302 ever
+   > > appear in a COPY/MOVE/DELETE response? Following the law of 
+   > > minimum surprise
+   > > an RFC 2518 client getting a 302 would be very surprised. 
+   > > They ordered that
+   > > all resources be copied, redirect references are resources, 
+   > > therefore they
+   > > should be copied. As such I propose that redirect references on
+   > > COPY/MOVE/DELETE always behavior as if no-passthrough equals 
+   > > t, regardless
+   > > of its actual value.
+
+For MOVE/DELETE, yes.  This is consistent with direct reference
+functionality.  For COPY, I and Judy vote no.  The client needs to be
+warned that there really will *not* be a copy made, and it will then
+have sufficient information to make a real copy if it needs to.
+
+   I still fail to see why you are banning perfectly reasonable functionality
+   when there does not appear to be any technical or protocol related reason
+   for doing so.
+
+We are not banning functionality, we are just picking the other more
+expected functionality as the default.  Remember, both interpretations
+are valid and are supported -- we're just deciding what is the default.
+
+   As my comments demonstrate it is completely possible to use
+   DELETE and MOVE to effect the targets and to do so in a manner which causes
+   the expected behavior with RFC 2518 clients.
+
+Only if you have one set of clients (2518) clients see one kind of
+behavior and other clients see a very different kind of behavior.
+Since you can achieve the alternative DELETE/MOVE semantics, why would
+you consciously introduce this kind of inconsistency?
+
+   As such what possible reason
+   can there be for banning this logical and well defined behavior? Just
+   because it doesn't fit your conceptual model? This would argue for changing
+   your model not banning this functionality. Again, I call upon the general
+   HTTP rule "allow unless you have a damn good reason for not doing so."
+
+We're not banning anything, we're just making sure the default
+is consistent and corresponds to the semantics that the majority of
+servers and clients support/expect.
+
+   > > (Issue #10) Section 4.7.1 - Passthrough locks on direct 
+   > > references - I'm
+   > > thoroughly confused regarding why a passthrough lock doesn't 
+   > > lock both the
+   > > reference and the target.
+
+This is the main point I owed Judy a writeup on.  There are a variety
+of reasons why it should only lock the target.  Many of them have to
+do with making the semantics of a LOCK work in the presence of versioning
+(and versioned namespaces in particular).
+
+But there are some simple examples that don't require understanding
+the needs of versioning, so let's see if those are convincing first.
+
+For example, if I take out an exclusive lock on /x/y/z.html, and
+/x/ is a reference, then I would need to take out a lock on /x/
+or else someone could just DELETE /x/, and put a new reference or
+collection in its place, thereby causing a different resource to
+be selected by /x/y/z.html.
+
+But that means that any subsequent attempt to get an exclusive lock
+an *any* resource with a URL beginning /x/ will fail, because of
+the prior exclusive lock on /x/.
+
+This kind of behavior is even more disastrous in the presence of
+versioned URL namespaces, where the whole point is to allow
+multiple people to use the same URL (combined with a Version-Name
+or Workspace header) to access different resources.
+
+The alternative, which says that a lock on /x/y/z.html locks the
+*resource* that this URL refers to, but does not lock the binding
+of that URL to that resource, avoids this problem, and furthermore,
+is consistent with access control on file systems (those file systems
+guys were actually pretty smart when they decided on these kinds of
+issues).
+
+   > > I read the spec a couple of times 
+   > > and I still
+   > > don't get it. For example, imagine an RFC 2518 client 
+   > issued a lock on
+   > > http://foo/bar which is a direct reference to
+   > > http://bar/blaz. To the RFC 2518 client it appears that they have 
+   > > locked http://foo/bar which will act exactly as 
+   > http://bar/blaz. This
+   > seems > the much more reasonable behavior.
+   > > I'm sure there is a scenario here I'm missing but whatever 
+   > it is, I wasn't
+   > > able to discern it from the spec. I apologize if the 
+   > scenario is staring
+   > me
+   > > in the face and I am just failing to see it.
+
+No, the scenario (especially the versioned namespace scenario) is
+not staring you in the face (unless you've ever tried to implement
+a versioned namespace!).
+
+   The current situation is, in my opinion, a clear violation of RFC 2518. RFC
+   2518 is crystal clear that locking a resource means that the resource is
+   locked.
+
+Not at all a clear violation.  A URL is a handle on a resource, it is
+not the resource.  This is made very clear by the fact that multiple
+URL's can refer to the same resource.  So if 2518 said "you lock a
+URL", then it would be crystal clear, and I would have objected
+strenuously to the spec, because that definition of locking is
+incompatible with advanced versioning, where users must have the
+ability to use the same URL (plus a header) to refer to different
+resources.
+
+No, 2518 got it right.  What you are locking is a resource, not the
+binding of a URL to a resource.
+
+   Your current definition does not do this. In fact someone locking a
+   direct reference, which actually locks the target, could end up with the
+   reference changed underneath them, thus leading to the violation.
+
+The alternative is worse (i.e. having a lock on one resource preventing
+you from locking any other resource in that tree).  This is why a "lock"
+on a file in a file system (e.g. making it read-only except for the owner),
+does not "pin" that inode to that pathname.  Again, those file system
+guys knew what they were doing.
+
+   Whatever
+   solution you choose the reference MUST be locked or this specification is in
+   violation of RFC 2518 and must therefore choose a new method name rather
+   than LOCK.
+
+   Personally I think you should just accept that LOCKing references can be a
+   bit wacky and will result in locking both the reference and the target.
+
+We do accept that LOCK'ing references will be a bit wacky, and
+they will lock only the target (:-).
+
+   > Thanks again for (as always) prompt and insightful comments.
+
+Me too!!
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,371 @@
+docno="lists-039-3291244"
+received="Tue Feb  9 01:39:38 1999"
+isoreceived="19990209063938"
+sent="Mon, 8 Feb 1999 22:39:34 -0800 "
+isosent="19990209063934"
+name="Chris Kaler"
+email="ckaler@microsoft.com"
+subject="RE: [long] Re: I-D ACTION:draft-ietf-webdav-versioning-01.txt"
+id="4FD6422BE942D111908D00805F3158DF0A757D18@RED-MSG-52"
+inreplyto="[long] Re: I-D ACTION:draft-ietf-webdav-versioning-01.txt"
+expires="-1"
+
+
+To:"'Max Rible'"<max@glyphica.com>, WEBDAV WG<w3c-dist-auth@w3.org>
+
+At 12:10 2/2/99 -0800, Chris Kaler wrote:
+>[CK] The point of using "giberish" in the draft is to reinforce
+>     that the server determines the value.  A server could make it
+>     giberish or something else.  One limitation we have is the
+>     strong reluctance in IETF to "munge" URLs.
+
+Is there a document describing what the IETF folks mean when they describe
+"mungeing" URLs?  The image that comes to mind is tacking on decorations
+like # and ? with information after them, or creating extra namespaces like
+the ones for configurations and checked-out files.
+I see a URI as a three-dimensional phenomenon-taking us through a space
+dimensioned by machine/protocol/port combinations (each unique one defining
+a plane), directories (the vertical aspect of the plane, if you consider the
+directory hierarchy unfolded completely) and files in directories (the
+horizontal aspect of the plane, with files as chains following folders).  
+Versioning adds a new dimension.  I see the headers as allowing us to add
+that new dimension (version number, etc.) to the URI, rather than trying to
+map the fourth dimension into other parts of the plane (which is what a
+temporary file created for checkin/checkout purposes is).  Since headers
+such as Revision-Id are already in use to provide that fourth dimension for
+accessing concrete versions, using them to access temporaries seems to me
+the least work to implement and the most consistent.  Of course, having
+eight different things happen depending on three different headers you might
+or might not send could be precisely what the IETF considers URL mungeing.
+[CK] The term "URL" munging generally refers to taking stuff onto the URL to
+pass
+        additional information about the URL.  In the case of versioning,
+you can use
+        either # or ? as they have meaning.  For example, # is typically
+filtered at the client.
+        The ? might be a legitimate part of the URL.  There is already a
+precedent for headers.
+        Consider, for example, content-type.
+>[CK] I think it is important to remember that these are
+protocol-level
+>     resources.  I would assume that the UI on top of the protocol
+hides
+>     all this.  For example, you "checkout" and "checkin" based on
+the
+>     resource name you desire.
+
+For sufficiently general values of "based on", yes. :-)  The current
+document gives the example of CHECKIN /tmp/VRJHJWE3493409 HTTP/1.1, which
+makes no reference to the resource name involved.
+[CK] You can really argue this one either way.  The CHECKOUT operation
+created a
+        new resource.  Either you CHECKIN the working resource, or you must
+pass the
+        working resource as a required header if you specify the checked out
+resource.
+        In this draft we chose to use the working resource since the server
+created it, it
+        can map it back to the original resource.  Personally, I don't see
+the issue if the
+        resource referenced is not user friendly.  This is a wire protocol.
+The alternative
+        is another header.  However, this is clear open to discussion and
+debate.  :-)
+As long as the user thinks they're checking in to the usual location, it
+doesn't really matter, but things in the underlying implementation have a
+way of percolating up to the user's view of the world.  It also makes life
+easier for watching the requests as a programmer or administrator.
+>                                The working copy resource is part
+of the
+>     implementation and isn't visible to the user.  As well, there
+is
+>     always the DAV:displayname property.
+
+Perhaps checked-out temporaries should have a property that points at their
+original document and version?  Or should the lineage report suffice for
+that purpose?
+[CK] I think this is a good idea.
+[re:  my idea for CHECKOUT/CHECKIN/UNCHECKOUT]
+>[CK] I don't think so.  The idea is that a CHECKOUT creates a
+working copy.
+>     Technically this is not part of the revision graph for the
+resource.
+>     It must be mutable because clients need to be able to make
+multiple
+>     changes.  You can't version it because it isn't part of the
+version
+>     graph.  It is just a scratch space where PUTs and PROPPATCHs
+can be
+>     performed until the resource is ready.  CHECKIN then assigns a
+revision
+>     id and makes it part of the graph.  Working copies don't have
+revision
+>     ids.  Also, UNCHECKOUT cancels a CHECKOUT.  You can't issue
+UNCHECKOUT
+>     once you've issued a CHECKIN.  The draft should be clearer on
+this
+>     point.
+
+Sorry; I should've been clearer.  (It does seem pretty obvious that you
+can't UNCHECKOUT once you've done a CHECKIN; I probably just flubbed the
+language.)  I meant to suggest:
+1.  "CHECKOUT uri" returns 200 OK and gives you a token instead of
+201 Created and an URL.
+2.  "PUT uri" and "PROPPATCH uri" with the token provided in the
+request header allow you to meddle with the working copy at uri to your
+heart's content.  If uri isn't locked, there could conceivably be multiple
+such working copies, each accessed with different tokens.
+3a. "CHECKIN uri" with the token would check in the working copy with
+a proper revision ID, release any locks you have on the
+original uri
+(unless you explicitly request to keep the locks), and lose
+all
+record of the token; alternatively,
+3b. "UNCHECKOUT uri" with the token would remove the working copy, all
+record of its token, and any locks you had on it.
+The token could be passed as a Revision-Id of some particular sort, if you
+treat working copies as mutable revisions, or in some other fashion.
+[CK] In the -00 draft it was proposed that CHECKOUT/IN use the LOCK method
+        since the behavior is very similar to locks.  The working group
+decided against
+        this.  Note that this style approach would resolve your issue above
+as well.  Maybe
+        we should model this as LOCK and return a checkout token as you
+suggest.  This
+        token would then be passed in on CHECKIN.  I guess the question I
+have then is,
+        how is this different from LOCK?
+>The same thing applies to configurations:  do they need to exist
+>in special areas?  [...]
+
+>[CK] The idea here was to put them in a unified place so that
+standard
+>     DAV discovery mechanisms can be used.  Otherwise we need to
+add
+>     new methods to discover the configurations.
+
+They could always exist as normal residents of the namespace who happen to
+have a DAV:resourcetype of DAV:configuration-they could sit there next to
+collections and ordinary files.  (Once references are implemented, I don't
+see it as that much more trouble to do other special entities.)
+[CK] If they live anywhere in the namespace, getting a list of the defined
+configurations
+        is quite hard.  That was the idea for putting them in a "well known"
+place.
+[An aside:  we've been doing a lot of hammering on a very similar notion
+over here at Glyphica for our next product, which is intended to be
+WebDAV-compliant, and the "configurations" from the versioning draft sound a
+lot like the "projects" we've been debating over here.  After much
+hammer-and-tongs haranguing about the natures of projects, we settled on the
+notion that a project would have a lot of links but could own entities in
+its own right, in order to simplify matters of hierarchy.  I'm trying to
+figure out if a project is likely to *be* a configuration or *use* a
+configuration.  The example in the versioning goals isn't much different
+from labeling a source tree, which you can do with a BRANCH operation in
+this specification.  Were there any other examples that you folks used in
+coming up with what a configuration should be able to do?]
+[CK] We have introduced two notions: branching of a single resource, and
+branching of a set
+        of related resources.  The first uses the BRANCH method, the second
+uses configurations.
+        I would suggest that a configuration represents a point in the
+project lifetime, not a 
+        project.  I believe this to be a more powerful management tool.
+From an object-oriented point of view, I'm thinking of configurations as a
+subclass of collections with some added functionality.  Both accept PROPFIND
+with a Depth header, both need to manage a bunch of other entities when you
+use COPY and DELETE and MOVE.  A Configuration-Id URI would tell the system
+where the configuration is, so there doesn't need to be any central lookup
+location; putting a collection that is not a configuration in the
+Configuration-Id header should generate an error.
+[CK] That is one aspect that is there for discovery.  However,
+configurations also represent
+        a way to view the namespace orthogonal to the URL.  I think this is
+important.  For example,
+        you can have Beta1 and Beta2 of your web site and edit them using
+the exact same URLs
+        if your editor is versioning-aware and knows to pass the
+configuration.
+>[CK] Configurations are very similar, but also very different.  A
+>     configuration collection can be referenced in the
+Configuration-Id
+>     header.  That is not true of all MKREF collections.  As well,
+changes
+>     to the resources in the context of a configuration are
+automatically
+>     represented inside the configuration collection.  That is, if
+I
+>     rename foo.htm to bar.htm using MOVE in the /c/1
+configuration, then
+>     inside /c/1 there will be a reference to bar.htm.
+
+I'm not sure I got that.  Do you mean that 
+MKREF /c/1/foo.htm
+Ref-Target:  /potzrebie/foo.htm
+
+MOVE /c/1/foo.htm
+Destination: /c/1/bar.htm
+
+works as expected, (/c/1/bar.htm is a reference to /potzrebie/foo.htm,
+just like in a collection), or
+MKREF /c/1/foo.htm
+Ref-Target:  /potzrebie/foo.htm
+
+MOVE /potzrebie/foo.htm
+Destination:  /potzrebie/bar.htm
+
+will update /c/1/foo.htm to point to /potzrebie/bar.htm?
+[CK] What I meant was that you MKCONFIG /c/beta1 and /c/beta2 you can then
+reference
+        /foo/bar.htm in the following ways:
+        GET /foo/bar.htm
+        Configuration-Id: Beta1
+         -or-
+         GET /foo/bar.htm
+         Configuration-Id: Beta2
+        This let's you switch between the two without having to change the
+links.  This is
+        Different from other MKREF references.
+>Should configurations be able to contain other configurations, or
+>simply references to them?  I can easily see that a configuration's
+>user might wish to partition it when it gets large and cluttered.
+
+>[CK] This is a really interesting question.  Conceptually, why not?
+>     However, that is really hard to represent in the resources.
+
+More than a collection is?  I may be missing something here...
+[CK] Our idea was that a the /c/Beta1 would contain references to the
+resources in the 
+        configuration.  If a configuration contains another configuration,
+how would you
+        represent that?
+>
+As
+>     well, some of the semantics start to get really messy.  What
+does
+>     it mean to have nested configurations?  What does it mean for
+a
+>     resource to be "in" nested configurations.  We opted to say
+that a
+>     configuration can be derived from another, but there isn't a
+notion 
+>     of containment.
+
+If a configuration is a collection with special attributes for how it
+interacts with the configurations it derives from and that derive from it,
+and containment is handled like any collection, does that open any cans of
+worms?
+[CK] Possibly.  Do any come to mind?
+>I'm thinking of software development solutions:  a configuration
+might
+>represent a project, with subconfigurations containing subprojects.
+>You'd want automatic inheritance from the core project so any time
+>someone else added a file to the configuration, you got a reference
+>to it. [...]
+
+>[CK] Another way to think of this is that the collections in the
+>     namespace represent the project and sub-project relationships
+>     and that configurations represent various "releases" of those
+>     projects.  In this way the "V2" configuration can be derived
+>     from the "V1" configuration.
+
+So you have:
+1.  A bunch of actual files in a namespace, representing the source tree.
+2.  A number of configurations, each representing a separate release
+of the code, with links into multiple levels of the source tree.
+3.  Many more configurations, each depending on the release
+configurations, representing developer workspaces.
+
+The developer would then use the actual URIs from (1) for dealing with the
+files and personal (3) workspace as a header to to select the appropriate
+versions from (1), and seldom (if ever) actually see the contents of (3)?
+(Logging in to a workspace becomes interesting: how to choose from among a
+bunch of configurations?  
+Thus, most WebDAV operations would not occur on configurations directly.
+All the PUTs and GETs and PROPPATCHes and LOCKs and UNLOCKs would happen
+using the URIs from (1) and the configuration ID from (3).  The
+configuration would occasionally be added to through MKREF and removed from
+via DELETE, but all of this would happen behind the scenes.
+This makes a big difference in my visualization of configurations.  The
+impression I got from the document was that a user might want to create a
+configuration in their home directory on a server and use that as their
+local copy of the data in the source tree, that configurations would be
+something that you navigated into just like a normal directory tree.
+What I'm seeing now is something more like a lock token with a lot more
+state packed into it.  A user would "log in" to a configuration and begin
+sending the configuration-id header along with almost all requests to the
+server.  This would provide a context for their particular view of the
+source tree.
+Could a user ever wind up being "logged in" to multiple configurations?
+[CK] Its clear that we need much more verbage in the document.  I'm not sure
+I followed the
+        "logging in" part.  However, much of what you stated is the
+thinking.  The configuration
+        represents an orthogonal view of the namespace.  That is, you can
+reference a specific
+        URL in the context of a configuration.  The configuration defines
+which revision you get
+        or which "project version" (we called them threads) to use.
+[re: BRANCH]
+>[CK] This is something I should have made clearer.  Both are valid.
+>     The VER:... notion is used to refer to a specific revision via
+>     a URI.  You can also specify the URL and the Revision-Id
+header.
+>     Chalk this up to a bad example.
+
+Hopefully, the VER:... URI functionality will be optional?  Should there be
+a way to discover this functionality through OPTIONS?
+[CK] I have to change this in the protocol spec, it is more confusing.  I
+should say something
+        like:   http://www.foobar.com/internal/FJH3490345
+<http://www.foobar.com/internal/FJH3490345>    I think that would be less
+confusing.
+>>Regarding SETDEFAULT:  why is it specified as sending an
+XML body?
+
+>[CK] The idea was to allow the user to specify additional
+information
+>     as well as allow the DAV:none to cancel.  We could do this all
+
+>     through headers, but XML seemed appropriate.
+
+What other information would go in with SETDEFAULT?  For that matter, is
+SETDEFAULT really doing anything you couldn't with PROPPATCH?  If I'd read
+that SETDEFAULT functionality was to be implemented with a live property
+named DAV:defualtversion, I wouldn't have blinked...
+[CK] We debated this one for a while.  The issue really comes up with
+references.  Let's say
+        I create a direct reference to /a/b.htm in /x/y.  I should be able
+to set the default version
+        of /x/y/b.htm to be a different revision from the default revision
+of /a/b.htm.  Using 
+        PROPPATCH is reasonable, but a little confusing.  This would
+introduce the notion
+        of namespace properties (which is already happening).  The other
+reason is that this 
+        is really a state change on the resource and it is reasonable
+(desirable) to effect change
+        via a method rather than as a side-effect of a property change.
+
+***
+
+Another question that comes to mind:  why are there properties using
+comma-separated lists (such as DAV:revisionlabel, DAV:mergedfrom, ...) 
+instead of an XML representation of such a list?  I would think
+<D:revisionlabel>
+  <D:label>Beta test</D:label>
+  <D:label>Release</D:label>
+</D:revisionlabel>
+would be more in keeping with the standard.
+
+[CK] For simplicity.  Technically a comma-separated list is valid XML, but
+         your point is taken.
+-- 
+%% Max Rible %% max@glyphica.com <mailto:max@glyphica.com>  %%
+http://www.amurgsval.org/~slothman/ <http://www.amurgsval.org/~slothman/>
+%%
+%% "Before enlightenment:  sharpen claws, catch mice.                   %%
+%%  After enlightenment:  sharpen claws, catch mice."            - me   %%
+
+
+

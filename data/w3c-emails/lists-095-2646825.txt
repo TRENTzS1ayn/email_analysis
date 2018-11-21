@@ -1,0 +1,94 @@
+docno="lists-095-2646825"
+received="Thu Jan 11 10:45:30 2001"
+isoreceived="20010111154530"
+sent="Thu, 11 Jan 2001 16:44:44 +0100"
+isosent="20010111154444"
+name="Holleck, J?rg"
+email="Joerg.Holleck@prodv.de"
+subject="AW: Printing-problems"
+id="8EE016BBE1BE5F44B695C5E623D72C3A0AEBC3@x001.p01.prodv.loc"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"Irene VATTON"<Irene.Vatton@inrialpes.fr>
+Cc:<www-amaya@w3.org>
+
+Hi Irene,
+
+I have added the code you sent me. Unfortunately, the error that occurs
+is not always the same. 
+WinErrorBox (NULL, TEXT("DrawPicture (2)")); doesn't show. Instead, an
+access violation happens during the call of GlobalAlloc() just where you
+wanted us to change the code. lpBmpInfo->bmiHeader.biSizeImage is 164728
+and the crash occurs in a Windows function called by GlobalAlloc():
+
+NTDLL! 77f8d064()
+NTDLL! 77f74142()
+NTDLL! 77f74876()
+KERNEL32! 77f11527()
+DrawPicture(_Box * 0x021c33d0, PictInfo * 0x0217ac00, int 1, int 1026,
+int 901, int 2913, int 2181) line 1629 + 18 bytes
+
+The program crashes before the assignment to lpBits is made.
+
+If I start Amaya from within the debugger, it crashes in the call of
+GlobalFree() at the same place. lpBits looks good (0x0013f008) and is
+the same value as returned by GlobalAlloc().
+
+Replacing GlobalAlloc() by malloc() and GlobalFree() by free() yields a
+crash 
+ a) when calling GetTextExtentPoint() in DrawString() (started from
+Debugger) or
+ b) when calling Print() in TtaPrint() (ok==1, PaperPrint==1, started
+from command line).
+
+To me, something bad has been done somewhere with the handling of
+memory. Often when freeing a pointer twice or using a freed block the
+system doesn't crash immediately. But when you access the memory later
+on, a corrupt block is reused and the alloc/free function may crash.
+
+With kind regards, J?rg.
+
+-----Urspr?ngliche Nachricht-----
+Von: Irene VATTON [mailto:Irene.Vatton@inrialpes.fr]
+Gesendet am: Donnerstag, 11. Januar 2001 15:36
+An: Holleck, J?rg
+Cc: Irene VATTON; www-amaya@w3.org
+Betreff: Re: Printing-problems 
+
+
+Thanks a lot Joerg for your investigation. I know where I have to look
+at in 
+the code now.
+
+It seems that your system doesn't allocate the Global memory. As the
+code is 
+not well
+protected, the Amaya print crashed.
+Could you check if the following path solves the problem:
+line 1629 of picture.c:
+    lpBmpInfo = CreateBitmapInfoStruct(FrRef[frame],
+imageDesc->PicPixmap);
+    lpBits = (LPBYTE) GlobalAlloc (GMEM_FIXED, lpBmpInfo->
+bmiHeader.biSizeImage);
+    if (!lpBits) 
+      WinErrorBox (NULL, TEXT("DrawPicture (2)"));
++           else
++           {
+    if (!GetDIBits (TtDisplay, (HBITMAP) (imageDesc->PicPixmap),
+0, 
+(UINT)lpBmpInfo->bmiHeader.biHeight, lpBits, lpBmpInfo, DIB_RGB_COLORS))
+      WinErrorBox (NULL, TEXT("DrawPicture (3)"));
+    
+    PrintDIB (lpBmpInfo, lpBits, FrRef[frame], TtPrinterDC, x,
+y, w, h);
+               if (GlobalFree (lpBits) != NULL)
+                  WinErrorBox (NULL, TEXT("DrawPicture (4)"));
++           }
+
+-- 
+     Irene.
+
+
+

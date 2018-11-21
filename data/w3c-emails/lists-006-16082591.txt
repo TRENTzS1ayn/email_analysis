@@ -1,0 +1,177 @@
+docno="lists-006-16082591"
+received="Tue Dec 11 10:53:55 2001"
+isoreceived="20011211155355"
+sent="Tue, 11 Dec 2001 10:53:19 -0500"
+isosent="20011211155319"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: [daniel.kirmse&#64;sap.com: WebDAV/DeltaV: GET on Version Tree]"
+id="3906C56A7BD1F54593344C05BD1374B10516742D@SUS-MA1IT01"
+inreplyto="[daniel.kirmse&#64;sap.com: WebDAV/DeltaV: GET on Version Tree]"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Alan Kent [mailto:ajk@mds.rmit.edu.au]
+
+   > From: Kirmse, Daniel [mailto:daniel.kirmse@sap.com]
+   > 
+   > 1.Suppose you have a resource A.file with a version tree as follows:
+   > 
+   >            A.file,1
+   >               |
+   >            A.file,2
+   >               /\
+   >              /  \
+   >             /    \
+   >            /      \
+   >     A.file,2.1   A.file,2.2
+   >          |              |
+   >    A.file,2.1.1  A.file,2.2.1
+   > 
+
+   > where the version number does not necessarily express the
+   > sequence of creation of the versions. All versions are checked
+   > in.
+   > Suppose a client sends a GET A.file Request. Which version of
+   > A.file must be sent as response, A.file,2.1.1 or A.file,2.2.1?
+
+   My understanding is you do not do a GET on A.file. You do a GET on
+   a URL. The URL must be bound to a particular version by the server.
+   So you get whatever version the URL has been bound to. There are DeltaV
+   commands for changing the version a URL is bound to.
+
+I think Daniel just was using A.file as a shorthand for the URL that
+identifies a version controlled resource ("VCR") whose version history
+is as described.  
+
+A GET on A.file will just return the content of A.file.  If A.file
+is checked in, then this content is required to be the same as
+the content of the version identified by the DAV:checked-in property
+of A.file.  If A.file is checked out, then there may be no version
+that has the same content as A.file.
+
+(Note: I'd avoid the term "bound" when talking about the relationship
+between a VCR and a version, since this might lead someone to infer
+that the VCR is somehow a "pointer" to that version.)
+
+   > 2.I'd like to use server workspace for emulating a development (DEV)
+and a
+   > consolidation (CONS) source tree of a single source tree. 
+   > Suppose I have a source tree. 
+   > 
+   > "/" (root)
+   > /
+   >      src
+   >            / \
+   >           /   \
+   >          a.c  b.c
+   > 
+   > Where a.c and b.c are version-controlled resources.
+
+Does "/" identify a workspace?  Or are /src, /src/a.c,
+and /src/b.c "free-floating" VCR's that are not in any workspace?
+(Commonly, a system that supports workspaces will have all VCR's
+appear in some workspace, but that is not required by the DeltaV
+protocol).
+
+   > In the beginning of my development I create a workspace DEV to
+   > contain all resources of a certain development.
+   > 
+   > "/" (root)
+   > /        \
+   >            /          \
+   >           src         DEV
+   >           / \          |
+   >          /   \         |
+   >         a.c  b.c      src
+   >                       / \
+   >                      /   \
+   >                    a.c  b.c
+
+Note that if "/" is a workspace, then you have the "/DEV" workspace
+nested inside the "/" worspace.  Many server implementations will not
+allow you to nest workspaces, but it is certainly allowed by the
+DeltaV spec.  Note that /DEV/src/a.c is in the /DEV workspace but
+is not in the "/" workspace, since a VCR can only be in one workspace.
+
+   > Files a.c and b.c are part of the worksapce and after some time
+   > there are version 4 of a.c and version 3 of b.c are candidates
+   > for delivery. So I set up a new workspace emulating my
+   > consolidation source tree (CONS) as a copy of the DEV workspace,
+   > copying the latest version of a.c and b.c to it. (Is it allowed
+   > so far?)
+
+   Sounds OK to me...
+
+Well, you need to be a bit careful about terminology.  If you use a
+WebDAV COPY to copy your DEV workspace to another workspace, you will
+just get a tree of non-version-controlled resources at the destination
+of the copy.  This is probably not what you want to do, because you
+can't do merges or any other interesting versioning operation on these
+non-version-controlled resources.  You probably want to use
+VERSION-CONTROL or BASELINE-CONTROL to create version-controlled
+resources in CONS corresponding to your version-controlled resources
+in DEV.  Note though that Dan's client might present this as a
+"copy" operation, even though under the hood, the client is issuing
+a BASELINE-CONTROL request, or a sequence of VERSION-CONTROL requests.
+
+   > In my oppinion now a checkin of a.c in DEV and in CONS
+   > would produce a branch in the source tree of a.c (right?).
+
+If you have a version-controlled resource in both DEV and CONS for the
+version history of a.c, and they both identify the same version in
+their DAV:checked-in property, then it is true that if you issue a
+CHECKOUT/CHECKIN sequence against both VCRs, then you will create a
+fork in the source tree.
+
+   I think that is partially up to the implementation as to what the DetaV
+   server did. But it would be reasonable behaviour.
+
+If you CHECKOUT/CHECKIN two VCRs that originally had the same version
+in their DAV:checked-in property, then your server would have to
+create a fork in the version history for that version.
+
+   > Now suppose a user with a user worksapce /usr/dan who has to fix
+   > a bug in a.c both in DEV and CONS. I think it is not allowed to
+   > have to versons of a.c in the same workspace (right?), so user
+   > dan has to set up two workspace to get this done (right?).
+
+   I think that is correct - or use the UPDATE command (I think it is
+   from memory) to change the version a URL points at. But creating two
+   workspaces seems reasonable.
+
+I'm not sure what you mean by "set up two workspaces".  You already
+have two workspaces (DEV and CONS), so you would make a change in DEV
+if you wanted to change DEV and in CONS if you wanted to change CON.
+Or are you using DEV and CONS to now mean a "line of descent" (which 
+in DeltaV we model as an "activity"), rather than a "workspace"?
+It's important to be unambiguous here, since activities and
+workspaces have different behaviors.
+
+But as Alan says, you can make a change (create a new version) in DEV 
+for a.c, and then just update the VCR for a.c in CONS to see this
+new version, if you want to have the bug fixed the same way in both
+workspaces.
+
+   > Finally the question is: Is it possible for user dan to copy
+   > /DEV/a.c into his workspace or MUST he copy /src/a.c into his
+   > workspace? Or the other way around: Is it possible to have a
+   > workspace as a source of resources for another workspace?
+
+As above, as long as Dan's client is converting Dan's "copy"
+request into the appropriate VERSION-CONTROL request, it doesn't
+matter whether he "copies" from /src/a.c or /DEV/src/a.c 
+(assuming both these VCRs identify the same version as their
+DAV:checked-in property).  In particular, the way Dan's client
+will do the "copy" is to get the DAV:checked-in version from
+the source of the copy, and then issue a VERSION-CONTROL request
+(specifying that version) to the destination of the "copy".
+
+Cheers,
+Geoff
+
+
+

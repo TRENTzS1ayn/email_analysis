@@ -1,0 +1,462 @@
+docno="lists-025-3435882"
+received="Wed Aug 13 19:30:52 2003"
+isoreceived="20030813233052"
+sent="Tue, 12 Aug 2003 13:49:10 -0700"
+isosent="20030812204910"
+name="Yaron Goland"
+email="ygoland@bea.com"
+subject="RE: Decoupling of low-level and high-level MEP"
+id="001401c361f2$ed48b190$724111ac@bea.com"
+charset="us-ascii"
+inreplyto="3F1C137D.3010605&#64;tibco.com"
+expires="-1"
+
+To:<public-ws-chor@w3.org>
+
+
+
+Indeed, a way to think of this is that WS-Choreography deals with issues
+above the WSDL layer. Reliable Messaging and other signaling issues do their
+magic below the WSDL layer. Therefore specifying their implementation is out
+of scope for us.
+
+However, the ramifications of their actions clearly aren't out of scope.
+E.g., the fact that a message couldn't be delivered (regardless of how this
+conclusion was reached) is something of interest to WS-Choreography.
+
+Yaron
+
+> -----Original Message-----
+> From: public-ws-chor-request@w3.org
+> [mailto:public-ws-chor-request@w3.org]On Behalf Of Jon Dart
+> Sent: Monday, July 21, 2003 9:23 AM
+> To: Ricky Ho
+> Cc: assaf Arkin; public-ws-chor@w3.org
+> Subject: Re: Decoupling of low-level and high-level MEP
+>
+>
+>
+> I'm pretty convinced you do need nesting of choreographies,
+> in the sense
+> that you can define a low-level pattern and re-use it,
+> possibly multiple
+> times, in building up a higher-level pattern. This is already in the
+> requirements, I believe.
+>
+> However, IMO you wouldn't use this facility to implement reliable
+> messaging. If all you had to do was re-send until you got an
+> ack, then
+> there would hardly be any need for a reliable messaging
+> specification.
+> But it's not that simple. You need other metadata besides
+> just a MEP to
+> make this work reasonably well.
+>
+> The relation of choreography to MEPs is interesting and probably
+> warrants further discussion. However, IMO choreography is
+> sitting at a
+> different level than WSDL in the overall standards stack.
+>
+> --Jon
+>
+> Ricky Ho wrote:
+> >
+> > Arkin, your idea here is very interesting to me.  I try to use an
+> > example to confirm my understanding ...
+> >
+> > Business-level MEP
+> > ===============
+> > - Submit PO
+> > - A one-way message (no response is expected at the business level)
+> >
+> > MEP SubmitPO {
+> >         role: buyer, seller (implements PO-HandlerPT)
+> >         sequence {
+> >                 buyer invoke seller (operation = submitPO,
+> portType =
+> > PO-HandlerPT)
+> >         }
+> > }
+> >
+> > PortType PO-HandlerPT {
+> >         Operation submitPO {
+> >                 Input: (PO)
+> >         }
+> > }
+> >
+> > However, since the PO must be send reliably (ie, it has certain QOS
+> > requirement).  Therefore, at the implementation level, this
+> > "business-layer MEP" is build on the RM MEP
+> >
+> > Infrastructure-level MEP
+> > ==================
+> >
+> > MEP RM {
+> >     role: sender (implements RM-SenderPT), receiver (implements
+> > RM-ReceiverPT)
+> >     sequence {
+> >         while (no Ack received) {
+> >             sender invoke receiver (operation =
+> sendMessage, portType =
+> > RM-ReceiverPT)
+> >             switch {
+> >                 case1: {
+> >                     receiver invoke sender (operation = sendAck,
+> > portType = RM-SenderPT)
+> >                 }
+> >                 case2: {
+> >                     timeout
+> >                 }
+> >             }
+> >         }
+> >     }
+> > }
+> >
+> > PortType RM-ReceiverPT {
+> >         Operation sendMessage {
+> >                 Input: (Message, Ack-CallbackAddress)
+> >         }
+> > }
+> >
+> > PortType RM-SenderPT {
+> >         Operation sendAck {
+> >                 Input: (Ack)
+> >         }
+> > }
+> >
+> > Here is what happens at runtime ...
+> >
+> > 1) The buyer engage in the SubmitPO MEP when it follows the
+> choreography
+> > definition and invoke the "submitPO" operation.
+> > 2) There is separate QOS requirement specified by the buyer (maybe
+> > communicate out of band) that the operation must be done reliably.
+> > 3) The binding layer (this is what you call the "protocol handler",
+> > consider it to be the client stub of the POHandlerPT)
+> decides to use the
+> > RM services.  So it invoke the "sendMessage" operation of the
+> > RM-ReceiverPT instead (the client stub may encapsulate the
+> business SOAP
+> > message inside the RM SOAP message).
+> > 4) The implementation of sendMessage (at receiver side,
+> which you call
+> > the "protocol handler") invoke the sendAck operation of the sender
+> > side.  At the same time, it also invoke the "submitPO"
+> operation of the
+> > receiver side.
+> >
+> > The key point here is that the binding between the
+> business-level-MEP
+> > and RM-MEP is captured "somewhere else" (what you call
+> "out-of-band"),
+> > so that they can essentially decoupled with each other.  This
+> > "decoupling" introduce tremendously reusability and flexibility and
+> > still retain simplicity.
+> >
+> > Do I accurately rephrase what you mean ?
+> >
+> > Rgds, Ricky
+> >
+> >
+> >
+> >> >Resent-Date: Fri, 18 Jul 2003 17:11:12 -0400 (EDT)
+> >> >Date: Fri, 18 Jul 2003 14:10:53 -0700
+> >> >From: Assaf Arkin <arkin@intalio.com>
+> >> >Organization: Intalio
+> >> >User-Agent: Mozilla/5.0 (Windows; U; Windows NT 5.1;
+> en-US; rv:1.4)
+> >> >Gecko/20030624
+> >> >X-Accept-Language: en-us, en, he
+> >> >To: "Burdett, David" <david.burdett@commerceone.com>
+> >> >CC: Frank McCabe <frankmccabe@mac.com>,
+> >> >         Martin Chapman <martin.chapman@oracle.com>,
+> >> >         Steve Ross-Talbot <steve@enigmatec.net>,
+> >> >         "Champion, Mike" <Mike.Champion@SoftwareAG-USA.com>,
+> >> >         public-ws-chor@w3.org
+> >> >Subject: Re: Grounding Choreographies (the atoms) - WAS Simple
+> >> >Choreograph   y   composition suggestion
+> >> >X-Archived-At: http://www.w3.org/mid/3F18625D.8060408@intalio.com
+> >> >Resent-From: public-ws-chor@w3.org
+> >> >X-Mailing-List: <public-ws-chor@w3.org> archive/latest/1303
+> >> >X-Loop: public-ws-chor@w3.org
+> >> >Sender: public-ws-chor-request@w3.org
+> >> >Resent-Sender: public-ws-chor-request@w3.org
+> >> >List-Id: <public-ws-chor.w3.org>
+> >> >List-Help: <http://www.w3.org/Mail/>
+> >> >List-Unsubscribe:
+> >> <mailto:public-ws-chor-request@w3.org?subject=unsubscribe>
+> >> >
+> >> >
+> >> >Burdett, David wrote:
+> >> >
+> >> >>Assaf
+> >> >>
+> >> >>I agree that we need to agree on terminology, e.g. roles
+> vs agents, I
+> >> >>have no strong views on which is better.
+> >> >>
+> >> >>I also like the idea of using WSDL interfaces, however I
+> can see some
+> >> >>issues, for example: 1. Both the RM specs use SOAP to send their
+> >> >>acknowledgement messages and retries. So, for example,
+> if you had a
+> >> >>WSDL definition that defined a PO as input and generated
+> a PO Response
+> >>
+> >> >>as output, then how would the other RM messages be defined in the
+> >> >>WSDL?
+> >> >Out-of-band.
+> >> >
+> >> >You have one WSDL interface covering the operation you
+> are trying to
+> >> >perform. The PO request and PO response. That's the input to the
+> >> service
+> >> >and the output from the service.
+> >> >
+> >> >You have another WSDL interface covering the
+> ack/resend/etc. That one
+> >> >is
+> >> >defined by the RM protocol. It is implemented by the RM
+> Service. The RM
+> >>
+> >> >Service is used in combination with the PO service, but as an
+> >> out-of-band
+> >> >interaction that is used only if a particular protocol is chosen.
+> >> >
+> >> > From the pespective of the application you send a PO request and
+> >> > receive
+> >> > a PO response. The recevier's protocol handler recognizes the RM
+> >> protocol
+> >> > and uses the RM Service's endpoint to send back and ack.
+> >> >
+> >> >This has three obvious benefits:
+> >> >
+> >> >1. You define the RM interface exactly once. You don't
+> need to define
+> >> >specific operations, messages, etc each time you use RM. More
+> >> reusability.
+> >> >
+> >> >2. You can decide if/when/which RM protocol to use
+> without having to
+> >> >change the interface definition. The protocol selection
+> is carried in
+> >> the
+> >> >message.
+> >> >
+> >> >3. You can combine many different protocols in that way.
+> >> >
+> >> >Now, for just using RM it's possible to come up with some MEP that
+> >> >would
+> >> >be generally efficient. But the out-of-band model has
+> more efficiency.
+> >> For
+> >> >example, if could ack multiple messages together, or
+> request multiple
+> >> >resends together. If you try to combine RM + coordination
+> + security
+> >> >context, your MEP would be hairy to define. But in this
+> model you can
+> >> >easily turn these protocol features on & off without
+> having to create
+> >> all
+> >> >the possible MEPs.
+> >> >
+> >> >>2. If you then wanted to layer an MEP on top of this
+> which included
+> >> >>additional "signal" messages where each signal message
+> was also sent
+> >> >>using RM protocols then how would these be included in the WSDL?
+> >> >Because you're making the protocol signals orthogonal to
+> the actual
+> >> >WSDL
+> >> >interface, you let the protocol handler make the
+> appropriate decisions
+> >> >which signals to make. This allows it not only support ack/resend
+> >> (easy),
+> >> >but also to couple that with multiple-message acks,
+> is-alive pings,
+> >> flow
+> >> >control, combining/splitting messages, etc.
+> >> >
+> >> >And you can combine any number of protocols like that.
+> The RM would
+> >> >typically be used for the duration of a single operation, while a
+> >> >coordination protocol would involve multiple operations.
+> Establishing a
+> >>
+> >> >security context (single sign-on) would do both since the
+> context may
+> >> last
+> >> >longer than one operation, but may expire and be
+> re-established before
+> >> all
+> >> >operations are completed.
+> >> >
+> >> >So that scheme seems to be the most efficient one in my
+> opinion, and
+> >> >also
+> >> >allows for proper layering of different protocols (business and
+> >> technical).
+> >> >
+> >> >arkin
+> >> >
+> >> >>3. How would you provide support for 1 and 2 above in
+> WSDL in a way
+> >> >>which allowed a single basic definition of the "business"
+> >> >>choreography, e.g. you send a PO and get a PO response back, even
+> >> >>though you could get variations in the actual signals
+> and RM protocol
+> >> >>used as well as the physical message format used?
+> >> >>
+> >> >>I'm not saying it can't be done, I just don't know how.
+> >> >>
+> >> >>Regards
+> >> >>
+> >> >>David
+> >> >>
+> >> >>-----Original Message-----
+> >> >>From: Assaf Arkin [mailto:arkin@intalio.com]
+> >> >>Sent: Friday, July 18, 2003 1:14 PM
+> >> >>To: Burdett, David
+> >> >>Cc: Frank McCabe; Martin Chapman; Steve Ross-Talbot;
+> Champion, Mike;
+> >> >>public-ws-chor@w3.org
+> >> >>Subject: Re: Grounding Choreographies (the atoms) - WAS Simple
+> >> >>Choreograph y composition suggestion
+> >> >>
+> >> >>
+> >> >>It all boils down to terminology. I'm not suggesting any, just
+> >> >>pointing
+> >> >>out a problem.
+> >> >>
+> >> >>If we say "roles" and the WSA says "agents" then there's
+> a mismatch.
+> >> >>If
+> >> >>the WSA defines an architecture in terms of agents
+> interacting, but a
+> >> >>choreography can't involve agents (that would be an
+> orchestration)
+> >> then
+> >> >>we might have a problem there. We need to raise this and
+> work out a
+> >> >>terminology that is consistent across the board.
+> >> >>
+> >> >>So going back to Frank's original e-mail, either I
+> didn't understand
+> >> >>what
+> >> >>was said, or we need to better align the usage of
+> terminology between
+> >> the
+> >> >>two groups.
+> >> >>
+> >> >>
+> >> >>As for what the interaction is, I much prefer if we talk
+> in terms of
+> >> >>WSDL
+> >> >>interfaces. Then we won't have to go down into the
+> details of HTTP,
+> >> >>ack/resend, etc. When you express everything in terms of WSDL
+> >> interface
+> >> >>you are talking about these roles/agents interacting
+> with each other.
+> >> The
+> >> >>protocol may end up using HTTP, it may include
+> additional signals for
+> >> RM,
+> >> >>out-of-band signals for coordination, establish security context,
+> >> whatever.
+> >> >>
+> >> >>Since this is already taken care of by other
+> specifications that you
+> >> >>can
+> >> >>plug-in, I would much prefer to focus solely on use of WSDL
+> >> interfaces.
+> >> >>
+> >> >>arkin
+> >> >>
+> >> >>Burdett, David wrote:
+> >> >>
+> >> >>
+> >> >>
+> >> >>>Assaf
+> >> >>>
+> >> >>>My take is that strictly speaking, a choreography is "A
+> definition of
+> >>
+> >> >>>the sequence and conditions in which a set of interactions occur
+> >> >>>between two roles".
+> >> >>>
+> >> >>>Where *interactions* include both individual (e.g.
+> HTTP) messages as
+> >> >>>well
+> >> >>>
+> >> >>as
+> >> >>
+> >> >>
+> >> >>>higher level concepts such as a single "reliably
+> delivered message"
+> >> >>>which actually requires several HTTP message to
+> implement, or at a
+> >> >>>even higher level, concepts such as a "Request for
+> Quote". Also roles
+> >>
+> >> >>>can include, at a low level, general concepts such as a
+> "sender" and
+> >> >>>"receiver" which could be appropriate when defining the
+> choreography
+> >> >>>associated with a RM protocol, or such business level
+> concepts such
+> >> >>>as "buyer" and "seller" when defining a business level
+> >> >>>protocol/choreography.
+> >> >>>
+> >> >>>In both cases roles defined in the choreography are
+> abstract and need
+> >>
+> >> >>>to be mapped to the physical instances which will
+> often, but needn't
+> >> >>>be - as Martin mentioned, web services. If we say that
+> Choreographies
+> >>
+> >> >>>*always* have to be *between* web services then it precludes the
+> >> >>>choreography being used by something that is not a web
+> service, which
+> >>
+> >> >>>I don't think we want to do.
+> >> >>>
+> >> >>>My $0.02c.
+> >> >>>
+> >> >>>David
+> >> >>>
+> >> >>>
+> >> >>>
+> >> >
+> >> >
+> >> >--
+> >> >"Those who can, do; those who can't, make screenshots"
+> >> >
+> >>
+> >-------------------------------------------------------------
+> ---------
+> >> >Assaf Arkin
+> arkin@intalio.com
+> >> >Intalio Inc.
+www.intalio.com
+>> >The Business Process Management Company                 (650) 577 4700
+>> >
+>> >
+>> >This message is intended only for the use of the Addressee and may
+>> >contain information that is PRIVILEGED and CONFIDENTIAL. If you are not
+>>
+>> >the intended recipient, dissemination of this communication is
+>> >prohibited. If you have received this communication in error, please
+>> >erase all copies of the message and its attachments and notify us
+>> >immediately.
+>> >
+>> >
+>
+>
+>
+>
+
+
+

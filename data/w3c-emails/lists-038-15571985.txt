@@ -1,0 +1,259 @@
+docno="lists-038-15571985"
+received="Thu Dec 24 03:01:08 1998"
+isoreceived="19981224080108"
+sent="Thu, 24 Dec 1998 00:00:57 -0800"
+isosent="19981224080057"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="HTTP Design Issues, lessons from WebDAV's Property and Depth head er experiences"
+id="3FF8121C9B6DD111812100805F31FC0D08792BF4@RED-MSG-59"
+expires="-1"
+
+
+To:"'Slein, Judith A'"<JSlein@crt.xerox.com>,"Masinter, Larry<masinter@parc.xerox.com>"<masinter@parc.xerox.com>, Jim Davis<jdavis@parc.xerox.com>,w3c-dist-auth@w3.org
+Cc:"Henrik Frystyk Nielsen (E-mail)"<frystyk@w3.org>,"Roy T. Fielding (E-mail)"<fielding@ics.uci.edu>,"Jim Whitehead (E-mail)"<ejw@ics.uci.edu>,"Henry Sanders (Exchange)"<henrysa@exchange.microsoft.com>
+
+<Skipping to the End>
+This one is long and complex so I will just skip to the end. Instead of
+using one method for one function, WebDAV essentially re-invented the HTTP
+request/response format in XML so it could glue a bunch of requests
+together. The reasons it did this are:
+
+1) Pipelining - It is and isn't supported in HTTP/1.1. Currently HTTP/1.1
+bans the use of non-idempotent methods across pipelining. This is fine for
+PROPFIND but a real problem if we are to use PROPPATCH in pipelined mode.
+Even so, the reality is that WebDAV will have to run primarily across
+HTTP/1.0 connections for a real long time due the relatively sparse support
+for HTTP/1.1 proxies. So we wanted to pack a bunch of related messages into
+a single request. Hopefully, when HTTP/1.1 proxy support is sufficiently
+wide spread, this motivation will go away.
+
+2) Byte Bloat - In many cases multiple method calls on the wire will be
+almost identical. For example, imagine if PROPFIND did the right thing and
+only allowed you to request a single property. Now imagine you wanted to
+retrieve 50 properties. You would end up with 50 requests that were
+completely identical except for one string. There was a sticky header
+proposal but WebDAV makes extensive use of the body so we would also need a
+sticky body/diff proposal as well.
+
+3) Relatedness - Every time a request comes in a server has to roll out a
+new context to handle that message. However if you are going to get a bunch
+of related requests, say 50 PROPPATCHs, each wanting to change a single
+property, you would rather just keep re-using the same context. But because
+of the shear volume of messages coming in, a server wants to be told if a
+context should be re-used. WebDAV achieves this by allowing methods to
+implicitly contain multiple requests, like PROPFIND letting you set 50
+properties at once. We need a way in HTTP to do the same without having to
+re-invent HTTP, as WebDAV has had to do. We need to tell the server "the
+following requests are all related".
+
+4) Unmatched Responses - There are times when a method needs to apply across
+an unknown number of resources. For example, performing a COPY with a depth
+header. You don't know which resources existed in the hierarchy when you
+executed the request. However you still need to get back responses for any
+resources that may have had a problem with the COPY, even though you never
+even knew they existed. WebDAV deals with this by using the multistatus
+response which just wraps up all the information. Of course, multistatus is
+really just the HTTP response format in XML. What would be better is if HTTP
+supported the ability to send responses w/out associated requests. In order
+to keep bytes down you would also then need to be able to apply the "Byte
+Bloat" solution to the responses. Bonus points are that the folks in
+notification land also need this feature.
+
+So if HTTP/1.1 was enhanced or HTTP/1.2 was introduced with support for
+features 1-4 then WebDAV could get out of the protocol
+bloating/extensibility killing business of re-inventing HTTP and instead
+actually use HTTP secure in the knowledge that the performance it so
+desperately needs will be there.
+
+<Side Note>
+I can hear Henrik in my head. Unfortunately I hear him in Danish so I can't
+understand a word he is saying. But knowing Henrik I suspect it is something
+like "Repent ye sinners, HTTP NG is the one true way." True or not, I for
+one really don't want to throw away an entire invested base. Especially
+given that I think the previous features, with a little creative use of the
+BATCH method, could be built over the existing infrastructure.
+</Side Note>
+</Skipping to the End>
+
+<Why I Bother>
+And now, for the two case studies which lead to the previous conclusions. If
+you actually make it to the end, you clearly have way the hell too much time
+on your hands. I'm writing these out mostly so:
+A) I don't forget
+B) I can beat people over the head with them when they try to make
+the same damn stupid fool mistakes
+</Why I Bother>
+
+<"This is another fine protocol you've gotten me into!">
+In a previous episode
+(http://lists.w3.org/Archives/Public/w3c-dist-auth/1998OctDec/0074.html) I
+provided some history behind WebDAV's property architecture. However once
+the basic architecture was agreed upon there was still much work to be done.
+
+The first issue was the ability to set the value of multiple properties in a
+single atomic act. It was assumed by the working group that multiple
+dependent properties would exist on a resource. That is, that the value of
+one property would be related to the value of another. Thus if a client
+wishes to change both values and only one actually got changed the resource
+would be in an inconsistent state. Hence it was critical that a mechanism be
+provided to allow clients to set multiple property values atomically. In
+retrospect I wonder how critical this requirement really was. Especially
+given that none of the existing implementations are really atomic, at least
+not in the transacted sense meant in the spec. But, at the time, we were
+positive that this requirement was critical and so it ended up in the spec.
+
+In trying to fulfill the requirement my primary concern was to keep the
+methods simple. I have always liked slogans and I vaguely remember inventing
+"one method, one property". This certainly would result in a simpler
+protocol. But if each property was sent in a different method, how would we
+meet the atomicity requirement? One possibility was to use a protocol like
+TIP to implement real transactioning. But this was clearly too heavy a
+requirement for base DAV servers. The next proposal was to use an "atomic"
+method. The idea was that one would send the atomic method followed by the
+property change methods followed by another atomic method. However there
+were two problems:
+
+1) HTTP servers were generally designed to handle each request in
+total isolation. Each request, even over a pipelined connection, was handled
+by a different execution context. Thus it was very difficult for the servers
+to associate requests with each other. Even if the servers could associate
+the requests, this still left the relatively high cost of having to create a
+brand new context for each and every method. The message from the server
+community was crystal clear - the less requests across the wire, the better.
+This was especially true given that the server community was not ready to
+completely redesign their servers to do better context handling.
+
+2) Even though WebDAV is officially an HTTP/1.1 protocol, in reality
+everyone knew it was going to spend the first few years of its life running
+over HTTP/1.0. This meant there was no pipelining support. Thus every
+property to be set, in addition to the "atomic" methods, would have to be
+sent on their own, independent, round trips. The performance ramifications
+were too horrific to consider.
+
+"one method, one property" was still not quite dead. A proposal had been
+kicking around for a BATCH method. The idea was that one would take a group
+of methods, glue them together, shove them inside of the BATCH method and
+send them to the server. The atomic nature of the requests would be implicit
+to the BATCH. There was even a proposal to throw in an "atomic" switch so
+that it would be possible to not ask for atomic behavior. The assumption
+being that outside of certain predefined contexts such as a group of
+PROPPATCHs, servers wouldn't be able to support atomicity.
+
+In retrospect I wish I had given this choice more attention, it would have
+resulted in a significantly simpler protocol. Alas, I helped to lead the
+effort to kill BATCH. The argument was that BATCH essentially tunnels
+through HTTP. It robs HTTP of its caching and firewalling features. These
+arguments are true, but the real choice was amongst greater and lesser
+evils. Which was worse, to try and fix some very serious performance issues
+in HTTP in a backwards compatible manner or to make WebDAV about a factor of
+2 more complex?
+
+With both separate methods and BATCH considered unacceptable the "one
+method, one property" philosophy was dead. The only remaining solution was
+to create a composite method inside of PROPPATCH. I don't remember if this
+solution coincided with the introduction of multistatus for
+COPY/MOVE/PROPFIND/PROPPATCH results but I wouldn't be surprised. They both
+suffer from the same illness, they essentially re-invent BATCH but for only
+a single method and in a completely non-reusable way. That is, if we had
+actually worked the bugs out of BATCH we could have used it as essentially a
+"transport" and run our methods over it. The composite forms used in
+PROPFIND/PROPPATCH and multi-status, on the other hand, end up having to
+re-invent most of the HTTP features and to keep on re-inventing them over
+and over again for each method.
+
+From there it was an obvious step to adding the same composite support for
+PROPFIND. Everyone was ecstatic about both methods. The property store guys
+could implement the properties easily, the server guys could process the
+messages and responses efficiently and the client guys could do all their
+business in one round trip. What could possibly be better? I would find the
+irony funny if I wasn't responsible for so many of the bad decisions. 
+</"This is another fine protocol you've gotten me into!">
+
+<Out of our Depth>
+The "one method, one property" slogan got some more play as the "one method,
+one action" slogan a.k.a. the Depth Wars. The idea was a simple one. People
+like to COPY/MOVE/DELETE using the URL hierarchy. That way you can say
+"Delete this resource and all its children" without even having to know who
+the children are. The proposed solution to allow this very cool
+functionality was the depth header. Just slap it on a request and it will
+apply to that resource and all the children of that resource to the
+specified level. Very neat.
+
+But there was a lone voice which objected. The voice belonged to Henry
+Sanders. Even though most of the people working on WebDAV had no idea who
+Henry was, he still got a lot of respect. As it happens Henry is one of the
+founding members of the HTTP WG and basically is "the" DEV for the HTTP
+stack in IIS. Before writing IIS's HTTP stack he also wrote Microsoft's
+TCP/IP implementation. So if you do know who Henry is, you listen to what he
+says.
+
+Henry felt that the depth header unnecessarily complicated the protocol. He
+felt that people were trying to build their UI in the protocol, one of the
+cardinal WebDAV no-nos. But most importantly, he felt that the depth header
+was essentially a form of denial of service attack. His argument went as
+follows:
+
+1) File systems have absolutely no support for depth operations.
+When you execute that recursive copy in Windows or MAC or UNIX, the copy
+program is actually talking to the OS and doing a file by file copy. That
+was what Henry meant by UI. Recursive copy is a fiction created by UI.
+
+2) Each individual copy/move operation takes a long time. To put
+this time into context, serving a single non-recursive copy/move request can
+take longer than a full round trip between the client and server. Now
+imagine how long it would take to do all the requests for the whole tree in
+one go.
+
+3) Servers can only contain a certain number of message contexts at
+a time. By requiring the server to keep a context open and running for the
+enormous length of time needed to perform a recursive operation we were
+denying service to everyone else. Put another way, a server can only handle
+N simultaneous requests. A recursive operation takes so damn long that for
+all intents and purposes a full context is assigned to a single user.
+Meaning that all the other users are forced to share the remaining contexts.
+If, on the other hand, the client had to make a separate request for each
+copy/move (meaning no depth header support) then the client's request would
+be "spread out" over a period of time and everyone else would get a fair
+chance at the server's resources.
+
+Therefore - The depth header should not be supported. Instead the
+client should perform a look up of the name of all the children of the
+current resource. Then the client should issue a series of COPY requests for
+all those children. Pipelining would keep down the round trip costs and it
+is worth the extra context costs on the server because separating the
+messages guaranteed equal access to the server's resources by all clients.
+
+The counter voices belonged mostly to people who didn't use the file system
+as their stores or had extremely advanced file systems. These stores could
+do things like copy/move on write/read. The server would leave itself a note
+saying that "resource a/b was copied to a/c." So long as no one made any
+changes to a/b the server would service any requests for a/c's value from
+a/b. Stores could do this for entire hierarchies using a single note to
+themselves. Thus these stores could handle depth requests extremely
+efficiently. However if the requests were broken up into pieces, thus
+loosing the depth header semantics, then these powerful features were
+essentially useless.
+
+The debate went on for over six months. It went on this long mostly because
+it was intertwined with the COPY/MOVE debate
+(http://lists.w3.org/Archives/Public/w3c-dist-auth/1998OctDec/0300.html).
+There were meetings, there were discussions, there were e-mails, it just
+kept on going around. Both sides were right, how did you decide? In the end
+Henry gave in, you will have to ask him why. Without Henry holding up the
+"Depth is a bad idea" side, the Depth header won by default.
+
+Which brought up a problem. HTTP's request/response format is based on the
+idea that a request goes to a single resource and the response is scoped to
+that resource. But in this case the request went to a single resource but
+applied to any number of resources. So we ended up re-inventing HTTP's
+response format inside of the XML multistatus response. It never occurred to
+anyone to have unmatched HTTP responses with sticky header/body. The
+PROPFIND wars
+(http://lists.w3.org/Archives/Public/w3c-dist-auth/1998OctDec/0302.html)
+were well over by this point so once the Depth header got the o.k.
+multistatus was a done deal.
+</Out of our Depth>
+
+
+

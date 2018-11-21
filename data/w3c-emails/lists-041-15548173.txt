@@ -1,0 +1,81 @@
+docno="lists-041-15548173"
+received="Wed Nov 20 22:52:03 2002"
+isoreceived="20021121035203"
+sent="Wed, 20 Nov 2002 22:51:31 -0500"
+isosent="20021121035131"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="Submitting lock tokens without a validity check"
+id="E4F2D33B98DF7E4880884B9F0E6FDEE20108128C@SUS-MA1IT01"
+expires="-1"
+
+
+To:"'Webdav WG'"<w3c-dist-auth@w3c.org>
+
+One of the topics discussed at this weeks WebDAV working group meeting
+was how to provide a mechanism that would allow a client to submit a
+set of lock tokens without a validity check (i.e. the request could
+succeed even if some or all of those lock tokens have expired).
+Note that a client needs to submit an If header with etags with such
+a request, to avoid lock protection.
+
+There are currently two alternative proposals for this (the semantics
+of these two proposals are identical, so this is a marshalling question):
+
+Proposal One: Extend the If header so that it can take a comma
+separated list of arguments (and therefore can be split into multiple
+If statements).  To submit a set of lock tokens without a validity
+check, the following pattern would be used:
+
+  If: urlA (tokenA [etagA]) (Not tokenA [etagA])
+  If: urlB (tokenB [etagA]) (Not tokenB [etagB])
+  ...
+
+Proposal Two: Add a new header for a comma separated list of lock
+tokens that indicate possession of the lock token but do not cause the
+request to fail if they are invalid (I neglected to write down the
+proposed name, so I'll just call it New-Header).  Since the etag list
+can be long when the client holds a large number of locks, the
+extension defined in alternative one is also required, to handle the
+possibly large number of etags.  The pattern of usage for this
+proposal would be:
+
+  New-Header: tokenA
+  If: urlA ([etagA])
+  New-Header: tokenB
+  If: urlB ([etagB])
+  ...
+
+
+Advantage of proposal 1:
+
+- It does not require defining an extra header.
+
+Advantage of proposal 2:
+
+- It requires 40% fewer strings per resource (3 non-constant strings
+instead of 5 non-constant strings).  Lisa: You calculated that
+proposal one requires four times as many non-constant strings ... how
+did you get that number?
+
+
+I believe that it is not appropriate to add a new header to the protocol
+just to decrease the header length for this particular use case by 40%.
+
+I am particularly disinclined to optimize this kind of request,
+because I believe that it is significantly simpler for a client to
+use a standard If header, and if locks have expired, the request
+fails, the client deletes from its state those expired locks, and then
+resubmits the request, replacing the expired locks with etags.  This
+allows the client to just issue very simple If header requests,
+i.e. if the lock token for urlA is still valid but the lock token for
+urlB has expired:
+
+If: urlA (tokenA)
+If: urlB ([etagB])
+
+Cheers,
+Geoff
+
+
+

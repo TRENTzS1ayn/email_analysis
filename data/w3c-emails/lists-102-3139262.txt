@@ -1,0 +1,65 @@
+docno="lists-102-3139262"
+received="Mon May  4 09:49:07 1998"
+isoreceived="19980504134907"
+sent="Mon, 4 May 1998 23:48:10 +1000"
+isosent="19980504134810"
+name="David Peterson"
+email="david.peterson@iname.com"
+subject="Re: Hello and NodeIterator Revisited"
+id="002501bd7763$4aedad80$0300a8c0@david"
+charset="iso-8859-1"
+inreplyto="Hello and NodeIterator Revisited"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+Hi all,
+
+I had one thought on the whole 'multiple live iterators clogging up memory'
+problem - perhaps the NodeIterators passed from getNodes() or
+getNodeIterator() or whatever it is this round return a 'throw away'
+iterator that maps back to a single NodeIterator that actually contains the
+child Nodes.  Eg.
+
+public class ThrowAwayNodeIterator implements NodeIterator()
+{
+    private NodeIterator realIterator;
+    private Node current;
+
+    public ThrowAwayNodeIterator(NodeIterator real)
+    {    realIterator = real;    }
+
+    public Node toFirst()
+    {    current = realIterator.toFirst();
+        return current;
+    }
+
+    public Node toNode(Node node)
+    {    current =  realIterator.toNode(node);
+        return current;
+    }
+
+    public Node toNext()
+    {    realIterator.toNode(current);
+        current = realIterator.toNext();
+        return current;
+    }
+    // etc.
+}
+
+The main problem is that for toNext and toPrevious, you have to call
+realIterator.toNode(current) - which may or may not be efficient, but it
+cuts down on keeping every Iterator created in sync (since there is only one
+iterator with actual nodes), as well as meaning you can forget about it
+later.
+
+Another problem is if the Node stored as 'current' gets deleted, and toNext
+is called, the call to realIterator.toNode(current) will make the call to
+toNext _very_ unreliable.  Back to the old 'what happens when it's deleted'
+problem - which I haven't seen a good solution for yet.  Ah well.
+
+David Peterson
+
+
+

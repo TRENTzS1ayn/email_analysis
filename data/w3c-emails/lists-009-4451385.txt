@@ -1,0 +1,107 @@
+docno="lists-009-4451385"
+received="Fri Mar 24 05:55:16 1995"
+isoreceived="19950324105516"
+sent="Fri, 24 Mar 1995 13:48:18 +0000"
+isosent="19950324134818"
+name="Owen Rees"
+email="rtor@ansa.co.uk"
+subject="Re: v10-spec00 comments"
+id="9503241348.AA06845@plato.ansa.co.uk"
+charset="usascii"
+inreplyto="9503232226.aa16431&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+"Roy T. Fielding" <fielding@avron.ICS.UCI.EDU> writes:
+> > > 4.3.3 Message-ID
+> > 
+> >   The first paragraph specifies that this is a unique identifier
+> > for the message, presumably the HTTP request or response
+> > message. The final paragraph says that an HTTP response should
+> > only include a Message-ID header if the entity has one. Since it
+> > is possible to retrieve a Mail/News message more than once, the
+> > HTTP Message-ID cannot be the Message-ID of the enclosed entity as
+> > this would violate the unique identification property for the HTTP
+> > response message.
+> 
+> No it would not.  There is only one message in that case.  This situation
+> is identical to the handling of messages by proxies.
+
+Here is the problem scenario:
+
+Charles sends one piece of e-mail to both Alice and Bob, Charles' MUA assigns 
+Message-ID M to this message.
+Alice retrieves her e-mail via proxy AP1 to gateway AG.
+Bob retrieves his e-mail via gateway BG.
+
+HTTP traffic (without authentication):
+
+1  Alice->AP1 request  GET uri-for-the-mail(via-AG)
+2  AP1->AG    request  GET uri-for-the-mail; Forwarded: AP1 for Alice
+3  AG->AP1    response Message-ID: M3 <the mail>
+4  AP1->Alice response Forwarded: AP1 for AG;Message-ID: M4 <the mail>
+5  Bob->BG    request  GET uri-for-the-mail
+6  BG->Bob    response Message-ID: M6 <the mail>
+
+Note that M3=M4=M6=M and "is a unique identifier which can be used for 
+identifying the message (not its contents)" if the implied copying of M out of 
+the mail headers is done.
+
+AP1 is supposed to add a Forwarded header so message 4 is not the same 
+"structured sequence of octets" (i.e. message as defined in 1.3) as message 3.
+
+Since the email arriving at AG and BG will have different Received headers (if 
+transmitted by SMTP), messages 3 and 6 cannot have the same "structured 
+sequence of octets" unless these headers are stripped out, along with anything 
+else that may have been added (what if Bob's copy was Resent-To him by Diana, 
+those headers had better go too!).
+
+Even if AG and BG are the same host and the mail transport notices this and 
+sends one copy so that the Received headers have the same timestamps, the 
+sameness requirement prohibits the use of the Digest-MessageDigest header in 
+the response if digest access autentication is being used in the interaction 
+with the gateway.
+
+Tracing messages through chains of proxies has been suggested as a reason for 
+having Message-ID, but consider what happens if Bob also uses AP1, but as a 
+proxy to BG. We now have a situation where AP1 handles two response chains, 
+AG->AP1->Alice and BG->AP1->Bob, but both are labelled with the same 
+Message-ID.
+
+> > 7.1.1 Allow
+> > 
+> > I would have classified this as a response-header rather than an 
+> > entity-header; it is required with 405 Method Not Allowed and will not be 
+> > meta-information about the entity containing an explanation of the error.
+> 
+> Unless it is included in a PUT or POST of a new resource.
+
+PUT perhaps, but not POST. In a POST, the entity body is to be made 
+subordinate to the resource identified by request-URI. It may be convenient to 
+simultaneously attach a subordinate and specify methods that are to be allowed 
+on the resource to which it is to be subordinate, but if this is the intent it 
+needs to be made clearer. If the Allow is intended to apply to the entity-body 
+in a POST, then the URI-header rather than the Request-URI identifies the 
+resource.
+
+With PUT, Allow would be an entity-header specifying the methods to be 
+supported. If this is a current use, then it should be explained.
+
+In a 405 response, Allow is meta-information about the resource identified by 
+the Request-URI, it is not meta-information about the entity-body in the 
+response.
+
+There seem to be two distinct uses of Allow: information from a server about 
+an existing resource, and request parameter from a client when sending a 
+resource. The union of these usages does not fit the header taxonomy, so I 
+assume that using the same header name for both purposes is a consequence of 
+current usage.
+
+Regards,
+  Owen Rees <rtor@ansa.co.uk>
+Information about ANSA is at <URL:http://www.ansa.co.uk/>.
+
+
+

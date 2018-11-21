@@ -1,0 +1,98 @@
+docno="lists-097-3510501"
+received="Sun Mar 24 17:20:52 2002"
+isoreceived="20020324222052"
+sent="Sun, 24 Mar 2002 17:20:50 -0500"
+isosent="20020324222050"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="annotea HTTP library changes"
+id="20020324172007.A26824@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:www-annotation@w3.org, Art Barstow<art.barstow@nokia.com>
+
+
+This text describes some annotea protocl issues and the affects on
+deployed clients. Users of the annotea servlet [1] may wish to read a
+section at the bottom: Deprecated Protocol.
+
+The library that annotea uses to get HTTP protocol data (ie, the query
+strings, POST data, etc.) was getting clouded in heuristics. In the
+process of overhauling, I uncovered some annotea protocol issues:
+
+The are two encodings for POSTed annotations, application/xml and
+url-encoded. The url-encoded format expects a w3c_annotate parameter
+with a value of the RDF/XML-encoded annotation. In addition, it
+permits the passing of additional parameters, for instance
+replace_source and rdfType for replacing annotations.
+
+application/xml data is defined to be the w3c_annotate parameter.
+Additional parameters may be encoded as CGI parameters appended to
+the annotate script's URL.
+
+There is a lack of parallelism in this situation. url-encoded data
+requires a parameter name for the submitted RDF while the application/
+xml data has a defined parameter assignment for the payload. One way
+to view this is, application/xml requires auxilliary communication of
+additional parameters while application/x-www-form-urlencoded imposes
+an additional layer of encoding, capable of communicating an arbitary
+number of parameters.
+
+It would be possible to defined the protocol such that the payload of
+url-encoded messages would be assumed to be the w3c_annotate parameter
+and that all auxiliary parameters be passed in the POST URL (as is
+done with application/xml data). I believe this would be ill-advised
+as rfc1866 states that url-encoded data is {parameter: value} pairs.
+
+from rfc1866 [2]:
+8.2.1. The form-urlencoded Media Type
+
+   The default encoding for all forms is `application/x-www-form-
+   urlencoded'. A form data set is represented in this media type as
+   follows:
+
+        1. The form field names and values are escaped:
+...
+
+rfc1866 does not address the issue of mixing POST and GET data (ala
+the application/xml data POSTed to create annotations) as it is
+primarily an HTML language specification. This mixing is not possible
+with HTML forms.
+
+If we were to decide that we needed a way to encode multiple parameters
+in the application/xml data, we could use something like SOAP [3] or
+parseType=Literal [4] or reification or maybe just use magic.
+
+
+Deprecated Protocol:
+The current implementation of the annotea servlet sends a url-encoded
+payload with no parameter name. This special case is handled by the
+annotea script:
+    # @@@ temporary hack to deal with clients that POST urlencoded data without CGI parms
+    if ($ENV{'REQUEST_METHOD'} eq 'POST' && 
+$ENV{CONTENT_TYPE} eq 'application/x-www-form-urlencoded' && 
+$self->{READ}->getPOST() =~ m/^<\?xml/) {
+$ENV{CONTENT_TYPE} = 'application/xml';
+$self->{RDF_INPUT} = &CGI::unescape($self->{READ}->getPOST());
+# this hack requires the parms be ignore (as they are garbage).
+return;
+    }
+I wish to remove this code once the clients using that protocol are
+updated. Other than the annotea servlet, what other apps use un-
+parametered names in url-encoded POST bodies?
+
+
+[1] http://www.w3.org/2001/Annotea/Bookmarklet/Annotea-JavaScript
+[2] http://www.ietf.org/rfc/rfc1866.txt
+[3] http://www.w3.org/TR/soap12-part0/
+[4] http://www.w3.org/TR/1999/REC-rdf-syntax-19990222/#parseResource
+-- 
+-eric
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

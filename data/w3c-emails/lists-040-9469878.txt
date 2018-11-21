@@ -1,0 +1,163 @@
+docno="lists-040-9469878"
+received="Fri Jun 29 10:52:59 2001"
+isoreceived="20010629145259"
+sent="Fri, 29 Jun 2001 10:59:24 -0400"
+isosent="20010629145924"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Status code for creating lock-null resource"
+id="3906C56A7BD1F54593344C05BD1374B103770D0C@SUS-MA1IT01"
+inreplyto="Status code for creating lock-null resource"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+I think the only thing that currently separates what Dan and I
+prefer is the "explicit initial resource creation".  So at the
+risk of being repetitive, I'll try to give a detailed response
+to Dan's message on this issue.
+
+   From: Dan Brotsky [mailto:dbrotsky@Adobe.COM]
+
+   At 11:00 PM -0400 6/27/01, Clemm, Geoff wrote:
+   >    From: Dan Brotsky [mailto:dbrotsky@Adobe.COM]
+   >    ... it doesn't allow users to
+   >    simultaneously create and LOCK resources for further editing, which
+   >    bothers me.
+   >Could you expand on why this bothers you?
+
+   There are actually three reasons:
+
+   1. Because it sets you up for ambiguity and race conditions by 
+   breaking a single user-conceptual operation (beginning to edit a new 
+   resource) into two protocol operations (PUT and LOCK).
+
+The conceptual operation is probably "get me the locked
+content and properties of this resource so I can edit them".
+This will be at least 3 client requests (LOCK, GET, PROPFIND),
+so making it be 4 client requests (PUT, LOCK, GET, PROPFIND) is
+not qualitatively different.
+
+   A client that 
+   wants to create and edit a new resource will go through a 
+   conventional sequence such as HEAD (to verify the URL as unmapped), 
+   PUT (to create the resource), and LOCK (to reserve the resource for 
+   editing).
+
+No need for the HEAD/PUT ... just the PUT/If-None-Match:* is sufficient.
+
+   This conflicts not only with itself but with the conventional
+   sequence for editing an existing resource is LOCK / GET (LOCK first
+   to make sure the GET content is the latest content).
+
+I don't see that prefixing the LOCK/GET with a PUT/If-None-Match:*
+would conflict with anything.
+
+   This gives rise to two canonical problem cases:
+
+   a. If I'm creating and editing a new resource, and you are editing a 
+   resource but specify my name by mistake, then my client has to deal 
+   with the unexpected (and meaningless at the user level) case where I 
+   successfully create the resource but then can't edit it, and your 
+   client has to deal with the unexpected (and meaningless at the user 
+   level) case where you open a resource to edit it only to find that 
+   it's empty or doesn't contain anything like what I was expecting.
+
+The user does not see any of this.  Your client just issues an initial
+PUT/If-None-Match:*, and then ignores the result (your client doesn't
+care if it ended up creating an empty resource with this request or
+not ...  it just wants to make sure it can lock that URL).  From the
+user's perspective, it either succeeds, and you have the lock, or it
+fails because somebody else has that URL locked (and it doesn't really
+matter to the client that the LOCK by that other client was done weeks
+ago, or was done a millesecond ago).
+
+   b. If we're both trying to create and edit the same (new) resource, 
+   and my PUT precedes yours but my LOCK follows yours, then once I've 
+   obtained the LOCK I find that the etag on the resource is different 
+   than the one I got back from my PUT.
+
+You don't care at all what the response from the PUT/If-None-Match:*
+request was.  You only care what the response is from the LOCK request.
+
+   This is the canonical 
+   client-side warning sign that I'm in a race with someone else, and I 
+   have to stop and make sure that I pull down the current content.
+
+No race condition here because you don't pull down the current content
+until you have the lock.
+
+   At 
+   that point, unless you and I were using the same "template" resource 
+   in our initial PUTs, I've got a real problem.  I either have to blow 
+   away your edit (which I'm not entitled to do under normal 
+   circumstances) or I need to give up my lock.
+
+You have exactly the same failure case if your lock succeeds and there
+already was a resource there.  It doesn't matter if the resource got
+there a millisecond ago or a few weeks ago.
+
+   But by then your LOCK 
+   has failed, so you've figured out that someone else is creating the 
+   resource and you've given up.
+
+You don't care that someone else is creating the resource ... you only
+whether someone else has that resource locked.
+
+   2. Because there's no well-defined way for PUT to reliably create a 
+   no-content resource, which is the kind I claim you want to be 
+   creating when you're creating a new one but don't have content for it 
+   yet.  Most servers given a PUT of 0 length create a 0-length 
+   resource, which is quite a different thing than a no-content one.
+
+If a no-content resource can morph into any kind of resource, then
+it is difficult to implement (most repositories have no such resource).
+If it cannot morph into any kind of resource, then I do not see
+an important reason to distinguish a new no-content resource from
+a new 0-length resource.
+
+   3. Because doing a PUT and then a LOCK and then (eventually) another 
+   PUT forces you to make *two* updates to the resource rather than one, 
+   and the controlling server may not actually want to authorize that. 
+   (For example, workflow servers often want to send things off for 
+   approval, etc., each time they are updated.)
+
+How can something be sent off for approval unless there is a way
+for me to store what I want on the server so that it can be approved?
+
+   So let me ask you the converse question: You seem to be worried by
+   the fact that we don't know what kind of resource (collection or
+   not) the new resource is going to be.  What's the problem with
+   letting the new resource start out as a no-content non-collection
+   and then be made into a collection?
+
+None of my repositories have a resource that has that behavior.
+This means that I have to figure out a way to simulate such a
+resource, and have to make sure that the locking semantics is
+satisfied by all the other protocols that I currently implement
+on my repository.  It is very likely that we would make the same
+choice made by most servers today wrt LNR's, namely simply be
+non-compliant with the protocol unless a compelling use case
+motivated us making this fairly major effort.
+
+   Note that in both of our proposals the same requests are 
+   made---either a PUT or a MKCOL and a LOCK.  It's just that in my 
+   version the LOCK comes first (a la the LOCK / GET sequence that 
+   initiates an edit).  And in my version the client doesn't have to 
+   figure out whether the resource exists before initiating the 
+   sequence: all edits (of both existing and new resources) start out 
+   with a LOCK / GET, and in the case of the create the LOCK comes back 
+   with a 201 which tells the client that the GET would return a 204 
+   (and thus there's no reason to issue it).
+
+I agree that your proposal would allow the client to omit the
+initial PUT/If-None-Match:*, but adding that call in our clients
+is trivial compared to the cost of implementing resources that
+are locked but can morph to any resource type when first updated.
+
+Cheers,
+Geoff
+
+
+

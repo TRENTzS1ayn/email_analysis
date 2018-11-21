@@ -1,0 +1,178 @@
+docno="lists-010-14164551"
+received="Mon Dec 23 04:49:26 1996"
+isoreceived="19961223094926"
+sent="Mon, 23 Dec 1996 13:30:14 +0100 (MET)"
+isosent="19961223123014"
+name="Anselm Baird_Smith"
+email="abaird@www43.inria.fr"
+subject="CacheControl directive, semantics"
+id="199612231230.NAA28227@www43.inria.fr"
+inreplyto="9612201913.AA20214&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Jeffrey Mogul writes:
+ > I'll take you up on your offer to help ... if you can figure out
+ > how to add these to the table, please do so.  It would be nice if
+ > it still fits in a 72-column fixed-width format, because then I
+ > can stick it into an Internet-Draft without any glitches.
+
+No wonder my implementation of HTTP/1.1 caching proxy is wrong. I had
+a real hard time trying figuring out the semantics and interactions
+of all the caching rules express in draft 07 (I should have checked
+this before). 
+
+For my own sanity, I have tried to build up a richer table (it may be a
+mistake). The most difficult part in the exercise was to find an
+appropriate layout for the tables (I really don't want to miss some
+cases). I would rather have taken a top down approach (define the
+cases, and see how they are expressed through HTTP/1.1), but for the
+time being, I tried the bottom up approach (given cache-control
+directives, define the semantics).
+
+If you find any cases missing, or if they are any mistakes, please let
+me know so that I can fix my implementation before it's too late. 
+
+Thanks for your attention,
+Anselm.
+
+---------- 
+My first table defines a "fresh" function, which returns a boolean,
+and which takes as parameters:
+
+Ar: The max-age value specified in the request
+Sr: The max-stale value specified in the request
+Fr: The min-fresh value specified in the request
+
+Ap: The max age value of the reply (expressed either through the
+    max-age directive, or the expires header)
+
+Ae: The current entity age, computed as defined in section 13.2.3
+
+This table defines the "fresh" function, along with any warnings to be
+emitted when needed. Warnings accumulate: if, further on, this
+document define some cases where warnings are required, then the
+warnings should be aggregated, and all of them should be emitted.
+
++-----------------------------------------------------------------------+
+|         Request     |     Reply      | fresh           | warnings     |
+| max | max   | min   |    max-age     |                 |              |
+| age | stale | fresh |(or)expires     |                 |              |
++-----+-------+-------+----------------+-----------------+--------------+
++  *  |   *   |   *   |       Ap       | Ae<Ap           |   13?        |
++-----+-------+-------+----------------+-----------------+--------------+
++ Ar  |   *   |   *   |       Ap       | Ae<Ar && Ae<Ap  |   13?        |
++-----+-------+-------+----------------+-----------------+--------------+
++  *  |   Sr  |  NA   |       Ap       | Ae<Ap+Sr        |Ae<Ap=>10,13? |
++-----+-------+-------+----------------+-----------------+--------------+
++  *  |   *   |  Fr   |       Ap       | Ae+Fr<Ap        |  13?         |
++-----+-------+-------+----------------+-----------------+--------------+
++  *  |   *   |   *   |  (undefined)   | Ae < Ap         |  13?         |
++-----+-------+-------+----------------+-----------------+--------------+
++ Ar  |  Sr   |  NA   |       Ap       |Ae<Ap+Sr && Ae<Ar|Ae<Ap=>10,13? |
++-----+-------+-------+----------------+-----------------+--------------+
++ Ar  |  NA   |  Fr   |       Ap       |Ae+Fr<Ap && Ae<Ap|  13?         |
++-----+-------+-------+----------------+-----------------+--------------+
++  0  |  NA   |  NA   |       Ap       | false           |  13?         |
++-----+-------+-------+----------------+-----------------+--------------+
+
+* : undefined (has no value)
+NA: Not applicable
+
+The "loose" function is true when "fresh" is true and a warning is
+defined.
+
+Given that definition of the fresh and loose functions, I then tried
+to rebuild Jeff's table, inverting the layout, though (to make sure
+all cases where available at a glance). This now defines the "valid"
+function:
+
+The valid row returns a boolean, indicating wether the cached reply
+can be used to answer the given request. It also adds one or more of
+the following comments in parenthesis:
+
+NC: not cached (in that situation, the reply should not even be cached)
+ii: The class of the warning to be emitted.
+
+The "Cache site" is overloaded: it can be either the type of cache, or
+the number of a section in the HTTP/1.1 spec (draft v07), that defines
+that configuration.
+
+F: is the result of the "fresh" function as defined above
+L: is the result of the "loose" function as defined above
+
+C: means that a check (revalidation or more) must be performed to the
+   origin server
+U: means that the cached reply can be used as is.
+
++--------+
+| Cache  |
+| site   | public | private | must-reval | proxy-reval | hasAuth | valid
++--------+--------+---------+------------+-------------+---------+-----------
+| shared |   *    |    *    |     *      |     *       |   *     | F?U:C
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.9.4 |   *    |    *    |     *      |     X       |   *     | F&&!L?U:C
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.9.4 |   *    |    *    |     X      |     *       |   *     | F&&!L?U:C
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.8   |   *    |    *    |     *      |     *       |   X     | (NC)
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.8/1 |   *    |    *    |     *      |     X       |   X     | C
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.8/3 |   X    |    *    |     *      |     NA      |   X     | F?U:C
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.9.1 |   NA   |    X    |     ?      |     NA      |   ?     | (NC)
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.9.1 |   X    |    *    |     *      |     NA      |   ?     | F?U:C
++--------+--------+---------+------------+-------------+---------+-----------
+| priv   |
++--------+--------+---------+------------+-------------+---------+-----------
+| 14.8/2 |   *    |    *    |     *      |     X       |   X     | C
++--------+--------+---------+------------+-------------+---------+-----------
+| All remaining cases obtained by swapping <public>, <private> and 
+| <must-reval>, <proxy-reval>, keeping valid constant.
++--------+--------+---------+------------+-------------+---------+-----------
+| discon |                                                         (12)
+ <to be specififed>
+
+
+Some comments on the spec:
+
+- 14.8/1 changes the general semantics of proxy-revalidate, when an
+  authorization field is present. It also probably assumes that a proxy
+  is a shared cache, while a "cache" is a single client cache.
+- [a question] 14.9.4 says under "End to end reload" that "... No
+  field names may be included with the no-cache directive in a
+  request". I assume an "In that case, " is implicitly assumed at the
+  beginning of the sentence ? [I can see good reasons for using
+  no-cache with field names in a request, as does]
+- In general, understanding HTTP/1.1 caching rules requires tricky
+  navigation between sections 13 and 14.8 and 14.9; I often feel
+  uncomfortable because when I read one, I am afraid that the other
+  changes the semantics (not to mention interactions with
+  negotiation).
+- BTW State management also got "proxy-revalide" wrong (I guess):
+
+   --- state management, draft, v05; section 4.2.3 -----
+   The origin server should send the following additional HTTP/1.1 response
+   headers, depending on circumstances:
+   
+      * To allow caching of a document and require that it be validated
+before returning it to the client: Cache-control: must-revalidate.
+   
+      * To allow caching of a document, but to require that proxy caches
+(not user agent caches) validate it before returning it to the
+client: Cache-control: proxy-revalidate.
+   
+   ---
+
+The first point here, seems to rely on the fact that
+must-revalidate/proxy-revalidate is interpreted as "*always*
+revalidate the document before returning it"; which was my
+interpretation when I implemented Jigsaw proxy.
+
+
+

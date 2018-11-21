@@ -1,0 +1,204 @@
+docno="lists-046-2743424"
+received="Thu Jan 24 15:03:47 2002"
+isoreceived="20020124200347"
+sent="Thu, 24 Jan 2002 20:03:43 +0000"
+isosent="20020124200343"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: History: Question on C14N list of nodes instead of subtrees"
+id="20020124200343.B3F2F43C56@yog-sothoth.ie.baltimore.com"
+inreplyto="7874BFCCD289A645B5CE3935769F0B520C3509&#64;tigger.PureEdge.com"
+expires="-1"
+
+To:"John Boyer"<JBoyer@pureedge.com>
+Cc:reagle@w3.org,w3c-ietf-xmldsig@w3.org
+
+
+
+Hi John,
+
+r/JBoyer@pureedge.com/2002.01.24/10:58:12
+>Your point on the complexity of the expression to be evaluated is
+>well-taken.  One point of interest however, is that the bound is not,
+>strictly speaking, O(log n).  In the worst case it can be very much
+>worse, but cases in practice it is likely to be very much better than
+>O(log n).  The reason is that XML documents tend to lack depth relative
+>to the number of nodes.  The O(log n) rating would only apply in cases
+>where a constant branching factor is guaranteed in the parse tree,
+>whereas nodes in real XML documents tend to have lots more siblings than
+>descendants.
+
+Right, I was talking in terms of a "mathematically average"
+document, whatever that means. FWIW, a "simple" signature
+has 21 nodes and depth 6.
+
+>Perhaps more to the point, Donald Eastlake's recent communications with
+>me are most instructive.  In them, he pointed out alternatives to some
+>of my earlier expressions, which were a bit kludgy because I knew a lot
+>less about XPath back when they were created.  The predicate you
+>mentioned:
+>
+>  count(id('to-be-signed') | ancestor-or-self::node()) =
+>    count(ancestor-or-self::node())
+>
+>permits only those nodes whose ancestor count is equal to the ancestor
+>count plus a particular node identified by id.  In other words, the
+>predicate permits a node identified by id and the node's descendants.  I
+>came up with this before I really understood the issues in capturing
+>namespace and attribute nodes (in the ancestor direction, namespace and
+>attribute nodes take element parents, but these types of nodes do not
+>register as 'children' of that element so the descendant-or-self::node()
+>test does not match them).  Only later did I discover the //@* and
+>//namespace::* notation when trying to find some way of expressing the
+>default expression for canonicalization, which should be default include
+>all nodes.  Donald combined this with the notion of using the id
+>function to obtain a subtree root, resulting in the logically equivalent
+>expression:
+>
+>(id('to-be-signed')//. | id('to-be-signed')//@* |
+>id('to-be-signed')//namespace::* )
+>
+>Presumably, the id function will be backed by a hash table, providing
+>constant expected time lookup of the subtree root.  The next step after
+>each id() function invocation calls for a linear time traversal of the
+>subtree, performing a constant time test at each node.  Finally, as long
+>as the union operations are done intelligently as merge operations, the
+>whole thing comes out as worst case O(n) where n is the number of nodes
+>in the subtree (not in the document!).  This should be remarkably
+>faster.
+
+The problem is that XMLDSIG does not utilise XPath in this
+manner; it uses the XPath expression as a boolean test for
+each node in the input set, so the expression above will
+evaluate to true for every node in the document (presuming
+there exists an element of such ID).
+
+If we formulate a new XMLDSIG XPath intersection transform
+then we can use these expressions to solve some problems
+more efficiently.
+
+>As for the other larger expression you included below, I could benefit
+>from a thorough description of its context as there *may* be a way to do
+>it more efficiently, but I'm a little short of time and it is not
+>immediately obvious exactly what it is doing.  Give me a bit more
+>context, and I'll bang around in the XPath spec a bit more and see if
+>something pops out.  It looks like you are trying to exclude a subtree
+>rather than include a subtree, in which case it may be hard to come up
+>with something because XPath has no native support for set subtract or
+>intersect.  We may have to get creative (add a function or something).
+
+I believe that the earlier expression is trying to sign
+a portion of the XML document relative to the signature:
+
+<aida:eDocument>
+  <aida:signedContent>
+    ...
+  </aida:signedContent>
+  <dsig:Signature>
+    ...
+    URI=""
+    ...
+    <XPath>
+count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespace::*) |
+self::node()) =
+count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+ere()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespace:: *))
+    </XPath>
+  </dsig:Signature>
+</aida:eDocument>
+
+Here he is trying to sign just the aida:signedContent element
+and its children without using IDs. There is no way to formulate
+this given our current XPath filter without an "average" cost
+of log(n) per node in the input set because you'll always
+have to check each node's ancestry.
+
+Merlin
+
+>Cheers,
+>John Boyer
+>PureEdge Solutions Inc.
+>
+>
+>
+>
+>>r/JBoyer@pureedge.com/2002.01.23/15:15:35
+>>>Finally, as to the speed issue that the originator is experiencing, I'd
+>>>say he is suffering from a non-optimized implementation.  The reason is
+>>>that an O(n) traversal of the nodes of a parse tree is sufficient for
+>>>including all such nodes in a node-set.  Since all members of the
+>>>node-set will be rendered in a serialization, the cost is O(n).  Thus,
+>>>the cost of putting all nodes in a node-set should (or can at least) be
+>>>commensurate with serialization.  If it is taking progressively longer
+>>>to calculate the node-set as the XML document grows, then the XPath
+>>>implementation needs to be optimized.  Alternately, we only require
+>>>behavior equivalent to the evaluation of the (//. | //@* |
+>>>//namespace::*) expression.
+>>
+>>The cost is more like O(n log(n)) because our use of XPath
+>>as a per-node filter often requires evaluating, for each
+>>node in the document, something along the lines of:
+>>
+>>  count(id('to-be-signed') | ancestor-or-self::node()) =
+>>   count(ancestor-or-self::node())
+>>
+>>Here, ancestor-or-self is going to be an O(log(n)) operation.
+>>
+>>In the originator's case he is trying to do an XPointer
+>>and winding up with:
+>>
+>>URI="", XPath=
+>>count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//
+>>. |
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespa
+>>ce::*) |
+>>self::node()) =
+>>count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//
+>>. |
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+>>ere()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespac
+>>e:: *))
+>>
+>>This is O(log(n)) per node in the document (and you have to admit
+>>that there is going to be a hefty constant in front of that O),
+>>which is painful as the document size grows.
+>>
+>>One option (off the top of my head, so I've not given it mich
+>>thought) would be to introduce a new XPath intersection transform:
+>>
+>><Transform
+>>Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116#intersection">
+>>  <XPath>
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+>>here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespa
+>>ce::*
+>>  </XPath>
+>></Transform>
+>>
+>>The result of this would be the intersection of the input node
+>>set and the node set that results from evaluating the transform.
+>>
+>>This would be entirely XPath based (no need for XPtr), and
+>>would drop things to O(n) (with a significantly-reduced
+>>constant) for doing signature-relative operations.
+>>
+>>Merlin
+
+
+-----------------------------------------------------------------------------
+Baltimore Technologies plc will not be liable for direct,  special,  indirect 
+or consequential  damages  arising  from  alteration of  the contents of this
+message by a third party or as a result of any virus being passed on.
+
+This footnote confirms that this email message has been swept by
+Baltimore MIMEsweeper for Content Security threats, including
+computer viruses.
+   http://www.baltimore.com
+
+
+

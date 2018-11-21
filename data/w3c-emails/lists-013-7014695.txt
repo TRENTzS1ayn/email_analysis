@@ -1,0 +1,134 @@
+docno="lists-013-7014695"
+received="Fri Apr 30 17:18:27 2004"
+isoreceived="20040430211827"
+sent="Fri, 30 Apr 2004 14:03:51 0700"
+isosent="20040430210351"
+name="Lisa Dusseault"
+email="lisa@osafoundation.org"
+subject="Re: PATCH thoughts..."
+id="E214FC72-9AE9-11D8-8BCF000A95B2BB72@osafoundation.org"
+charset="USASCII"
+inreplyto="200404302034.i3UKYJlu015573&#64;wera.hpl.hp.com"
+expires="1"
+
+
+Cc: HTTP working group<ietf-http-wg@w3.org>, Jamie Lokier<jamie@shareable.org>, Justin Chapweske<justin@chapweske.com>
+To: Jeffrey Mogul<Jeff.Mogul@hp.com>
+
+
+I originally thought all HTTP messages with bodies needed to indicate 
+Content-Type.
+I assumed that if the Content-Type header were used then that was the
+obvious place to say what diff format is being provided.  Thus PATCH
+has currently:
+
+     PATCH /file.txt HTTP/1.1
+     Host: www.example.com
+     Content-Type: application/gdiff
+     If-Match: "e0023aa4e"
+     Content-Length: 100
+
+    [body]
+
+However, clearly RFC3229 doesn't take that approach -- some responses 
+are
+shown with bodies (implied) but with only a Content-encoding header to 
+indicate
+that there's even a body on the message.  Modelling on the RFC3229 
+approach,
+PATCH could look like this instead:
+
+       PATCH /file.txt HTTP/1.1
+       Host: foo
+       If-Match: "def"
+       Content-encoding: gzip
+       IM: vcdiff
+
+     [body]
+
+Now that I've reviewed this part of 2616 more carefully, it seems 
+RFC32229
+takes a justified approach.  RFC2616, section 7.2.1 only requires 
+Content-Type
+for entity bodies, not for other non-entity request bodies:
+
+    When an entity-body is included with a message, the data type of that
+    body is determined via the header fields Content-Type and Content-
+    Encoding.
+
+WebDAV seems to have interpreted this requirement more broadly,
+as if it were worded  "When a body is included with a message, ..."
+For example, PROPFIND requests contain a body that is not an entity 
+body,
+but instead additional command detail.  Since the body must be XML, each
+PROPFIND request has the "Content-Type: application/xml" header.
+Implementors also seem to have interpreted this requirement broadly.
+I know of server implementations that do not expect to see a message 
+body
+if the Content-Type header is missing and they interpret the body, if 
+sent,
+as the next request.
+
+One compromise is to inlude Content-Type with a reasonably appropriate
+MIME type, but one that doesn't need to specify the diff format used.
+
+       PATCH /file.txt HTTP/1.1
+       Host: foo
+       If-Match: "def"
+       Content-encoding: gzip
+       IM: gdiff
+       Content-Type: application/octet-stream
+
+     ...
+
+This certainly routes around the MIME registration issue and may be
+preferable.  I have no strong opinions on that.
+
+Lisa
+
+
+On Apr 30, 2004, at 1:34 PM, Jeffrey Mogul wrote:
+
+>     So please voice your opinions on this issue to help me off this 
+> fence.
+>     Should PATCH require support for one diff format, and if so, what?
+>     Should it use MIME types or strings to identify diff formats?  
+> Should
+>     it register MIME types for VCDiff and/or GDiff (ouch)?
+>
+> Please bear with me if I'm just being ignorant ... I haven't read
+> much of the WebDAV spec, especially not within the last couple
+> of years (and I certainly don't have time to read it now).
+>
+> But why should this be a MIME type at all?  HTTP has a clear
+> distinction between MIME _content_ types (I emphasize the
+> word _content_ here) and several _separate_ name spaces for
+> representations used for on-the-wire encodings.  These
+> include content-codings and content-transfer-codings in
+> RFC2616, and RFC3229 introduces "instance-manipulations"
+> as a third (orthogonal) space.
+>
+> I can assure you that we did not do this just to make more
+> work for IANA.
+>
+> I can anticipate an argument along the form of "why create
+> a new namespace when an existing one is almost the right
+> thing?".  This is very dangerous; "almost the right thing"
+> can lead to extremely messy workarounds.
+>
+> For example, with delta encoding, our original thought
+> was that this is "obviously just a new content-coding".
+> We then spent months thrashing around how to deal with
+> all of the resultant complexity that arises when you try
+> to do this and compose delta encoding with things like
+> compression and byte ranges.  It was only after the "aha"
+> that delta encoding was NOT the same as a content-coding
+> that we came up with a clear, clean design.
+>
+> There's some rationale for this in RFC3229, and some more
+> in my WWW 2002 paper (http://www2002.org/CDROM/refereed/444.pdf)
+>
+> -Jeff
+
+
+

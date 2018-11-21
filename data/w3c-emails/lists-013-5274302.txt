@@ -1,0 +1,89 @@
+docno="lists-013-5274302"
+received="Mon Sep  8 15:46:13 2003"
+isoreceived="20030908194613"
+sent="Mon, 8 Sep 2003 14:46:12 0500 "
+isosent="20030908194612"
+name="Adam Roach"
+email="adam@dynamicsoft.com"
+subject="Ambiguity with MD5sess and nextnonce"
+id="9BF66EBF6BEFD942915B4D4D45C051F3E86418@dyn-tx-exch001.dynamicsoft.com"
+charset="iso-88591"
+expires="1"
+
+
+To:"'ietf-http-wg@w3.org'"<ietf-http-wg@w3.org>
+
+
+In implementing MD5-sess, we've encountered some
+ambiguities with the interaction between MD5 sessions
+and nextnonce.
+
+The only description of signaling the end of an
+authentication session is in section 3.3. In particular,
+it says that an authentication session lasts until the
+client receives another WWW-Authenticate header.
+
+Presumably, the session ends at this point because
+the nonce has changed. Using this logic, the authentication
+session should also terminate if the client receives a
+response with an Authentication-Info header containing a
+nextnonce parameter.
+
+Termination of a session with nextnonce isn't mentioned
+anywhere, though -- so it's not clear whether this was
+the intention when the RFC was written. In particular, it's
+not clear to me what value changing a nonce within the
+same session would provide.
+
+To be specific, when using MD5-sess, the proper client
+behavior upon receiving nextnonce is not particularly clear.
+To illustrate the ambiguity, I'll demonstrate the exact
+issue with a use case.
+
+1) Client sends a request.
+
+2) Server challenges request, with an algorithm of "MD5-Sess".
+   We will call the nonce sent in this challenge "nonce-value-1".
+
+3) Client re-sends request, with response to challenge. This response
+   includes a cnonce, which we will call "cnonce-value-1". The
+   response is calculated as follows:
+
+   KD(H(unq(username-value) ":" unq(realm-value) ":" passwd)
+      ":" unq(nonce-value-1) ":" unq(cnonce-value-1),
+      unq(nonce-value-1) ":" nc-value ":" unq(cnonce-value-1) ":"
+      unq(qop-value) ":" Method ":" digest-uri-value)
+
+4) Server responds to request with a 200 response. This response
+   contains a new nonce in a nextnonce parameter. We will call
+   this value "nonce-value-2".
+
+5) Later, the client sends a second request. It preemptively includes
+   an "Authentication" header with a cnonce that we will call
+   "cnonce-value-2".
+
+Here's where the confusion lies. For the highest chance of success,
+should the client calculate the response-digest as:
+
+A) KD(H(unq(username-value) ":" unq(realm-value) ":" passwd)
+      ":" unq(nonce-value-1) ":" unq(cnonce-value-1),
+      unq(nonce-value-2) ":" nc-value ":" unq(cnonce-value-2) ":"
+      unq(qop-value) ":" Method ":" digest-uri-value)
+
+or as:
+
+B) KD(H(unq(username-value) ":" unq(realm-value) ":" passwd)
+      ":" unq(nonce-value-2) ":" unq(cnonce-value-2),
+      unq(nonce-value-2) ":" nc-value ":" unq(cnonce-value-2) ":"
+      unq(qop-value) ":" Method ":" digest-uri-value)
+
+The text in the document would support A (since only WWW-Authenticate
+ends an authentication session and H(A1) "is calculated only once" per
+authentication session), while B seems far more intuitive.
+
+So, what have people here actually implemented?
+
+/a
+
+
+

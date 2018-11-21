@@ -1,0 +1,135 @@
+docno="lists-009-14503121"
+received="Wed Dec 27 16:06:39 1995"
+isoreceived="19951227210639"
+sent="Wed, 27 Dec 95 15:56:09 PST"
+isosent="19951227235609"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 'PUT' transaction reconsidered (was Re: twophase send concerns )"
+id="9512272356.AA02930@acetes.pa.dec.com"
+inreplyto="199512272027.MAA16426&#64;geek.navisoft.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com,mogul@pa.dec.com
+
+A few weeks ago, I wrote:
+    Roy has taken a pessimistic approach to the byte-deluge problem.
+    In particular, every use of every method with a two-phase requirement
+    must pay either the arbitrary timeout period OR at least one
+    round-trip time.  In other words, by taking this approach, we
+    build in "extra" delay to every POST (etc.) invocation for millions
+    of users for many years.  Hmm.
+To which Roy responded:
+    Yes, this is an excellent analysis of the tradeoffs.  However, it
+    fails to consider that all of the two-phase methods are not
+    speed-dependent:  it is far more important to get it right the
+    first time (before data is sent across the wire, if possible) then
+    it is to save one or two round-trips.  Given that, it is okay to be
+    pessimistic and pay for that round-trip every time.
+
+I would like to dig a little deeper into this tradeoff before conceding
+that pessimism is preferrable to optimism.
+
+I should start with a quick summary of my proposed solution, which
+I will call the "optimistic two-phase" scheme:
+
+Initially, the client tries to use a one-phase PUT.  If the
+server wants to reject the PUT, it sends an error status and
+simply closes the TCP connection, forcing the client to
+abort its transmission.  If the client sees the error status,
+fine.  If it simply sees the connection close prematurely,
+then it may retry the PUT, but this time must use a two-phase
+protocol (send the headers, wait for a "Continue", then
+send the data).
+
+Note that a very similar problem arises with persistent connections.
+In the current one-request-per-TCP-connection model, we assume that
+the server does not close the TCP connection before sending a full
+response.  In the persistent-connection world, however, once the server
+has responded to at least one request, it is free to close the connection
+at any time.  This might happen after the client has transmitted a
+subsequent request (perhaps before the server receives it, though) and
+so to the client, this will look like a premature close by the server.
+So in order to make persistent connections work, the client has to be
+able to retry after a premature close (although this is not to say that
+a client must implement persistent connections).
+
+One possible problem with this approach is that the client might
+retry ad infinitum.  We can ban this in HTTP 1.1 (just as easily
+as we can require any two-phase behavior), but we may have a problem
+with those HTTP 1.0 clients that already support persistent connections.
+I'll assume for the purposes of this analysis that this problem does
+not arise, but I may have to concede this point.
+
+On with the analysis:
+We want to find the costs of these schemes, in addition to the basic
+cost of the HTTP interaction (which might be less than 1 round-trip
+time [RTT], if persistent connections are used, or several RTTs in
+other cases).
+
+The additional cost of a two-phase interaction is one RTT, since the
+client must pause for at least one RTT before it sees the "Continue"
+status.
+
+The cost of a *failed* one-phase interaction (i.e., client tries
+a PUT, server says "no way" and closes the TCP connection) is a
+little harder to measure.  The entire first (aborted) connection
+is wasted, so there are at least two or possibly three RTTs involved
+in that.  I'll assume 3 RTTs, to be concrete and conservative.
+Then there is one more RTT to go through the two-phase interaction,
+which is guaranteed to result in a rejection (but the client doesn't
+yet know that)
+
+So we have these cases:
+
+Pessimistic (pure) two-phase, if server accepts: cost = 1 RTT
+Pessimistic (pure) two-phase, if server rejects: cost = 1 RTT
+
+Optimistic (my) two-phase, if server accepts: cost = 0
+Optimistic (my) two-phase, if server rejects: cost = 4 RTTs
+
+Now define
+P(a) = "probability" that the server accepts the PUT
+I put "probability" in quotes because this isn't really a
+non-deterministic process, but from the point of view of a client,
+it might as well be one.
+
+So the overall "expected values" of the costs of the two schemes are:
+
+Pessimistic two-phase: (P(a) * 1 RTT) + ((1 - P(a)) * 1 RTT)
+which simplifies to 1 RTT
+Optimistic two-phase: (P(a) * 0 RTT) + ((1 - P(a)) * 4 RTT)
+which simplifies to (1 - P(a)) * 4 RTT
+
+So "optimistic" costs less than "pessimistic" if
+(1 - P(a)) * 4 RTT < 1 RTT
+which simplifies to:
+P(a) > 0.75
+
+In other words, if servers will accept PUTs more often than 75% of
+the time, then under this analysis (which, I admit, might be buggy)
+it pays off "on the average" to use an optimistic two-phase approach.
+
+The numbers might shift slightly if one counts packets or bytes
+instead of RTTs, but since the speed of light is the only true
+constant, I prefer to think in terms of RTTs.
+
+On the other hand, my analysis assumes that all servers speak HTTP 1.1
+(and thus respond immediately with a Continue or an error code.
+Whenever a pre-1.1 server is involved, the pessimistic two-phase scheme
+adds an additional 5 seconds, which is probably worth several RTTs in
+most instances.  And this is "wasted" time in this case, because a
+pre-1.1 server won't respond with an error at this point.  But I'll
+assume for the sake of the argument that almost all servers will adopt
+HTTP 1.1.
+
+Would anyone like to argue that more than 25% of PUTs (and similar
+HTTP methods) are going to be rejected?  To me, this seems unlikely
+(most users will learn not to ask for things that the servers don't
+allow), but I don't have enough experience to know.
+
+-Jeff
+
+
+

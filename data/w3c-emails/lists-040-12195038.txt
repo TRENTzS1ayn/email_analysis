@@ -1,0 +1,144 @@
+docno="lists-040-12195038"
+received="Tue Jul 24 11:43:30 2001"
+isoreceived="20010724154330"
+sent="Tue, 24 Jul 2001 11:50:50 -0400"
+isosent="20010724155050"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: rfc2518 issue: DEFER_LOCK_NULL_RESOURCES_IN_SPEC"
+id="3906C56A7BD1F54593344C05BD1374B103B61BFE@SUS-MA1IT01"
+charset="iso-8859-1"
+inreplyto="rfc2518 issue: DEFER_LOCK_NULL_RESOURCES_IN_SPEC"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+   From: Keith Wannamaker [mailto:Keith@Wannamaker.org]
+
+   | The current implementations have demonstrated that lock null resources
+   | are not a basis for interoperability.
+
+   This statement has been mentioned several times, in one form or
+   another, in this thread.  Do you have documentation or test cases
+   for these interoperability problems?
+
+   When I did the initial locknull implementation for mod_dav, it seemed
+   to me that the notion of a lock-null resource as presented in 2518
+   was very clear and logical.  On what have implementors disagreed?
+
+   It seems to me that we gain more from the work already done and
+   implemented to clarify, if needed, rather than abandon.
+
+I tried to address these points in my 7/18/01 response to Stefan
+(included below).  To summarize, the interoperability problem can be
+found in the IIS implementation.  It is not a question about the
+definition of lock null resources in 2518 being unclear (I believe it
+is very clear), but rather that lock null resources are incompatible
+with repositories that support access via multiple protocols (which
+includes most major commercial repositories), since no other protocol
+supports a "pseudo-resource" of this kind.  Since the lock null
+use cases are easily handled without the use of lock null resources,
+removing them from the protocol will increase interoperability without
+losing any functionality.
+
+Cheers,
+Geoff
+
+   From: Clemm, Geoff [mailto:gclemm@Rational.Com]
+   Sent: Wednesday, July 18, 2001 10:09 AM
+   Subject: RE: rfc2518 issue: DEFER_LOCK_NULL_RESOURCES_IN_SPEC
+
+
+      From: Stefan Eissing [mailto:stefan.eissing@greenbytes.de]
+
+      As an implementor of server and client software using WebDAV, I
+      would have gladly skipped the mechanisms known as lock-null
+      resources. As Geoff pointed out in this thread, there are
+      alternatives for clients to live without them (although not quite
+      as comfortable).
+
+   It's probably worth noting that a client gains little or nothing
+   from the use of lock-null resources.  In the common case, the user
+   has selected either "Open" or "New" from some user interface.
+   In the Open case, the user is expecting an error if the resource does
+   not exist, so having LOCK return 404 actually makes the client
+   protocol simpler.  In the New case, the user is expecting an error
+   if the resource already exists, so a PUT/If-None-Match
+   can be used to determine if the resource does not exist,
+   followed by a LOCK to verify the resource can be write locked.
+
+   In case the user interface does not distinguish between Open and
+   New, the client just follows the LOCK call with a:
+    if status is 404 then
+       PUT/If-None-Match # ignore status from this request
+       LOCK
+   and otherwise uses the exact same code it would have used if
+   lock null resources were supported.  (Note: the "PUT" would
+   whatever is the right call to create a null resource of the
+   right type, e.g. MKCOL for collections, MKACTIVITY for activities,
+   or whatever).
+
+      But the choice to include lock-null has been made in the past and I
+      see more trouble with abandoning it, than keeping it. Every
+      implementation I've seen (and that might be too few) implements
+      lock-null correctly.
+
+   You need to look at the Microsoft IIS implementation.  When a LOCK
+   is applied to an unmapped URI, it just automatically preceded the
+   LOCK with a PUT with a 0 length body.  The result is a regular
+   locked resource, not a lock null resource.  In particular, MKCOL will
+   fail on that resource, and when you remove the lock, you still
+   have the 0 length resource (i.e. it doesn't disappear, as a lock
+   null resource is required to do).
+
+   Note: Our implementation is likely to act the same way, probably
+   for the same reasons as Microsoft, i.e. we support multiple protocols
+   accessing our repository, and none of the other protocols have
+   anything remotely resembling lock null resources.
+
+      Apart from certain software from Seattle based companies: their
+      server has an incomplete implementation, which works only for
+      ordinary resources.  It works good enough for the Seattle client
+      software which uses this feature.
+
+      Now, if WebDAV removes lock-null, every server implementor would
+      have to support it anyway, because 90% of the users use those
+      Seattle clients.  I therefore see nothing to gain on the server
+      side by abandoning lock-null.
+
+   Having your server support the behavior expected by IIS is easy, just
+   automatically create a 0-length resource.  It is real lock-null
+   behavior (which is not implemented by IIS) which is the problem.
+
+   In the revised protocol, we can warn clients about the various ways
+   that existing servers deal with a LOCK applied to an unmapped URI, but
+   could increase interoperability in the future by stating that a LOCK
+   to an unmapped URI SHOULD return a 404.
+
+      On the client side, lock-null is a comfortable thing to use. So there
+is
+      nothing to gain either.
+
+   If you care about interoperability, it is not comfortable to use
+   because it is not implemented uniformly, so you have to special
+   case around the alternative implementations.  The client code will
+   be simpler if it just doesn't use lock null resources at all.
+
+      So, I'd say: let's embrace and extend lock-null resources.
+
+   Lock-null resources are very unlikely to be embraced by implementors
+   who must care about multiple protocols accessing their repositories
+   (and commercial vendors are almost all in that situation).  Any
+   attempt to embrace (much less extend) lock-null resources will result
+   in interoperability problems.  If they were the only good way to
+   provide a key client use case, I'd be willing to live with the
+   interoperability problems, but since the lock-null use cases are
+   easily supported without lock-null resources, I see no reason to
+   persist (much less, increase) these problems.
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,113 @@
+docno="lists-010-14465543"
+received="Tue Dec 31 07:01:48 1996"
+isoreceived="19961231120148"
+sent="Tue, 31 Dec 1996 15:46:10 +0100 (MET)"
+isosent="19961231144610"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Problems with ..-state-mgmt05.txt"
+id="199612311446.PAA08472@wsooti08.win.tue.nl"
+charset="USASCII"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc: Koen Holtman<koen@win.tue.nl>
+
+
+draft-ietf-http-state-mgmt-05.txt (HTTP State Management Mechanism)
+has been a Proposed Standard for about a month now.  This message
+discusses two problems with draft-ietf-http-state-mgmt-05.txt I have
+seen so far.  I feel that these problems need to be resolved in some
+way as soon as possible.
+
+These problems may or may not have an impact on the standards track
+progress of the draft.  I will not discuss that issue in this message,
+as others know more about such procedural matters.
+
+Problem 1. Advice about sending Cache-Control: must-revalidate
+==========
+
+(Problem first identified by Anselm Baird-Smith)
+
+Section 4.2.3 (Controlling Caching) says:
+
+|The origin server should send the following additional HTTP/1.1 response
+|headers, depending on circumstances:
+[...]
+|   * To allow caching of a document and require that it be validated
+|     before returning it to the client: Cache-control: must-revalidate.
+                                                        ^^^^^^^^^^^^^^^^ 
+
+We recently found out that `must-revalidate' in HTTP/1.1 means `must
+revalidate if stale', not `must always revalidate'.  This  means that
+the advice above is wrong, it should be:
+
+   * To allow caching of a document and require that it be validated
+     before returning it to the client: 
+     Cache-control: max-age=0, must-revalidate.
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Essentially the same problem occurs in the next item of the spec text:
+
+|   * To allow caching of a document, but to require that proxy caches
+|     (not user agent caches) validate it before returning it to the
+|     client: Cache-control: proxy-revalidate.
+
+and the same fix should be applied.
+
+
+Problem 2. Downwards compatibility with existing cookie implementations
+==========
+
+(problem first identified by Martijn Koster)
+
+If the following header (without the line breaks) is sent to Microsoft
+Internet Explorer V3:
+
+Set-cookie: xx="1=2&3-4";
+    Comment="blah";
+    Version=1; Max-Age=15552000; Path=/;
+    Expires=Sun, 27 Apr 1997 01:16:23 GMT
+
+then MSIE v3 will return the cookie
+
+Cookie: Max-Age=15552000
+
+and not xx="1=2&3-4", which would be the most reasonable thing to do
+according to Netscape's cookie specification.  (By the way, Microsoft
+will probably fix this problem in MSIE v4.)
+
+The downwards compatibility scheme in the state management draft,
+however, _relies_ on all existing browsers sending back xx="1=2&3-4"
+when getting the Set-Cookie header above.  It therefore seems that
+downwards compatibility, and smooth deployment, is impossible for the
+current specification.
+
+The state management draft assumes that existing clients are tolerant
+when parsing Set-Cookie headers.  As is shown by MSIE v3, this
+assumption is wrong.  A downwards compatibility scheme, which in my
+opinion is crucially important if this specification is to be deployed
+at all, will therefore have to rely on some other assumption.  
+
+I propose using the assumption that unknown response headers are
+ignored by all clients.  This leads to the following fix: the state
+management specification defines a _new_ header for setting cookies,
+for example "Cookie-Control", together with a rule that if a
+Cookie-Control header is present in the response message, a compliant
+client must ignore all Set-Cookie headers.  This would allow downwards
+compatibility by sending two headers:
+
+Cookie-Control: xx="1=2&3-4";
+    Comment="blah";
+    Version=1; Max-Age=15552000; Path=/;
+Set-Cookie: xx="1=2&3-4"; Path=/; Expires=Sun, 27 Apr 1997 01:16:23 GMT
+
+The "Version=1" directive in the Cookie-Control header above could
+possibly also be removed.
+
+
+Koen.
+
+
+

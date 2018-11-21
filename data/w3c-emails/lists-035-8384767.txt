@@ -1,0 +1,146 @@
+docno="lists-035-8384767"
+received="Mon Oct  9 22:34:12 2000"
+isoreceived="20001010023412"
+sent="Tue, 10 Oct 2000 11:34:28 +0900"
+isosent="20001010023428"
+name="Martin J. Duerst"
+email="duerst@w3.org"
+subject="Re: UTF-8 in URIs"
+id="4.2.0.58.J.20001009154338.02c3f630@sh.w3.mag.keio.ac.jp"
+charset="ISO-2022-JP"
+inreplyto="39E102D5.4A08112D&#64;baldauf.org"
+expires="-1"
+
+
+To: Xuan Baldauf<xuan--uri@baldauf.org>,uri@w3c.org
+
+Hello Xuan,
+
+For a general overview, please see
+http://www.w3.org/International/O-URL-and-ident.html.
+
+At 00/10/09 01:27 +0200, Xuan Baldauf wrote:
+>Hello,
+>
+>I'm new to this list (and therefore maybe this issue has been flamed to
+>death or is an FAQ), but I could not find anything in the list archives
+>to following issue:
+>
+>The use of "UTF-8 over %HH" as default encoding for non-ASCII characters
+>as recommended in memo RFC2718 Section 2.2.5 is a BadThing(tm) and
+>strongly against "common practice".
+>
+>Many applications (including current Netscape Communicator and Internet
+>Explorer) tend to assume that every byte above 127 is Latin-1 or even
+>cp1252.
+
+This is definitely wrong. It may look like that on systems
+that assume everything else is Latin-1, but there are many
+other systems. And RFC 2396 very clearly says that URIs
+escape bytes, not characters, and that the byte <-> character
+mapping is undefined.
+
+
+>This assumption will get wrong when HTTP clients start to use
+>the byte-space of Latin-1 for UTF-8. That's why I implemented Unicode it
+>on my project both client and server side as UTF-16 encoding like
+>
+>%uHHHH
+>
+>where H is a hex digit, big endian. The full value makes up a UTF-16
+>value. Because in the old escape form %HH, H can only be in range
+>['0'..'9','A'..'F','a'..'f'], we have plenty of namespace which is
+>currently undefined (from %gXXXX to %zXXXX).
+
+Something like this has been around for a short time in
+ECMAScript, but it has been superseeded by the UTF-8 method.
+
+
+>Servers which do not understand this must reply with "400 Bad Request"
+>(RFC2616), so the client knows it should retry with Latin-1 or signal
+>the user that the server is not capable of Unicode-URLs.
+
+Why should it retry with Latin-1? Why not shift_JIS or euc-kr,
+or so? And why spend additional round trips on this problem?
+
+
+>But the current behaviours makes it ambigous wether %da%bf represents
+>U+6bd (ARABIC LETTER TCHEH WITH DOT ABOVE) (new understanding of
+>URL-escape) or wether it represents " x " (U+da, U+bf) (old understanding
+>of URL-escape).
+
+I general, it doesn't represent either, it just represents these
+bytes, and nothing more. Even an URI of 'abc' doesn't really represent
+the characters 'abc', it just represents the bytes 0x61, 0x62, and
+0x63. The chance of coincidence between the 'abc' in the URI and
+an original 'abc' is much greater in that case, but not at all
+guaranteed.
+
+
+>This ambiguity is a magnitude worse than a "400 Bad Request" which can
+>be retried. Please think about this comment and imagine a world where
+>servers do not understand clients and vice-versa because the one
+>interpretes URLs with Latin-1 charset, the next one with UTF-8 charset.
+>Using the unused namespace after '%' like %uHHHH provides a clean
+>transition from old conventions to new ones, not a collission where
+>conventions compete and the competition case is the failure case.
+
+Well, maybe, except that it not only gives a 400, it also
+confuses or kills any other part of the Web infrastructure
+that handles URIs. Just a bit too much to risk.
+
+
+>This cleanup is not needed so strongly for "common" web sites, because
+>most web sites have the ability to choose the filename used and
+>therefore can choose wether to require unicode support or not. But it is
+>needed for internationalized forms, because the most common (and most
+>efficient) content-type for POST requests is x-www-form-urlencoded, and
+>GET requests obviously are URL-encoded.
+
+Ok, now it's clear what your problem is. It would have helped
+to know it up front. Forms are indeed a serious problem, but
+there is some help, see below.
+
+
+>http://www.w3.org/TR/html401/interact/forms.html#h-17.13.4.1 defines
+>content-type x-www-form-urlencoded to be only ASCII-capable, this is not
+>necessary and this is not current common practice. Content-type
+>multipart/form-data could be a solution, but it is largely inefficient,
+>not supported by current browsers and not usable for GET requests,
+>because POST requests cannot be represented by URLs and URLs|URIs often
+>are the only way to effciently specify a resource.
+>
+>The conrete problem I have is a web-chat-server which enables the user
+>to input his|her chat comments into ordinary <INPUT TYPE=TEXT> input
+>lines. Browsers sent data encoded by Latin-1 and cp1252, the chat server
+>is per definition unable to comply both the practical requirement to
+>interpret URLs as UTF-8 and to interpret URLs as Latin-1|cp1252 as UTF-8
+>and Latin-1 are byte-incompatible.
+
+It seems that you are worried mainly/only about the distinction
+between Latin-1 and UTF-8 in form replies. This can be dealt with
+rather well with current infrastructure:
+
+- Most current browsers (definitely v4.0 and up of the major browsers)
+   try to send back the answer in the same encoding as the page they
+   received. So if you use UTF-8 and label your page as such, it
+   should just work. You may also have two pages, one for Latin-1
+   (for older browsers) and one for UTF-8 (for newer browsers).
+
+- For those cases where that doesn't work, and as an additional
+   safety check, you can make use of the fact that in most cases,
+   UTF-8 and Latin-1 are easy to distinguish. The sequence of bytes
+   resulting from encoding a text in Latin-1 usually doesn't qualify
+   as UTF-8, because UTF-8 has some very special byte sequence patterns.
+   The other way round, UTF-8 interpreted as Latin-1 results in wierd
+   garbage. For details, please see my paper at:
+   http://www.ifi.unizh.ch/mml/mduerst/papers/PDF/IUC11-UTF-8.pdf
+   (in particular page 21). For windows-1252 (please note that this
+   is the officially registered identifier, please avoid cp1252),
+   this table may have to be slightly extended.
+
+
+Regards,    Martin.
+
+
+

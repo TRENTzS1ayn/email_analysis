@@ -1,0 +1,120 @@
+docno="lists-011-13108067"
+received="Fri Dec 12 09:14:54 1997"
+isoreceived="19971212141454"
+sent="Fri, 12 Dec 1997 11:59:37 0500"
+isosent="19971212165937"
+name="Scott Lawrence"
+email="lawrence@agranat.com"
+subject="Re: This is not &quot;this is not a date&quot;"
+id="199712121659.LAA04875@devnix.agranat.com"
+inreplyto="9712120036.AA29037&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: HTTP Working Group<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+
+>>>>> "JM" == Jeffrey Mogul <mogul@pa.dec.com> writes:
+
+JM> If the sender is required to send a Date header
+JM> by some part of this specification, and is unable
+JM> to generate a current HTTP-date value, it SHOULD
+JM> send a legal HTTP-date value that is provably in
+JM> the past.
+
+JM> For example, send
+JM> Date: Thu, 01 Jan 1970 00:0:01 GMT
+
+JM> As far as I can tell, this will not lead to any more trouble
+JM> than simply omitting the Date header.  It also seems to be
+JM> legal according to section 14.19 of -rev-01.
+
+  I'm concerned that this approach would confuse proxies when combined
+  with max-age; anything that attempts to use the Date value to figure
+  out how old a response _really_ is using the date value will be
+  hopelessly messed up (your excellent work on clock unsyncronization
+  has already shown that this is essentially hopeless, Jeff, but I
+  don't think that will stop people from trying).
+
+  We have the same problem with Date and Expires; proxies may add them
+  (section 13.5.2) even when the origin server used an empty value
+  when the digest was generated.  As I see it, we have four
+  alternatives:
+
+   1) Change the rule for whether or not these may be added.
+
+      I include this for completeness - I don't think it would work
+      because existing (even 1.0) implementations would still do it.
+
+      1a) Don't allow the additions when authentication is in use.
+
+          Doesn't work because the authentication fields may be in the
+          trailer where the proxy can't see them when building the
+          header (we should allow for proxies that forward and cache
+          in parallel).
+
+   2) Have the origin server put in bogus values and use those in the
+      calculation.
+
+      I'm concerned that this would cause confusion with age
+      calculations and perhaps cache validity problems.
+
+   3) Put a cleartext attribute in the digest headers to pass the
+      value used by the origin server when computing the digest.  We
+      do this now with the digest-uri-value for the same reason (the
+      value in the received URI line may not be what the sender
+      sent).
+
+   4) Remove these components from the entity digest calculation.  If
+      we accept Paul Leachs suggestion that we correct/redefine the
+      digest to allow for 3rd party authentication anyway, this
+      becomes an option to consider.
+
+  I don't believe that 1 or 2 are good ideas for the reasons above.
+
+  Number 3 is workable, but makes digest that much more trouble to do
+  and I'd hate to create any more barrier to getting this
+  widely implemented.
+
+  My own inclination is to bite the bullet and have a hard look at 4;
+  this means figuring out whether we really need all those fields in
+  the entity digest.  If we removed the problematic fields and made
+  Pauls change, the definition (without my <<<< markers) would become:
+
+    entity-digest<"> KD ( H( H( A1 ) )              <<<<< was H(A1)
+                         ,unquoted nonce-value ":"
+                          Method ":"
+                                                    <<<<< date was here
+                          entity-info ":"
+                          H(entity-body)
+                         )
+                 <">
+
+       entity-info       =
+         H(
+           digest-uri-value ":"
+           media-type       ":"   ; Content-Type, see section 3.7 of [2]
+           *DIGIT           ":"   ; Content-Length, see 10.12 of [2]
+           content-coding   ":"   ; Content-Encoding, see 3.5 of [2]
+                 <<<<<< l-m and expires were here
+           )
+
+  Talking off line with Paul, he said that the expires and
+  last-modified values were originally included here to provide replay
+  protection; even with a repeated nonce-value these values would
+  make replay harder.  We already have text in there on the importance
+  of good nonce selection, and mechanisms for changing the nonce
+  without adding round trips.
+
+  With abject apologies to everyone else who has already implemented
+  this, I suggest that we make this change in the interest of making
+  the mechanism work and getting others to join us in eliminating
+  cleartext passwords with a low cost authentication scheme.
+
+--
+Scott Lawrence           EmWeb Embedded Server       <lawrence@agranat.com>
+Agranat Systems, Inc.        Engineering            http://www.agranat.com/
+
+
+

@@ -1,0 +1,305 @@
+docno="lists-000-3188964"
+received="Thu Sep  2 07:24:50 1999"
+isoreceived="19990902112450"
+sent="Thu, 02 Sep 1999 20:24:44 +0900"
+isosent="19990902112444"
+name="Tomohisa Yazaki"
+email="yazaki@doi.cs.keio.ac.jp"
+subject="iso-2022 HTML -&gt; XML"
+id="199909021124.UAA00318@chitose.doi.ics.keio.ac.jp"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+I came across some problems when I tried to use Java port of
+Tidy(version 26th July 1999) in order to translate japanese HTML
+documents to XML documents and parse them using IBM's XML4J(SAX and
+DOM parser).
+
+  (1) JTidy allows an XML document to have comments which include
+ "--". In XML documents, `the string "--" (double-hyphen) must not occur
+ within comments', while in HTML documents `authors should avoid putting
+ two or more adjacent hyphens inside comments'.
+
+  (2) Attribute values defined in lower case in DTD are not folded to
+ lower case. For example,
+        <IMG SRC = image.gif ALT = MYGIF ALIGN=BOTTOM >
+ is mapped to 
+        <img src="image.gif" alt="MYGIF" align="BOTTOM" />.
+ It should be mapped to
+        <img src="image.gif" alt="MYGIF" align="bottom" />
+
+  (3) An XML declaration does not have an encoding declaration even if
+ Tidy's character encoding option(-iso2022, -latin1 ...) is specified.
+ Consequently, XML processors assume that the document is encoded in
+ UTF-8 and complain that the document includes invalid characters.
+
+I have made a patch to fix these problems.
+
+For the first problem, I added cleanComment() method to
+Clean.java. This method accepts a Node object and removes all comment
+nodes which include "--". To make this patch work, I fixed a bug that
+doctype.next.prev is not set in setXHTMLDocType() and fixDocType() in
+Lexer.java. Removing the whole comment is a rough way, replacing "--"
+to something else may be a better way.
+
+For the second problem, the patched code get corresponding Attribute
+object from AttributeTable.attrs and check if its attrchk field is not
+null. When it is not null, attribute value is folded to lower
+case. Attribute values which are not supported in AttrCheckImpl.java
+are not corrected.
+
+For the third problem, I added some lines to fixXMLPI() to append an
+encoding declaration according to configuration.CharEncoding . I don't
+know what encoding name is suitable when configuration.CharEnconding
+is RAW. Currently "ANSI_X3.4-1968"(ASCII) is assigned. When
+configuration.CharEncoding is ISO2022, "ISO-2022-JP" is appended. To
+treat ISO-2022 encoding family properly, language-specific encoding
+name of ISO-2022 family(ISO-2022-KR, ISO-2022-CN...) should be
+appended. This encoding name could be determined by a user option or
+auto-identifying character encoding. I'm not familiar with
+auto-identifying ISO-2022 character encoding, but I guess counting
+escape sequences is likely to be a solution. Unfortunately, plain
+"ISO-2022" is not included in IANA's character sets list[1], which is
+referred by XML specification, therefore XML processors might tend to
+reject plain "ISO-2022" as encoding name.(In fact, IBM's XML4J doesn't
+accept "ISO-2022", though it accepts "ISO-2022-JP")
+
+I'm not sure this patch does not harm original JTidy's function, but
+it seems to be working properly for my own purpose.
+
+
+By the way, after applying this patch to JTidy, the XML processor
+still complains as follows.
+
+[Warning] transitional.dtd:340:51: Warning: attribute "xml:space" is
+recommended to be declared as "xml:space (default|preserve) #IMPLIED".
+[Warning] transitional.dtd:351:51: Warning: attribute "xml:space" is
+recommended to be declared as "xml:space (default|preserve) #IMPLIED".
+[Warning] transitional.dtd:570:49: Warning: attribute "xml:space" is
+recommended to be declared as "xml:space (default|preserve) #IMPLIED".
+[Error] index.xml:4:43: Invalid value, "http://www.w3.org/TR/xhtml1",
+specified for attribute, "xmlns". (default value:
+"http://www.w3.org/TR/xhtml1/transitional")
+
+I don't know about namespaces in XML, so I don't know how to treat
+these warnings.
+
+Thank you for reading and sorry for my terrible English.
+
+[1] http://www.isi.edu/in-notes/iana/assignments/character-sets
+
+--
+Tomohisa Yazaki
+Doi Laboratory, Department of Computer Science,
+Graduate School of Science and Technology Keio University
+yazaki@doi.cs.keio.ac.jp
+PGP Finger Print : 0B 4B 86 1A 39 C9 5F 87  A8 76 1D D8 BB 61 D0 2E
+
+
+
+diff -rc5 26jul1999/org/w3c/tidy.orig/Clean.java 26jul1999/org/w3c/tidy/Clean.java
+*** 26jul1999/org/w3c/tidy.orig/Clean.javaSat Jul 31 10:28:12 1999
+--- 26jul1999/org/w3c/tidy/Clean.javaTue Aug 31 20:09:13 1999
+***************
+*** 1195,1200 ****
+--- 1195,1238 ----
+  
+              node = node.next;
+          }
+      }
+  
++     /* remove comments which include "--" */
++     public static void cleanComment(Node node)
++     {
++         while (node != null)
++         {
++             if (node.type == Node.CommentTag)
++             {
++       for(int i = node.start; i < node.end - 1; i++)
++ if(node.textarray[i] == '-') {
++   if(node.textarray[i+1] == '-') {
++     Node parent;
++     
++     parent = node.parent;
++     
++     if (parent.last == node)
++       parent.last = node.prev;
++     
++     if (parent.content == node)
++       parent.content = node.next;
++     
++     if (node.prev != null)
++       node.prev.next = node.next;
++     
++     if (node.next != null)
++       node.next.prev = node.prev;
++     
++     break;
++   }
++ }
++             }
++ 
++             if (node.content != null)
++                cleanComment(node.content);
++ 
++             node = node.next;
++         }
++     }
++ 
+  }
+diff -rc5 26jul1999/org/w3c/tidy.orig/Lexer.java 26jul1999/org/w3c/tidy/Lexer.java
+*** 26jul1999/org/w3c/tidy.orig/Lexer.javaSat Jul 31 10:29:24 1999
+--- 26jul1999/org/w3c/tidy/Lexer.javaTue Aug 31 20:11:07 1999
+***************
+*** 568,577 ****
+--- 568,578 ----
+  
+          if (doctype == null)
+          {
+              doctype = new Node(Node.DocTypeTag, null, 0, 0);
+              doctype.next = root.content;
++     doctype.next.prev = doctype;
+              root.content = doctype;
+          }
+  
+          if (configuration.docTypeMode == Configuration.DOCTYPE_USER &&
+              configuration.docTypeStr != null)
+***************
+*** 716,725 ****
+--- 717,727 ----
+  
+          if (doctype == null)
+          {
+              doctype = new Node(Node.DocTypeTag, null, 0, 0);
+              doctype.next = root.content;
++     doctype.next.prev = doctype;
+              root.content = doctype;
+          }
+  
+          this.txtstart = this.lexsize;
+          this.txtend = this.lexsize;
+***************
+*** 781,793 ****
+              xml.next = root.content;
+          }
+      
+          root.content = xml;
+  
+          this.txtstart = this.lexsize;
+          this.txtend = this.lexsize;
+!         addStringLiteral("xml version=\"1.0\"");
+          this.txtend = this.lexsize;
+  
+          xml.start = this.txtstart;
+          xml.end = this.txtend;
+          return false;
+--- 783,811 ----
+              xml.next = root.content;
+          }
+      
+          root.content = xml;
+  
++ String encName = "";
++ switch(configuration.CharEncoding) {
++ case Configuration.RAW:
++ case Configuration.ASCII:
++   encName = "ANSI_X3.4-1968";
++ case Configuration.LATIN1:
++   encName = "ISO_8859-1:1987";
++   break;
++ case Configuration.UTF8:
++   encName = "UTF-8";
++   break;
++ case Configuration.ISO2022:
++   encName = "ISO-2022-JP";
++   break;
++ }
++ 
+          this.txtstart = this.lexsize;
+          this.txtend = this.lexsize;
+!         addStringLiteral("xml version=\"1.0\" encoding=\"" + encName + "\"");
+          this.txtend = this.lexsize;
+  
+          xml.start = this.txtstart;
+          xml.end = this.txtend;
+          return false;
+***************
+*** 1974,1985 ****
+                  c = ' ';
+  
+                  if (lastc == ' ')
+                      continue;
+              }
+!             else if (foldCase && (map & UPPERCASE) != 0)
+                  c += (int)('a' - 'A');
+  
+              addCharToLexer(c);
+          }
+  
+          if (quotewarning > 10 && seen_gt)
+--- 1992,2013 ----
+                  c = ' ';
+  
+                  if (lastc == ' ')
+                      continue;
+              }
+!             else {
+!       if(configuration.XmlOut) {
+! Attribute attrib =
+!   AttributeTable.getDefaultAttributeTable().lookup(name);
+! if(attrib != null)
+!   if(attrib.attrchk != null)
+!     foldCase = true;
+!       }
+!       
+!       if (foldCase && (map & UPPERCASE) != 0)
+                  c += (int)('a' - 'A');
++     }
+  
+              addCharToLexer(c);
+          }
+  
+          if (quotewarning > 10 && seen_gt)
+diff -rc5 26jul1999/org/w3c/tidy.orig/Tidy.java 26jul1999/org/w3c/tidy/Tidy.java
+*** 26jul1999/org/w3c/tidy.orig/Tidy.javaSat Jul 31 06:11:54 1999
+--- 26jul1999/org/w3c/tidy/Tidy.javaFri Aug 27 20:43:10 1999
+***************
+*** 789,798 ****
+--- 789,802 ----
+  
+                  /* ensure presence of initial <?XML version="1.0"?> */
+                  if (configuration.XmlOut && configuration.XmlPi)
+                      lexer.fixXMLPI(node);
+  
++ /* remove illegal XML comment tags */
++ if (configuration.XmlOut)
++   Clean.cleanComment(node);
++ 
+                  if(node.content != null)
+                  {
+                      Report.reportVersion(errout, "InputStream", lexer.HTMLVersionName());
+                      Report.reportNumWarnings(errout, lexer);
+                  }
+***************
+*** 1065,1074 ****
+--- 1069,1082 ----
+                      }
+  
+                      /* ensure presence of initial <?XML version="1.0"?> */
+                      if (configuration.XmlOut && configuration.XmlPi)
+                          lexer.fixXMLPI(node);
++ 
++     /* remove illegal XML comment tags */
++     if (configuration.XmlOut)
++       Clean.cleanComment(node);
+  
+                      totalwarnings += lexer.warnings;
+                      totalerrors += lexer.errors;
+  
+                      if(node.content != null)
+
+
+

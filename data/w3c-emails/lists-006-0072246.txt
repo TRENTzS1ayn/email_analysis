@@ -1,0 +1,173 @@
+docno="lists-006-0072246"
+received="Mon May 21 09:12:43 2001"
+isoreceived="20010521131243"
+sent="Mon, 21 May 2001 09:11:58 -0400"
+isosent="20010521131158"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Table for autoversioning"
+id="3906C56A7BD1F54593344C05BD1374B103041DC7@SUS-MA1IT01"
+charset="iso-8859-1"
+inreplyto="Table for autoversioning"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+To map Jim's table to the current protocol:
+
+DAV:always-checkout-always-checkin =>
+   DAV:auto-checkout = (DAV:locked-update, DAV:unlocked-update)
+   DAV:auto-checkin  = (DAV:locked-update, DAV:unlocked-update)
+DAV:always-checkout-when-unlocked-checkin =>
+   DAV:auto-checkout = (DAV:locked-update, DAV:unlocked-update)
+   DAV:auto-checkin  = (DAV:unlocked-update)
+DAV:when-locked-checkout =>
+   DAV:auto-checkout = (DAV:locked-update)
+   DAV:auto-checkin  = ()
+DAV:checkout-on-update-and-keep-checked-out =>
+   DAV:auto-checkout = (DAV:locked-update, DAV:unlocked-update)
+   DAV:auto-checkin  = ()
+
+I believe this illustrates the superiority of the current approach,
+since the checkout/checkin behavior is largely "self-evident"
+from the values of the auto-checkout and auto-checkin values.
+
+Note: Half of Jim's rows are for "co locked" or "co unlocked".
+Since auto-checkout (and therefore auto-checkin) only applies
+when the resource being updated is in the checked-in state,
+the "co xxx" lines are not relevant for this table, because
+their behavior is unaffected by the auto-checkout status.
+
+Note: Although this table is a useful way to test ones understanding of
+locking and auto-versioning behavior, I don't think it is suitable
+for inclusion in the protocol definition of auto-versioning.
+In particular, I believe it makes auto-versioning behavior look
+more complex than it really is, because it mixes standard
+locking semantics (i.e. you can't write-lock a resource if its
+already locked, and you can't unlock a resource if it is not
+locked) with auto-versioning semantics.  By doing so, it hides
+the underlying regularity of the auto-versioning behavior.
+
+Jim's table was largely correct, except for a few notes below
+(marked as "[gmc: ...]").
+
+Cheers,
+Geoff
+
+
+-----Original Message-----
+From: Jim Whitehead [mailto:ejw@cse.ucsc.edu]
+Sent: Tuesday, April 17, 2001 7:33 PM
+To: ietf-dav-versioning@w3.org
+Subject: Table for autoversioning
+
+
+In an effort to wrap my brain around all of the autoversioning options, I
+developed the following table. I'm hoping some variant of this might make it
+into the specification, since I believe it could increase the correctness of
+implementations of this feature.  I'm also curious to see if I got it all
+right (I'm most curious about the checked-in states...) :-)
+
+Abreviations used:
+
+ci = check-in (or checked-in)
+co = check-out (or checked-out)
+ul = unlock
+lk = lock
+-> = sequence of operations (1->2)
+acoaci = always-checkout-always-checkin
+acowuci = always-checkout-when-unlocked-checkin
+wlco = when locked checkout
+coouakco = checkout-on-update-and-keep-checked-out
+
+Operation "write" is defined to be the state modification action of the
+method. For a PUT, write = changing the body.  For PROPPATCH, write =
+changing the property values.
+
+The table is orgazined as follows:
+
+rows correspond to specific states of the resource (e.g., checked out and
+write locked).
+columns correspond to specific autoversion options
+cells contain descriptions of what happens when specific methods are invoked
+under these conditions
+
+
+                acoaci                          acowuci
+
+ci locked    PUT/PROPPATCH                    PUT/PROPPATCH
+             co->write->ci                    co->write
+             UNLOCK                           UNLOCK
+             ul                               ul
+             LOCK                             LOCK
+             err:423 Locked                   err:423 Locked
+
+
+ci unlocked  PUT/PROPPATCH                    PUT/PROPPATCH
+             co->write->ci                    co->write->ci
+             UNLOCK                           UNLOCK
+             err:412                          err:412
+             LOCK                             LOCK
+             lk                               lk
+
+
+co locked    PUT/PROPPATCH                    PUT/PROPPATCH
+             write                            write
+             UNLOCK                           UNLOCK
+             ul                               ci->ul
+                                      [gmc: only if auto-checked-out]
+             LOCK                             LOCK
+             err:423 Locked                   err: 423 Locked
+
+co unlocked  PUT/PROPPATCH                    PUT/PROPPATCH
+             write                            write
+             UNLOCK                           UNLOCK
+             err:412                          err:412
+             LOCK                             LOCK
+             lk                               lk
+
+
+
+
+               wlco                            coouakco
+
+ci locked    PUT/PROPPATCH                    PUT/PROPPATCH
+             co->write                        co->write
+             UNLOCK                           UNLOCK
+             ul                               ul
+    [the unlock will automatically check it in]
+             LOCK                             LOCK
+             err:423                          err:423
+    [gmc: why the 423?  it is not currently locked]
+
+ci unlocked  PUT/PROPPATCH                    PUT/PROPPATCH
+             err:DAV:cannot-modify-version-   co->write
+                     controlled-content
+             UNLOCK                           UNLOCK
+             err:412                          err:412
+             LOCK                             LOCK
+             lk                               lk
+
+
+co locked    PUT/PROPPATCH                    PUT/PROPPATCH
+             write                            write
+             UNLOCK                           UNLOCK
+             ci->ul                           ul
+   [gmc: only if auto-checked out]
+             LOCK                             LOCK
+             err:423                          err:423
+                                              CHECKIN
+                                              ci
+
+co unlocked  PUT/PROPPATCH                    PUT/PROPPATCH
+             write                            write
+             UNLOCK                           UNLOCK
+             err:412                          err:412
+             LOCK                             LOCK
+             lk                               lk
+                                              CHECKIN
+                                              ci
+
+
+

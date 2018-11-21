@@ -1,0 +1,116 @@
+docno="lists-102-16320178"
+received="Fri Oct  1 22:44:33 1999"
+isoreceived="19991002024433"
+sent="Fri, 01 Oct 1999 19:43:36 -0700"
+isosent="19991002024336"
+name="David Brownell"
+email="david-b@pacbell.net"
+subject="Re: DOM L2 comments, various"
+id="37F57158.11FD4355@pacbell.net"
+charset="us-ascii"
+inreplyto="852567FD.0071BF32.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+
+To:keshlam@us.ibm.com
+Cc:www-dom@w3.org
+
+keshlam@us.ibm.com wrote:
+> 
+> Dave, I'm not sure of the status of your past questions about event handling --
+> I'm also implementing this and stumbled across a few ot the same issues -- but a
+> few comments follow based on my own best understanding. Note that I could be
+> completely wrong; I wasn't involved in designing this chapter!
+
+Thanks!  (Don't worry, I have issues about the traversal stuff too ... ;-)
+
+ 
+> Re 6.2, "there ought to be _one_ mechanism whereby event reporting isn't subject
+> to interference." -- I think the best current answer to that need is to have the
+> target node's event handler (which can't be blocked) or a capture handler on the
+> tree's root (which ought to run before capturing gets turned off) respond to the
+> event by sending out a separate custom event which, presumably, nobody else is
+> going to discard before your "unblockable" handlers hear it.
+
+That's a pretty complex way to make what should be a simple thing happen.
+
+Why not just get rid of Event.preventCapture() in the first place?   (Or
+maybe the bubbling version, I'm not currently religious there.)
+
+(I notice the www-dom archives have some other comments along these lines:
+there needs to be a way for ancestors to watch events without worrying that
+some other ancestor will tamper with the notification process.)
+
+
+> Re 6.3.1 and the Swing event conventions --  Swing can get away with this
+> because Swing doesn't attempt to pass generic events; specific events are tied
+> to specific registration calls and specific listeners. Since we intend to let
+> application-specific events pass through our engine, we can't really hardcode
+> event types into the dispatch/listener APIs.
+
+I think it's not quite so cut and dried as all that, actually.  The events
+it passes have common bases, and they go through a common dispatch API, so
+custom events pass through Swing also.
+
+
+> That's also part of the answer to your question about applications defining
+> their own events: That _is_ supposed to be possible, though I'm not sure it can
+> be done fully portably.
+
+My suggestion was about a way to do it portably, for _both_ of the two
+classes of "application" I see as involved with a DOM implementation.
+
+One class is exemplified by a browser:  "application" is almost integral
+with some implementation of DOM, so it's fine if it needs proprietary
+backdoor APIs.  The other is more what I'd call a real application:  DOM
+is just a library, and only public API calls are usable.
+
+What you're suggesting is fine for the first category (proprietary APIs
+are OK), and not for the second.  I care a lot more about the second
+category; the first category can't really have problems, and gets plenty
+of attention anyway.
+
+
+> 6.2.2: The intent is indeed that preventCapture() only shortcircuits the Capture
+> phase. Good catch.
+
+It implies as much elsewhere, but that section caused headscratching...
+
+ 
+> 6.6.4 DOMSubtreeModified: I believe the intent is that any document mutation
+> generates its specific event and also "eventually" triggers this event... but
+> there may not be a 1:1 relationship. If you take a node that's already in the
+> tree and give it a new parent (which is a removal plus an insertion, each
+> generating its own event), the hope is that a sufficiently clever DOM might
+> generate only a single DOMSubtreeModified message for the combined operation,
+> sent to the lowest common ancestor of the old and new parents. It's hoped that
+> this might reduce the load if "realtime" response is not required. The
+> definition of "sufficiently clever", and what granularity the batching occurs
+> on, seem to have been left to the implementation.
+
+More than that -- the notion that cleverness is OK, and any limits of that
+cleverness, are completly omitted.
+
+Scenario:  A DOM is so clever that it just sends one DOMSubtreeModified event
+shortly before the tree is garbage collected.  Is that legal?  Evidently.  So
+no portable software could ever rely on this event.  Might as well leave it
+out
+of a spec that's intended to support portability, then.  (Or: specify it
+fully.)
+
+
+> 6.6.4 DOMNodeRemovedFrom/InsertedIntoDocument: There were a few use cases
+> advanced where folks had active processes associated with nodes, which only
+> wanted to run while the node was part of the Document.
+
+Doesn't seem like those would be common -- the 80/20 rule would put those in
+the 1% or less category.  I can see examples like a clock -- but that's really
+a "only update when it's displayed", so other events would handle it.  All the
+other examples could as readily be handled by a listener that (ahem) reliably
+gets informed about deletions and insertions, without needing to worry about
+the event stream getting tampered with by some other listener.
+
+- Dave
+
+
+

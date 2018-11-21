@@ -1,0 +1,107 @@
+docno="lists-092-15468402"
+received="Fri Apr 16 21:49:29 2004"
+isoreceived="20040417014929"
+sent="Fri, 16 Apr 2004 21:49:06 -0400 (EDT)"
+isosent="20040417014906"
+name="Thomas Schulz"
+email="schulz@adi.com"
+subject="Success: Re: Gdk-ERROR BadValue"
+id="200404170149.i3H1n6G8017862@dolphin.adi.com"
+charset="unknown-8bit"
+expires="-1"
+
+
+To:www-amaya-dev@w3.org
+
+
+> > I have built amaya on an AIX 4.1.5 R2 system with gcc 3.3.2.  When I try
+> > to run it, I get the following error:
+> > 
+> > Gdk-ERROR **: BadValue (integer parameter out of range for operation)
+> >   serial 735 error_code 2 request_code 51 minor_code 0
+
+------------- cut --------------
+
+> Hum, when GDK detects an error it exits the process and so it's very difficult
+> to understand what generated the crash.
+> Before installing gdb could you launch amaya with strace to see what happends.
+
+---------------- cut ---------------
+
+AIX has a program called strace, but it has nothing to do with debugging
+programs.  I downloaded the GNU strace source, but it does not support
+AIX.  I have now built GNU gdb and have run amaya with a breakpoint
+at gdk_x_error.  The output is as follows:
+
+> gdb amaya
+GNU gdb 6.0
+--- cut ---
+This GDB was configured as "powerpc-ibm-aix4.1.4.0"...
+(gdb) break gdk_x_error
+Breakpoint 1 at 0x10033f50: file gdk.c, line 1067.
+(gdb) run
+
+----------- cut -------------
+
+Breakpoint 1, gdk_x_error (display=0x216b9218, error=0x2ff1bf68) at gdk.c:1067
+1067    in gdk.c
+(gdb) backtrace
+#0  gdk_x_error (display=0x216b9218, error=0x2ff1bf68) at gdk.c:1067
+#1  0xd01f10b8 in _XError () from /usr/lib/libX11.a(shr4.o)
+#2  0xd01eee44 in _XReply () from /usr/lib/libX11.a(shr4.o)
+#3  0xd01f92d0 in XListFonts () from /usr/lib/libX11.a(shr4.o)
+#4  0x101b3c1c in _Z19IsXLFDPatterneAFontPc (
+    pattern=0x2ff1c152 "-mozilla-times-medium-r-*-*-12-*-*-*-*-*-iso8859-1")
+    at ../../thotlib/dialogue/fontconfig.c:116
+#5  0x101b488c in _Z12FontLoadFileP4FILEPP10FontScript (file=0xf0172528, 
+    fontsscript_tab=0x2170a408) at ../../thotlib/dialogue/fontconfig.c:342
+#6  0x101b4af4 in _Z14FontConfigLoadv ()
+    at ../../thotlib/dialogue/fontconfig.c:412
+#7  0x101b4c44 in _Z18FontLoadFromConfigcii (script=76 'L', face=2, style=0)
+    at ../../thotlib/dialogue/fontconfig.c:438
+#8  0x101b0844 in _Z17GetFontIdentifierciii8TypeUnitPcS0_ (script=76 'L', 
+    family=2, highlight=0, size=3, unit=UnRelative, text=0x2ff22288 "", 
+    textX=0x2ff22298 "/?#\030D\"BB!p?\b/?#8/?#\030?6'\
+?s\"\200????/?#\030???????? N\
+17?????/?\"?/?#\030") at ../../thotlib/dialogue/
+ont.c:1391
+#9  0x101b0b3c in _Z8ReadFontciii8TypeUnit (script=76 'L', family=2, 
+    highlight=0, size=3, unit=UnRelative) at ../../thotlib/dialogue/font.c:1450
+#10 0x101b2c00 in _Z17InitDialogueFontsPc (name=0x2ff224e0 "amaya")
+    at ../../thotlib/dialogue/font.c:2485
+#11 0x10170bc8 in _Z15ThotInitDisplayPcii (name=0x2ff224e0 "amaya", dx=0, dy=0)
+    at ../../thotlib/dialogue/context.c:489
+#12 0x10164b5c in _Z12TteInitMenusPci (name=0x2ff224e0 "amaya", number=281)
+    at ../../thotlib/dialogue/appdialogue.c:437
+#13 0x1000061c in main (argc=1, argv=0x2ff22d3c) at EDITORAPP.c:381
+(gdb) continue
+Continuing.
+Gdk-ERROR **: BadValue (integer parameter out of range for operation)
+  serial 735 error_code 2 request_code 51 minor_code 0
+
+Program exited with code 01.
+(gdb) 
+
+I have it working!  The problem only occures when I have the DISPLAY set
+to display back on a SOLARIS machine.  There is no problem displaying
+on a local display or to a PC running Exceed.  When displaying on a
+SOLARIS machine, XListFonts generates the above error the first time it
+is called.  If I set gdk_error_warnings to 0 before the call to
+XListFonts, gdk_x_error does not terminate Amaya and XListFonts returnes
+the correct information.  The many other calls to XListFonts do not call
+gdk_x_error.  Note that request_code 51 is 'X_SetFontPath'.  Following is
+the change that I made to  amaya/Amaya/thotlib/dialogue/fontconfig.c:
+
+> diff fontconfig.c.orig fontconfig.c     
+115a116
+>       gdk_error_warnings = 0;
+116a118
+>       gdk_error_warnings = 1;
+
+
+Tom schulz
+Applied Dynamics Intl.
+schulz@adi.com
+
+
+

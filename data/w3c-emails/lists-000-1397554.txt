@@ -1,0 +1,93 @@
+docno="lists-000-1397554"
+received="Sat Jun 26 22:24:27 1999"
+isoreceived="19990627022427"
+sent="Sat, 26 Jun 1999 22:18:09 -0400"
+isosent="19990627021809"
+name="Andy Quick"
+email="ac.quick@sympatico.ca"
+subject="Tidy thread-safeness"
+id="000d01bec044$0b585500$6dceacce@quick"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+Dave,
+
+This is a concern I have about your claim that the tidy parser is
+thread-safe.  My concern is that some functions in parser.c reference
+the static data item 'SeenBodyEndTag'.  Shouldn't this data item be
+contained in an object that is instantiated for each thread? (such as
+Lexer - maybe this doesn't make logical sense, but makes sense for
+thread-safeness) I am assuming that you mean multiple threads in the
+same process can call main.
+
+I have built Java Tidy as a JavaBean.  The main class, Tidy, defines
+a static 'main' method that is used for command line invocation.  It also
+defines a method 'parse' that takes input and output stream arguments.
+Since Java Tidy is a Bean, it can be instantiated in multiple threads
+like this:
+
+<CODE>
+import java.io.IOException;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.PrintWriter;
+import java.io.FileWriter;
+import org.w3c.tidy.Tidy;
+
+public class Test16 implements Runnable {
+
+    private String url;
+    private String outFileName;
+    private String errOutFileName;
+    private boolean xmlOut;
+
+    public Test16(String url, String outFileName,
+                  String errOutFileName, boolean xmlOut)
+    {
+        this.url = url;
+        this.outFileName = outFileName;
+        this.errOutFileName = errOutFileName;
+        this.xmlOut = xmlOut;
+    }
+
+    public void run()
+    {
+        FileInputStream in;
+        FileOutputStream out;
+        Tidy tidy = new Tidy();  // create instance of Tidy JavaBean
+
+        tidy.setXmlOut(xmlOut);  // set XmlOut property
+        try {
+            tidy.setErrout(new PrintWriter(new FileWriter(errOutFileName), true));
+            in = new FileInputStream(url);
+            out = new FileOutputStream(outFileName);
+            tidy.parse(in, out);
+        }
+        catch ( IOException e ) {
+            System.out.println( this.toString() + e.toString() );
+        }
+    }
+
+    public static void main( String[] args ) {
+        Test16 t1 = new Test16(args[0], args[1], args[2], true);
+        Test16 t2 = new Test16(args[3], args[4], args[5], false);
+        Thread th1 = new Thread(t1);
+        Thread th2 = new Thread(t2);
+
+        th1.start(); // produces xml
+        th2.start(); // produces html
+    }
+
+}
+</CODE>
+
+However, since 'SeenBodyEndTag' is a static data item in class ParserImpl,
+I don't think Java Tidy is fully thread-safe because of this.
+
+Andy Quick
+
+
+

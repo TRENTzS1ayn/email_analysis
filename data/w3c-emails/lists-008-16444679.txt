@@ -1,0 +1,110 @@
+docno="lists-008-16444679"
+received="Tue Nov 29 06:06:52 1994"
+isoreceived="19941129110652"
+sent="Tue, 29 Nov 1994 08:07:05 0600"
+isosent="19941129140705"
+name="Chuck Shotton"
+email="cshotton@oac.hsc.uth.tmc.edu"
+subject="A few semantic points for HTTP/1.0 draft"
+id="ab00db28000210047923@[129.106.201.2]"
+charset="usascii"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:www-talk@info.cern.ch
+
+After a quick read through the HTTP/1.0 draft, I have a couple of comments.
+By and large, the draft seems to be a very good representation of standard
+practice (with a nod to concerns over multi-part messages), but there are
+two "pet peeves" that remain unresolved and could be cleared up with a
+short addition of some semantic info to the spec.
+
+Specifically, there are minor ambiguities regarding the 503 error code
+defined in section 6.3.4 and the encoding of object-body parts as described
+in section 7 and RFC 1630.
+
+Regarding section 6.3.4, the draft specifies that the error code "503
+Service Unavailable" simply indicates that the server is unable to handle
+the request. There are two different occasions when this code can be
+returned, both of which are detailed in this paragraph. Unfortunately, one
+is a short-term, transient condition (busy) that the client may reasonably
+expect to disappear momentarily. The other, a server is administratively
+off-line, is a condition of indeterminent duration and the client cannot
+infer how long this condition will last.
+
+Current client support for 503 is minimal. As an example, NetScape's
+response to a 503 error is to begin repeatedly resending the client's
+request until it is satisfied or the client times out. If the server is
+moderately busy, the client may be quickly serviced without impacting
+performance from the user's or server's perspective. If the server is
+heavily overloaded, a rapid, repeated resubmission of the request will only
+make the problem worse.
+
+In the case that the server is administratively off line, and 503 is being
+returned to indicate that the server is alive but unable to process
+connections, client behavior as above is clearly unacceptable. Obviously,
+some guidance in implementing client responses to this error code is
+needed. Optimally, information should be returned to a client to help
+determine an appropriate client response to a 503 error.
+
+As a solution, I'd like to propose an additional response-header for the
+503 error response that specifies a time at which the client may expect the
+server to be able to handle requests again. This time should be relative to
+the Date: header sent by the client. I propose that this time be specified
+as a delta from this date in terms of hours, minutes, and seconds until
+availability. The client should not attempt to resend its request before
+this delta period of time has elapsed.
+
+For the case of a busy server, this could be a delta of a few seconds from
+the present (or a delta value calculated on the load of the server, depth
+of the request queue, etc.) For an "off-line" server, this could be a delta
+supplied by administration (i.e. the server will be back up in 30 minutes)
+or an arbitrarily longer value (10 seconds, a few minutes) that would
+prevent rapid client retries.
+
+A candidate syntax for this response header field returned by the server is:
+
+Retry-After    = "Retry-After" ":" *LWSP-char 3DIGIT ":" 2DIGIT ":" 2DIGIT
+
+The 3 numeric fields represent the number of hours, minutes, and seconds to
+wait before attempting to contact the server again after the server has
+reported a 503 error. The server should also return its own Date: field as
+part of the response in all cases.
+
+
+
+With regard to comment number 2, the encoding of object-body parts, there
+is a non-trivial ambiguity in RFC 1630 regarding the encoding of spaces as
+"+", and where this is allowed. For WWW clients that encode object-bodies
+using the URL-encoding scheme, behavior is inconsistent. Some clients
+encode specials in the object-body text using %xx hex encodings
+exclusively. Others use %xx encodings for all specials except space, and
+encode spaces as "+".
+
+According to 1630, "+" may be used as a shorthand for space in the search
+portion of a URI. Unfortunately, the BNF for URIs is ambiguous in that the
+definition of the non-terminal "xpalphas" includes separating "xalphas"
+with "+", implying that spaces can be encoded as "+" anywhere.
+
+In my opinion, the object-body of a HTTP request is not the search portion
+of a URI. Therefore, spaces should only be encoded using %xx encodings and
+not "+" encodings. This ambiguity has never been resolved and a definitive
+statement regarding appropriate encoding of object-bodies using
+URL-encoding in this draft of the HTTP standard would be helpful. It may be
+a moot point, since many clients encode POST arguments using both
+techniques, and many gateway apps parse pluses as space. Nonetheless, an
+appropriate "ruling" should be made in the HTTP standard.
+
+Thanks for your consideration,
+Chuck Shotton
+
+p.s. I am not subscribed to www-talk@info.cern.ch, so I'd appreciate being
+CC'ed on any responses from that list.
+
+-----------------------------------------------------------------------
+Chuck Shotton
+cshotton@oac.hsc.uth.tmc.edu                           "I am NOT here."
+
+
+

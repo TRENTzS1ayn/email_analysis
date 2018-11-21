@@ -1,0 +1,143 @@
+docno="lists-104-15934174"
+received="Tue Aug 12 00:27:35 2003"
+isoreceived="20030812042735"
+sent="Mon, 11 Aug 2003 23:27:32 -0500"
+isosent="20030812042732"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: More L3 Core Comments"
+id="3F386CB4.1060508@houston.rr.com"
+charset="ISO-8859-1"
+inreplyto="3F37CFDE.4F22B3BB&#64;ca.ibm.com"
+expires="-1"
+
+
+To: Elena Litani<elitani@ca.ibm.com>,www-dom@w3.org
+
+
+Elena Litani wrote:
+
+>Hi Curt, 
+>
+>Thank you for your comments. 
+>
+>Curt Arnold wrote:
+>  
+>
+>>Interface DOMImplementationSource:
+>>
+>>I dislike the form of this interface for a couple of reasons:  it
+>>requires that each implementation source to parse the features list
+>>which could have been done once for all implementation sources and it
+>>enables the implementation source to return inconsistent first
+>>implementation sources. 
+>>    
+>>
+>
+>I don't see how implementation may return inconsistent result..
+>Can you give an example of the situation you are describing?
+>
+There are two distinct ways of getting the "first" implementation from a 
+source.  For example, either:
+
+DOMImplementation firstEvents = source.getDOMImplementation("Events")
+
+or
+
+DOMImplementation firstEvents = 
+source.getDOMImplementations("Events").item(0);
+
+could be used to get the first implementation of "Events" from a 
+source.  It would be possible, but probably underdesirable and 
+non-conformant, for these to return different objects. 
+
+The Java definition of DOMImplementationRegistry does not call 
+DOMImplementationSource.getDOMImplementations() so it would be very easy 
+for an implementation of that method to have flaws that are not discovered.
+
+The Java implementation of DOMImplementationRegistry would appear to be 
+flawed since its implementation of getDOMImplementations() would only 
+return the first implemention from each source.
+
+>
+>  
+>
+>>I'd suggest something like
+>>interface DOMImplementationSource {
+>>    DOMImplementation getDOMImplementation(DOMStringList features,
+>>DOMStringList versions, unsigned int index);
+>>}
+>>    
+>>
+>
+>Can you clarify your proposal, i.e. what is the purpose of index?
+>
+I'm assuming the motivation of the getDOMImplementation() was to avoid 
+the creation of the list object and the item call when only the first 
+implementation is of interest.  The index parameter is an attempt to 
+still maintain those traits while also support multiple implementations 
+per source without introducing a potential for inconsistency.  index = 0 
+would return the first implementation, index = 1 the second, etc.  When 
+the result was null, the list would be exhausted.
+
+>Using your approach how would some one ask for an implementation that
+>supports both "LS" and "Range" features?
+>
+
+A user or application would request an implementation in the same way, 
+using the DOMImplementationRegistry, all that would be changing would be 
+the interaction between the registry and a source.
+
+DOMImplementation impl = 
+DOMImplementationRegistry.newInstance().getDOMImplementation("LS 3.0 
+Range");
+
+What would change is that DOMImplementationRegistry would parse "LS 3.0 
+Range" into
+
+DOMStringList features = new DOMStringListImpl(new String[] { "LS", 
+"Range" });
+DOMStringList versions = new DOMStringListImpl(new String[] { "3.0", 
+null } );
+
+and then call
+
+    source.getDOMImplementation(features, versions, 0);
+
+DOMImplementationRegistry.getDOMImplementations() would do something like:
+
+
+>Also, how can some one retrieve multiple DOM implementations if more
+>than one available for the set of features specified?
+>  
+>
+
+while(names.hasMoreElements()) {
+            name = (String)names.nextElement();
+            DOMImplementationSource source =
+                (DOMImplementationSource) sources.get(name);
+
+            for (int i = 0;; i++) {
+                DOMImplementation impl = 
+source.getDOMImplementation(features, versions, i);
+                if (impl == null) break;
+                list.add(impl);
+            }
+
+
+In the Java definition of DOMImplementationRegistry:
+
+If multiple sources support the same feature set, the first 
+implementation would be determined by the hash code of the source class 
+name which would seem to be undesirable.
+
+The use of a hashtable does prevent the same source name appearing in 
+the list, however it would not prevent different sources from returning 
+the same object.
+
+I would suggest preserving the order of DOMImplementationSources and if 
+it is necessary to eliminate duplicates do it in body of 
+getDOMImplementations().
+
+
+

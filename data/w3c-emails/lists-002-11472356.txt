@@ -1,0 +1,174 @@
+docno="lists-002-11472356"
+received="Thu Jan 23 21:41:09 2003"
+isoreceived="20030124024109"
+sent="Fri, 24 Jan 2003 03:41:43 +0100"
+isosent="20030124024143"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="Using HTML Tidy in C# via Managed C++ Wrapper"
+id="3e3aa1be.144563791@smtp.bjoern.hoehrmann.de"
+charset="us-ascii"
+expires="-1"
+
+To:tidy-develop@lists.sourceforge.net
+
+
+
+Hi,
+
+  To take a closer look at the current HTML Tidy Library Code I wrote a
+quick and dirty (and probably almost clueless) Managed C++ Wrapper for
+the library that enables .NET programmers to use it the basic parsing
+functionality. The static member function `ParseHtml` takes a .NET
+`String` and returns the HTML document as an System.Xml.XmlDocument
+object. You could use it in C# like
+
+  using System;
+  using System.Xml;
+  
+  class Class1
+  {
+      static void Main(string[] args)
+      {
+          String s = "<p>Hello World<pre>sample</p>...";
+          XmlDocument doc = Tidy.HtmlParser.ParseHtml(s);
+          doc.Save(Console.Out);
+          Console.WriteLine();
+      }
+  }
+
+The code lacks for almost anything, no namespace handling, no error
+checks, no features like text nodes (!) etc.pp. but basically it seems
+to work. Maybe some people like the idea of using HTML Tidy in their
+.NET applications and will produce a more sophisticated wrapper, my code
+is just a demonstration that one could get such thing working, somehow.
+
+  #using <mscorlib.dll>
+  #using <System.Xml.dll>
+  #using <System.dll>
+  
+  #include "tidy.h"
+  
+  using namespace System;
+  using namespace System::Text;
+  using namespace System::Xml;
+  
+  uint tmbstrlen( ctmbstr str )
+  {
+      uint len = 0;
+      while ( *str++ )
+          ++len;
+      return len;
+  }
+  
+  namespace Tidy
+  {
+      public __gc class HtmlParser
+      {
+      public:
+          static XmlDocument * ParseHtml(String * s);
+      private:
+          static void process_tree(TidyNode node,
+                                   XmlDocument * doc,
+                                   XmlNode * current);
+      protected:
+      };
+  }
+  
+  XmlDocument * Tidy::HtmlParser::ParseHtml(String * s)
+  {
+      /* :-( */
+      char gbc __gc[] = Encoding::UTF8->GetBytes(s);
+      char __pin * ngbc = &gbc[0];
+      char * input = (char *)ngbc;
+  
+      TidyDoc tdoc = tidyCreate();
+  
+      tidyParseString(tdoc, input);
+      tidyCleanAndRepair(tdoc);
+      tidyRunDiagnostics(tdoc);
+  
+      TidyNode root = tidyGetRoot(tdoc);
+  
+      XmlDocument * doc = new XmlDocument();
+      process_tree(root, doc, 0);
+  
+      tidyRelease( tdoc );
+      
+      return doc;
+  }
+  
+  void Tidy::HtmlParser::process_tree(TidyNode node,
+                                      XmlDocument * doc,
+                                      XmlNode * current)
+  {
+      TidyNode n = node;
+  
+      if (!doc || !node)
+          return;
+  
+      if (!current)
+          current = doc;
+  
+      while (n)
+      {
+          int t = tidyNodeGetType(n);
+          TidyNode child = tidyGetChild(n);
+  
+          if (TidyNode_Root == t)
+          {
+              process_tree(child, doc, current);
+          }
+          else if (TidyNode_Start == t)
+          {
+              ctmbstr tname = tidyNodeGetName(n);
+              String * name = new String(
+                tname, 0, tmbstrlen(tname), Encoding::UTF8);
+  
+              XmlNode * e = doc->CreateElement(name);
+  
+              TidyAttr att;
+              for (att = tidyAttrFirst(n); att; att = tidyAttrNext(att))
+              {
+                  ctmbstr tattname = tidyAttrName(att);
+                  ctmbstr tattval = tidyAttrValue(att);
+                  String * attname = new String(
+                    tattname, 0, tmbstrlen(tattname), Encoding::UTF8);
+                  String * attval = new String(
+                    tattval, 0, tmbstrlen(tattval), Encoding::UTF8);
+  
+                  XmlAttribute * a = doc->CreateAttribute(attname);
+                  a->Value = attval;
+                  e->Attributes->Append(a);
+              }
+  
+              current->AppendChild(e);
+              process_tree(child, doc, e);
+          }
+  
+          n = tidyGetNext(n);
+      }
+  }
+
+The C# example should produce output like the following
+
+  <?xml version="1.0" encoding="ibm850"?>
+  <html>
+    <head>
+      <meta content=
+       "HTML Tidy for Windows (vers 1st January 2003), see www.w3.org"
+       name="generator" />
+      <title />
+    </head>
+    <body>
+      <p />
+      <pre />
+    </body>
+  </html>
+
+I had really liked to add text nodes to the XmlDocument, but TidyLib
+does not seem to expose any functionality to access comment/procins/
+element/... text content...
+
+
+

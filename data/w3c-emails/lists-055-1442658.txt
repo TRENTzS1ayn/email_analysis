@@ -1,0 +1,162 @@
+docno="lists-055-1442658"
+received="Fri Sep 27 13:12:14 1996"
+isoreceived="19960927171214"
+sent="Fri, 27 Sep 1996 13:15:46 -0400"
+isosent="19960927171546"
+name="David G. Durand"
+email="dgd@cs.bu.edu"
+subject="Regular expressions and content models (was: Re: questions about element declarations)"
+id="v02130502ae71a59f85a6@[128.148.157.46]"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+Lee brought up the key issues in content-model ambiguity, and I had a few
+things to add, in terms of analysis, and finally opinion.
+
+At 12:15 AM 9/24/96, lee@sq.com wrote:
+>>> * Should XML allow nondeterministic content models (11.2.4.3)?
+>>
+>> Again, how much does this complicate validation? I'm not ambiguity expert,
+>> but could the problem be solved simply by stipulating that a token is
+>> always matched to the first place in the content model it can match,
+>> without lookahead?
+>
+>Yes, you could do that, but my content model above would then never work,
+>because if you omitted a Requirements, you'd be stuck on the first Section*,
+>and the Proposal would be an error.
+>
+>I think that my Report can be matched with no lookahead if you don't care
+>about distinguishing sections in the various groups, but you'd have to use
+>a somewhat more sophisticated approach, I'm afraid, than shortest match.
+>An NDFA -> DFA conversion ala Aho et. al. would do it.  Here's the model
+>again, followed by the reduced DFA:
+>
+>    <!Element Report - - (
+>Scope?, Section*, Requirements?, Section*,
+>Proposal?, Section*, Summary?
+>    )>
+>
+>start:
+>    Section -> start
+>    Scope -> seenScope
+>    Requirements -> seenRequirements
+>    Proposal -> seenProposal
+>    Summary -> seenSummary
+>
+>seenScope:
+>    Section -> seenScope
+>    Requirements -> seenRequirements
+>    Proposal -> seenProposal
+>    Summary -> seenSummary
+>
+>seenRequirements:
+>    Section -> seenRequirements
+>    Proposal -> seenProposal
+>    Summary -> seenSummary
+>
+>seenProposal:
+>    Section -> seenProposal
+>    Summary -> seenSummary
+>
+>seenSummary:
+>    EOF -> accept
+>    * -> error
+>
+>So although this is ambiguous in SGML terms, there is no look-ahead needed.
+>Question to brave sould who made it to here: are there any cases where
+>look-ahead _would_ be needed?  If so, do they matter?
+
+As long as you don't care which part of the content model matches an
+element the answer is "No".
+
+The problems with treating SGML content models as regular expressions are:
+
+1.) &-groups. This is a problem in practice, not principle, because
+&-groups either require an extended FSA parser, or exponential table space,
+or nondeterministic implementation.
+
+2.) As you note, SGML requires that the parser match syntactic occurrences
+in the content model with instances in the document. Any model like (a?, a)
+is a problem because we don't know _which_ "a" we've seen. construed as a
+regular expression this is a non-problem because the set of strings defined
+is the same as than defined by (a, a?) or (a | (a,a)). Equivalence of
+regular expressions is defined in terms of the sequence of the elements
+they describe. The only sensible way I know to implement this correctly is
+to implement content models as NDFAs and then ensure that there is no place
+where the non-determinism is used.
+
+   In other words, SGML content models must be parsed as though their
+structure is a grammar, and the way that they match the input elements is
+significant. This makes content models that define the same language in
+different ways inequivalent in SGML terms. This is unforatunate because
+standard theory looks at the language (what sequences of subelements are
+permitted) and not the parse.
+
+   Now, I think there are two problems with the way SGML does things:
+
+   a) It's a shame that we've invented "almost regular" expressions, and
+done it in a way that _prevents_ application of existing tools and basic
+theory.
+
+   b) It encourages what I call crypto-markup. For instance, a content
+model like:
+      <!element deflist - - (term, item)+>
+   seems to give more structure to the list than is evident from the markup
+itself:
+   <deflist><term>...</term><item>....</item><term>.... </term>.....</deflist>
+
+   The ESIS, for instance, does not let a browser or search or analysis
+program determine that a term and its item are grouped. Even examining the
+content model doesn't make it as clear as an intermediate element would,
+without reparsing the element sequence in the ESIS.
+
+   This all harks back to the grammar/language distinction. We parse as
+though the _form_ of the content model is important, but then we hide that
+information from the application (unless it should shoose to read the DTD,
+and re-parse the elements). If we were to make this information we have
+actually made a big change: because we've introduced anonymous nodes
+(content model groups) into the SGML parse tree for the first time. I think
+that would not be a good idea.
+
+   Note that if XML follows the lead of Hytime, and says that any content
+model producing the same sequence of elements is good, we will have removed
+one of the perennial thorns in the side of DTD designers, and those who
+have to train them. Conversion from XML "any REGEXP goes" content models to
+SGML content models is possible (by the theorem proving the equivalence of
+DFAs and NDFAs and REs).
+
+   There is a standard algorithm in Hopcroft and Ullman (Intro. to Automata
+Theory, Languages and Computation) for producing an RE from a DFA, but the
+expressions it produces are yucky, and would not be good SGML content
+models. I'm sure that can be fixed up, but I don't have a proof handy.
+
+   If architectural forms didn't have the restrictions of SGML content
+models, we could use them to get around the compatibility problem since
+they are defined in terms of the language generated (document instance) and
+not SGML's model subgroup matching rules.
+
+If you haven't guessed, I'd rather eliminate the ambiguity rules and be
+able to use a rich and well-understood theory instead of having to help
+invent a new theory that only allows things we might rather not allow
+anyway.
+
+   It's also worth noting that people use naive parsers of ambiguous
+regular expressions in text-editors every day, and it's not a problem. So
+the efficiencies that motivate the technical argument for eliminating
+ambiguity may not be very important anyhow.
+
+   -- David
+
+
+RE delenda est.
+
+--------------------------------------------+--------------------------
+David Durand                  dgd@cs.bu.edu | david@dynamicDiagrams.com
+Boston University Computer Science          | Dynamic Diagrams
+http://www.cs.bu.edu/students/grads/dgd/    | http://dynamicDiagrams.com/
+
+
+

@@ -1,0 +1,83 @@
+docno="lists-104-0353290"
+received="Sat Jul 14 04:24:23 2001"
+isoreceived="20010714082423"
+sent="Sat, 14 Jul 2001 02:52:29 -0500"
+isosent="20010714075229"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="hasFeature: NS 6"
+id="000d01c10c39$eebf05d0$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+I did some quick surface testing of NN 6 and got the following results:
+
+hasFeature("XML","") returned true
+hasFeature("XML",null) returned false
+hasFeature("XML",undefined) return false
+hasFeature("XML") throw exception
+
+The behavior is subtlely different from IE that through an exception instead of returning
+false for hasFeature("XML",null).  I'm definitely not going to learn how to build Mozilla
+to find out if the hasFeature implementation was actually reached for the null case
+or something upstream answered false for it.
+
+I believe the underlying implementation is at:
+
+http://lxr.mozilla.org/seamonkey/source/content/base/src/nsGenericElement.cpp#880
+
+
+nsresult 
+nsGenericElement::InternalIsSupported(const nsAReadableString& aFeature,
+const nsAReadableString& aVersion,
+PRBool* aReturn)
+{
+NS_ENSURE_ARG_POINTER(aReturn);
+*aReturn = PR_FALSE;
+nsAutoString feature(aFeature);
+
+if (feature.EqualsWithConversion("XML", PR_TRUE) ||
+     feature.EqualsWithConversion("HTML", PR_TRUE)) {
+  if (!aVersion.Length() ||
+    aVersion.Equals(NS_LITERAL_STRING("1.0")) ||
+    aVersion.Equals(NS_LITERAL_STRING("2.0"))) {
+        *aReturn = PR_TRUE;
+}
+
+In the code, it checks for a zero-length string and for a match with "1.0" and "2.0",
+it does not check if the string is null (which from a quick survey of the string classes, 
+does not seem to be possible).
+
+
+A brief review of the NS string classes did not show any support for the concept
+of a "null" string.  They looked strongly reminiscent of the C++ std::basic_string<>
+templates, which also, by the way, have no concept of a null string.
+
+I did explore a source thread from an implementation of createElementNS
+that lead to nsNodeInfoManager::GetNodeInfo
+
+http://lxr.mozilla.org/seamonkey/source/content/base/src/nsNodeInfoManager.cpp#250
+
+The key piece of code appears: 
+
+ if (aNamespaceURI.Length()) {
+   NS_ENSURE_TRUE(mNameSpaceManager, NS_ERROR_NOT_INITIALIZED);
+   nsresult rv = mNameSpaceManager->RegisterNameSpace(aNamespaceURI, nsid);
+   NS_ENSURE_SUCCESS(rv, rv);
+}
+
+This would indicate that NN 6 is already treating an empty string as a non-specification of a
+namespace in the call.  There is no code that appears to be a check for a null string.
+
+That seems to clinch it for me that everywhere the spec mentions a null string that
+it should be an "empty or null string".  If there were calls where you wanted to distinguish between
+a null string and an empty string, then a different way of representing the empty string concept
+needs to be fabricated.
+
+I'm posting a query on netscape.public.mozilla.xpcom and I'll share any responses I get.
+
+
+

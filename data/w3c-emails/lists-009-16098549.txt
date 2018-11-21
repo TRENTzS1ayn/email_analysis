@@ -1,0 +1,97 @@
+docno="lists-009-16098549"
+received="Fri Mar  8 11:29:14 1996"
+isoreceived="19960308162914"
+sent="Fri, 08 Mar 96 11:16:09 PST"
+isosent="19960308191609"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Can proxies rewrite Date:?"
+id="9603081916.AA26355@acetes.pa.dec.com"
+inreplyto="199603071447.OAA16045&#64;wsooti15.win.tue.nl"
+expires="1"
+
+
+To: Koen Holtman<koen@win.tue.nl>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    I believe that caching proxies are supposed to rewrite the Date:
+    header in a response that is refreshed with a `not modified' response
+    to a conditional GET.  See the last line of the 304 definition in the
+    1.0 draft spec.
+
+I think this interpretation reflects a confusion about what caches
+do.  People who are on the http-caching mailing list may recall a
+discussion of whether we should model caches as storing "values"
+(of entities + assocatied entity headers) or "responses".
+
+In this case, it doesn't really matter which model you follow,
+as long as you keep in consistently in mind when deciding how
+to interpret what is going on.
+
+Consider a concrete example:
+
+client A does
+GET /home.html HTTP/1.1
+
+cache forwards this to server
+
+server replies with response R1, which includes
+Date: Thu, 15 Feb 1996 15:05:20 GMT
+which gets put into the cache, and returned to the client
+
+later on, client B does
+GET /home.html HTTP/1.1
+
+the cache forwards this to the server as
+GET /home.html HTTP/1.1
+If-Modified-Since: .....
+
+and the server responds with response R2
+HTTP/1.1 304 Not Modified
+Date: Fri, 16 Feb 1996 12:00:20 GMT
+which therefore does not include an entity body.
+
+OK, what response does the cache return to client B?  It probably
+does not return R1 (it has the old Date:, and perhaps a very
+old Expires: field).  It can't just return R2 (since client B
+did an unconditional GET, it needs the body).
+
+In the "caches hold responses" model, therefore, the cache
+needs to create a new response R3 that is some combination
+of R1 and R2.  Presumably, it does this by taking the union
+of the two responses, and using R2's values for any field that
+is present in both R1 and R2.
+
+In the "caches hold values" model, the cache constructs a new
+"value" out of the pieces provided by R1 and R2 (using essentially
+the same algorithm), and then returns this new value as R3
+to client B.
+
+Either way, the cache needs to perform a function
+R3 = F(R1, R2)
+or
+newvalue = G(R2, oldvalue)
+that ensures that a consistent set of entity headers remains attached
+to the entity body.
+
+Note that the cache is NOT "rewriting" the Date: header in either
+case; it's simply shuffling a set of headers and bodies that it has
+received at various times.
+
+So if Date: is included in the message-digest, then either function
+(F or G, depending on your model) has to make sure that these two
+headers are consistent: either they both come from the new response,
+or they both come from the old response.  But I don't think this is
+at all difficult to get right, if the origin server doesn't do
+something downright foolish (such as sending a new Date: value with
+R2, but not a new message-digest).
+
+All the protocol has to say (with respect to cache behavior) is
+"when combining headers from an old response and a refreshed
+304 response, always use the more recent value for any fields present
+in both responses."
+
+-Jeff
+
+
+

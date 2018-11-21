@@ -1,0 +1,208 @@
+docno="lists-042-10230715"
+received="Thu Oct 30 16:18:26 2003"
+isoreceived="20031030211826"
+sent="Thu, 30 Oct 2003 22:18:19 +0100"
+isosent="20031030211819"
+name="Julian Reschke"
+email="julian.reschke@gmx.de"
+subject="rfc2518-bis-05 issues (part 4)"
+id="3FA1801B.7070008@gmx.de"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+This is a summary of either new issues or issues with changes between 
+drafts 04 and 05.
+
+
+05-C01 media types
+
+Looking at the current W3 TAG discussion about XML media types we may 
+want to consider deprecating "text/xml" and making "application/xml" a 
+SHOULD.
+
+
+05-C02 "illformed"
+
+Section 8.1.1
+
+s/ill-formed/non-wellformed/
+
+
+
+05-C03 OPTIONS *
+
+9.1 contains the new paragraph:
+
+    This header must also appear on responses to OPTIONS requests to the
+    special '*' Request-URI as defined in HTTP/1.1.  In this case it
+    means that the repository supports the named features in at least
+    some internal namespaces.
+
+1) I don't remember this being discussed anywhere.
+2) This is impossible to implement with the Java Servlet API, so it's 
+unlikely to be implemented
+3) This clearly contradicts RFC2616, sectopn 9.2 
+(<http://greenbytes.de/tech/webdav/rfc2616.html#OPTIONS>):
+
+"If the Request-URI is an asterisk ("*"), the OPTIONS request is 
+intended to apply to the server in general rather than to a specific 
+resource. Since a server's communication options typically depend on the 
+resource, the "*" request is only useful as a "ping" or "no-op" type of 
+method; it does nothing beyond allowing the client to test the 
+capabilities of the server. For example, this can be used to test a 
+proxy for HTTP/1.1 compliance (or lack thereof)."
+
+
+
+05-C04 DAV request header
+
+Thanks for adding it, however I think we need to do some more work:
+
+    As an optional request header, this header allows the client to
+    advertise compliance with named features.  Clients need not
+    advertise 1, 2 or bis because a WebDAV server currently doesn't need
+    that information to decide how to respond to requests defined in
+    this specification or in HTTP/1.1.  However, future extensions may
+    define client compliance codes.  When used as a request header, the
+    DAV header MAY affect caching so this header SHOULD NOT be used on
+    all GET requests.
+
+1) Just say generally that only those feature names are allowed where 
+the spec explicitly defines what it means (in a request!). For 
+RFC2518bis this means that none of the feature names defined here may be 
+used.
+
+2) "When used as a request header, the DAV header MAY affect caching so 
+this header SHOULD NOT be used on all GET requests." - this is 
+misleading. Either it is allowed on GET, or it isn't. If the request 
+header affects a cacheable GET result, the origin server MUST specify 
+that in the "Vary" header.
+
+
+05-C05 Multistatus format
+
+Section 12:
+
+    When a Multi-Status body is returned in response to a PROPFIND or
+    another request with a single scope, all URLs appearing in the body
+    must be equal to or inside the request-URI, thus the URLs MAY be
+    absolute or MAY be relative.
+
+What is a "single" scope. Ans what does it mean for a URI to be "inside" 
+another?
+
+It continues saying:
+
+    When a Multi-Status body is returned in response to MOVE or COPY,
+    relative URIs resolution is ambiguous (the request had both a source
+    and a destination URL).  Thus, URLs appearing in the responses to
+    MOVE or COPY SHOULD be absolute and fully-qualified URLs.
+
+What is a "fully-qualified" URL? If this is meant to say that the URI, 
+when relative, MUST start with a "/", then it should be more clear about 
+that.
+
+
+
+05-C06 12.1 3xx handling
+
+    The 300-303, 305 and 307 responses defined in HTTP 1.1 normally take
+    a Location header to indicate where the client should make the
+    request.  The Multi-Status response syntax as defined in RFC2518 did
+    not allow for the Location header information to be included in an
+    unambiguous way, so servers MAY choose not to use these status codes
+    in Multi-Status responses. If a clients receives this status code in
+    Multi-Status, the client MAY reissue the request to the individual
+    resource, so that the server can issue a response with a Location
+    header for each resource.
+
+    Additionally, this specification defines a new element that servers
+    MAY use in the response element to provide a location value in
+    Multi-Status (see section 13.29).
+    I think we can improve that:
+
+- "not to use" -- be clear what this means -- is it using a "200" status 
+element instead?
+
+- when the server chooses not to return the 3xx code, should it include 
+the location element nevertheless (I think it should)
+
+
+05-C07 XML Extensibility (section 13)
+
+I still think we should make statements about extensibility once. The 
+current notation (adding verbose text to each and every element 
+description) just makes the spec less readable and harder to maintain. 
+Note that already the descriptions are partly broken (for instance in 
+13.18).
+
+In particular:
+
+    Extensibility: MAY be extended with additional child elements or
+             attributes which SHOULD be ignored if not recognized.
+
+s/SHOULD/MUST/
+
+
+05-C08 propfind DTD
+
+Says:
+
+    <!ELEMENT propfind (prop | dead-props | propname | allprop) >
+
+Should be:
+
+   <!ELEMENT propfind (allprop | propname | (prop, dead-props?)) >
+   <!ELEMENT dead-props EMPTY >
+
+
+05-C09 Properties
+
+    Some property values are calculated by the server and it is not
+    appropriate to allow client changes, thus they are protected.
+    Existing server implementations already have different sets of
+    RFC2518 properties protected, but clients can have some expectations
+    which properties are normally protected.  The value of a protected
+    property may not be changed even by a user with permission to edit
+    other properties.  The value of an unprotected property may be
+    changed by some users with appropriate permissions.
+
+This definition seems to slightly differ from what RFC3253 says. That 
+seems to be a bad idea (here is seems to identify "calculated" with 
+"protected"; in RFC3253 there's a clear difference between "protected" 
+and "computed").
+
+
+05-C10 Properties (COPY/MOVE behaviour)
+
+This somehow combines statements about how the property behaves upon 
+COPY and MOVE (good) and some statements about what happens in "remote" 
+operations. I think the latter is very confusing. Either a copy is done 
+using COPY, or it isn't. If a server decides to emulate a copy operation 
+using PROPPATCH and PUT, the standard considerations for these methods 
+apply.
+
+
+05-C11 "mandatory" properties
+
+This is actually an old issue. For instance:
+
+    Description: The creationdate property should be defined on all DAV
+             compliant resources.  If present, it contains a timestamp
+             of the moment when the resource was created (i.e., the
+             moment it had non-null state).
+
+Basically this says that the property should be there, unless it isn't. 
+Just say that it's optional in these cases.
+
+
+
+-- 
+<green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+
+

@@ -1,0 +1,155 @@
+docno="lists-039-14999822"
+received="Wed Jan 12 18:12:49 2000"
+isoreceived="20000112231249"
+sent="Wed, 12 Jan 2000 18:12:43 -0500"
+isosent="20000112231243"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="a Grand Unified Locking Proposal (GULP, or perhaps, GULP! :-)"
+id="10001122312.AA22058@tantalum"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+Eric suggests that a URL-based locking model should be mapped into the
+underlying collection resources that implement the namespace.  I agree
+with both this conclusion and the reasoning leading up to it.
+
+But I think it is simpler to model namespace protection and state
+protection as being two results of a single kind of lock, as opposed
+to the result of two different kinds of locks.  This avoids the
+problem of describing how namespace locks and state locks interact.
+
+In an attempt to make the proposal both understandable and complete,
+I've broken it into two parts.  The first part is a series of bullets,
+which largely correspond to the "URL-based locking" proposal I mailed out
+a while ago.  The second part is the same series of bullets fleshed out
+with a more formal description of each bullet in terms of an underlying
+resource model and effects on the visible lock state of resources.
+
+**************************
+
+GULP: Part I
+
+- A URL identifies a resource.
+- A LOCK request creates a lock on the request URL.
+- An UNLOCK request removes all locks with the specified lock token.
+- A lock on a URL protects which resource is identified by that URL.
+- A Depth:N lock on a URL locks any URL that extends the locked URL by no
+more than N segments.
+- A Depth:infinity lock on a URL locks all URL's that extend the locked URL.
+- If an exclusive lock identifies a resource, no other lock of that type can
+identify that resource.
+- A write-lock on a URL protects the body and dead properties of any
+resource identified by that URL.
+
+**************************
+
+GULP: Part II
+
+- A URL identifies a resource.
+
+The URL "/" identifies a resource. A collection contains a set of bindings,
+where a binding is a mapping from a URL segment to a resource. If "/path"
+identifies a collection C, and C contains a binding that maps the segment
+"x" to resource R, then the URL "/path/x" identifies resource R.
+
+- A lock is on a URL. Every lock has a lock token and a lock owner.
+
+Every lock on a resource has a name which is a relative URL (i.e. a slash
+separated sequence of URL segments). Every LOCK request that succeeds
+results in a new globally unique lock token. Every lock token has an owner
+that is the principal of the LOCK request.
+
+- A LOCK request creates a lock on the request URL.
+
+When a request of the form "LOCK /pathX" succeeds, a lock named "pathY/."
+with a new lock token is added to the resource identified by "/", where
+"pathY" is the result of applying standard URL path transformations to
+remove all segments named "." or ".." from "pathX". If a collection C has a
+binding from "segX" to resource R, and a request adds a lock named
+"segX/pathZ" with token "L" to C, then the request adds a lock named "pathZ"
+with token "L" to R. Similarly, if a collection C has a lock named
+"segX/pathZ" with token "L", and a request (e.g. PUT, COPY, MOVE, BIND) adds
+a binding in C from "segX" to resource R, then the request adds a lock named
+"pathZ" with token "L" to R. If the attempt to add the lock named "pathZ" to
+R fails, the request MUST fail.
+
+- An UNLOCK request removes all locks with the specified lock token.
+
+When a request of the form "UNLOCK /pathX; Lock-Token L" succeeds, then the
+lock with token "L" is removed from the resource identified by "/". If a
+collection C has a binding from "segX" to resource R, and a request removes
+a lock named "segX/pathZ" with token "L" from C, then the request removes a
+lock named "pathZ" with token "L" from R. Similarly, if a collection has a
+lock named "segX/pathZ" with token "L", and a request (e.g. DELETE, MOVE)
+removes a binding in C from "segX" to resource R, then a lock named "pathZ"
+with token "L" is removed from R.
+
+- A lock on a URL protects which resource is identified by that URL.
+
+If a collection identified by the URL "/colX" contains a lock named "pathZ"
+with token "L", if a request would change the resource identified by
+"/colX/pathZ", the request MUST specify token "L" in an IF header and the
+request principal MUST be the owner of token "L".
+
+- A Depth:N lock on a URL locks any URL that extends the locked URL by no
+more than N segments.
+
+If a collection C has a binding to resource R, and a request adds a Depth:N
+lock named "." with token "L" to C, then the request adds a Depth:N-1 lock
+named "." with token "L" to R. Similarly, if a collection C has a Depth:N
+lock named "." with token "L", and a request adds a binding in C to resource
+R, then the request adds a Depth:N-1 lock named "." with token "L" to R. If
+the attempt to add the lock named "." to R fails, the request MUST fail.
+Conversely, the Depth:N-1 lock is removed from R whenever a binding to R or
+the Depth:N lock is removed from C.
+
+- A Depth:infinity lock on a URL locks all URL's that extend the locked URL.
+
+If a collection C has a binding to resource R, and a request adds a
+Depth:infinity lock named "." with token "L" to C, and this is the first
+Depth:infinity lock named "." with token "L" on C, then the request adds a
+Depth:infinity lock named "." with token "L" to R. Similarly, if a
+collection C has a Depth:infinity lock named "." with token "L", and a
+request adds a binding in C to resource R, then the request adds a
+Depth:infinity lock named "." with token "L" to R. If the attempt to add the
+lock named "." to R fails, the request MUST fail. If a collection C has a
+binding to resource R, and a request removes the last Depth:infinity lock
+named "." with token "L" from C, then the request removes a Depth:infinity
+lock named "." with token "L" from R. Similarly, if a collection has a
+Depth:infinity lock named "." with token "L", and a request removes a
+binding in C to resource R, then a Depth:infinity lock named "." with token
+"L" is removed from R. Note that multiple Depth:infinity locks named "."
+with the same token can be placed on the same resource due to multiple
+bindings to that resource in a Depth:infinity locked collection.
+
+- If an exclusive lock identifies a resource, no other lock of that type can
+identify that resource.
+
+If a request attempts to add a lock named "pathZ" with token "L" and type T
+to resource R, and R already has an exclusive lock named "pathZ" with type
+"L" but with a different token, the request MUST fail. Similarly, if a
+request attempts to add an exclusive lock named "pathZ" with token "L" and
+type T to resource R, and R already has a lock named "pathZ" with type T but
+with a different token, the request MUST fail.
+
+- A write-lock on a URL protects the body and dead properties of any
+resource identified by that URL.
+
+If a resource has a write lock named "." with token "L", in order to modify
+the body or dead properties of that resource, a request MUST specify token
+"L" in an IF header and the request principal must be the principal that
+created the lock.
+
+**************************
+
+OK, Jason, Yaron, Eric, et. al, what did I forget this time? (:-)
+
+Cheers,
+Geoff
+
+
+

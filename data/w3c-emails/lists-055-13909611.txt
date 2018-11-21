@@ -1,0 +1,112 @@
+docno="lists-055-13909611"
+received="Wed Jan 29 00:00:05 1997"
+isoreceived="19970129050005"
+sent="Tue, 28 Jan 97 22:11:10 CST"
+isosent="19970129041110"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.UIC.EDU"
+subject="Re: Production 21 (and others)"
+id="199701290500.AAA23855@www10.w3.org"
+inreplyto="Tue, 28 Jan 1997 10:22:45 -0500"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@www10.w3.org>
+
+On Tue, 28 Jan 1997 10:22:45 -0500 Pierre G. Richard said:
+>On the draft I have (961114):
+>
+>    [21] Comment := '<!--' [^-]* ('-' [^-]+)* '-->'
+>
+>I think this should be:
+>
+>    [21] Comment := '<!--' ([^-]* ('-' [^-]+)*)* '-->'
+
+Why?  If we replace some of the expressions with named macros, it
+may make clearer why the draft doesn't have the second star -- or
+else make clearer to me why it *should*.
+
+If we define NH (= non-hyphen) as anything but a hyphen, and
+OH (= one-hyphen) as a string containing exactly one hyphen,
+at the beginning, and at least one other character -- in
+lex notation:
+
+NH      [^-]
+OH      "-"{NH}+
+
+Then we have
+
+     [21] Comment := "<!--" [^-]* ("-" [^-]+)* "-->"
+     [21] Comment := "<!--" {NH}* ("-" {NH}+)* "-->"
+     [21] Comment := "<!--" {NH}* {OH}* "-->"
+
+and the material between the comment open and close delimiters is
+'any sequence of characters that contains no double hyphens':  i.e.
+
+  1 the string up to the first hyphen (= {NH}*), possibly empty
+  2 the string from the first hyphen up to but not including the
+    second (= {OH})
+  n the string from the (n-1)th hyphen up to the nth hyphen (={OH})
+
+Substrings 2..n are all taken care of by {OH}*; we don't need to
+go back to the first {NH}*.
+
+Does this make sense?
+
+But as Gavin has pointed out, the comment syntax has changed.  Life
+would be simple if we could trust parsers to do the right thing given
+ambiguous or non-deterministic expressions:
+
+ "<!--*".*"*-->"
+
+But we can't.  And so the new rule has to be summarized as follows:
+
+ "<!--*"([-*]|("-"("*""-"?)*[-*])|(("*""-"?)+[-*]))*("*"|"-*")+"-->"
+
+Or, in simpler terms, NHS (Not Hyphen or Star) is any character not a
+hyphen or an asterisk:
+
+NHS  [^-*]
+
+SH (Star and Hyphen) is an asterisk followed by an optional hyphen:  a
+string of asterisks and hyphens that does not contain any double hyphens
+can be expressed as {SH}+ or "-"{SH}*, depending on whether it begins
+with a star or a hyphen.
+
+SH   ("*""-"?)
+
+HS (hyphen and star) by contrast, is any string of hyphens and
+asterisks which *ends* in a hyphen and contains no double hyphens:
+
+HS   ("*"|"-*")+
+
+Finally, Misc is any string of characters that *ends* in a character
+other than star or hyphen:
+
+Misc {NHS}|("-"{SH}*{NHS})|({SH}+{NHS})
+
+So we have, expanding gradually:
+
+ [21] Comment := "<!--*"{Misc}*{HS}"-->"
+ [21] Comment := "<!--*"({NHS}|("-"{SH}*{NHS})|({SH}+{NHS}))*{HS}"-->"
+ [21] Comment :=
+ "<!--*"({NHS}|("-"("*""-"?)*{NHS})|(("*""-"?)+{NHS}))*{HS}"-->"
+ [21] Comment :=
+ "<!--*"([^-*]|("-"("*""-"?)*[^-*])|(("*""-"?)+[^-*]))*{HS}"-->"
+ [21] Comment :=
+ "<!--*"([^-*]|("-"("*""-"?)*[^-*])|(("*""-"?)+[^-*]))*("*"|"-*")+"-->"
+
+At least, I *think* this is right!
+
+The DFA for comments, by contrast, is really simple and easy to
+follow.  It took me several tries (and, embarrassingly, several
+hours went to some really loony false trails) to get a regular
+expression that handles the obvious test cases.  So I urge anyone
+with any interest in this kind of problem -- and everyone who is
+working on a parser! -- to check the expression above as carefully
+as you can.  Now is the time to smoke out the errors, not later.
+
+-C. M. Sperberg-McQueen
+
+
+

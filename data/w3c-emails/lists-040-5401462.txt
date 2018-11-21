@@ -1,0 +1,118 @@
+docno="lists-040-5401462"
+received="Thu Dec 28 03:02:50 2000"
+isoreceived="20001228080250"
+sent="Thu, 28 Dec 2000 00:07:07 -0800"
+isosent="20001228080707"
+name="Roy T. Fielding"
+email="fielding@ebuilt.com"
+subject="Re: Advanced Status Reporting and XML vs HTML"
+id="20001228000707.B1508@mana.ebuilt.com"
+charset="us-ascii"
+inreplyto="CNEEJCPIOLHKIOFNFJDPIECMCBAA.lisa&#64;xythos.com"
+expires="-1"
+
+To: Lisa Dusseault<lisa@xythos.com>
+Cc:w3c-dist-auth@w3.org
+
+
+> Got any suggestions for how to do this?
+
+Lot's of them, but most would start with trashing the DAV object
+model and starting over.  That is the direct cause of this exponential
+error expansion.  But given that this isn't an option right now,
+I'd be satisfied with limiting this proposal to DAV responses and
+simply including the extended XML tags in every error response
+regardless of what the client requested.
+
+> You may disagree with my assessment of the requirements/goals of this
+> project, but here's the way I see it:
+> 
+> 1) We must not use a header to return advanced status information.  There's
+> too much of it.  Servers must be able to return, in a single response,
+> information about multiple resources, much like today's 207 Multistatus.
+> The simplest example of this is a MOVE of a large directory:  the server can
+> report every locked child resource, rather than force the client to discover
+> one by one which ones are blocking the MOVE.
+
+I suppose you wouldn't be satisfied by this response: 207 violates HTTP
+already by including an error message within a successful response.
+How you change 207 responses is of no concern to me.
+
+> 2) We should not return mime/multipart to clients that are used to receiving
+> a regular HTML body.  IIS and Apache both currently return ordinary HTML
+> bodies on error messages, and browsers are used to displaying those.  We
+> don't want to screw those clients up.
+
+I never suggested a multipart.  Too many wasted bytes.
+
+> 3)  Having an extra 25 characters in the client's request is preferable to
+> having multiple formats returned in the server's response.  This counts also
+> for embedding XML inside the HTML body:  why add an extra 100-1000
+> characters in the server response if it can be avoided by having clients
+> that want advanced status send this extra header?  Some folks have slower
+> uplinks than downlinks, but I still think that an extra 25 chars in the
+> client response will be a price they will find worth paying.  Ask the client
+> developers -- I think they're in favour of this.
+
+Client developers are notoriously unaware of the network impact of
+such a decision -- look at the values sent in the accept header fields
+for confirmation of that.  The reason that 2000 characters (just to be
+extreme) added to every error response is better than 25 characters
+in every request is because requests far outnumber errors, request
+characters are always in the critical path of latency, and the added
+latency of error responses is perceived as a bad thing (i.e., at that
+point the user wants as much information as they can get).
+
+But I didn't suggest 2000 characters be added.  I suggested that a
+single XML tag be used for the additional information if it is expected
+to be used for interoperability.  <DAV:EEC val=nnnnnn /> is more than
+sufficient given the requirements stated so far.
+
+> 4)  Keeping the additional information around on the server for clients to
+> query later may be unacceptable to server implementors.  It requires the
+> server to maintain state and do extra disk writes.  It must come up with two
+> formatted result bodies, rather than just one.  Since the server must handle
+> many client requests, this does not seem the way to let the server scale.
+> Are you aware of any server implementors who would find this option
+> acceptable?  It's unacceptable to me!
+
+I never suggested that either -- someone else produced it as a paper tiger.
+Such information is already being supplied in the HTML messages, except
+where doing so presents a security issue.  There is no reason why the
+same information can't be formatted according to some pseudo-standard
+like XHTML, with special dav attributes if anything more is needed
+(such as easy-to-parse numeric error codes that correspond to whatever
+implementation-dependent semantics you care to reveal).
+
+However, I am not the one proposing a change to the protocol.  I think
+you need to define and defend why an additional error mechanism is needed
+to support application-level interoperability in the first place.  Is it
+because the protocol is deficient, the DAV design is deficient (introducing
+too much complexity for the sake of saving one round trip), or because
+the currently proposed extensions are bogus?  That will determine the
+scope of this extension and how it should be implemented far better than
+any decision by committee.
+
+HTTP has consumed less than 20% of its error code space in seven years
+of use.  That is because the abstract interface of performing actions
+on a resource does not have a great deal of variance that needs to be
+revealed to an independent client.  HTTP only uses the status code to
+tell the client the essential aspect of the status: what it should do
+about the situation without further human intervention.  Everything else
+that can be used by automated mechanisms is in the response header fields,
+and anything that might be used by a human is in the response body.
+
+Neither authoring nor versioning are sufficient problems to generate
+such a great need for error codes.  The problem is the way that the
+protocol is being extended to perform them.  Performing compound actions
+multiplies the complexity of interoperability.  Creating properties
+as a pseudo-independent yet dependent adjunct to resources multiplies
+the complexity again.  Defining versioning as a property will multiply
+it as well.  You are now dealing with a 1xMxPxV universe of interoperability
+failures instead of a 1x1 universe.  Extending the status code mechanism
+isn't going to fix that.
+
+....Roy
+
+
+

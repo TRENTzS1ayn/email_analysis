@@ -1,0 +1,97 @@
+docno="lists-014-2991627"
+received="Mon Dec  2 19:06:56 1996"
+isoreceived="19961203000656"
+sent="Mon, 2 Dec 96 19:06:49 EST"
+isosent="19961203000649"
+name="HUGO@watson.ibm.com"
+email="HUGO@watson.ibm.com"
+subject="Implementation of Shared Key Authentication"
+id="199612030007.TAA240981@mailhub1.watson.ibm.com"
+expires="1"
+
+
+To:tomste@microsoft.com,ietf-tls@w3.org,dansimon@microsoft.com
+
+Ref:  Your note of Mon, 2 Dec 1996 12:16:29 -0800
+
+Dan, Tom,
+
+I hope you read my previous message on how I'd like to see MAC functions
+handled in SSL.
+I'd recommend that you adopt these changes already now into your shared-key
+proposal (to preclude future  backward compatibility problems).
+This includes changing to a generic MAC definition and implementing it with
+the "official" HMAC as the default transform.
+
+The text affected by such a change would be:
+
+> SharedKeyVerify.shared_key_response
+>      hash (auth_write_secret + pad_2 +
+>             hash (auth_write_secret + pad_1 + hash (handshake_messages)
+>
+>                   + SharedKeyVerify.auth_service.auth_service_name
+>                   + SharedKeyVerify.auth_service.display_string
+>                   + SharedKeyVerify.auth_service.challenge
+>                   + SharedKeyVerify.identity + shared_key) )
+
+It should be re-written using a generic MAC (which could be implemented as
+HMAC or any other MAC).
+
+The problem is then how to combine in general the two keys
+auth_write_secret and shared_key into the generic MAC.
+
+The two possibilities that come to my mind are: XOR the two keys (or hash
+them together, etc.) to create one single MAC key or (as you do now) append
+the shared_key to the MAC-ed text.
+That is:
+
+1) SharedKeyVerify.shared_key_response
+        MAC(auth_write_secret XOR shared_key, data)
+
+where data = hash (handshake_messages)
+                    + SharedKeyVerify.auth_service.auth_service_name
+                    + SharedKeyVerify.auth_service.display_string
+                    + SharedKeyVerify.auth_service.challenge
+                    + SharedKeyVerify.identity
+
+2) SharedKeyVerify.shared_key_response
+        MAC(auth_write_secret, data + shared_key)
+
+
+In the first case one would be assuming that the MAC function
+uses random (unstructured) strings as keys (which is the usual case).
+In the second case this assumption is not needed but instead you will be
+assuming that the MAC does not leak information on its output. The latter is
+not a common assumption on MAC functions. It would require the assumption
+that the MAC behaves as a  "pseudorandom function" which is a stronger
+assumption. (In particular, I trust more HMAC as a MAC than as a pseudorandom
+function).
+As for later solution notice that once MAC is implemented as HMAC
+then the function will be the same as you use now (except for the changes
+that you need to comply with the "official" HMAC, ie, XOR of pads instead of
+concatenation).
+
+There is a third solution:
+
+If you assume MAC to be pseudorandom (as is needed in solution (2))
+then you could do the following
+
+3) SharedKeyVerify.shared_key_response
+        MAC(temp_key, shared_key)
+
+where temp_key=MAC(auth_write_secret, data)
+
+One potential advantage of this method is that in pass-through authentication
+the (SSL) server needs to pass to the authentication server only the
+value of temp_key and not of auth_write_secret which the server may want to
+keep secret only between itself and the client. I don't know how important
+this may be in actual uses but sounds as a good "key separation" property.
+
+Hugo
+
+PS: even if you do not want to go at this point to a generic MAC definition
+I recommend that you already switch to the official HMAC and consider
+doing (1) or (3).
+
+
+

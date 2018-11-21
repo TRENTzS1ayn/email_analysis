@@ -1,0 +1,151 @@
+docno="lists-020-16146053"
+received="Thu Mar 18 08:21:09 2004"
+isoreceived="20040318132109"
+sent="Thu, 18 Mar 2004 08:21:09 -0500"
+isosent="20040318132109"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="EP-1 - EP-4 including promised general metadata query"
+id="20040318132109.GB20106@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:public-rdf-dawg@w3.org
+
+
+
+Here are some use cases from Annotea. I've labeled them with
+discriptive names, as well as a short moniker. At the end I've loosely
+tied this back to the general metadata requests we discussed in the
+teleconf 14 hours ago. I'll post some more about tracking
+attributions/provenance later.
+
+ns rdf=<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+ns a=<http://www.w3.org/2000/10/annotation-ns#>
+ns t=<http://www.w3.org/2001/03/thread#>
+ns http=<http://www.w3.org/1999/xx/http#>
+ns dc0=<http://purl.org/dc/elements/1.0/>
+ns dc1=<http://purl.org/dc/elements/1.1/>
+
+EP-1
+InputAnnotationQuery: Client1 posts a document to a server that
+accepts (and agrees to host), amongst other things, a:Annotations. The
+document contains an a:Annotation which a:annotates
+http://example.com/doc1.html. The server distinguishes graphs that it
+is willing to host by looking for a minimal subset of assertions in
+the posted document:
+
+ask (
+ ?annotation rdf:type    a:Annotation.
+ ?annotation a:annotates ?annotates.
+ ?annotation a:context   ?context.
+ ?annotation a:body      ?body)
+collect (?annotation ?body)
+----------------------------------------------------------------------
+
+EP-2
+AnnotatesQuery: Client2 asks about a page (for instance, the one that
+Client1 has annotated). The server gives back all the properties and
+values for any property coming from a node which also annotates doc1.
+
+ask
+(?annotation rdf:type    a:Annotation.
+ ?annotation a:annotates <http://example.com/doc1.html>.
+ ?annotation ?p          ?o)
+collect (?annotation ?p ?o)
+----------------------------------------------------------------------
+
+EP-3
+SubjectQuery: Client asks for a hosted object directly by name.
+
+ask
+(<http://example.com/annot1> ?p ?o)
+collect (?p ?o)
+----------------------------------------------------------------------
+
+EP-4
+FatAnnotationQuery: Client asks for a certains set of properties about
+a hosted object. The ( tripleA || tripleB ) expressivity is used to
+make efficient queries of graphs that mix the Dublin Core 1.0 and 1.1
+namespaces:
+
+ask
+(<http://example.com/annot1>  rdf:type    a:Annotation.
+ <http://example.com/annot1>  a:annotates ?annotates.
+ <http://example.com/annot1>  a:context   ?context.
+ ( <http://example.com/annot1>  dc0:creator ?creator ||
+   <http://example.com/annot1>  dc1:creator ?creator )
+ ?creator                     a:E-mail    ?email.
+ ?creator                     a:name      ?name.
+ <http://example.com/annot1>  a:ceated    ?created.
+ ( <http://example.com/annot1>  dc0:date    ?date || 
+   <http://example.com/annot1>  dc1:date    ?date )
+ <http://example.com/annot1>  a:body           ?body.
+ ?body                        http:Body        ?bodyData.
+ ?body                        http:ContentType ?contentType)
+collect (?annotation ?body)
+----------------------------------------------------------------------
+
+EP-2 (AnnotatesQuery) demonstrates one style of getting general
+metadata about an object. The query is a simple (albeit with variable
+predicats) graph query -- it does not assume any omniscience on the
+part of the server. A form closer to today's discussion could be:
+
+ask
+(<http://example.com/foo> ?p ?o)
+collect (?annotation ?p ?o)
+
+This assumes that all the properties needed to determine what would be
+"interesting" to know about foo are one directly attached. For
+instance, it would be bad practice have a bookmark attached by an
+rdfs:seeAlso. Using a b:bookmarkedBy property would give the queryer a
+chance to know immediately if it's the sort of data that it's
+interested in persuing.
+
+For efficiencies sake, people may start to flatten their data
+structures so that they will all be loaded when the client asks for
+one level of properties away from foo. This would be unfortunate as
+we'd see useful data structures like
+
+<foo> :address <a1>.
+<a1>  :street "Elm".
+<a1>  :number 123.
+
+decomposed into
+
+<foo>  :address_street "Elm".
+<foo>  :address_number 123.
+
+eliminating some of the intuitive structure and data hiding utility of
+having an address record.
+
+The variable predicate approach does not address everything that a
+well-educated server might provide when asked for "stuff about foo",
+but I think that the remaining bits could be left to higher layers
+like popular query profiles:
+
+ask
+(<http://example.com/foo> :browserProfile ?o)
+collect (?annotation ?p ?o)
+
+If we wanted an approach like this we'd have to make sure that the
+server was not limited by the query lanuage specification to only
+returning properties with foo in the subject and :browserProfile in
+the predicate -- that it was free to return some annotations and some
+ISBN info and whether it goes well with a cabernet...
+-- 
+-eric
+
+office: +81.466.49.1170 W3C, Keio Research Institute at SFC,
+                        Shonan Fujisawa Campus, Keio University,
+                        5322 Endo, Fujisawa, Kanagawa 252-8520
+                        JAPAN
+        +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741 (does not work in Asia)
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

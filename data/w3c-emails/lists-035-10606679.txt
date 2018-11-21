@@ -1,0 +1,314 @@
+docno="lists-035-10606679"
+received="Sat Dec  1 17:39:13 2001"
+isoreceived="20011201223913"
+sent="Sat, 1 Dec 2001 22:39:04 -0000"
+isosent="20011201223904"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Being Clear [was: Re: Namespaces Without &quot;#&quot;]"
+id="014801c17ab8$fe409120$3b540150@localhost"
+charset="iso-8859-1"
+inreplyto="20011125144648.A1399&#64;waka.ebuilt.net"
+expires="-1"
+
+
+To:"Roy T. Fielding"<fielding@ebuilt.com>
+Cc:<www-rdf-interest@w3.org>,<uri@w3.org>
+
+> What you are looking for is a header field that defines the
+> relationship between representation and resource in a manner that is
+> simple to understand and relatively standard.  You should be able to
+> do that with a typed Link to a standard resource that represents
+> that relationship, and for which some form of RDF could be a
+> reasonable representation of that relationship.
+
+This is a very good idea, especially in that it could solve a handful
+of problems at once. It would be possible to define a new header file
+that links to a profile syntax, using some canonical form of RDF
+(perhaps NTriples).
+
+So we could define something like:-
+
+   ResChar = "Resource-Characteristics" ": " URI
+
+That harks back to the URC days a bit. The URI production above would
+be a URI that denotes a resource whose resource characteristics are to
+some extent known: a single time-invariant associated representation,
+in NTriples format. The alternative would be to actually put the
+NTriples in the headers itself :-)
+
+It's not as if this idea doesn't get raised every so often; for
+example, Sandro mentioned it to myself, Mark Nottingham, and TimBL:-
+
+[[[
+02:27:02 <sandro>         X-Formal-Language-URI:
+http://www.w3.org/2001/10/x
+[...]
+03:16:14 <timbl-lap> Why not boostrap RDF metadat with just
+03:16:20 <sbp> is it going to be something that's explicitly
+retrivable?
+03:16:40 <timbl-lap> RDF-prop:  <http://www.w3.org/2001/FLD>  foo.bfg
+03:16:56 <sandro> I'm thinking in terms of retreivability at the
+moment, but there's probably a place for 3rd-party information, too.
+03:16:57 <mnot> HTTP Headers are problematic; there aren't any good
+UIs in Web servers for associating metadata with resources, and often
+the authors don't have administrative control
+03:17:13 <timbl-lap> (wonder what happens when th econtent-type and
+fld don't match - security hole?)
+03:17:17 <sbp> ooh, RDF in the headers. Just like CC/PP
+03:18:06 <timbl-lap> N3: <http://www.w3.org/2001/FLD>  <foo.bfg>;
+<bar.bfg>.
+[...]
+03:19:45 <timbl-lap> An RDF mapping of HTTP and SMTP headers is well
+overdue.  DanC has of course written a bunch of larch about it [n]
+]]] - http://ilrt.org/discovery/chatlogs/rdfig/2001-10-25.txt
+
+Sandro's paper [1] is very relevant, and discusses numerous methods
+for formally identifying a language, including HTTP headers. This has
+also been discussed in the REST dissertation:-
+
+[[[
+Data Element | Modern Web Examples
+resource | the intended conceptual target of a hypertext reference
+resource identifier | URL, URN
+representation | HTML document, JPEG image
+representation metadata | media type, last-modified time
+resource metadata | source link, alternates, vary
+control data | if-modified-since, cache-control
+]]] -
+http://www1.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.ht
+m
+ Table 5-1
+
+Coming up with a decent metadata framework for resource and
+representation metadata (further to that which HTTP already gives us)
+is a good idea; the difference will come when someone actually does
+it, and so I'd like to discuss the requirements and deployment
+infrastructure, w.r.t. all of the recent URI/Resource/MIME related
+discussions.
+
+An ResChar document will be something that states the characteristics
+of a resource (independent of the representations), and also of the
+relationship between the representation (the entities) and the
+resource. It will have to encompass tricky things such as content and
+language negotiation, and have a consistent view of Web architecture.
+
+One thing that it can help to address is how fragment identifiers are
+defined across the representations. At the moment, according to the
+URI RFC, the meaning of a fragment identifier is dependent upon the
+MIME type of the representation returned. Some people have taken it
+upon themselve to claim that as the semantics of fragment identifiers
+can only be found on derferencing, that they are somehow inconsistent,
+and broken. IMO, nothing could be further from the truth. Just because
+the URI RFC delegates the definition to other specifications, it
+doesn't mean that these definitions are going to be inconsistent. The
+only inconsistency comes from when you (for example) have the same
+fragment IDs meaning different things depending upon content
+negociation. In other words, when you serve some HTML with an ID
+declared, or some RDF with the same ID declared, from the same URI,
+then you're breaking that URI just as much as you would be if you sold
+your domain to another company and let them change the page in its
+entirety.
+
+I'm claiming that URI references are bound to whatever the
+representation under jurisdiction of its content type *says* that they
+are bound to. URI references can denote anything, they should be used
+consistently, and they are bound to things that are defined by the
+resource. So I'm going with a liberal interpretation of both Roy and
+Tim's views; it's the only way out of the "hash vs. slash" mess, as
+far as I'm concerned. I'm way past caring about that issue, I'm just
+going to decide namespace use by the flip of a coin. But when I have
+decided, I want to be able to assert, in the metadata attached to any
+representations of the resource that my server sends back, just what
+the resource either is (if I choose slash), and/or what the type of
+the resource ranges through (if I choose hash).
+
+A problem emerges from not being able to specify how IDs declared
+within different MIME types relate to one another. For example, in any
+serialization of RDF, when you point to a FragID within that space,
+you can use it to identify anything; any resource. The RDF
+specification should say so, the RDF MIME typs should say so.
+Everybody recognizes that fact. But the problem is that you can't say
+how consistent the IDs are... unless, for example, you come up with a
+new +rdf suffix for MIME types. That is inconvenient.
+
+We should be able to be very specific when talking about content
+types: when we come up with a new serialization of RDF, it should be a
+simple matter of coming up with an identifier for the syntax (a new
+identifier), and then reusing a common W3C chosen URI for the RDF
+model, such that you end up with:-
+
+[ :syntax <http://example.org/#someSerialization>;
+   :model <http://www.w3.org/2001/12/RDFModel> ] .
+
+So, in our ResChar file (O.K., I'm using NTriples with prefixes...),
+we get:-
+
+@prefix r: <http://example.org/resChar/> .
+<> r:contentType _:x .
+_:x r:syntax <http://example.org/#someSerialization> .
+_:x r:model <http://www.w3.org/2001/12/RDFModel> .
+_:x r:tree <http://iana.org/media-types/application> .
+
+Delegating on the responsibility of defining aspects of a content type
+becomes interesting when you get to XML... Here's an interesting quote
+on the subject:-
+
+[[[
+14:54:07 <tim-lurk> Sandro, the URI spec is the one which defines the
+relationship between a  URI and its meaning.
+14:54:28 <tim-lurk> For URIs starting with "http:", it hands off to
+the HTTP spec.
+14:54:50 <tim-lurk> The HTTP spec allows format negotaiation, and then
+hands off to the MIME type registry.
+14:55:10 <tim-lurk> The MIME type registry fopr application/xlm hands
+of to the XML spec.
+14:55:28 <tim-lurk> The XML spec hands off to the namespace URI.
+14:55:35 <tim-lurk> Goto 1
+]]] - http://ilrt.org/discovery/chatlogs/rdfig/2001-10-24.txt
+
+If namespaces are indeed handled in this way, then it gives us an
+extra headache. Quesions such as "what does it mean to embed some RDF
+in an XHTML document" are rife, confounded by the fact that XHTML is
+sometimes seen as being servable as text/html, text/xml, and
+application/xhtml+xml. Do we need application/xhtml+xml+rdf? :-)
+
+The boundaries between content types are not as clear cut as they used
+to be. A content type refers to both the syntax and the semantics of
+the document, and these are difficult things to pin together. IMO,
+content types are starting to lose their edge, and should be replaced
+by URIs, so that we can state the relationships between different
+types of content, and define new content types, more easily. This,
+once again, appears to be an opinion shared by a number of people.
+
+Of course, we end up going in a full circle, from the representation
+characteristics, through to how the respresentation characteristics
+link to the resource characteristics, and on to the resource
+characteristics themselves.
+
+So, another requirement of ResChar is that it should let us say in
+more direct terms what a URI denotes. TimBL has been stating that
+unless a change is made to HTTP, an HTTP URI necessarily identifies a
+"document", or a "generic document" or (in the PIM Doc namespace) a
+"work". He claims that it is useful for the Semantic Web to be founded
+on documents in this fashion. While I vehemently agree with the latter
+statement, the former statement had had some rather bogus
+conclusions:-
+
+[[[
+A client which understands the http: protocol can immediately conclude
+that the fragementid-less URI is a generic document. This is true even
+if the publisher (owner of the DNS name) has decided not to run a
+server.
+]]] - http://www.w3.org/DesignIssues/Fragment
+
+Well, even if HTTP did necessarily identify generic documents,
+acknowledging that a change to HTTP could be made means that the above
+statement can not be taken as a fact. I don't think that it is a good
+idea to base the Semantic Web on such quaky assumptions, but I do
+think that it's a good idea to make sure that what is identified is
+clear. By asserting that all HTTP URI identified resources are
+"documents", you get a kind of implicit security... but it's not a
+good approach because it's not true, and so ResChar may be able to
+fill the gap.
+
+So, what kinds of thigns do we want to be able to say using ResChar?
+There is a problem in the fact that it's difficult to taxonomize the
+type of things that we want to identify such that it will be of use to
+anyone dereferencing the URI and getting a representation back. Let's
+take Aaron's URI http://logicerror.com/myWeavingTheWeb as a good
+example. This URI, according to Aaron, denotes Aaron's copy of the
+book "Weaving The Web". So, the thing identified by that URI is a book
+(I'll use ":myWTW" as an abbreviation for Aaron's URI):-
+
+   :myWTW a :PhysicalBook .
+
+Of course, the representation that you get back is certainly not his
+copy of Weaving The Web. I think that there are a few different things
+that people might want to identify associated (for want of a better
+word) with that URI:-
+
+* The resource itself: this is the only thing that the URI denotes,
+and it is Aaron's copy of Weaving The Web (according to Aaron)
+* The representation on a certain date; a certain representation
+depending upon content or language negotiation
+* The set of entities that correspond to the resource over a set
+period of time
+
+I think that the last one on the list above is synonymous to the thing
+that TimBL calls a "document", it is concept of the the set of things
+that Aaron will publish at that address over time. He may only ever
+publish that one page, or he may publish a set of things. In any case,
+one of the main things that he is asserting is that his resource is
+not a "work", so:-
+
+   :PhysicalBook daml:disjointWith doc:Work .
+
+Many of the relationships that we want to state are given in a message
+from Daniel LaLiberte:-
+
+   http://lists.w3.org/Archives/Public/uri/2000Sep/0020
+
+Some of these relationships are a bit suspect, since they only apply
+to "works", but not to abstact concepts (how can "love" include a work
+of art? type mismatch), so it's clear that for some, the domain with
+be doc:Work, and for others, rdfs:Resource. ResChar should allow us to
+make the distinction, but once again, it will mean providing a strict
+taxonomy for "generic documents".
+
+ResChar is useful in letting people know what is identified, but they
+might also be able to provide separate URIs for representations, or
+entity threads. For example, if I want to talk about Aaron's set of
+documents that say "this representation corresponds to the resource
+that is my copy of Weaving The Web", then all you need is something in
+the header to the effect:-
+
+   <> :entitySet :SomeURI .
+
+This is different to the "Content-Location" or other entity type
+headers, in that we're still pointing some some non-content, the
+abstract work denoted by a set of entities. Note that Aaron defined
+the taxonomy thus:-
+
+[[[
+Resource (Thing) --> Representation (Object) --> Entity (State) -->
+Content (Serialization)
+Example: Sean B. Palmer --> A Homepage of Sean B. Palmer --> A
+Homepage of Sean B. Palmer on 2001-11-25T00:00Z. --> A Homepage of
+Sean B. Palmer on 2001-11-25T00:00Z in XHTML and English
+]]] - from http://ilrt.org/discovery/chatlogs/rdfig/2001-11-25.txt
+
+I think that some of the terms used therein are inconsistent with the
+terminology use in the URI RFC, and that in fact the following is
+true:-
+
+Resource (abstract): Sean B. Palmer
+Resource (work): A Homepage of Sean B. Palmer
+Entity: A Homepage of Sean B. Palmer on 2001-11-25T00:00Z.
+Representation: A Homepage of Sean B. Palmer on 2001-11-25T00:00Z in
+XHTML and English
+
+The author has to choose between the kinds of resource that the page
+denotes. Another example is Mark's URI for "brilliance": the resource
+denoted by that URI is (according to Mark) the concept of brilliance,
+but many people would misinterpret it as being the work that is the
+set of entities over a period of time, i.e. a "document describing
+brilliance".
+
+Intuitively, this is quite an easy thing to grasp, but on a
+specification-strict level, it's going to be very difficult to encode.
+Still, I hope that we can clear up the RDF associated identification
+issues.
+
+Cheers,
+
+[1] http://www.w3.org/2001/06/blindfold/langIdent
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://webns.net/roughterms/> .
+:Sean :hasHomepage <http://purl.org/net/sbp/> .
+
+
+

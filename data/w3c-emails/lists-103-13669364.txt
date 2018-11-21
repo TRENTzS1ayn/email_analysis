@@ -1,0 +1,129 @@
+docno="lists-103-13669364"
+received="Fri Jun 29 21:34:28 2001"
+isoreceived="20010630013428"
+sent="Fri, 29 Jun 2001 20:34:59 -0500"
+isosent="20010630013459"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: Document Object Model (DOM) Level 3 XPath Specification"
+id="001b01c10104$e0962dc0$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="3B3D114F.8070505&#64;netscape.com"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+> If it implements CharacterData, then what does parentNode point to?
+>  Some node that it is not a child of, or do we clone the whole tree, and
+> have no way to reference the real nodes?  I think that you cannot create
+> a coherent pseudo-fragment of the tree without recreating a whole
+> separate tree and losing correlation to the real nodes you were
+> interested in.
+
+I'll have to think some more on this.  It just wasn't satisfying on
+the first read and seems like a gotcha that would catch most
+novice XML developers.
+
+> >I think it is necessary that there is a generic evaluateAs(), however I
+> >don't think it is necessary or desirable to pass the type as an argument
+> >since XPath 2.0 should have the Schema datatype equivalents of
+> >string(), number(), etc.  The evaluteAsString, evaluateAsNumber,
+> >etc are useful and probably should be kept.
+> >
+> What object type would the calling application expect to be returned?
+>  As I understand XPath 2.0, data type is determined not by the XPath
+> expression but by the value space of the actual value, and a return type
+> may simultaneously be instance of multiple types.  The purpose of the
+> passed-in argument is to tell what object type we need back.  If the
+> languages used to implement DOM applications were as untyped as Lisp,
+> which seems to be the inspiration for XPath 2.0, then we might not need
+> to tell it what type we needed.  But we need to be able to say what type
+> we need in the program.  Otherwise, we will have no idea what is being
+> returned or how to use it.
+
+http://www.w3.org/TR/query-datamodel/#primvalue appears to describe
+an coercion functions that would augment the number(), string() and
+boolean()
+functions already in XPath 1.0.
+
+For example, if a document has an associated schema and a "time" attribute
+is associated with a type derived from xs:time but my application wants
+to have it returned as a string, I could write its XPath query as either:
+
+String timeStr = (String) evaluate("string(@time)");
+
+or
+
+String timeStr = (String) evaluate("xs:string(@time)");
+
+Since I have the ability to coerce an XPath expression to any arbitrary
+builtin schema type, replicating this capability by an additional datatype
+argument on the evaluateAs function seems unnecessary.
+
+Time time = (Time) evaluate("xs:time(" + query + ")");
+
+> >I mentioned that I think NodeSetIterator and NodeSet are better names for
+> >ActiveNodeSet
+> >and StaticNodeSet.  ActiveNodeSet behaves like an fail-fast iterator on a
+> >collection.  StaticNodeSet behaves like a common ancestor to NodeList and
+> >NamedNodeMap.
+> >
+> The methods of these interfaces have changed a bit since I started, so I
+> would not be opposed to renameing them appropriately.  I agree that
+> ActiveNodeSet behaves like a fail-fast iterator.  But I would be afraid
+> of confusion if we called the one type an iterator of the other, when it
+> is not.  The ActiveNodeSet does not iterate across the StaticNodeSet,
+> but rather across an active result set.  A StaticNodeSet snapshots a
+> list of the nodes in the ActiveNodeSet.  While the names might make
+> sense in isolation, together they seem quite misleading.  I would be
+> more inclined to try something like NodeSetIterator and NodeSetSnapshot.
+
+The fact that NodeSet is a snapshot is really orthogonal to the interface,
+it is really
+more a quality of the underlying object returned by a particular method.
+Likewise
+all the text about liveness of NodeList's in the Core spec is really a
+quality of the
+the object returned by , for example, Element.attributes(), than having
+anything
+to do with the NodeList interface.  If there were functions in Core that
+returned
+static lists, I would prefer to be able to manipulate them using a generic
+interface
+that I could also use for dynamic node lists.
+
+Between the XPath draft and Core, there are three interfaces to manipulate
+sets of Nodes, StaticNodeSet/NodeSet[Snapshot], NodeList and NamedNodeMap.
+All three interfaces have a length() and item() method, but there is no
+common
+interface supported by all and there should be.
+
+If being able to determine whether an NodeSet is static or dynamic is
+significant,
+then NodeSet could have an isDynamic() property and possibly a
+createStaticSet()
+method:
+
+public interface NodeSet {
+     public int getLength();
+     public Node getItem(int index);
+     public boolean getIsDynamic();
+     public boolean getIsOrdered();
+     public NodeSet createStaticSet();
+}
+
+Element.getAttributes() could return an object that, in addition to
+supporting NamedNodeMap,
+would support NodeSet with isDynamic = true and isOrdered = false.  If you
+wanted to take
+a snapshot of the attribute list, then you could call createStaticSet().
+(The members of the set would be fixed, however the properties of individual
+members could still change)
+
+Element.getChildren() could return an object that, in addition to supporting
+NodeList,
+would support NodeSet with isDynamic = true and isOrdered = true.
+
+
+

@@ -1,0 +1,165 @@
+docno="lists-006-10873600"
+received="Sat Jul 14 10:20:36 2001"
+isoreceived="20010714142036"
+sent="Sat, 14 Jul 2001 10:28:00 -0400"
+isosent="20010714142800"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Modified: Auto update of VCR when checking an associated work ing resource"
+id="3906C56A7BD1F54593344C05BD1374B103A385E6@SUS-MA1IT01"
+inreplyto="Modified: Auto update of VCR when checking an associated work ing resource"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+   From: Lisa Dusseault [mailto:lisa@xythos.com]
+
+   I'm in favour of this.
+
+   One addendum:  if the server does NOT support the UPDATE method, then the
+   client MUST include the DAV:auto-update property in the CHECKIN request.
+
+The DAV:auto-update property is set at CHECKOUT time, not at CHECKIN
+time.  (I assume when you say "include the DAV:auto-update property",
+you meant "include a value for the DAV:auto-update property").
+
+   From: John Hall [mailto:johnhall@evergo.net]
+
+   One addendum: Explicitly point out that if the CHECKIN on the VCR
+   fails, the client would have to do a CHECKIN of the working
+   resource followed by a MERGE or UPDATE to retry the operation.
+
+I assume you meant "if the CHECKIN of a working resource with
+a DAV:auto-update property fails ...".  The server must fail
+a CHECKIN operation if the DAV:auto-update cannot be performed,
+so MERGE and UPDATE are not relevant here.
+
+   From: Lisa Dusseault [mailto:lisa@xythos.com]
+
+   > From: Tim Ellison
+   > (The DAV:auto-update property is on the working resource).  I
+   > don't want to make it mandatory since there are cases where
+   > creating a version that does not update the version-controlled
+   > resource is desirable.  Without UPDATE it would only be
+   > 'referenceable'(ahem) by the version URL.
+
+   So are we back to saying that supporting Working Resource feature
+   requires also supporting UPDATE?  That's what I'm trying to avoid.
+   Is there a better way for these two features to not depend on each
+   other?
+
+Tim is talking about the case where the CHECKOUT was applied to a
+version URL, and therefore there is no DAV:auto-update property set on
+the working resource.  This doesn't imply that the working resource
+feature requires supporting UPDATE.  
+
+   Furthermore, it's surprising to me, and perhaps to clients as well,
+   that working resource checkins and in-place checkins work so
+   differently: one ends up with the VCR pointing to the latest
+   version at the end, and the other doesn't (by default).  I would
+   expect the default behaviour of both of these to be the same.
+
+One of the primary use cases for a working resource is to allow you
+to create a "hidden version", i.e. a version that is not exposed at
+a VCR.  This is the natural semantics for checking out a version,
+since there is no VCR to be updated.  So I believe the protocol
+currently provides the "hidden version" functionality in a natural
+way.
+
+   Perhaps Jim's proposal could instead be worded so that auto-update
+   was the default, and "do not update" is the exceptional behaviour
+   that the client must request.
+
+Auto-update is the default (and only behavior) when you create a
+working resource by checking out a VCR, and do-not-update is the
+default (and only behavior) when you create a working resource by
+checking out a version.
+
+   From: Lisa Dusseault [mailto:lisa@xythos.com]
+   >
+   > I have an application in mind that creates versions and doesn't
+   > update any version-controlled resource.  It always references the
+   > versions by their version URL.  In this case there is no need for
+   > DAV:auto-update or an UPDATE method, so I would object to making
+   > them required.
+
+Note: Tim is saying that he would object to making DAV:auto-update
+required when a version is checked out, and that UPDATE is not required
+since these are "hidden" versions (i.e. versions that will not appear
+in VCR space).  DAV:auto-update is of course required when you are
+creating a working resource by checking out a VCR.
+
+   That really badly serves the purposes of non-versioning clients.
+   The server can't interact with those clients in your scenario,
+   because those clients would always just GET the VCR, and end up
+   with the root version instead of the latest versions.
+
+If you want to expose the new states to a non-versioning client, you
+would of course need to update the VCR, but Tim's scenario did not
+involve exposing the new states to non-versioning client.  He's just
+saying that creating a new version without updating the VCR needs to
+be possible.
+
+   Let me phrase the problem in these terms, I must find a solution to: How
+do
+   I write a server implementation that
+    - supports Working Resources
+OK.
+    - supports non-versioning clients
+OK.
+   Some of the assumptions I've made in framing this problem are that
+    - UPDATE is not supported
+OK.
+    - I may not be able to rely on versioning-aware clients to use the
+   auto-update flag in CHECKIN.  I don't know how to send an error if they
+   don't use this flag.
+
+This is an unreasonable assumption.  The protocol provides well
+defined responses to well defined requests.  If a client choses
+not to use the defined protocol, then they should not be surprised
+if they do not get the results defined by the protocol.  If they
+want the functionality provided by the DAV:apply-to-version flag,
+they need to use the DAV:apply-to-version flag.  A CHECKIN applied
+to a VCR without the DAV:apply-to-version flag produces
+an in-place checkout.  In-place checkout is the default behavior,
+because that is required to support auto-versioning for 
+non-versioning clients.
+
+    - It's the wrong thing to always show non-versioning clients the root
+   version.  They will never have the opportunity to see the latest version.
+That of course depends on what your client wants to show non-versioning
+clients, but I would agree that a client sometimes wants to show
+non-versioning clients the state of a non-root version.
+
+   From: John Hall [mailto:johnhall@evergo.net]
+
+   The modifications are intended to:
+   1) Allow a client to recover if the auto-update fails.  By clearing the
+   auto-update value, a second CHECKIN would work just like it does now,
+   and the client would have to followup with a UPDATE or MERGE.
+
+A client can do this by creating a non-auto-update working resource by
+checking out the appropriate version, copying the auto-update working
+resource to the new working resource, and then checking in the
+non-auto-update working resource.  I believe keeping the auto-update
+property protected (i.e. not modifiable by a client) is more important
+than saving a round trip in this recovery use case.
+
+   2) My server would never fail the auto-update, because I don't allow
+   forking.
+
+That is of course fine.
+
+   3) The new precondition is designed to let a client know that a server
+   ONLY supports WORKING-RESOURCES with the auto-update feature.
+
+This can already be made clear by having CHECKOUT not appear in the
+DAV:supported-method-set of a version resource, and having a 405
+response if CHECKOUT is applied to a version resource.
+
+Cheers,
+Geoff
+
+
+

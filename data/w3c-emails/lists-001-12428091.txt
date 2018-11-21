@@ -1,0 +1,92 @@
+docno="lists-001-12428091"
+received="Fri Oct 12 14:52:55 2001"
+isoreceived="20011012185255"
+sent="Fri, 12 Oct 2001 12:56:03 -0600"
+isosent="20011012185603"
+name="Lee Passey"
+email="lee@novonyx.com"
+subject="BUG: Multiple unterminated &lt;meta&gt; tags in &lt;head&gt; block confuse parser."
+id="3BC73CC3.A2D5397B@novonyx.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:"html-tidy@w3.org"<html-tidy@w3.org>
+
+I am trying to tidy one of those bloated MS-Word .htm files.  In the
+<head> block there are multiple untermintated <meta> tags, as follows:
+
+<head>
+<meta http-equiv=Content-Type content="text/html; charset=windows-1252">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word 9">
+<meta name=Originator content="Microsoft Word 9">
+<link rel=File-List href="./filelist.xml">
+<title>MS Word document</title>
+<!--[if gte mso 9]><xml>
+ <o:DocumentProperties>
+... etc.
+
+The August 2000 version of tidy seems to deal with this fine, but my
+build based on CVS of about September 25, 2001 prints the error:
+
+line 7 column 73 - Warning: <meta> element not empty or not closed
+line 7 column 73 - Warning: inserting missing 'title' element
+
+Walking through the code shows that parsing the meta element (which has
+no content) pushes an empty node onto the token stack which then causes
+the ParseHead routine to terminate prematurely.
+
+A diff of the two code bases shows that the following line was inserted
+into ParseTag() at line 516 of the new parser.c:
+
+        if (node->tag->parser == null)
+
+with the comment:
+
+    /*
+       Fix by GLP 2000-12-21.  Need to reset insertspace if this 
+       is both a non-inline and empty tag (base, link, meta, isindex,
+hr, area).
+    */
+
+The effect of this "fix" is to cause the routine to call the ParseEmpty
+routine to be called for <meta> elements, which prints the "element not
+empty or not closed" message (a good thing), and then calls UngetToken()
+for the empty text node (a bad thing).  The pushed token then gets
+returned on the next call to GetToken(), which causes the ParseHead()
+routine to terminate prematurely.
+
+I don't understand (yet) the theory of operation of the parser well
+enough to figure out the best solution to this problem.  Commenting out
+the UngetToken() call in ParseEmpty() solves the problem, but may have
+unforseen effects in other places where it is called.  Commenting out
+the "if (node..." statement added in December also solves the problem,
+but then we loose the warning message, and reintroduce whatever problem
+it was trying to solve.  We could add a ParseMeta() routine which does
+not push the empty node and attach it to tag_meta.  Another solution is
+to alter ParseHead() so that it does not abort when it encounters a
+TextNode (which are not allowed in <head> blocks), but instead ignores
+them, perhaps with a warning.
+
+I noticed that the empty text element is a result of parsing the newline
+at the end of the <meta> tag, which gets converted to a space.  It gets
+converted rather than just ignored because ParseEmpty calls GetToken
+with a "MixedContent" mode rather than passing on the mode that was
+passed to it, which in this case was "IgnoreWhitespace".  This simple
+change may solve the problems (preliminary testing indicates it will)
+but again, there may be consequences that I don't foresee.
+
+In a related observation, I note that in the new version many tests that
+were "if (mode != IgnoreWhiteSpace)" are now "if (!(mode &
+IgnoreWhiteSpace)".  "IgnoreWhiteSpace" is a #define'ed value, not a
+variable or enumeration, and is not a bit value; rather it is defined as
+0.  Anything AND 0 will be 0, thus the test will always succeed, which I
+don't believe is intended.  Apparently, this has had little impact, or
+it would have manifested itself in other bugs already, but it ought to
+be looked at and fixed, or the test simply removed.
+
+I have entered this into the bug tracker at SourceForge.
+
+
+

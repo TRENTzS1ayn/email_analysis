@@ -1,0 +1,98 @@
+docno="lists-099-14644004"
+received="Fri Mar 12 11:54:09 2004"
+isoreceived="20040312165409"
+sent="Fri, 12 Mar 2004 17:53:46 +0100"
+isosent="20040312165346"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="genx Comments"
+id="4069db5a.1624314190@smtp.bjoern.hoehrmann.de"
+charset="us-ascii"
+expires="-1"
+
+To:tbray@textuality.com
+Cc:www-archive@w3.org
+
+
+
+Hi Tim,
+
+  I think it would be helpful if genx provides means to ease the
+creation of structured comments and processing instructions. The
+existing routines genxPI(...) and genxComment(...) require precomposing
+the string content which is quite inconvenient to do in C in a flexible,
+secure and portable manner. I would thus prefer to be able to something
+like:
+
+  genxStartPI(w, "xml-stylesheet");
+  if (styleType)
+  {
+    genxAddText(w, "type='");
+    genxAddText(w, styleType);
+    genxAddText(w, "' ");
+  }
+  genxAddText(w, "href='");
+  genxAddText(w, styleUri);
+  genxAddText(w, "'");
+  genxEndPI(w);
+
+Using sprintf/strcat/etc. to precompose the data would likely yield in
+security issues on "reduced-mental-function days" or make developers use
+non-portable library routines to circumvent such problems. The same
+applies for comments, of course. Structured comments are often used for
+meta data in template systems or mailing list archives, for example, so
+I'd say there is some market for such an addition to genx.
+
+I've in fact expected genx to provide only the start/end versions for
+comments and processing instructions because it appears to be high-level
+functionality to do this in one step (and there is no genxElement() to
+create an element plus text node child in on step either).
+
+Also, while I can gurantee that all my input to genx is UTF-8 encoded,
+I would like to avoid pre-processing the text to handle illegal
+characters such as U+0001. While genxScrubText() provides help, I would
+prefer to have something to configure a replacement character rather
+than stripping such values off the string. In my particular application,
+this data is source code from foreign documents and I have line/column
+pointers for this data, they would break if the line length changes. It
+would also be helpful to have something visual for debugging. Since
+genxScrubText() gurantees equal-or-less string length for the resulting
+string, the choice of replacement characters is limited to US-ASCII, but
+that would work for me (using '.' or '?').
+
+Hmm, the documentation reads
+
+  int genxScrubText(genxWriter w, utf8 in, utf8 out);
+
+I think this should be
+
+  int genxScrubText(genxWriter w, const utf8 in, utf8 out);
+
+It would be helpful to know from the documentation whether in and out
+must be distinct or whether I can use
+
+  genxScrubText(w, s, s);
+
+and whether I can safely assume that the return value is the number of
+bytes scrubbed.
+
+Since most of my untrusted text goes into text nodes, it would also be
+helpful to have genxAdd*Text(...) routines that allow to scrub the text
+more conveniently, say
+
+  genxAddScrubbedText(...)
+
+or
+
+  genxSetAutoScrubText(...)
+
+so I would have to worry less about the well-formedness of the output
+(or, more precicely, genx runtime errors...) Hmm, now that I think about
+this, genxScrubText(...) does not take care of U+0000 since it considers
+the first occurence of such a character to terminate the string. Argl,
+so I need to fix the text myself anyway...
+
+regards.
+
+
+

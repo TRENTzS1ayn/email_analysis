@@ -1,0 +1,187 @@
+docno="lists-020-14691824"
+received="Thu Jun 10 23:09:20 2004"
+isoreceived="20040611030920"
+sent="Fri, 11 Jun 2004 12:09:27 +0900"
+isosent="20040611030927"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: optional arcs implementation"
+id="20040611030927.GB12275@w3.org"
+charset="us-ascii"
+inreplyto="20040611020007.GA12275&#64;w3.org"
+expires="-1"
+
+To:public-rdf-dawg@w3.org, Rob Shearer<Rob.Shearer@networkinference.com>
+
+
+
+Added another test case at the bottom (down 100 lines).
+
+On Fri, Jun 11, 2004 at 11:00:07AM +0900, Eric Prud'hommeaux wrote:
+> 
+> sorry for the delay in sending this out to you:
+> 
+> The algae code:
+> 
+> package W3C::Rdf::AlgaeCompileTree::Option;
+> sub evaluateQTerm {
+>     my ($self, $resultSet, $db, $modifier) = @_;
+> 
+>     for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+> my $row = $e->nextElement;
+> my $miniResultSet = $row->makeResultSet;
+> $self->{DECL}->evaluateQTerm($miniResultSet, $db, $modifier);
+> my $empty = 1;
+> for (my $miniE = $miniResultSet->elements; $miniE->hasMoreElements;) {
+>     $empty = 0;
+>     my $miniRow = $miniE->nextElement;
+>     my $newRow = $row->duplicate;
+>     $newRow->assumeNewBindings($miniRow);
+> }
+> if (!$empty) {
+>     $row->eliminate;
+> }
+>     }
+> }
+> 
+> The interface to the solution set is:
+> for each row
+>   for each new solution
+>     duplicate the row
+>     add the bindings to the new row
+> eliminate the original row
+> 
+> ala:
+> sub evaluateQTerm {
+>     for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+> my $row = $e->nextElement;
+> for each solution
+>     my $newRow = $row->duplicate;
+>     $newRow->assumeNewBindings(solution);
+> }
+> $row->eliminate;
+>     }
+> }
+> 
+> Trivial test:
+>   ns <http://example.org/n#>
+>   assert (
+>    A p1 B .
+>    A p2 C .
+>    A p3 D .
+>   
+>    B p1 B .
+>    B p2 C )
+>   
+>   ask (
+>    ?n p1 B .
+>    ?n p2 C .
+>    ~?n p3 ?n2 )
+>   
+>   collect (?n ?n2)
+> got:
+> +------------------------+------------------------+
+> |                       n|                      n2|
+> |------------------------|------------------------|
+> |<http://example.org/n#B>|               !unbound!|
+> |<http://example.org/n#A>|<http://example.org/n#D>|
+> +------------------------+------------------------+
+> 
+> Testing for unintended extra resuts:
+> ns <http://example.org/n#>
+>   assert (
+>    A p1 B .
+>    A p2 C .
+>    A p3 D .
+>   
+>    D p4 E .
+>    E p5 F .
+>   
+>    D2 p4 E2 .
+>    E2 p5 F2 )
+>   
+>   ask (
+>    ?n p1 B .
+>    ?n p2 C .
+>    ~?n ?po ?n2 .
+>    ?n2 p4 ?n3 .
+>    ?n3 p5 ?n4)
+>   
+>   collect (?n ?n2 ?po)
+> got:
+> +------------------------+------------------------+-------------------------+
+> |                       n|                      n2|                       po|
+> |------------------------|------------------------|-------------------------|
+> |<http://example.org/n#A>|<http://example.org/n#D>|<http://example.org/n#p3>|
+> +------------------------+------------------------+-------------------------+
+
+Testing nested optionals (comments in the data set demonstrate which
+results are expected):
+
+  ns <http://example.org/n#>
+  assert (
+   A p1 B . # truncates on optional 1 term 1
+   A p2 C .
+  # A p3 D .
+  
+  # D p4 E .
+  # D p5 F .
+  # D p6 F .
+  
+   A2 p1 B . # truncates on optional term 2
+   A2 p2 C .
+   A2 p3 D2 .
+  
+   D2 p4 E2 .
+  # D2 p5 F2 .
+  # D2 p6 F2 .
+  
+   A3 p1 B . # eliminates second optional
+   A3 p2 C .
+   A3 p3 D3 .
+  
+   D3 p4 E3 .
+   D3 p5 F3 .
+  # D3 p6 F3 .
+  
+   A4 p1 B . # has all arcs
+   A4 p2 C .
+   A4 p3 D4 .
+  
+   D4 p4 E4 .
+   D4 p5 F4 .
+   D4 p6 F4 
+  )
+  
+  ask (
+   ?n p1 B .
+   ?n p2 C .
+   ~(?n ?p3 ?d .
+     ?d p4 ?e .
+     ?d p5 ?f .
+     ~?d p6 ?g))
+  
+  collect (?n ?d ?e ?f ?g)
+
+and this got:
++----------+----------+----------+----------+----------+
+|         n|         d|         e|         f|         g|
++----------+----------+----------+----------+----------+
+|         A| !unbound!| !unbound!| !unbound!| !unbound!|
+|        A2| !unbound!| !unbound!| !unbound!| !unbound!|
+|        A3|        D3|        E3|        F3| !unbound!|
+|        A4|        D4|        E4|        F4|        F4|
++----------+----------+----------+----------+----------+
+
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

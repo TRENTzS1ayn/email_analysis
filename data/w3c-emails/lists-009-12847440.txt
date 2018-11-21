@@ -1,0 +1,168 @@
+docno="lists-009-12847440"
+received="Sat Dec  2 16:36:20 1995"
+isoreceived="19951202213620"
+sent="Sun, 3 Dec 1995 01:16:48 +0100 (MET)"
+isosent="19951203001648"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: Logic Bag concerns (with some proposals)"
+id="199512030016.AAA13977@wswiop05.win.tue.nl"
+charset="USASCII"
+inreplyto="9512011836.aa06721&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:sjk@amazon.com,mogul@pa.dec.com,dmk@allegra.att.com,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Roy T. Fielding:
+[About Unless and logic bags:]
+>On the other hand, it is a very new construct and I'm not going to throw
+>it away until everyone gets a chance to think about how it might be used,
+
+Some remarks on uses of this construct:
+
+1) To make continuing interrupted GETs using the Range header
+possible, just defining logic bags and Unless: in HTTP/1.1 is not
+sufficient.
+
+HTTP/1.1 should also put a restriction on the behavior of servers that
+would give clients a 100% reliable way of ensuring that the entity
+body bound to a resource has not changed since the previous request.
+
+Basically, this means defining at least one header value or
+characteristic derived from a number of headers that, if present in
+the response, is _guaranteed_ to change if the entity body changes.
+<draft-luotonen-http-url-byterange-XX.txt> defines Last-modified as
+such a guaranteed-to-change header, but this may not be the best
+solution.
+
+Without such 100% guarantees defined in HTTP/1.1, continuation of
+interrupted GETs cannot be implemented reliably.  The ability to test
+lots of response headers with Unless (as in the logic bag example in
+Section 4.2 of the 1.1 draft) may be impressive, it is not sufficient.
+
+
+2) One nice use of Unless I just thought up: it allows for a 
+`delay image loading for images larger than XX bytes' option in
+browsers.  This could be implemented with minimal overhead by sending
+  Unless: {gt {Content-length XX}} 
+in inline picture requests.
+
+
+3) I agree with Dave Kristol that the relational operators like 'gt'
+in logic bags have big problems when used with undefined headers.
+Your default does not make these problems go away.  There are three
+important ways of comparing:
+
+  numeric  (2 < 10)
+  lexical  (ba < c)
+  date     (Mon, 04 Dec 1995 01:23:45 GMT < Mon, 04 Dec 1995 01:23:55 GMT)
+
+and the defined default would break on undefined headers that carry a
+date.  I therefore propose to define three `greater than` operators:
+
+  gtn   greater than, numeric
+  gtl   greater than, lexical
+  gtd   greater than, date.
+
+and maybe, but not required:
+
+  gt   greater than, with field-name dependent function (use only with
+       field-names defined in HTTP/1.1).
+
+(of course, the same for ge, lt, le).  Another question: what is the
+`appropriate comparison function' server authors are supposed to use
+for `Content-Version'?  Do we really want to open this can of worms?
+
+4) Implementation and portability considerations will make the Unless
+header useless for some applications, including the `Transactions or
+Reliability' application described by Sankar Virdhagriswaran earlier
+in this thread.  See 5) for an explanation.
+
+>and implementors get a chance to examine how it might be implemented on
+>their systems. 
+
+5) There is a big problem here. Consider the following request:
+
+  POST /bin/send_mail HTTP/1.1
+  Unless: {gt {Content-length 123}}
+  Accept: */*
+  <more request headers and the encoding of a form containing a mail
+  message follow>
+
+Now, the 1.1 draft says that `the server must abort the request' if
+the Content-length of the response would be bigger than 123.  The
+problem is: abort when?  Before or after the send_mail CGI script
+sends the mail?
+
+Implementation and portability considerations dictate that the abort
+can only happen _after_ the send_mail script has sent the mail.  Thus,
+I propose that the text
+
+  `the server must abort the request and respond
+   with the 412 (unless true) status code.'
+
+in Section 10.40 be replaced with 
+
+   `the server must not send the response resulting from the normal
+    semantics of the request, but respond with a 412 (unless true)
+    status code.'
+
+and that the following text is added at the end of the Section:
+
+    `If a request has the significance of taking an action other than
+    retrieval, the truth of the expression in the Unless field may,
+    but is not required to, prevent the action from being taken.'
+
+Without this change, we must basically put a logic bag parser and,
+worse, speculative execution or `undo' code in each existing and
+future CGI script that takes an action other than retrieval.  This is
+not an option, especially not for CGI scripts with functionality like
+`delete some files and report the cpu time used'.
+
+My conclusions about implementability: having Unless will only be
+viable if Unless processing can be done transparently to CGI scripts.
+What you can implement under my proposed Unless semantics is the
+following sequence of server actions:
+
+  1. Decode request
+  2. Run CGI script
+  3. Prepare response headers using CGI script output
+  4. Calculate value of logic bag in `unless' header
+  5a. If true, send a 412 (unless true) response
+  5b. If false, send a 200 (or whatever the CGI script produced), 
+     response headers and entity body.
+
+6) I observe that Unless is basically a bandwidth-saving device, not a
+device for preventing actions like sending mail from happening.  We
+may want to define another logic-bag based request header (for example
+`No-action-if') for this latter purpose.  The difference with Unless
+would be that a `No-action-if' header used on a standard CGI script
+would cause the server to immediately send a `not implemented'
+response.  Only special CGI scripts registered as capable of
+`No-action-if' processing would be run by the server.
+
+> I also need to prepare three presentations for the next
+>two weeks of travelling, so I'd much rather talk about it at the Dallas
+>IETF and Boston WWW4 than try to defend it on a mailing list (there just
+>isn't enough bandwidth).
+
+In that case, I will not expect an immediate answer to my concerns
+above.  I won't be at the IETF or the WWW4, but I can wait for you to
+introduce mutated versions of Unless and logic bags after the WWW4.
+
+[...]
+>   GET this HTTP/1.1
+>   Unless: {gt {Cost "US$0.25"}}
+
+Oops: as Cost is no 1.1 header, a 1.1 server would be allowed to send
+you a response and charge you "US $ 640000.25" for it.  After all,
+this amount is lexically smaller than "US$0.25".
+
+> ...Roy T. Fielding
+
+Koen.
+
+
+

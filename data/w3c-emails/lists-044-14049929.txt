@@ -1,0 +1,157 @@
+docno="lists-044-14049929"
+received="Sat Aug 12 08:35:47 2000"
+isoreceived="20000812123547"
+sent="Sat, 12 Aug 2000 13:35:00 +0100"
+isosent="20000812123500"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: New proposed fix for here(), was RE: Enveloped Signature Transform, XPath Transform: function here()"
+id="200008121235.NAA14363@cougar.baltimore.ie"
+inreplyto="BFEDKCINEPLBDLODCODKEEFACEAA.jboyer&#64;PureEdge.com"
+expires="-1"
+
+
+To:"John Boyer"<jboyer@PureEdge.com>
+Cc:"XML"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi John,
+
+This appears to be a potential solution, very feasible to implement,
+however it seems to me that it would entail certain restrictions:
+
+The enveloped signature transform could only be applied to the
+reference "". A reference "#id" or "#xpointer(../../*)" (fleshed
+out) would be C14N'ed first and so the enveloped signature would
+fail. Or am I wrong? I can blame it on Larium if so ;} Now, it
+would be possible to express such a signature as reference "",
+followed by enveloped signature, followed by an XPath transform,
+however that appears somewhat cumbersone.
+
+If this is unacceptable, one option would be to eliminate the
+enveloped signature transform altogether and replace it by an
+enveloped signature reference. After all, if your definition is
+in terms of a reference, that seems to me to be the place to put
+it. Enveloped signature is a slightly incongruous transform by
+its very nature.
+
+So, one would write:
+
+  <Reference URI="#enveloped-signature(*)">...</Reference>
+
+Where the "*" is interpreted exactly as a normal reference URI:
+
+  URI="#enveloped-signature()" -- the whole document
+  URI="#enveloped-signature(#id)" -- the document subtree rooted at id
+  URI="#enveloped-signature(#xpointer(...))" - the xpointer subtree
+
+In this case, the enclosed reference is resolved and passed to
+enveloped signature as the original DOM tree (here() etc can be
+used) and then the result is C14N'ed, as usual.
+
+I can also see that this is getting a bit ugly. I am embedding
+a great deal of information in a simple URI. Of course, this is
+functionally equivalent to an initial <XMLTransform> element
+which receives the raw DOM tree. Would that be a better option?
+Essentially, the input to an XMLTransform would be the DOM
+node set and the supported algorithms would be enveloepd
+signature and xpath, as we currently support. This would eliminate
+the added requirement of XPointer resolution.
+
+In terms of implementation, this would probably match exactly
+what most folks have already implemented:
+
+Currently, we (I) have an implementation whereby the enveloped
+signature transform can peek the original DOM structure out of
+the input (what Gregor correctly described as a "hack").
+
+Implementing an enveloped signature reference would simply
+remove this from being an explicit transform; the implementation
+would be identical.
+
+Implementing an XMLTransform element would simply remove its
+"hack" aspect.
+
+Merlin
+
+r/jboyer@PureEdge.com/2000.08.11/13:44:24
+>Hi Gregor and Joseph,
+>
+>Other implementers ran into same problems you are reporting.  At the
+>Pittburgh F2F, we decided to address that problem by
+>
+>1) Removing the here() function from the XPath transform
+>
+>2) Specifying the enveloped signature transform as follows:
+>
+><Reference URI="#xpointer((//. | //@* | //namespace::*)
+>   [count(ancestor-or-self::dsig:Signature |
+>here()/ancestor::dsig:Signature[1]) >
+>   count(ancestor-or-self::dsig:Signature)])">
+><Transforms>
+><Transform Algorithm="http://www.w3.org/TR/2000/WD-xml-c14n-200
+>00710"/>
+></Transforms>
+></Reference>
+>
+>In other words, take the current document, apply the same XPath that we
+>previously specified, then canonicalize the result.
+>
+>As I sit here today trying to write that up, I realize that it fixes the
+>XPath transform, but does not solve the underlying problem, which is that
+>the enveloped signature transform needs an extra piece of information that
+>is simply not in our transform processing model.
+>
+>It is important to realize that although we can say 'it must behave as if'
+>the signature were created by the above Reference, but that doesn't fix the
+>fact that it is still a transform, so our processing model does not allow it
+>to act like the above Reference.
+>
+>Instead, it is necessary to fix the processing model. The reason that we
+>cannot do this by giving transforms access to the parse tree is NOT that it
+>is a hack, but rather that it is actually not going to work.  Even with
+>access to the parse tree, the here() function cannot return a node of the
+>parse tree because it is the parse tree of the current document not the
+>parse tree of the octet stream's copy of the parse tree.
+>
+>It occurs to me today that we can fix this problem by adding a second
+>implicit string parameter to each transform.  All we have ever really needed
+>is to uniquely identify the signature we are currently processing.  We have
+>found that it is hard to do this by 'id'.  However, the path from a node
+>(such as the Signature element) to the root of a tree (the document root) is
+>unique and therefore it is relatively easy to dynamically compute a simple
+>XPath expression to describe its location within the document.
+>
+>I propose that the processing of Transforms should begin with computing the
+>XPath expression string that describes where the Signature element is within
+>the current document.  The Signature identifier string remains constant
+>during the processing of transforms, but any transform needing implicit
+>access to this information can have it.
+>
+>The expression would be of the form /doc/echild[n1]/.../Signature[nk], where
+>the signature is at depth k below the doc root (which is depth 0), and the
+>numbers n1...nk are a unique signature identifying the path between the root
+>and the Signature.  Obviously, if the Signature is the root element, then
+>the string would be "/Signature".
+>
+>I propose that the XPath and enveloped signature transforms should use this
+>expression to obtain a node within the parse tree representing the octet
+>stream input.  This could be returned by a function such as
+>this-signature().  This would obviously replace the here() function.
+>
+>Chairs:  Can we now seek consensus from stakeholders on this proposal?  As
+>soon as consensus is reached, I can provide the modified text.
+>
+>Thanks,
+>John Boyer
+>Development Team Leader,
+>Distributed Processing and XML
+>PureEdge Solutions Inc.
+>Creating Binding E-Commerce
+>v: 250-479-8334, ext. 143  f: 250-479-3772
+>1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>
+>
+>
+
+
+

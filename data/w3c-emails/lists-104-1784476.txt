@@ -1,0 +1,59 @@
+docno="lists-104-1784476"
+received="Tue Aug 21 20:05:18 2001"
+isoreceived="20010822000518"
+sent="Tue, 21 Aug 2001 20:05:16 -0400"
+isosent="20010822000516"
+name="Allen, Michael B (RSCH)"
+email="Michael_B_Allen@ml.com"
+subject="RE: [Events] removeEventListener on EventListeners currently  bein g processed"
+id="B27EB33BAB29D2119ABF0001FA7EF289053BF175@ewfd04.exchange.ml.com"
+charset="us-ascii"
+inreplyto="[Events] removeEventListener on EventListeners currently  bein g processed"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+I realise this is a little OT but I thought some people might like to know that I have
+found the implementation details of the "ugly" exception discussed in this thread
+to be Not That Bad. In fact it is _less_ code than I posted before. Here's an
+excerpt:
+
+    /* Trigger capturers
+     */
+    evt->eventPhase = DOM_EVENT_CAPTURING_PHASE;
+    for (i = 0; i < tcount && evt->sp == 0; i++) {
+        DOM_EventListener cpy_of_listener_fns[targets[i]->listeners_len];
+                                                        /* use stack ok? */
+        t = targets[i];
+        lcount = t->listeners_len;
+        for (j = 0; j < lcount; j++) {           /* copy functions */
+            e = t->listeners[j];
+            cpy_of_listener_fns[j] = e ? e->listener_fn : NULL; 
+        }
+
+        evt->currentTarget = t;
+        for (j = 0; j < lcount; j++) {
+            e = t->listeners[j]; /* if NULL, listener has been removed -- skip it */
+            if (e && cpy_of_listener_fns[j] && e->useCapture &&
+                                    DOM_String_cmp(e->type, evt->type) == 0) { 
+                cpy_of_listener_fns[j](evt);
+            }
+        }
+    }
+
+The key here is checking both the listener directly _and_ a copy made before
+events are dispatched for a given set of listeners on a node. As you can see this
+is pretty simple if arrays are used that can have NULL entries (holes are created
+in the array if listeners are removed). The first check will fail if the listener has
+been removed and the second will fail if there was no listener when the copy was
+made (whereas it will not be null if a listener was _added_ after a copy was
+made).
+
+I have not tested this but as soon as I do you can view the whole implementation
+when I upload domc-0.4.1 (http://auditorymodels.org/domc/).
+
+Mike
+
+
+

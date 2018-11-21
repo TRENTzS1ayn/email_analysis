@@ -1,0 +1,207 @@
+docno="lists-104-10624656"
+received="Wed Sep 18 11:42:28 2002"
+isoreceived="20020918154228"
+sent="18 Sep 2002 11:42:25 -0400"
+isosent="20020918154225"
+name="Philippe Le Hegaret"
+email="plh@w3.org"
+subject="Re: Level 3 Events comment: CustomEvent"
+id="1032363745.2905.171.camel@jfouffa"
+inreplyto="200207302130.OAA02215&#64;blackperl."
+expires="-1"
+
+To: David Flanagan<david@oreilly.com>
+Cc: WWW DOM<www-dom@w3.org>
+
+
+
+On Tue, 2002-07-30 at 17:31, David Flanagan wrote:
+> 
+> 
+> 
+> 
+> 
+> I found the descripton of the CustomEvent interface in the Last Call
+> draft of the Level 3 Events spec too be very confusing.  I was only able
+> to figure it out after reading the note about it in the description of
+> DocumentEvent.createEvent().  I suggest you add more description to
+> CustomEvent itself.  In particular, please say when it is necessary to
+> implement this interface.
+
+Here is a try for section 1.4.1 (1.6.1 is in the future version). I hope
+it's easier to understand the purpose of CustomEvent:
+
+[[
+1.6.1. Event creation
+
+In most cases, the events dispatched by the DOM Events implementation are
+also created by this implementation. It is however possible to simulate
+events such as mouse events by creating the Event objects and dispatch them
+using the DOM Events implementation.
+
+The DOM Events model provides two ways for creating Events. An application
+can either create Events objects that are known to the implementation, or
+create its own objects and have them dispatched by the DOM Events
+implementation.
+
+Creating Event objects that are known to the DOM Events implementation is
+done using DocumentEvent.createEvent. The application must then initialize
+the object by calling the appropriate initialization method before invoking
+EventTarget.dispatchEvent. The Events objects created must be known by the
+DOM Events implementation otherwise an event exception is thrown.
+
+The DOM application might want to create its own Event objects, in order to
+change the default Event implementation provided by the DOM Events
+implementation or to generate new event types with specific contextual
+information. In any case, the application is responsible for creating and
+initializing the Event object. The application can then dispatch the event
+using the DOM Events implementation by using EventTarget.dispatchEvent.
+
+However, the DOM Events implementation requires to have access to two
+attributes in the Event object in order to accomplish the dispatch
+appropriately: Event.currentTarget and Event.eventPhase. Those attributes
+are defined as readonly in the Event interface since event listeners must
+not change them and it is the responsability of the DOM Events
+implementation to update them during the event flow. Therefore, implementing
+the Event interface when creating its own events is not enough for an
+application since the DOM Events implementation will not be able to update
+the current phase and the current node during the dispatch. This problem
+could be resolved using two techniques: by extending the object definition
+of the Event implementation provided by the DOM Events implementation, or by
+the CustomEvent interface. The first method has the disadvantage to bind the
+application to a specific DOM Events implementation while the second method
+is a generic one and can be used with any DOM Level 3 Events implementation.
+
+Interface DocumentEvent (introduced in DOM Level 2)
+
+     The DocumentEvent interface provides a mechanism by which the user can
+     create an Event object of a type supported by the implementation. It is
+     expected that the DocumentEvent interface will be implemented on the
+     same object which implements the Document interface in an
+     implementation which supports the Event model.
+
+     IDL Definition
+
+          // Introduced in DOM Level 2:
+          interface DocumentEvent {
+            Event              createEvent(in DOMString eventType)
+                                                  raises(DOMException);
+            // Introduced in DOM Level 3:
+            EventListenerGroup createEventListenerGroup();
+            // Introduced in DOM Level 3:
+            boolean            canDispatch(in DOMString namespaceURI,
+                                           in DOMString type);
+          };
+
+     Methods
+          canDispatch introduced in DOM Level 3
+               Test if the implementation will generate events of a
+               specified type.
+               Parameters
+               namespaceURI of type DOMString
+                    Specifies the Event.namespaceURI of the event.
+               type of type DOMString
+                    Specifies the Event.type of the event.
+               Return Value
+               boolean true if the implementation will generate and
+                       dispatch this event type, false otherwise.
+               No Exceptions
+          createEvent
+               Parameters
+               eventType of type DOMString
+                    The eventType parameter specifies the name of the DOM
+                    Events interface to be supported by the created event
+                    object, e.g. "Event", "MouseEvent", "MutationEvent" ...
+                    If the Event is to be dispatched via the dispatchEvent
+                    method the appropriate event init method must be called
+                    after creation in order to initialize the Event's
+                    values.
+                    As an example, a user wishing to synthesize some kind of
+                    UIEvent would call createEvent with the parameter
+                    "UIEvent". The initUIEventNS method could then be called
+                    on the newly created UIEvent object to set the specific
+                    type of user interface event to be dispatched,
+                    {"http://www.w3.org/2001/xml-events", "DOMActivate"} for
+                    example, and set its context information, e.g. detail in
+                    this example.
+                    The createEvent method is used in creating Events when
+                    it is either inconvenient or unnecessary for the user to
+                    create an Event themselves. In cases where the
+                    implementation provided Event is insufficient, users may
+                    supply their own Event implementations for use with the
+                    dispatchEvent method. However, the DOM implementation
+                    needs access to the attributes currentTarget and
+                    eventPhase of the Event interface to propagate
+                    appropriately the event in the DOM tree. Therefore users
+                    Event implementation might need to support the
+                    CustomEvent interface for that effect.
+
+                    Note: For backward compatibility reason, "UIEvents",
+                    "MouseEvents", "MutationEvents", and "HTMLEvents"
+                    feature names are valid values for the parameter
+                    eventType and represent respectively the interfaces
+                    "UIEvent", "MouseEvent", "MutationEvent", and "Event".
+
+               Return Value
+               Event The newly created event object.
+               Exceptions
+               DOMException NOT_SUPPORTED_ERR: Raised if the implementation
+                            does not support the Event interface requested.
+          createEventListenerGroup introduced in DOM Level 3
+               This method creates a new EventListenerGroup for use in the
+               addEventListenerNS and removeEventListenerNS methods of the
+               EventTarget interface (see also Stopping the event flow).
+               Return Value
+               EventListenerGroup The newly created EventListenerGroup
+                                  object.
+               No Parameters
+               No Exceptions
+
+Interface CustomEvent (introduced in DOM Level 3)
+
+     The CustomEvent interface gives access to the attributes
+     Event.currentTarget and Event.eventPhase. It is intended to be used by
+     the DOM Events implementation to access the underlying current target
+     and event phase while dispatching the event in the tree.
+
+     The methods contained in this interface are not intended to be used by
+     a DOM application, especially during the dispatch on the Event object.
+     Changing the current target or the current phase may conduct into
+     unpredictable results of the event flow. The DOM Events implementation
+     should invoke both methods before invoking each event listener on the
+     current target to protect DOM applications from malicious event
+     listeners.
+
+     IDL Definition
+
+          // Introduced in DOM Level 3:
+          interface CustomEvent : Event {
+            void               setCurrentTarget(in Node target);
+            void               setEventPhase(in unsigned short phase);
+          };
+
+     Methods
+          setCurrentTarget
+               The setCurrentTarget method is used by the DOM Events
+               implementation to change the value of Event.currentTarget.
+               Parameters
+               target of type Node
+                    Specifies the new value for the Event.currentTarget
+                    attribute.
+               No Return Value
+               No Exceptions
+          setEventPhase
+               The setEventPhase method is used by the DOM Events
+               implementation to change the value of Event.eventPhase.
+               Parameters
+               phase of type unsigned short
+                    Specifies the new value for the Event.eventPhase
+                    attribute.
+               No Return Value
+               No Exceptions
+]]
+
+Philippe
+
+
+

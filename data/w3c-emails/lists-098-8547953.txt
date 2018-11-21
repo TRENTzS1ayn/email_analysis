@@ -1,0 +1,309 @@
+docno="lists-098-8547953"
+received="Thu Jan 31 17:26:05 2002"
+isoreceived="20020131222605"
+sent="Thu, 31 Jan 2002 21:14:43 +0000"
+isosent="20020131211443"
+name="Graham Klyne"
+email="GK@NineByNine.org"
+subject="Yet another approach to literals (take 2)"
+id="5.1.0.14.2.20020131193400.039df0b0@joy.songbird.com"
+charset="us-ascii"
+expires="-1"
+
+
+To: Jeremy Carroll<jjc@hplb.hpl.hp.com>, Sergey Melnik<melnik@db.stanford.edu>, Dan Connolly<connolly@w3.org>, Pat Hayes<phayes@ai.uwf.edu>, Brian McBride<bwm@hplb.hpl.hp.com>
+Cc: www-archive<www-archive@w3.org>
+
+This is a follow-up to my previous response to Pat, in which I run the 
+(slightly tidied) revised MT sketch through the various idioms.
+
+(Pat:  I agree that the previous version was too weak, but I don't see that 
+it broke self-entailment.)
+
+
+1. Sketch of model theory (revised)
+-------------------------
+
+Starting from RDFS-interpretation per Pat's 30-Jan model theory [1].
+
+1.  We have an interpretation consisting of IR, IEXT, IS, ICEXT.  I propose 
+to drop the global mapping LX from literals to LV.
+
+2. A datatype interpretation (DT-interpretation) is specified with respect 
+to a specified set of datatypes, DT.  DT is a subset of IC, having an 
+additional, externally fixed mapping DTEXT from literals to members of 
+ICEXT(DT):
+   DTEXT = { <literal,value> | value in ICEXT(DT) }
+
+2a. Define a relation ILOBJ on IPxDT.  Informally, this indicates DT values 
+that can be used to "interpret" literal values used in the object position 
+of the corresponding property.
+
+3. An interpretation does not assign a specific denotation to 
+literals.  Instead, literals are treated like blank nodes with some 
+additional constraints.
+
+4. The interpretation of a statement of the form  aaa bbb "foo" .
+is defined thus:
+    If there exists v in IR and d in DT such that
+      <"foo",v> in DTEXT(d) AND ILOBJ(I(bbb),d), AND
+      <i(aaa),v> in IEXT(I(bbb)) THEN True, otherwise False.
+
+This basic scaffolding means that an interpretation can arbitrarily 
+restrict the members of DT that can be used to interpret a literal object 
+of any property.
+
+Also, extend the RDFS-interpretation rules for DT-interpretation so that:
+
+   If ILOBJ(x,y) then <x,y> is in IEXT(I(rdfs:range))
+
+Thus, to be a valid DT-interpretation, the member of DT used to interpret 
+object literals for property x must be in the range of x.
+
+This gives us a way of evaluating the truth of a graph that contains 
+literals, without actually saying what the literals denote.
+
+
+2. Apply model theory to idioms
+-------------------------------
+
+For the purposes of these examples, I shall assume the existence of three 
+members in DT, dtdate, dtusdate, dtukdate and dtstring that correspond to 
+date values:
+
+DTEXT(dtdate) = {  :
+                   <14-Jul-2001,"2001-07-14">,
+                   <15-Jul-2001,"2001-07-15">,
+                   <16-Jul-2001,"2001-07-16">,
+                    : }
+
+DTEXT(dtusdate) = {  :
+                     <07-Jun-2001,"06/07/2001">,
+                      :
+                     <06-Jul-2001,"07/06/2001">,
+                      :
+                     <14-Jul-2001,"07/14/2001">,
+                     <15-Jul-2001,"07/15/2001">,
+                     <16-Jul-2001,"07/16/2001">,
+                      : }
+
+DTEXT(dtukdate) = {  :
+                     <07-Jun-2001,"07/06/2001">,
+                      :
+                     <06-Jul-2001,"06/07/2001">,
+                      :
+                     <14-Jul-2001,"14/07/2001">,
+                     <15-Jul-2001,"15/07/2001">,
+                     <16-Jul-2001,"16/07/2001">,
+                      : }
+
+DTEXT(dtstring) = {  :
+                     <"foo","foo">
+                      :
+                     <"14/07/2001","14/07/2001">,
+                     <"14/07/2001","15/07/2001">,
+                     <"14/07/2001","16/07/2001">,
+                      : }
+
+
+2.1 Idiom A (per [2]):
+
+   person:Jenny exA:birthDate _:a .
+   _:a ex:date "2001-07-15" .
+
+This is satisfied if the node _:a denotes 15-Jul-2001,
+and IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and IEXT(I(ex:date)) contains <15-Jul-2001,"2001-07-15">,
+and ILOBJ(i(ex:date),dtstring).
+
+This is consistent with I(ex:date) == dtdate  (described above),
+where IEXT(dtdate) == DTEXT(dtdate).
+
+However, other interpretations could be contrived that also satisfy 
+this.  An interpretation in which the string "2001-07-15" is an arithmetic 
+expression and _:a denotes the number 1979 would also satisfy this graph as 
+given.   (Does this really leave us any worse off than we were with untyped 
+literals?)
+
+If the range of ex:date is specified to be dtstring [**], the scope for 
+creative interpretation is somewhat reduced:  in conjunction with the 
+DT-interpretation requirement on ILOBJ this would mean that only dtstring 
+can be used to interpret object literals of dt:date.
+
+[**] suggests that a DT-interpretation also needs to indicate a reserved 
+vocabulary for the members of DT?
+
+
+2.2 Idiom B (per [2])
+
+   person:Jenny ex:birthDate "2001-07-15" .
+   ex:birthDate rdfs:range ex:date .
+
+This is satisfied if the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and ICEXT(I(ex:date)) contains 15-Jul-2001,
+and ILOBJ(I(ex:birthDate),I(ex:date))
+
+This is consistent with I(ex:date) == dtdate.  The range specification on 
+ex:birthDate prevents any other member of DT being used to interpret the 
+literal unless it also maps the string "2001-07-15" to a value related to 
+I(person:Jenny) by I(ex:bithDate).
+
+
+2.3 Idiom D (per [2]) (also P per [3])
+
+   person:Jenny ex:birthDate _:d .
+   _:d rdf:value "2001-07-15" .
+   _:d rdf:type ex:Date .
+
+This is satisfied if the node _:d denotes 15-Jul-2001,
+and IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(rdf:value)) contains <15-Jul-2001,15-Jul-2001>
+and ICEXT(I(ex:date)) contains 15-Jul-2001.
+
+This is consistent with I(ex:date) == dtdate,
+and IEXT(I(rdf:value)) = <v,v> forall v in IR ?
+
+However, in this case I can see no way to disambiguate, say:
+   _:d rdf:value "06/07/2001" .
+and
+   _:d rdf:value "07/06/2001" .
+because (assuming rdf:value is a generic property) there is no obvious way 
+to make the graph restrict the datatype used to interpret the literals.
+
+
+
+2.4 Idiom E (per [2])
+
+   person:Jenny ex:birthDate _:e .
+   _:d rdf:type ex:Date .
+   _:d ex:ISO8601 "2001-07-15" .
+
+This is satisfied if the node _:e denotes 15-Jul-2001,
+and IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and ICEXT(I(ex:date)) contains 15-Jul-2001,
+and the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(ex:ISO8601)) contains <15-Jul-2001,15-Jul-2001>,
+and ILOBJ(I(ex:ISO8601),dtdate))
+
+This is consistent with I(exE:date) == dtdate, and the range constraint on 
+ex:ISO8601 restricts
+
+On the surface, this is no different from idiom D, but a range constraint 
+on the definition of ex:ISO8601 could be used to restrict the satisfying 
+literals.  Suppose the range is dtISO8601, a member of DT.  The value space 
+of dtISO8601 would be the same as that of dtdate, but the mapping may be 
+more restricted;  DTEXT(dtIS8601) a subset of DTEXT(dtdate); e.g.
+
+DTEXT(dtdate) might contain
+    { <15-Jul-2001,"15/07/2001">
+      <15-Jul-2001,"07/15/2001">
+      <15-Jul-2001,"2001-07-15">
+      <15-Jul-2001,"20010715">
+       : }
+
+but DTEXT(dtISO8601) might contain just
+    { <15-Jul-2001,"2001-07-15">
+      <15-Jul-2001,"20010715">
+       : }
+
+
+2.5 Conclusion from fitting idioms
+
+All of the above idioms are consistent with a single interpretation of 
+ex:birthDate and ex:Date (the main argument against proposal S):
+
+IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>, i.e. relates 
+Jenny to the date value in ICEXT(dtdate) that is her birth date, and
+
+I(ex:date) == dtdate
+
+In response to Pat's comments, I've tried to think about the extent to 
+which nonsensical interpretations can be made to satisfy the graphs -- it 
+seems to me that being able to use a rdfs:range top restrict the applicable 
+literal mappings leaves us at least as well of as we were under any of the 
+other proposals.
+
+
+3. Entailments
+--------------
+
+I think it's intuitively clear from section 1 that any graph entails 
+itself, without depending on literals being tidy.  There's no way to say 
+that a literal means one thing in one instance of a graph, and something 
+different in another instance.
+
+Roughly, a literal means any "conforming" value in any graph in which it 
+appears, where "conforming" is defined in terms of the set DT with respect 
+to which an interpretation is defined, which does not change between 
+instances of a graph under the same interpretation.
+
+[I'm not sure I know how to prove this formally.]
+
+
+4. Other issues
+---------------
+
+Values without literal representations.  One of my (lesser) objections to 
+DTL was that it didn't account well for values with no literal 
+representation.  By having literals denote values, not pairs, I think that 
+objection disappears.
+
+This whole approach leaves open the matter of query semantics, other than 
+allowing that (adapted from [4]):
+
+     _:f <dc:Title> "10" .
+     <mary> <age> "10" .
+
+entails:
+
+     _:x <dc:Title> _:y .
+     _:z <age> _:y .
+
+in the absence of further type constraints, and assuming that there exists 
+a member of DT which relates "10" to some value.  What is less clear is 
+what answers one might such a query to actually return, because there is no 
+defined denotation for the literals.  One (reasonable) answer would be to 
+simply return the literal (string) and say nothing about its denotation:  I 
+think that would correspond to the query semantics that Dan is assuming.  I 
+think other answers are possible and reasonable (and out of scope for this 
+group).
+
+Backward compatibility with "untyped" RDF.  If the set DT always includes a 
+type (say) dtstring (described above), where (say) DTEXT(I(rdfs:Literal)) 
+== dtstring, I think this provides a basis for the kinds of string-based 
+entailment that Dan expects.  In the absence of any specific typing 
+information, a literal can always be interpreted as itself.
+
+
+5. References
+-------------
+
+[1] Pat Hayes, RDF Model Theory, Jan-2002
+http://www.coginst.uwf.edu/users/phayes/w3-rdf-mt-current-draft.html
+
+[2] Graham Klyne, RDF Datatyping Desiderata, 25-Jan-2002
+http://lists.w3.org/Archives/Public/www-archive/2002Jan/0139.html
+
+[3] Sergey Melnik, RDF Datatyping, 18-Jan-2002
+http://www-db.stanford.edu/~melnik/rdf/datatyping-20020118/
+
+[4] Dan Connolly, note on datatyping and query-as-entailment, 30-Jan-2002
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2002Jan/0440.html
+
+
+
+
+--------------------------
+        __
+       /\ \    Graham Klyne
+      /  \ \   (GK@ACM.ORG)
+     / /\ \ \
+    / / /\ \ \
+   / / /__\_\ \
+  / / /________\
+  \/___________/
+
+
+

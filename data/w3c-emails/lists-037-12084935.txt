@@ -1,0 +1,193 @@
+docno="lists-037-12084935"
+received="Wed Mar 19 05:03:04 1997"
+isoreceived="19970319100304"
+sent="Tue, 18 Mar 1997 21:49:47 -0800"
+isosent="19970319054947"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Meta Data Redux"
+id="11352BDEEB92CF119F3F00805F14F485025666C9@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+Ora - I erred in creating a system more general than I had intended. I
+have rewritten my meta-data proposal. I wrote the introduction to
+specifically address your points.
+
+Mr. Mealling - Do you honest believe that insulting this group by
+asserting that we are not dealing with "REAL" meta-data is going to
+incline anyone to consider your proposals?
+
+Ron - Generic object model based meta-data handling is the holy grail of
+distributed systems. I propose we adopt the Pythonian approach to holy
+grail related matters and RUN AWAY!!!! As such my rewritten proposal now
+suggests that we only provide for the absolute minimum interoperability.
+I feel that questions of packages, structures, and frameworks is best
+left to other groups.
+
+Terry Allen - I am actually a big believer in XML. However, while I do
+believe that leveraging XML would make for a great meta-data system, I
+do not believe that this group should deal with that issue. There are a
+lot of arguments on both sides and I do not believe that the win for
+this group is sufficiently large to justify the group's investment of
+time. Many groups have attempted to solve the generic meta-data problem,
+the current proposals I am familiar with include: XML, Web Collections
+(sub-setting XML), Warwick Framework, MIMEDIR, and PICS. I am sure you
+can imagine what life will be like if this group tries to pick a winner.
+I say we do the minimum needed for interoperability, declare victory,
+and publish the standard. =)
+1Why Meta Data
+
+I propose that DAV's goals in regard to meta-data should be two fold:
+1.To provide for a mechanism for clients to place, delete and
+discover relationships between resources.
+2.To provide for a mechanism for clients to place, delete and
+discover simple meta-data consisting of a name and a short non-content
+negotiable byte field.
+
+I believe that the first goal is important because the ability to link
+resources has been consistently proven to be of critical importance in
+versioning and of high utility for distributed authoring. As such I feel
+the group should provide for such a mechanism. I further believe that
+the current LINK proposal, if modified with the removal of the
+restriction requiring the source or destination to be equal to the
+resource the link is recorded on, meets those needs in full and as such
+the LINK and UNLINK methods should be maintained.
+
+The second goal is meant only to provide for the absolute minimum,
+useful, meta-data interoperability. I believe that this minimum is the
+ability of a client to 
+1.Submit an opaque token and receive back a string of bytes that
+are not subject to content negotiation.
+2.Assign a string of bytes of non-content negotiated bytes to an
+opaque token.
+3.Remove the assignment of an opaque token and its value from a
+resource.
+
+From this point on I will use the term attribute name to refer to the
+opaque token.
+
+This goal is not to provide for a meta-data object model. The goal is
+not to try to compete with or adopt PICS, Web Collections, MIMEDIR, the
+Warwick framework, or any of the other proposals for generic meta data
+handling.
+
+I additionally propose that we intentionally leave undefined where
+attribute names and associated values are recorded. This leaves the
+implementer free to choose whichever meta-data management scheme they
+desire. In fact, it leaves the implementer free to choose multiple
+meta-data management schemes.
+
+2Attribute Name Space and Value
+
+I propose that the attribute name space be opaque to a DAV client.
+However, in order to prevent name collisions and to ensure the proper
+management of the name space, I propose that attribute names be URIs.
+
+I further propose that servers not be allowed to accept attributes whose
+syntax or semantics they do not support. One can, of course, always
+define a URI namespace whose semantics is "The server should accept any
+attribute from this namespace and blindly record its value."
+
+Finally, I propose that the value of an attribute be limited to a quoted
+string or token. This restriction is to allow for the inclusion of
+multiple attribute-specify headers in a request.
+
+3METAPOST Method
+
+3.1Attribute-Specify Header
+
+AttributeSpecify = "Attribute-Specify" ":" #("name" "=" AttributeName
+"," "value" "=" AttributeValue) CRLF
+AttributeName = URI
+AttributeValue = quoted-string | token
+
+3.2Atomic Header
+
+AtomicHeader = "Atomic" ":" CRLF
+
+3.3Explanation
+
+The METAPOST method is used to define a value for an attribute. If the
+attribute does not exist then it will be created. If the attribute does
+exist then the attribute value will be replaced. Of course this behavior
+is subject to the semantic and syntactic rules of the attribute.
+
+The Atomic header specifies the request should only go through if all
+the entries can be assigned as requested. If not, the entire request
+should fail.
+
+3.4Example
+
+METAPOST http:\\foo HTTP/1.1
+Attribute-Specify: Name = 29348x, Value = "Jim Whitehead", Name = Xyz,
+Value = Ooooga!
+Atomic:
+
+This message requests that the quoted string "Jim Whitehead" be assigned
+to the attribute 29348x and that the token Ooooga! be assigned to the
+Xyz attribute. However, the request should only go through if all the
+entries can be successfully assigned.
+
+3.5Response Codes
+
+A server may reject entries because they are not consistent with the
+definition of the attribute. In that case a 406 Not Acceptable should be
+returned.
+If the atomic header is included then all indicated assignments must
+succeed or all must be rejected with a 412 Precondition Failed. If the
+atomic header is not included then a 200 may be returned if at least one
+entry was successfully assigned. A web collection returned in the
+response will indicate which entries where successfully assigned.
+I recommend that the atomic header not be required by a server in order
+to be considered DAV compliant. Implementing atomic is extremely
+difficult and not absolutely necessary for interoperability.
+
+4METADELETE Method
+
+The METADELETE method is used to remove an attribute from a resource. If
+a value is included in the attribute-specify header then the attribute
+should only be removed if its value equals that specified in the header.
+The atomic header may be used with METADELETE and has the same semantics
+as with METAPOST.
+
+4.1Example
+
+METADELETE http://foo HTTP/1.1
+Attribute-Specify: Name = blah, Value = x98
+
+The previous will delete the attribute blah if its value equals x98.
+
+METADELETE http://foo HTTP/1.1
+Attribute-specify: blah
+
+The previous will remove the attribute blah, regardless of value.
+
+4.2Response Codes
+
+Same as METAPOST.
+
+5METAGET Method
+
+The METAGET method is used to retrieve the value of an attribute. If a
+value is included in the attribute-specify header then the attribute
+will only be returned if its value is equal to that given in the
+attribute-specify header. The atomic header may be used with the METAGET
+method.
+
+5.1Example
+
+METAGET http:\\foo HTTP/1.1
+Attribute-Specify: name = ydfh, name = blah, value = foobar
+
+The server is being asked to return the value associated with the ydfh
+attribute and to return the blah attribute's value if it equals foobar. 
+
+5.2Response Codes
+
+Same as METAPOST with the exception of atomic related errors.
+
+
+

@@ -1,0 +1,175 @@
+docno="lists-038-2222118"
+received="Thu Dec  4 03:05:34 1997"
+isoreceived="19971204080534"
+sent="Wed, 3 Dec 1997 23:04:44 PST"
+isosent="19971204070444"
+name="Jim Davis"
+email="jdavis@parc.xerox.com"
+subject="proposal for ordered collections"
+id="3.0.3.32.19971204000444.007bfea0@mailback.parc.xerox.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+This is a proposal to modify WebDAV to include support for ordered
+collections.
+
+I have already stated the case for this feature elsewhere, and Jim
+Whitehead has neatly summarized it.  Moreover, I believe I have
+refuted all objections thus far raised to it without being (as yet)
+further rebutted.  I agreed to define the proposal more formally, and
+here I do so, although the credit for this definition more properly
+goes to Judy Slein, who did all the work, but as she was too busy to
+write it up, I am submitting it. Of course she should not be blamed
+for the errors I introduce here.
+
+The idea in a nutshell is to allow servers to optionally support
+collection resources whose stats includes not only the list of members
+but also the which order of members in the list.  It also includes
+headers that specify the position of a newly added member in an
+ordered collection.
+
+The proposed modifications are in order of textual occurrence in draft V5.
+
+Change 4.1 (Collection Resources) as follows:
+
+Replace the first sentence:
+
+   A collection is a resource whose state consists of an unordered list
+   of internal members, an unordered list of external members, and a
+   set of properties. 
+
+with:
+
+   A collection is a resource whose state consists of a list
+   of members and a set of properties.  Members MAY be internal or
+   external.  Servers MAY also extend the state to include the order
+   of the members in the list.  Such collections are known as
+   "ordered" collections.  
+
+and add after the next two paragraphs:
+
+   Servers MAY support ordered collections. If they do, they MAY allow
+   both ordered and unordered collections.
+
+8.1 PROPFIND
+
+Modify this paragraph by adding the sentence marked with change bars
+
+   The response is a text/xml message body that contains a  multistatus
+   XML element that describes the results of the attempts to retrieve
+   the various properties.  If a property was successfully retrieved
+   then its value MUST be returned in a prop XML element.  If the scope
+   of PROPFIND covers more than a single resource, as is the case with
+   Depth values of "1" and "infinity", each response XML element MUST
+   contain an href XML element which identifies the resource on which
+   the properties in the prop XML element are defined. 
+|  If the resource is a collection, and if the collection is ordered,
+|  then the response XML elements must be returned in the order in
+|  which they appear in the collection.
+   In the case of
+   allprop and propname, if a principal does not have the right to know
+   if a particular property exists, an error MUST NOT be returned.  The
+   results of this method SHOULD NOT be cached.
+
+8.3 MKCOL
+
+Add after the third paragraph of 8.3.1
+
+   If the Is-Ordered header is present, then if the server supports
+   ordered collections, then the value of the is-ordered property of
+   the newly created collection MUST be the same as the value in the
+   header.  If the server does not support ordered collections, then
+   if the value in the header is T, then the request should fail with
+   a 501 Not Implemented status code.  If the Is-Ordered header is not
+   present, then if the server supported ordered collections,
+   it MAY create an ordered collection.
+
+8.4.1 (INDEX) modify the paragraph, adding the sentence:
+
+   Collections that respond to an INDEX method with a text/xml entity
+   MUST contain a single multistatus XML element which contains a
+   response XML element for each member.
+|  If the collection is ordered, then the elements must occur in the
+|  same order they occur in the collection.
+
+
+8.5.1 ADDREF
+
+Add after paragraph two:
+
+  If the collection is ordered, then if an Insert-Position header is
+  provided, then it specifies the position of the new member.  The
+  Insert-Position header is defined below.  If no such header is
+  provided, it is RECOMMENDED that the member be added last.  If the
+  member can not be inserted at the specified position then the ADDREF
+  method MUST fail with a 412 Precondition Failed status code.  If the
+  collection is not ordered and an Insert-Position header is provided,
+  the ADDREF method MUST fail with a 412 Precondition Failed status
+  code.
+
+8.10.1 PUT for Non-Collection Resources
+
+Add after the second paragraph
+
+  If the resource is being added to an ordered collection, then if an
+  Insert-Position header is provided, then it specifies the position
+  of the new member.  The Insert-Position header is defined below.  If
+  no such header is provided, it is RECOMMENDED that the member be
+  added last.  If the member can not be inserted at the specified
+  position then the ADDREF method MUST fail with a 412 Precondition
+  Failed status code.  If the collection is not ordered and an
+  Insert-Position header is provided, the ADDREF method MUST fail with
+  a 412 Precondition Failed status code.
+
+[Perhaps this paragraph should also be added after the second
+paragraph in 8.11.1.1 COPY for HTTP/1.1 resources.  I don't think I
+need it for MOVE since it is a COPY plus a DELETE.]
+
+Add to section 9 (HTTP Headers)
+
+9.9 Insert-Position Header
+
+    InsertPosition = "Insert-Position" ":" AbsPosition | RelPosition
+    AbsPosition = "First" | "Last"
+    RelPosition = ("Before" | "After") URI 
+     ; URI is defined in section 3.2.1 of [Fielding et al., 1997]
+
+  The Insert-Position header is used with methods that add resources
+  to collections.  It specifies the position of the resource being
+  added, either absolutely or relative to an already existing member.
+
+  If the relative form is used, then the resource named by the URI
+  MUST already exist as a member of the collection.  If not, the
+  method MUST fail with a 412 Precondition Failed status code, except
+  that if the client does not have sufficient access to obtain a list
+  of the members of the collection, a different status code MAY be returned.
+
+[Perhaps the syntax should reserve some means for future extension? Or the
+writeup should have some language about what the server does if it does not
+understand the content of the header? ]
+
+9.10 Is-Ordered Header
+
+    IsOrdered = "Is-Ordered" ":" T | F
+
+  The Is-Ordered header is used with MKCOL, and causes the is-ordered
+  property of the newly created collection to be set to the same value
+  as the header.
+
+Add to section 13 (DAV Properties) 
+
+13.X is-ordered property
+
+  Name: is-ordered
+  Namespace: http://www.ietf.org/standards/dav/
+  Purpose: Tells whether the collection supports ordering
+  Value: T | F
+  Description:  This is a live property.  All collections MUST have this
+  property.  On servers that do not support ordering, its value MUST always
+  be F.  
+
+
+

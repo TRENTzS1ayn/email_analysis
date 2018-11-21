@@ -1,0 +1,347 @@
+docno="lists-009-15700634"
+received="Fri Mar  1 20:36:44 1996"
+isoreceived="19960302013644"
+sent="Fri,  1 Mar 96 20:34:24 PST"
+isosent="19960302043424"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="Variant IDs"
+id="red-16-msg960302043249MTP[01.52.00]000000b1126182"
+expires="1"
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Jeff Mogul and I received an action item at the caching subgroup 
+meeting to write up a proposal for variant IDs. Jeff didn't get the 
+writeup finished before going on vacation, and asked me to take a crack 
+at putting the ideas (mostly his) into "spec" form. So I did, borrowing 
+wholesale from a mail message he had sent earlier to the list, and just 
+adding some HTTP-BNF. However, Jeff has not seen this at all, so while 
+he deserves credit for all the correct stuff, anything that's wrong is 
+my fault.
+
+One of the things that may be wrong is that I define the Vary header 
+here, and it may be defined elsewhere -- I checked that those 
+elsewheres didn't include Jeff's caching I-D or Koen's content 
+negotiation I-D, but it could be somewhere else. If so, I apologize and 
+one should substitute that deifnition for the one herein.  But if I had 
+searched any longer, this wouldn't have been ready at all before IETF.
+
+Paul
+-------------------------------------------------------------------------
+
+
+
+
+
+
+HTTP Working Group                            Paul J. Leach/Microsoft
+Internet-Draft                                   Jeffrey Mogul/DECWRL
+Expires: 1 September 1996                               1 March 1996
+
+
+
+
+
+
+                               Variant IDs
+                            Preliminary Draft
+
+
+
+STATUS OF THIS MEMO
+
+  THIS IS A PRELIMINARY DRAFT OF AN INTERNET-DRAFT.  IT DOES NOT
+  REPRESENT THE CONSENSUS OF THE HTTP WORKING GROUP.
+
+  This document is an Internet-Draft. Internet-Drafts are working
+  documents of the Internet Engineering Task Force (IETF), its areas,
+  and its working groups. Note that other groups may also distribute
+  working documents as Internet-Drafts.
+
+  Internet-Drafts are draft documents valid for a maximum of six months
+  and may be updated, replaced, or obsoleted by other documents at any
+  time. It is inappropriate to use Internet-Drafts as reference
+  material or to cite them other than as "work in progress".
+
+  To learn the current status of any Internet-Draft, please check the
+  "1id-abstracts.txt" listing contained in the Internet-Drafts Shadow
+  Directories on ftp.is.co.za (Africa), nic.nordu.net (Europe),
+  munnari.oz.au (Pacific Rim), ds.internic.net (US East Coast), or
+  ftp.isi.edu (US West Coast).
+
+  Distribution of this document is unlimited.  Please send comments to
+  the HTTP working group at <http-wg@cuckoo.hpl.hp.com>.  Discussions
+  of the working group are archived at
+  <URL:http://www.ics.uci.edu/pub/ietf/http/>.  General discussions
+  about HTTP and the applications which use HTTP should take place on
+  the <www-talk@w3.org> mailing list.
+
+ABSTRACT
+
+  This draft proposes a mechanism to be used by caches to handle
+  variant resources. It is appropriate when the number of variants is
+  too large to express conveniently with the URI header, or when the
+  content negotiation algorithm used by an origin-server is unknown or
+  more complicated than the cache wishes to emulate.
+
+  The intent is that this document be incorporated into the HTTP/1.1
+  specification [1], if the HTTP working group accepts the design.
+
+
+
+
+  DO NOT IMPLEMENT TO THIS DOCUMENT!               [Page 1]
+
+
+
+  Internet-Draft Variant-IDs            (DRAFT)   13 February 1996
+
+Table of Contents
+
+1. Introduction............................................2
+2. Scenario................................................2
+3. Specification...........................................3
+ 3.1 Vary .................................................3
+ 3.2 Variant-ID ...........................................4
+ 3.3 Variant-Set ..........................................4
+4. Security Considerations.................................5
+5. References..............................................5
+6. Author's addresses......................................5
+
+
+1. Introduction
+
+  This draft proposes a mechanism to be used by caches to handle
+  variant resources. It is appropriate when the number of variants is
+  too large to express conveniently with the URI header, or when the
+  content negotiation algorithm used by an origin-server is unknown or
+  more complicated than the cache wishes to emulate.
+
+  The draft is organized as follows: first we present a scenario to
+  motivate the use of Variant IDs, then we present the specification of
+  the three new headers that are needed to support them.
+
+2. Scenario
+
+  Consider a single resource with multiple variants (e.g., a document
+  that has been translated into several dozen languages).  Consider a
+  proxy which already has several variants in its cache (for
+  concreteness, let's say it has three such variants: English, French,
+  and German).  Let's also assume that the server sent "Vary: Content-
+  Language" because it didn't want to encode all of the possible
+  variants in a URI: header.
+
+  So now the cache gets a request for this resource that says:
+
+          Accept-language: da, en;q=0.5, de;q=0.3
+
+  which (if I've got the tags right) means that the user prefers Danish
+  but is willing to accept English or maybe German.
+
+  Since the server has not told the cache whether or not it has a
+  Danish variant of the resource, the cache has to forward the request
+  to the origin server.  Here's the problem: when the origin server
+  receives this request, it has no idea which variants the cache is
+  currently holding.  This means that even if the cache currently holds
+  exactly the response that the server would provide, the server has to
+  retransmit it to the cache.
+
+  This is what variant IDs are supposed to solve.  Suppose that the
+  origin server tags each response with a Variant-ID: header. E.g.,
+          Variant-ID: "xy"
+  or
+
+
+  DO NOT IMPLEMENT TO THIS DOCUMENT!               [Page 2]
+
+
+
+  Internet-Draft Variant-IDs            (DRAFT)    13 February 1996
+
+          Variant-ID: "97"
+  The value of the Variant-ID: field is meant to be opaque and
+  relatively compact (i.e., it should not take a lot of bytes to
+  transmit it).
+
+  So suppose that our cache holds these entries for the resource R
+      R1: (Content-Language: en, Validator: zzzz, Variant-ID: "1")
+      R2: (Content-Language: fr, Validator: qqqq, Variant-ID: "3")
+      R3: (Content-Language: de, Validator: xxxx, Variant-ID: "97")
+
+  Now when it is time for the cache to forward the request to the
+  origin server, it tacks on this new header:
+          Variant-set: id=1;"zzzz", id=3;"qqqq", id=97;"xxxx"
+  That is, the set of the variants it currently holds and their
+  associated validators.
+
+  The server goes through its normal content-negotiation algorithm to
+  decide which variant to return (i.e., for this purpose it ignores the
+  Variant-set: header).  Once it has made this decision, it then checks
+  to see if the variant it plans to return is in the cache's variant
+  set.
+
+  For this example, if the server DOES have a Danish variant, then it
+  would return a status code of "200 OK", headers including
+          Content-language: da
+          Variant-ID: 192
+  and the full entity body for the Danish variant.  If, on the other
+  hand, it does not have a Danish variant, it would presumably want to
+  return the English variant that the cache already knows
+  about.  In this case, the Variant-set in the request indicates that
+  the cache-validator for variant-ID 1 (which is the English variant)
+  is zzzz, so the origin server does its normal validator check to see
+  if this cached copy is still valid.  If so, it returns a status code
+  of "304 Not modified" plus these headers:
+          Content-language: en
+          Variant-ID: 1
+  and otherwise it returns the same headers but sends "200 OK" and the
+  entire entity body.
+
+  Since this is just a performance optimization, it does not matter if
+  either the cache or the origin server doesn't implement it.  I.e.,
+  neither "Variant-ID:" nor "Variant-set:" is mandatory.
+
+3. Specification
+
+  This section contains the proposed modifications and additions to the
+  HTTP/1.1 specification to support variant IDs.
+
+3.1  Vary
+
+  The Vary entity header is used by an origin-server to indicate the
+  manner in which variants of a single resource may vary, by returning
+  in the Vary header the names of the entity header fields that have
+  values that are different between variants. The URI header also
+
+
+  DO NOT IMPLEMENT TO THIS DOCUMENT!               [Page 3]
+
+
+
+  Internet-Draft Variant-IDs            (DRAFT)    13 February 1996
+
+  indicates the possible variants of a resource, but if there are many
+  of them, this header may be more compact. (See section XXX on content
+  negotiation.)
+
+      Vary          = "Vary" ":" 1#field-name
+
+  A cache can use this information to know what it has to include in
+  its "cache key" in order to indentify whether it has a particular
+  variant cached. The presence of a "field-name" in a Vary header means
+  that a cache should include the value of that field in the cache key
+  for the entity returned in the same message as the Vary header.
+
+  Example:
+  if a server returns
+      Content-Language: de
+      Vary: Content-Language
+  in a response to a GET request for URL "http://www.foo.com/bar.htm"
+  then the cache should include "Content-Language: de" in the cache key
+  for this variant of the "http://www.foo.com/bar.htm" resource, and
+  should not serve up that instance in response to a request where
+  content negotiation indicates that the Content-Language should be
+  "fr".
+
+
+3.2 Variant-ID
+
+  The Variant-ID entity header can be used by a server to indicate that
+  the entity-body in the same message is one of several variants of a
+  single resource, and to give the client an ID for it unique among all
+  the variants. The client can later use this ID as part of a Variant-
+  Set header to indicate to a server which variants it has cached, so
+  that the server need not retransmit a variant needlessly.
+
+      VariantID     = "Variant-ID" ":" varnt-id
+      varnt-id      = quoted-string
+
+  It is recommended that the quoted-string be relatively short, as a
+  moderate number of them may need to be transmitted in a single
+  request message.
+
+      Note: XXX are Variant-IDs ever needed in POST and PUT (e.g.)?
+
+
+3.3 Variant-Set
+
+  The Variant-Set request header can be used to indicate that the
+  client (user agent or proxy) has some of the variants of a resource
+  cached, and therefore that if it should turn out that content
+  negotation selects one of them as the most appropriate variant, the
+  server need not transmit it to the client, if the client's copy is
+  still valid.
+
+      Variant-Set   = "Variant-Set" ":" 1#variant-info
+      variant-info  = "id" "=" varnt-id ";" validator
+
+
+  DO NOT IMPLEMENT TO THIS DOCUMENT!               [Page 4]
+
+
+
+  Internet-Draft Variant-IDs            (DRAFT)    13 February 1996
+
+      validator     = quoted-string | HTTP-Date
+
+  The "varnt-id" is as defined for the Variant-ID header. The validator
+  is either an opaque string or a date like in the Date or Last-
+  Modified headers. The former is used if the cache is using opaque
+  validators to manage its cache; the former if it is using Last-
+  Modified.
+
+  If the server determines, after selecting a variant via content
+  negotiation (see [2]), that the client has the selected variant
+  cached, and from the validator that the cached copy is valid, it may
+  return "304 Not modified" plus a Variant-ID header whose value is the
+  variant ID of the variant selected, and not transmit the entity body.
+  Otherwise it returns these same headers but sends "200 OK" and the
+  entire entity body.
+
+
+4. Security Considerations
+
+  TBS
+
+5. References
+
+  [1]  Roy T. Fielding, Henrik Frystyk Nielsen, and Tim Berners-Lee.
+     Hypertext Transfer Protocol -- HTTP/1.1.  Internet-Draft draft-
+     ietf-http-v11-spec-01.txt, HTTP Working Group, January 19, 1996.
+  [2] Koen Holtman, Proposed Content Negotiations for HTTP/1.1.
+     Internet Draft draft-holtman-http-negotiation-00.txt, HTTP Content
+     Negotiation Subgroup, February 22, 1996
+
+6. Author's addresses
+
+  Jeffrey Mogul
+  Western Research Laboratory
+  Digital Equipment Corporation
+  250 University Avenue
+  Palo Alto, California, 94395, U.S.A
+  Email: mogul@wrl.dec.com
+
+  Paul J. Leach
+  Microsoft Corporation
+  1 Microsoft Way
+  Redmond, Washington, 98052, U.S.A.
+  Email: paulle@microsoft.com
+
+
+
+
+
+
+
+
+
+
+
+
+  DO NOT IMPLEMENT TO THIS DOCUMENT!               [Page 5]
+
+
+
+

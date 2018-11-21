@@ -1,0 +1,163 @@
+docno="lists-020-11846994"
+received="Fri May  7 06:32:48 2004"
+isoreceived="20040507103248"
+sent="Fri, 7 May 2004 12:28:32 +0200"
+isosent="20040507102832"
+name="Alberto Reggiori"
+email="alberto@asemantics.com"
+subject="Re: Potential Requirement: Predicate support with boolean operators"
+id="4A3CB586-A011-11D8-86E9-0003939CA324@asemantics.com"
+charset="US-ASCII"
+inreplyto="20040505012852.GH9495&#64;w3.org"
+expires="-1"
+
+
+Cc: RDF Data Access Working Group<public-rdf-dawg@w3.org>
+To: Eric Prud'hommeaux<eric@w3.org>
+
+
+On May 5, 2004, at 3:28 AM, Eric Prud'hommeaux wrote:
+>
+> On Tue, May 04, 2004 at 05:29:29PM -0500, Dan Connolly wrote:
+>>
+>> Perhaps some of the implementors would like to relate
+>> their experience?
+>
+> I have [1], but it didn't seem to motivate people. In the Annotea
+> service, I use a few Algae queries like:
+
+I must have missed that - we have some simple/lightweight OR 
+(disjunction) support in our RDQL back-end. In fact, our indexing 
+allows those quite efficiently - even though full disjunction is more 
+tricky, but still quite possible to run behind a Web  interface. In the 
+AMS preso (see slide 8) I put a sample query which uses an insane 
+(abusive) extension to the core language, to use commas inside 
+triple-pattern parts to match different dc:source(s) - actually used in 
+our news-blender demo
+
+>
+> ------------ example queries --------------------
+> ask (?reply rdf:type t:Reply.
+>      ?reply t:root <foo>.
+>      (?reply dc0:title ?title ||
+>       ?reply dc1:title ?title)
+>     )
+> collect (?reply ?title)
+
+which would map to our RDQL-ish as
+
+select
+?reply ?title
+where
+(?reply <rdf:type> <t:Reply>)
+(?reply <t:root> <foo>)
+(?reply <dc0:title , dc1:title> ?title)
+
+where the 3rd triple pattern contains 2 predicates separated by 
+space+comma+space (' , '); which is an implementation trick/compromise 
+due that URIs can contain commas as far as I know - any other syntactic 
+sugar can be invented if necessary. The same can be used on any other 
+node pattern - as well as on subjects, predicates, objects (also 
+literals) and graph-name(context as 4th component)
+
+E.g. Given an RSS1.0 store/database, select all rss:item(s) from 
+corriere.it and ansa.it dc:source(s)
+
+select
+?item
+where
+         (?item <rdf:type> <rss:item>)
+         (?items ?ii ?item)
+         (?items <rdf:type> <rdf:Seq>)
+         (?s <rss:items> ?items)
+         (?s <rdf:type> <rss:channel>)
+         (?s <dc:source> <http://www.corriere.it/ , http://www.ansa.it/>)
+
+or even more tricky on object literal values or stems
+
+E.g. select rss:item(s) with dc:title value either "title 1" in english 
+or "titolo 1" or "titolo 2" in italian
+
+select
+?item
+where
+         (?item <rdf:type> <rss:item>)
+         (?item <dc:title> <"title 1"@en , "titolo 1"@it , "titolo 
+2"@it>)
+
+As shown above the syntax for OR-ing literals is more tricky - and it 
+requires to use single/double quotes and the space-comma-space syntax 
+above for URIs/QNames - but it works quite well at the end because each 
+triples pattern sub-query maps to a simple series of boolean operations 
+on certain bit maps - at least for us :o)
+
+>   and
+>
+> ask (<bar>    rdf:type    a:Annotation .
+>      <bar>    a:annotates ?annotates.
+>      <bar>    a:context   ?context.
+>      ( <bar>  dc0:creator ?creator ||
+>        <bar>  dc1:creator ?creator )
+>      ?creator a:E-mail    ?email.
+>      ?creator a:name      ?name.
+>      <bar>    a:ceated    ?created.
+>      ( <bar>  dc0:date    ?date ||
+>        <bar>  dc1:date    ?date )
+>      <bar>    a:body      ?body .
+>      ?body    http:Body   ?bodyData.
+>      ?body    http:ContentType ?contentType
+>     )
+> collect (?annotation ?body ?creator ?date ?contentType)
+
+similarly here in RDQL-ish
+
+select
+?annotation ?body ?creator ?date ?contentType
+where
+(<bar> <rdf:type> <a:Annotation>)
+(<bar> <a:annotates> ?annotates)
+(<bar> <a:context> ?context)
+(<bar> <dc0:creator , dc1:creator>, ?creator)
+(?creator <a:E-mail> ?email)
+(?creator <a:name> ?name)
+(<bar> <a:created> ?created)
+(<bar> <dc0:date , dc1:date> ?date)
+//...and so on...
+
+>
+> Note, the latter query needs to be expressed as four separate 
+> queriesif disjunction is not used.
+
+yes indeed! even simple OR-ing (disjunction) is very useful in 
+practical terms - we are also thinking to use such feature to expand 
+simple rdf:type queries to check different (sub/super) types of things 
+instead of use recursion or stuff like that...
+
+> ---------- end example queries -------------------
+>
+> We've had some discussion around disjunction limited to property
+> values (for example, ?creator is "Bob" or "Joe" or "Sue"). During the
+> face to face, someone said that disjunctions with different properties
+> was difficult, but my implementation experience hasn't born that out
+> in either an in-memory query engine or a translation to SQL*.
+
+right - we found out that disjunction is possible to run quite 
+efficiently using some iterative algorithm as a sequence of AND and OR 
+operations, but it has quite a lot of implications in the 
+optimization/mapping to SQL. Sometime ago, I tried to propose some 
+syntactic sugar for more generic OR/disjunction [1] - which never got 
+implemented as far as I know - but it would be nice/useful to see it 
+usable into the core DAWG language.
+
+to conclude - my guts feeling is that users of our query language will 
+need (in a way or the other) some primitive type of OR/disjunction to 
+simplify their life while programming with RDF :)
+
+cheers
+
+Alberto
+
+[1] http://lists.w3.org/Archives/Public/www-rdf-rules/2003Apr/0030.html
+
+
+

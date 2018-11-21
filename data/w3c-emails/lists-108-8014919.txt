@@ -1,0 +1,137 @@
+docno="lists-108-8014919"
+received="Thu May 13 17:07:34 2004"
+isoreceived="20040513210734"
+sent="Thu, 13 May 2004 22:07:21 +0100"
+isosent="20040513210721"
+name="Mark Birbeck"
+email="mark.birbeck@x-port.net"
+subject="RE: Sources for possible selections and actual data"
+id="001e01c4392e$48a75060$0a01a8c0@W100"
+charset="us-ascii"
+inreplyto="c7vlbj$bcf$1&#64;sea.gmane.org"
+expires="-1"
+
+To:"'Victor'"<engmark-usenet@orakel.ntnu.no>
+Cc:<www-forms@w3.org>
+
+
+
+Hi Victor,
+
+> I am trying to get the possible choices for a select1 statement
+> from one instance, and the actual values of the selects from a
+> different instance. The problem is, in Chiba, the latter is
+> ignored, and all select boxes show only the first alternative.
+
+There are three problems here. The first is that in your code you have
+nested the second xf:bind within the first:
+
+> <xf:bind id="job-bind" nodeset="job">
+> <xf:bind id="jobResult-bind" nodeset="result"/>
+
+(I assume there is a closing </xf:bind> that you have snipped. If there
+isn't, then this is invalid XML anyway, all of the following is irrelevant,
+and you just need to fix your mark-up be stopping this being a nested bind!)
+
+
+Nested binds *are* allowed, but the nodeset of the nested bind you have
+specified would be:
+
+  job/result
+
+which I assume is not what you want.
+
+
+The second problem is that a nested bind is supposed to iterate over the
+nodeset produced by its parent, and this causes problems if you try to label
+the nested bind. For example, if you have:
+
+  <bind id="b1" nodeset="x" />
+
+it is obvious that the nodeset "b1" represents a nodeset of all x nodes. If
+you then nest a bind:
+
+  <bind id="b1" nodeset="x">
+    <bind nodeset="y" readonly="true()" />
+  </bind>
+
+it is also obvious that we want the readonly MIP to be true for all:
+
+  x/y
+
+However, consider the following instance data:
+
+  <a>
+   <x>
+    <y />
+    <y />
+   </x>
+   <x>
+    <y />
+    <y />
+    <y />
+   </x>
+   <x>
+    <y />
+   </x>
+  </a>
+
+If you concatenate the two @nodeset values together (the parent bind and the
+nested bind) you get the XPath expression:
+
+  x/y
+
+which will correctly find all 'y' nodes that are children of 'x' nodes. In
+our above bind statements, this will set them all to readonly.
+
+In other words this construct:
+
+  <bind nodeset="x">
+    <bind nodeset="y" readonly="true()" />
+  </bind>
+
+is equivalent to this:
+
+  <bind nodeset="x/y" readonly="true()" />
+
+However, nested binds are not about simply concatenating the XPath
+statements. The following is valid, for example:
+
+  <bind id="b1" nodeset="x" relevant="false()">
+    <bind nodeset="y" readonly="true()" />
+  </bind>
+
+which shows that you have to iterate the nested nodeset 'y', across each
+iteration of the parent nodeset 'x'. If you don't, then not all 'x' nodes
+will be set correctly.
+
+I would suggest checking whatever implementations you use for your projects
+to ensure that this is how they work. If you are producing forms that should
+run on a number of processors then you would be best to avoid labelling your
+nested binds.
+
+
+However, even if you sort this out, not all implementations will behave as
+you expect - the third problem! - since the exact behaviour of an
+xf:select(1) that takes its selection choices from one instance and places
+the result in another is still being debated on the Working Group. Our
+formsPlayer implementation does allow this, but we did have to a little
+shuffling to make this work, so the WG is just trying to ensure that the
+current implementations are all agreed on how it should be done.
+
+I'm not sure if that helps you, but at least you know what the issues are!
+
+Regards,
+
+Mark
+
+
+Mark Birbeck
+CEO and CTO
+x-port.net Ltd.
+
+Download our XForms processor from
+http://www.formsPlayer.com/
+
+
+

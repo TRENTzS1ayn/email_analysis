@@ -1,0 +1,238 @@
+docno="lists-018-16434483"
+received="Tue Mar 25 11:34:51 2003"
+isoreceived="20030325163451"
+sent="Tue, 25 Mar 2003 17:34:42 +0100"
+isosent="20030325163442"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="RE: variable, contentconstructor, baseURI"
+id="DFF2AC9E3583D511A21F0008C7E621060453E19F@daemsg02.softwareag.de"
+inreplyto="variable, contentconstructor, baseURI"
+expires="1"
+
+
+To: Volker Renneberg<volker.renneberg@unibw-muenchen.de>,public-qt-comments@w3.org
+
+
+Thanks for the comment.
+
+There is a good reason why the base URI of a temporary tree is derived from
+the base URI of the stylesheet, it is so that you can write:
+
+<xsl:variable name="x">relative.uri</xsl:variable>
+
+<xsl:apply-templates select="document($x)"/>
+
+This was already defined in XSLT 1.0.
+
+The other question you raise is whether base URI should be preserved by
+<xsl:copy-of>. There are arguments both way on this, and your use case is
+certainly a plausible one. The argument the other way is that temporary
+trees should behave as far as possible in exactly the same say as writing
+out a final result tree and reading it back in for another transformation.
+If nothing else, neither the XSLT 1.0 nor XSLT 2.0 specifications say
+explicitly whether base URI is copied or not, and this is clearly an
+omission.
+
+I think this is something that the WG should review, and I will register an
+issue to make sure it gets on the agenda. The fact is that whatever we do,
+copying relative URIs from one place to another is always going to be risky
+(there is obviously no way that the base URI can be maintained, for example,
+if you use xsl:value-of). This would suggest that if you know the data
+contains relative URIs, you should call the resolve-uri() function to make
+it absolute before you copy it to a different place.
+
+I don't actually follow your reasoning with your third stylesheet and the
+use of named templates. If you pass a node as a parameter to a template (or
+function) you are passing it by reference, so its base URI is unaffected.
+It's only when the node is copied that the problem arises.
+
+Michael Kay
+
+
+> -----Original Message-----
+> From: Volker Renneberg [mailto:volker.renneberg@unibw-muenchen.de]
+> Sent: 25 March 2003 15:19
+> To: public-qt-comments@w3.org
+> Subject: xsl:variable, content-constructor, baseURI
+> 
+> 
+> 
+> -----BEGIN PGP SIGNED MESSAGE-----
+> Hash: SHA1
+> 
+> Hi!
+> 
+> During developing a stylesheet which heavily relies on file inclusion
+> (document()-function) I came across some problems in the XSL 
+> specification.
+> 
+> Assume not all files are at the same location but spread over
+> different 
+> directories. During transformation the stylesheet loads these 
+> documents and 
+> applies its templates to the content (and during this process 
+> again files may 
+> have to be imported and evaluated).
+> 
+> The problem addressed here is how to find those files. The
+> names of the files 
+> to be loaded are inside the XML documents (relative 
+> names!!!). May problem 
+> arises when recursively importing documents from different 
+> directories.
+> 
+> Three examples will follow which actually should result in
+> the same behaviour 
+> but do not. Let's use three simple files:
+> 
+> a.xml:
+> <import file="lib/b.xml"/>
+> 
+> lib/b.xml:
+> <import file="c.xml"/>
+> 
+> lib/c.xml:
+> Text: nothingblalblabla
+> 
+> 
+> Stylesheet A processing file a.xml:
+> <xsl:template match="import">
+>      <xsl:variable name="x" select="document(@file, .)"/>
+>      <xsl:apply-templates select="$x">
+>        ...parameters...
+>      </xsl:apply-templates>
+> </xsl:template>
+> 
+> This example works as expected: During transformation of
+> document "a.xml" file 
+> "lib/b.xml" has to be imported and from there "c.xml". 
+> "b.xml" only knows the 
+> relative position of "c.xml" relative to its own position. 
+> Thus the base URI 
+> of the lib/b.xml/import-node has to be used. Using stylesheet 
+> A this works 
+> fine.
+> 
+> (Yes I could move the document() call to the apply-templates
+> node. However in 
+> my stylesheet case I have to do it that way as the actual loading and 
+> composition process is a little bit more complicated. The 
+> files presented 
+> here are just simplified examples showing the problem)
+> 
+> 
+> The following is a slightly changed version of A. Now
+> variable "x" will be 
+> constructed by content constructors and not via the select 
+> attribute. Now the 
+> transformation fails because the transformer forgets the base 
+> URI of the 
+> imported document. Thus while transforming "lib/b.xml" the 
+> file "c.xml" will 
+> be searched relative to the stylesheet URI (which may be 
+> somewhere but not 
+> "lib/") and not relative to "lib/b.xml". This is due to XSLT 2.0: 9.1 
+> Variables and 9.4 Temporary Trees. Stylesheet B processing 
+> file "a.xml": <xsl:template match="import">
+>      <xsl:variable name="x" />
+>              <xsl:copy-of select="document(@file , .)"/>
+>      </xsl:variable>
+>      <xsl:apply-templates select="$x">
+>              ..parameters...
+>      </xsl:apply-templates>
+> <xsl:template>
+> 
+> 
+> Now one may argue that <xsl:copy-of/> only copies elements
+> and it is not 
+> supposed to copy the base URI. But as stated above I try do 
+> do all IO in a 
+> callable template. This leads to a the third possible 
+> stylesheet. Stylesheet 
+> C processing file "a.xml":
+> <xsl:template match="import">
+>      <xsl:variable name="x" />
+>              <xsl:call-template name="load-file">
+>                      <xsl:with-param name="filename" select="@file"/>
+>              <xsl:call-template name="load-file">
+>      </xsl:variable>
+>      <xsl:apply-templates select="$x">
+>              ...parameters...
+>      </xsl:apply-templates>
+> </xsl:template>
+> 
+> In this example no node will be copied (in template "import")
+> while calling 
+> the template but still the transformer will forget the base 
+> URI which gets 
+> returned correctly by the called tempalte "load-file". Ok 
+> "load-file" again 
+> works via <xsl:copy-of/> - to my knowledge there is no other way!
+> 
+> 
+> To my mind there seem to be two problems:
+> 
+> 1) XSLT 2.0 Spec, 9.1 Variables: Constructing a variable as
+> it has been done 
+> in the second and third stylesheet results in an temporary 
+> tree which (XSLT 
+> 2.0 Spec, 9.4 Temporary Trees) does not copy the base URI of 
+> the original 
+> elements but changes it to the base URI of the variable 
+> binding element 
+> (which if understand it correctly is the base URI of the stylesheet).
+> 
+> 2) I cannot check with Saxon because there is no way to
+> generate the base-uri 
+> from the result of <xsl:copy-of/> without binding the result 
+> to a variable 
+> (which ignores the base URI). So I just assume that 
+> <xsl:copy-of/> forgets 
+> the base URI, too.
+> 
+> Thus the current WD of XSLT 2.0 does not support an implicit way of
+> propagating the base URI via variables or using 
+> <xsl:call-template/>. Doing 
+> more complicated things in XSL in conjunction with the 
+> document()-function 
+> leads to forgetting the base URI. Thinking of named templates 
+> as procedure 
+> like mechanisms returning data (maybe read from a file) this 
+> data will NEVER 
+> be correct according to the original one (i. e. missing base 
+> URI). The data 
+> has to be processed in the called template as far as the base 
+> URI-stuff is 
+> concerned.
+> 
+> Please rethink the design of the XSLT 2.0 Specification in
+> the eras touched by 
+> <xsl:variables/>/Temporary trees and named templates. To my mind 
+> <xsl:copy-of/> should copy the base use and temporary trees 
+> should not be 
+> assigned a common, data unrelated base URI. In case the data 
+> bound to a 
+> variable has it's own base URI this should be adopted.
+> 
+> ciao
+> Volker
+> 
+> - --
+> Dipl.-Inform. Volker Renneberg
+> University of the Federal Armed Forces, Munich
+> 85577 Neubiberg, Werner-Heisenberg-Weg 36
+> Tel.: +49-89-60042253 - Fax.: +49-89-60044447
+> http://hypsipyle.informatik.unibw-muenchen.de
+> -----BEGIN PGP 
+> SIGNATURE-----
+> Version: GnuPG v1.0.7 (GNU/Linux)
+> 
+> iD8DBQE+gHNGyX+5eQvzMeoRAhIRAKCwdfU+Mc2zKRomQYNd+Jrpx4A80wCgmAc3
+> qnWrXSXCCaNl4SXGws9Ziko=
+> =hO13
+> -----END PGP SIGNATURE-----
+> 
+
+
+

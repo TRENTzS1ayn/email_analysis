@@ -1,0 +1,104 @@
+docno="lists-011-13147646"
+received="Fri Dec 12 14:18:17 1997"
+isoreceived="19971212191817"
+sent="Fri, 12 Dec 97 14:16:18 PST"
+isosent="19971212221618"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: What is ContentLength?"
+id="9712122216.AA01780@acetes.pa.dec.com"
+inreplyto="5CEA8663F24DD111A96100805FFE6587203847&#64;red-msg51.dns.microsoft.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+After thinking about this some more, I believe we've (almost) all
+missed an obvious solution.
+
+We're concerned about how the sender specifies the actual length
+of the message body when a transfer-coding is used.
+
+Dave Morris has been saying "redefine the encoding to include a header
+(within the output of the encoding process) which gives the length."
+Which I had been thinking of as a bad idea, because it means that
+HTTP would be in the business of specifying the format of the
+message bodies.
+
+But then I remembered something that Dave had written earlier:
+    We introduced CHUNKed transfer encoding because it is difficult for
+    some servers to know the content length prior to beginning to send
+    data.
+(in this case, he was discussing trailers, but it's an important
+observation.)
+
+And we already have the ability to specify multiple transfer codings
+in the Transfer-Encoding header.
+
+So: Instead of defining a Transfer-Length header, we could simply
+add this rule:
+
+If a message is sent on a persistent connection using
+a transfer-coding that does not exactly preserve the
+length of the data being encoding, then the "chunked"
+transfer-coding MUST be used, and MUST be the last
+transfer-coding applied.
+
+I.e., instead of sending
+
+HTTP/1.1 200 OK
+Date: Thu, 11 Dec 1997 20:33:51 GMT
+Transfer-Encoding: compress
+Transfer-Length: 12345
+
+... compressed data ...
+
+a server could send
+
+HTTP/1.1 200 OK
+Date: Thu, 11 Dec 1997 20:33:51 GMT
+Transfer-Encoding: compress, chunked
+
+3039
+... compressed data ...
+0
+
+[Note: 12345 = 0x3039]
+
+Since the chunked encoding by definition includes the "transfer
+length", we don't need another header field.  And all HTTP/1.1
+implementations are required to support ("receive and decode")
+the chunked transfer-coding, so we don't need to argue about
+whether this is interoperable.
+
+We don't have to require a chunked transfer-coding when the
+end-of-message is marked by end-of-connection (not that we
+want to encourage it, of course) since current HTTP/1.0 practice
+suggests that this basically works.
+
+Aside from that, I don't have much to complain about Paul Leach's
+"simplified" proposal, although I'm not sure it would really be
+any simpler once all the definitions are made consistent.
+
+When Paul writes:
+    Under these rules, Content-Length is still logically end-to-end --
+    the header may not physically be present, but its value if it is
+    ever present is well-defined end-to-end and the same end-to-end.
+I'm not sure it makes sense to talk about a header being "end-to-end"
+if it isn't actually transmitted on some hops.  The content-length
+*value* is certainly end-to-end (although this is really an
+entity-length value), but I'm not sure we should be calling a
+header end-to-end if it is possible to remove it.  After all,
+the definition in 13.5.1 says:
+       .  End-to-end headers, which must be transmitted to the ultimate
+  recipient of a request or response. End-to-end headers in
+  responses must be stored as part of a cache entry and
+  transmitted in any response formed from a cache entry.
+
+Do you really want to change this definition?  Or admit that
+Content-Length is another category?
+
+-Jeff
+
+
+

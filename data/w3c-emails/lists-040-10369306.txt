@@ -1,0 +1,127 @@
+docno="lists-040-10369306"
+received="Tue Feb  6 22:05:12 2001"
+isoreceived="20010207030512"
+sent="Tue, 6 Feb 2001 19:04:17 -0800"
+isosent="20010207030417"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="Properties, ETags and versions"
+id="CNEEJCPIOLHKIOFNFJDPEEDLCDAA.lisa@xythos.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"W3c-Dist-Auth@W3. Org"<w3c-dist-auth@w3.org>
+Cc:"Ietf-Dav-Versioning@W3. Org"<ietf-dav-versioning@w3.org>
+
+
+
+I've never seen a clear resolution on whether property changes ought to
+result in ETag changes or not, although it's been discussed in the past
+on and off the main list.  This is really a core WebDAV issue, but I'm
+cc'ing the versioning list because the versioning model seems to suggest
+a particular model.  First I'll tediously recap all the various
+arguments I've heard/used so far... jump to the conclusions if you wish!
+
+Arguments for changing ETag when properties change
+--------------------------------------------------
+
+In versioning, when any of the regular dead properties of a resource
+change, a new version is created.  Thus, a new version might have
+exactly the same body as the previous version, only one or more property
+value is changed.  This suggests that at least some properties are
+considered part of the resource itself.  More strongly, it pretty well
+forces the ETag to change, doesn't it?  Um, or does it?  What about the
+Etag on the VCR, anyway?
+
+The implementation architecture argument: a server may store properties
+inside the file which also contains the resource body, and use
+information about this file (e.g. last-changed stamp) to create the
+ETag.  This kind of architecture does not easily allow the ETag to
+remain the same when the properties change.
+
+The sophisticated WebDAV client argument: for sophisticated WebDAV
+clients that do something like backup or replication, and care very much
+about properties, there's currently no way to tell if the property set
+has changed.  It would be desirable for this kind of client if some kind
+of indication changed, so that the client could tell when it's not
+necessary to download properties at all (in most backup/replication
+scenarios, no changes at all is the common case, so it makes sense to
+optimise).
+
+Arguments for keeping ETag same when properties change
+------------------------------------------------------
+
+Frequently-changing properties argument: It's pretty clear that one
+could define resource properties which should NOT result in the ETag
+changing.  E.g. a custom calculated property like "last-accessed-date"
+or "last-accessed-by" should not result in a change in the Etag every
+time the resource is accessed.  So maybe it's easier not to change the
+ETag for any property changes.
+
+The principle of 'least surprise' and efficiency for existing HTTP
+clients:  Since many WebDAV resources seem to be widely accessed by HTTP
+clients, it would be a shame to force them to download a new body for a
+WebDAV resource if only the properties change.  The HTTP client expects
+the body to change when the ETag changes, and performs unnecessary work
+if the ETag changes when the body does not.  This argument also holds
+true for the bulk of existing WebDAV clients which, as far as I can
+tell, do not store properties locally and thus are more efficient if the
+ETag stays the same when properties change.  In other words, most
+existing WebDAV clients don't care about knowing when properties change.
+
+The precedent argument: Neither xythos nor mod_dav changes the etag when
+it gets a PROPPATCH.  I don't know about other servers.
+
+The implementation architecture argument, from the opposite side:  a
+server may store properties somewhere outside the file, and use the file
+information (e.g. last-changed stamp) to create the ETag.  This kind of
+architecture does not easily allow the ETag to change when the
+properties change.
+
+Arguments for doing nothing
+---------------------------
+
+Implementations have already done one thing or the other. It's too late.
+The most we could require of servers would be something like "SHOULD
+NOT" change the etag, or maybe even weaker.
+
+Arguments for doing Something
+-----------------------------
+
+Clients should at least be able to tell whether they can count on the
+ETag changing when properties change.
+
+Conclusions
+-----------
+
+My suggestion is to add a _client_ requirement to the WebDAV proposed
+standard when it gets updated.  E.g.  "WebDAV clients MUST NOT rely on
+the ETag changing in order to know when properties on the resource have
+changed."
+
+This is a pretty conservative suggestion, since it's pretty clear when
+looking at existing WebDAV server implementations, that clients can't
+rely on the ETag changing when props change anyway.  Putting such a
+statement in the spec just makes it clear, and avoids client developers
+having to test various servers to try to find out, or making poor
+assumptions.  Given this, I don't think it's necessary to make any
+requirement on servers.  Servers are free to do whatever is most
+efficient or easiest, as long as the ETag changes in the way required by
+RFC2616.
+
+Versioning may want to address this issue separately.  Since changing
+dead properties creates a new version, I would assume the ETag would
+change.  A regular HTTP client doing a GET on such a VCR would see a new
+ETag even if the body has not changed.  However, my assumption may be
+wrong, thus, please clarify in DeltaV!
+
+If clients need to know reliably when properties _do_ change (backup and
+replication scenarios come to mind), we could get together and invent
+some kind of ETag-analog for properties.  I'd be interested in this kind
+of feature, but I don't expect it's within the scope of any work
+currently being undertaken by the working groups.
+
+Lisa Dusseault
+
+
+

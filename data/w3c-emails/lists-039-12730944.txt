@@ -1,0 +1,84 @@
+docno="lists-039-12730944"
+received="Fri Dec 10 03:20:51 1999"
+isoreceived="19991210082051"
+sent="Fri, 10 Dec 1999 00:12:10 -0800"
+isosent="19991210081210"
+name="Eric Sedlar"
+email="esedlar@us.oracle.com"
+subject="Re: BINDing using a weak reference"
+id="3850B5D9.615291B7@us.oracle.com"
+charset="us-ascii"
+inreplyto="9912100455.AA02972&#64;tantalum"
+expires="-1"
+
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>
+CC:w3c-dist-auth@w3.org
+
+If you have an orphaned cycle, the reference count doesn't get decremented to zero,
+so you don't know to set a deleted flag.  You don't know what is going to be
+deleted until you do a graph traversal.  Let's say we have the following files, ID
+= 1 & Id =2.  /a identifies resource 1.  /a/b identifies resource 2.  We bind /a
+into /a/b, creating a cycle (I can now get to resource 1 with /a/b/a).  The
+refcount on /a is 2 (the BINDing from root and the one from /a/b).  The refcount on
+/a/b is 1 (the BINDing from /a).  Now I unlink /a from root. Both resource 1 (the
+former /a) and resource 2 (the former /a/b) now have refcounts of 1.  However, both
+should be deleted as I now have an orphaned cycle (RFC2518 specifies that deletes
+are recursive to infinity).  There is no way to detect this condition without the
+garbage collection.  Until the garbage collection runs, resources 1 & 2 will still
+show up on hits.
+
+Garbage collection on in-memory objects (like in a Java VM) is bad enough.  Doing
+it on disk is incredibly awful.  Many applications find the need to issue lots of
+bulk DELETEs (delete *.* in this directory, for example).  Each of these will
+require a separate path traversal if you are doing this synchronously.
+
+The problem with WebDAV BINDings as currently spec'ed, as well as UNIX hard links,
+is that they have both navigation and persistence semantics.  The reason people
+want to create cycles of BINDings / links is for navigational reasons, not for
+persistence reasons.  If you have a "smart" weak link that follows the referenced
+object and is removed when the referenced object is removed, you have all the
+functionality that most use cases require.
+
+--Eric
+
+"Geoffrey M. Clemm" wrote:
+
+> Why not just add a "deleted" attribute to a resource, set this to
+> be "true" when a resource is deleted, and then automatically add
+> "!deleted" to search queries?
+>
+> Cheers,
+> Geoff
+>
+>    From: "Eric Sedlar" <esedlar@us.oracle.com>
+>
+>    Of course you will build an index.  That's the problem, because you are
+>    locating the data without traversing the collection hierarchy to find the
+>    data.  Let's say you find a hit using that index.  That item may actually
+>    have been deleted because you have deferred garbage collection, and there is
+>    no way to update the index to remove that item until the actual resource has
+>    been deleted.  If you were traversing the hierarchy as well, you wouldn't
+>    find that item if it would be garbage collected later because there wouldn't
+>    be a path to find it.
+>
+>    ccjason@us.ibm.com wrote:
+>
+>    > >>
+>    > I can tell you
+>    > that if most Oracle customers are offered the choice of having a bunch of
+>    > great neat content management functionality at the price of decreasing
+>    > search performance, they will stick with the search performance.  Nothing
+>    > irritates users more than waiting for search results.
+>
+>    > >>
+>    > On the comment I quoted above...Are we talking about text searches?
+>    > You did mention text searches above.
+>    > If performance were important,
+>    > wouldn't you build an index and just use the index to service queries?
+>    > ... just like most search systems do?   If you use an index,  the amount
+>    > of time users wait for search results is not really relevant to your
+>    > point.  The performance will be the same either way.
+
+
+

@@ -1,0 +1,120 @@
+docno="lists-044-3105054"
+received="Thu Dec  9 18:11:14 1999"
+isoreceived="19991209231114"
+sent="Thu, 9 Dec 1999 15:08:57 -0800"
+isosent="19991209230857"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="Problems with changing from document order"
+id="NDBBLAOMJKOFPMBCHJOIKEKFCCAA.jboyer@uwi.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+
+Joseph asked me to post this information to better inform those who wish to
+take part in the decision about the namespace and attribute order decision
+for the XPath transform.
+
+Currently, the XPath transforms section of the dsig spec [1] defines that
+all nodes, including namespace and attribute nodes, will be interpreted in
+document order and will be output in the same order as they appear in the
+input document.
+
+[1] http://www.w3.org/TR/1999/WD-xmldsig-core-19991119/Overview.html
+
+In the telecon, the option of using c14n order as defined in [2] was
+discussed.
+
+[2] http://www.w3.org/TR/xml-c14n#sec-namespaces
+
+This order is NOT THE SAME as putting the attributes in lexicographic order,
+and therefore has deleterious effects on SAX and other resource constrained
+methods of interpreting the XML document as a sequence of either tokens or
+bytes.
+
+The c14n order sorts attributes into lexicographic order after making
+several changes.
+
+A) If an element E uses a namespace (either in its tag or in an attribute)
+that is defined in an ancestor of element E, then the xmlns definition is
+copied to E but given a different name (the definition of xmlns:a in some
+ancestor A becomes xmlns:n1 in element a:E).
+
+B) The start and end tags of a namespace qualified element E would have to
+be modified to use the new namespace prefix in E.
+
+*** What do these changes imply?
+
+The major problem with changing from document order to c14n order is that
+someone reading the XML document in a text editor cannot easily decide how
+to write an XPath without canonicalizing the document, which destroys the
+ability to read it in a text editor (human readability?).
+
+The lex order of attributes and the expanded name of elements and attributes
+are based on namespace URI, not the prefix, so there is no additional
+ambiguity in identifying elements and attributes by an XPath (additional
+meaning beyond the ambiguity resulting from the change from document order
+to lex order).
+
+As for namespaces, both the size of the namespace axis and the local names
+of the nodes in the axis are changed by c14n ordering. Thus difficulty in
+specifying a namespace node is quite highly encumbered under c14n ordering.
+It is particularly important to note that a namespace declaration in E may
+be created in different locations along the namespace axes of each
+descendant of E depending on where in the descendant's attribute list the
+namespace is used. Further, a given namespace declaration may be created
+multiple times in the same descendant's start tag, having a different local
+name in each [2].
+
+*** Impact on Streamed (SAX-like) XML Reading
+
+It would appear that changing from document order to c14n order would
+require a stack of namespace definitions from all ancestors of the element
+being parsed.  Whenever a start tag is encountered, its namespace
+declarations would be pushed.  When the corresponding end tag is
+encountered, the same number of namespace declarations would be popped.
+Processing of start and end tags would need to be augmented to rewrite the
+start tag as described above in A and B, after which a sort would be
+performed to further modify the start tag.
+
+It should be evident that the original namespace prefixes will be lost in
+this process (although I do not believe this poses a security risk).
+
+It should also be noted that this does imply substantially more overhead for
+certain applications, even though they are using XPath.  This is because
+these applications will typically support only specific XPath phrases within
+their application, esp. if they are in a resource constrained environment.
+
+Finally, note that if we selected a lex order for attributes, but dropped
+the namespace declaration changes, the namespace context stack would still
+be required in order to provide the primary key for sorting the attributes.
+Indeed, an XPath evaluation itself may require this namespace context in
+order to perform expanded name comparisons.  However, many resource
+constrained applications may simply stay away from this problem, so they
+would not require the extra work and space.
+
+*** Conclusion
+
+The c14n ordering is superior, but only to the extent that canonicalization
+by c14n is a good idea in and of itself.  If the application chooses to c14n
+canonicalize before applying an XPath, then document order is c14n order.
+So, we are considering cases where the application has chosen not to perform
+c14n canonicalization.
+
+The current section uses document order because it does not impose more work
+than necessary on the processing of an XPath transform.  The change to c14n
+order is likely to benefit most processing scenarios, but at the cost of
+encumbering resource constrained scenarios.
+
+Naturally, we need feedback based on this information, esp. from those who
+have experience operating in these environments.  Is the code size and
+run-time/memory space overhead really that costly?
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+

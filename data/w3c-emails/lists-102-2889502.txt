@@ -1,0 +1,188 @@
+docno="lists-102-2889502"
+received="Fri May  1 19:06:00 1998"
+isoreceived="19980501230600"
+sent="Fri, 1 May 1998 16:05:53 -0700"
+isosent="19980501230553"
+name="David Brownell"
+email="David.Brownell@Eng.Sun.COM"
+subject="RE: Alternative to the Live NodeIterator"
+id="199805012305.QAA25244@argon.eng.sun.com"
+inreplyto="Alternative to the Live NodeIterator"
+expires="-1"
+
+
+To:peter@sqwest.bc.ca
+Cc:www-dom@w3.org
+
+Peter,
+
+Node iterator has been a wakeup for me too ... :-)
+
+See solution #4 that I propose below.  The rest of this picks at
+some of the details of why I think other solutions are flawed.
+
+
+> >> Right. Some object -- and the document tree is a logical choice -- must
+> >> maintain a reference to iterators.
+> >
+> >This seems to derive from the need to be able to identify some
+> >abstract position "between" iterated nodes.  If the iterator had
+> >a "current node", I don't think such a reference would ever be
+> >needed, since simple algorithms would suffice to always find
+> >the next/previous/first/last nodes and, for tree iterators, the
+> >firstchild/nextchild/firstsibling/nexsibling nodes.
+>
+> I don't understand this. Maybe I haven't woken up yet this morning
+> -- see my reply to your next point, below, for proof -- but it
+> seems to me that whether you are "between" nodes or "on" a node
+> doesn't affect the underlying implementation much.
+
+It does, because it affects the complexity of the representation
+and its ability to be stable in the face of mutations to the tree.
+
+
+>In other words,
+> the iterator can contain a reference to a node and information
+> about its position relative to that node.
+
+True ... so, which node will it refer to?  The document root?  The
+previous node (which could be deleted)?  The next node (which could
+also be deleted)?  First or last node (same story)?  It's not an
+option to refer to a "current" node according to the current definition
+of NodeIterator ... since it must be "between" nodes.
+
+Of those nodes, the only node that seems like it's guaranteed to be there
+is the document root.  You might use path style positioning: the third
+child of root, then second child, then twentieth, then first. OK, now
+someone deletes the second child of the root ... whoops, that path was
+invalidated, and the algorithm to fix up that path isn't very obvious at
+all.  Error prone is more like it!  Similar problems with other kinds
+of positioning info.
+
+The problem of updating that relative positioning info goes away if
+iterators have a "current" node.  No fuss, no bother.  No information
+about position relative to that node, needing to be stored or updated.
+
+
+> >Is anyone claiming that the indexed access model makes sense on
+> >a live NodeIterator, by the way?
+>
+> Depends on what you mean by "makes sense." I claim the behaviour can
+> be defined and implemented. Will it always be useful? No.
+
+What'd "make sense" is for the indexed model to have a stable semantic:
+one index always returns the same value.  Without that, why have it?
+
+I don't see a way to do this when the tree is "live" and mutating.
+Applications basically can't store indices without a way to update them
+after each editing operation.  Makes a lot more sense to just store the
+node, rather than its index, since that won't get invalidated!  (The cost
+is commonly a bit better:  the pointer costs the same as the index, but
+having it in hand eliminates a what's often a complex dereferencing
+operation to count to the Nth member from the beginning.)
+
+
+> I still think we are OK for ECMAScript and COM for the reason I mentioned
+> above: the reference from the list will not be known to the scripting
+> language or the COM interface so garbage collecting or reference counting
+> will work.
+
+I'll have to trust ECMAScript experts to get this right for their languages,
+though clearly I missed some draft of a COM binding ... :-)
+
+However, I'm still not persuaded that this is actually OK for either of
+those two cases.  Unless maybe the ECMAScript GC is taught that when the
+only reference to an Iterator is in some object (say, Document) it's got
+to use some private COM Document interface to clean up that reference.
+That seems worse than "impure" ... :-)
+
+Remember, the reason the reference is needed is so that the iterator can be
+modified (the "relative position").  Any edit operation will need to examine
+every outstanding iterator to see if its relative positioning info needs to
+be modified.  The object (document) that knows all the iterators needs to
+be told that the iterator isn't in use any more, and can be deleted from its
+internal list of iterators.  Otherwise it's going to use that reference and
+get some sort of evil memory access exception when it tries to treat that
+memory location as an iterator, when it's been turned into something else.
+
+
+>The problem comes in the Java bindings. I have no good solution
+> in that case. You can implement your own memory management at the expense
+> of interoperability, I guess.
+
+I can't believe that it'd only be an issue for Java.  See the above!
+
+
+> It sounds like the solutions are:
+> 1. Fix up iterators on editing operations and have each Java implementation
+> provide some interface to releasing iterators.
+> 2. Fix up iterators on editing operations and define an interface in the
+> DOM that would enable implementations to release iterators.
+> 3. Say in the DOM that the behaviour of iterators after an editing operation
+> is undefined.
+
+If you believe that iterators are needed, my preferred solution is simpler
+all around:
+
+4. Change the specification of the iterators so that they have "current"
+   node, and don't point "between" nodes.
+
+Some more advantages to (4), beyond "it gets memory management right":
+
+    - The semantics of the iterator are much simpler to explain, use,
+      and implement correctly.
+
+    - It's naturally thread-aware ... two threads can mutate concurrently,
+      and all outstanding iterators will behave logically.  The threads
+      won't even need to communicate the fact that they're both doing
+      concurrent work to mutate the tree.
+    
+    - It's going to be more efficient, since it removes the overhead now
+      imposed on every edit operation:  checking every active iterator to
+      see if its relative positioning info needs to be modified.
+
+Could someone please explain to me the motivation for pointing iterators
+"between" nodes, rather than right at them?  I've seen that semantic for
+insertion points on linear text edit buffers (index specifies offset of
+first character to be relocated), but never for tree data structures like
+DOM (nonlinear).
+
+
+> Of these three, I think that I would prefer 1 -- although I can understand
+> why others wouldn't -- and maybe I could live with 3, but not very happily.
+
+How about #4?
+
+
+> I come from the editor world and my users will use the DOM to transform
+> parts of their documents. The code does its work by examining nodes in one
+> area of the tree and inserting nodes in another part of the tree. If the
+> code uses iterators which become useless after each editing operation then
+> it is going to be a mess.
+
+Agreed:  No messes desired!!
+
+
+>The reason I could live with it, though, is
+> because it is possible to do the tree walking using nodes rather than
+> iterators.
+
+I've had that observation too.  That makes me think that iterators are
+themselves not going to be excessively useful.  Certainly not without
+applying solution #4 above.  And if they're just sugar on top of Nodes,
+their value seems dubious ...
+
+
+> Can you Java experts not find some other way out of this dilemma?
+
+See solution #4 above!  Also, I want to repeat that I don't see how this
+can be a problem only for Java.  Solution #4 should address the problems on
+all sorts of platforms.
+
+- Dave
+
+p.s. Fair discussion alert -- I only have about two more days before I
+    need to pumpkinize myself for a while!  :-)
+
+
+

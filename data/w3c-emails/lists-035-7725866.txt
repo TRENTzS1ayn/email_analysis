@@ -1,0 +1,208 @@
+docno="lists-035-7725866"
+received="Tue Jul 11 15:14:24 2000"
+isoreceived="20000711191424"
+sent="Tue, 11 Jul 2000 14:14:01 -0500"
+isosent="20000711191401"
+name="Dan Connolly"
+email="connolly@w3.org"
+subject="Re: XML Base for relative URIs: Interpretation of 5.1 of RFC 2396"
+id="396B71F9.1625509B@w3.org"
+charset="us-ascii"
+inreplyto="4.2.0.58.J.20000711120637.03518720&#64;sh.w3.mag.keio.ac.jp"
+expires="-1"
+
+
+To:"Martin J. Duerst"<duerst@w3.org>
+CC:uri@w3.org,www-xml-linking-comments@w3.org
+
+"Martin J. Duerst" wrote:
+> 
+> Dear Members of the URI mailing list,
+> 
+> An issue has recently come up in the resolution of last call
+> comments to XML Base http://www.w3.org/TR/2000/WD-xmlbase-20000607
+> (don't hesitate to read this, it's really, really short).
+
+I've been invited to comment on this issue, which has been
+discussed in various fora. Rather than
+wade in point-by-point in the thread, I'll just
+give you my understanding of the only way this stuff
+can all make sense to me, with perhaps a bit of history,
+and leave it to you to figure out if I'm making sense.
+Feel free to forward this... I'm going to write
+it here in a public forum first and forward it to
+some confidential fora where this issue has been discussed.
+
+My mental model goes thus:
+
+(a) each URI reference in an XML document
+occurs [either in the prolog, which case
+isn't relevant, or]
+in exactly one element.
+
+(b) each element in an XML document occurs
+in exactly one external entity.
+
+(c) each external entity has an absolute URI
+
+therefore:
+(d) the base URI to be used to expand
+any URI reference in an XML document is
+the absolute URI of the external entity
+of the element in which the URI reference occurs.
+
+i.e. we can speak of "the base URI of an element"
+and "the element in which a URI reference occurs".
+
+To elaborate a bit, starting with (a): a URI reference
+that occurs in an attribute, including a defaulted
+attribute, is considered to occur in the element
+which bears that attribute. An example that came
+up during the iffy end-game of the namespaces spec
+was (something like, if memory serves):
+
+in http://example.com/dir1/aDoc.xml
+
+<!DOCTYPE aDoc [
+<!ENTITY % moreDecls "../dir2/moreDecls.xml">
+]>
+<aDoc/>
+
+in http://example.com/dir2/moreDecls.xml
+
+<!ATTLIST aDoc
+xmlns CDATA #FIXED "figureMeOut"
+>
+
+So the namespace URI* associated with the root element
+of the document is http://example.com/dir1/figureMeOut ,
+since the URI reference occurs in the xmlns attribute
+of the <aDoc/> element, and the <aDoc/> element
+occurs in the document entity, whose base
+URI is http://example.com/dir1/aDoc.xml .
+
+* by namespace URI, I mean the absolute form of the
+URI reference found in the namespace declaration.
+
+Now that the schema spec allows us to specify URI references
+in the content of elements, we should be clear that,
+for the purpose of expansion to absolute form, the
+relevant base URI is the base URI associated with the
+element in which they occur. That is, for the case of:
+
+in http://example.org/dir1/aDoc.xml :
+
+<!DOCTYPE [
+<!ENTITY overThere "../dir2/aRef.xml">
+]>
+<anElt>&overThere;</anElt>
+
+in http://example.org/dir2/aRef.xml
+
+figureMeOut
+
+where the content of anElt is declared, via a schema,
+to have type URIReference, the absolute form
+of this URI reference is
+http://example.org/dir1/figureMeOut
+
+Rule (b) is just a property of the XML 1.0 spec: as
+each element is parsed, there's a stack of open
+entities. Just take the first one that is an external entity.
+(I phrase it here somewhat in implementation terms,
+but it can be phrased in terms of the XML Infoset spec
+too).
+
+So in the case of:
+
+in http://example.org/dir1/aDoc.xml :
+
+<!DOCTYPE aDoc [
+<!ENTITY % moreDecls "../dir2/moreDecls.xml">
+]>
+<aDoc>&stuff;</aDoc>
+
+in http://example.com/dir2/moreDecls.xml
+
+<!ENTITY stuff "<anElt xlink:href='figureMeOut'/>">
+
+The <anElt .../> element gets a base URI of
+http://example.org/dir1/aDoc.xml , since that's
+the external entity that's top on the stack when
+it occurs in the parse. And hence the ending resource of
+the link is identified by
+http://example.org/dir1/figureMeOut
+
+(please forgive the undeclared xlink: prefix. I think
+a declaration would have been a distraction.)
+
+Regarding (c), the relevant base URI is the
+(absolute form of) the system identifier of
+the entity. I include document entities among
+external entities. And I interpret section 5.1.4. Default Base URI
+of http://www.ietf.org/rfc/rfc2396.txt to mean
+that there's always a base URI, even if it's just
+something implementation-specific, unspecified,
+or arbitrary, ala what you get back from (if #f 1)
+in scheme. I think an implementation that uses
+file:/current/working/directory is likely to
+make users happy, but it can use file:/ or
+mid:a@b or anything else, as long as it's absolute.
+
+And (d) is just the only sane approach to all this
+that I can see, after James Clark and others pointed
+out the implementation hassles of doing anything
+else.
+
+Given all this, xml:base makes sense to me as a modification
+to the specification of "the base URI of an element".
+Rather than saying it's the absolute URI of the
+external entity in which the element occurs, we
+say it's either
+
+- the absolute URI of the external
+entity in which the element occurs
+
+- the (absolute form of) the xml:base attribute
+that most closely dominates this element
+on the stack
+
+which ever binds more closely, i.e. whichever one
+you find first in the stack at parse time. Hmm...
+getting that wording just right in the spec could be
+tricky. Examples will be critical. To take
+the one that Martin gave:
+
+File /example/a.xml:
+
+<!DOCTYPE example
+[
+<!ENTITY entity1 SYSTEM "/include/entity1.xml">
+]
+<example xml:base='subdir1'>
+&entity1;
+</example>
+
+File /include/entity1.xml:
+
+<a href='link.xml'>That's the question!</a>
+
+the href occurs on the <a> element, and the base
+URI of the <a> element is /include/entity1.xml ,
+since when you look up the stack at parse time,
+you hit the external entity boundary before you
+hit the <example> element.
+
+It's very important that the c14n spec shows
+how to add xml:base attributes when canonicalizing
+multi-entity documents, so that URI references
+don't lose their context.
+
+And finally, I don't see any conflict between
+this model and RFC2396 at all.
+
+-- 
+Dan Connolly, W3C http://www.w3.org/People/Connolly/
+
+
+

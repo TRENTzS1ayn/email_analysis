@@ -1,0 +1,150 @@
+docno="lists-017-1077538"
+received="Thu Mar 18 22:43:00 2004"
+isoreceived="20040319034300"
+sent="Fri, 19 Mar 2004 03:42:57 +0000"
+isosent="20040319034257"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Are IDNs allowed in http IRIs?"
+id="20040319034257.GA13798~@nicemice.net"
+charset="iso-88591"
+expires="1"
+
+To:public-iri@w3.org,uri@w3.org
+
+
+
+Are IDNs allowed in http IRIs?  It seems like a silly question, but
+currently the IRI draft tries to inherit the answer from the URI & HTTP
+specs, and the URI draft tries to inherit the answer from the HTTP spec,
+and of course the HTTP spec knows nothing of IDNs.  The result is that
+the question has no clear answer.  Does it need a clear answer, and if
+so, which document is the place to provide that answer?
+
+Consider the purported IRI http://jos%e9.example.net/.  Is that a valid
+http IRI?  If so, what does it mean?
+
+There are four places we might hope to find clues to answer those
+questions:  The IRI spec, the URI spec, the HTTP spec, and the IDNA
+spec.
+
+Here's what the IRI spec has to say on the matter:
+
+    IRIs are only valid if they map to syntactically valid URIs.
+
+    the resource that the IRI locates is the same as the one located by
+    the URI obtained after converting the IRI
+
+According to the conversion procedure, http://jos%e9.example.net/
+may be converted to either http://jos%C3%A9.example.net/ or
+http://xn--jos-dma.example.net/.  Maybe we'll be lucky and the answers
+to our two questions will be the same for both URIs, or maybe we'll be
+unlucky and the answers will be different for the two URIs, in which
+case the answers for the IRI are indeterminate.
+
+According to the HTTP and IDNA specs, http://xn--jos-dma.example.net/ is
+valid and has a clear meaning, while http://jos%C3%A9.example.net/ is
+invalid for two reasons.  First, it does not match the http URI grammar,
+which explicitly uses the host component from RFC-2396, which does not
+allow percent-escapes.  Second, the IDNA spec requires the ASCII form
+(xn--jos-dma.example.net) in IDN-unaware domain name slots, and the host
+component of an http URI is an IDN-unaware domain name slot (because
+RFC-2616 predates RFC-3490).
+
+The only way for the URI http://jos%C3%A9.example.net/ to become valid
+and meaningful is for the HTTP URI spec to be updated, either by a
+successor to RFC-2616, or by a sweeping action of the successor to
+RFC-2396.  For example, 2396bis could say that it updates all schemes
+that use domain names to use IDNs.  Such a sweeping update would of
+course explicitly bypass the interoperability protections designed into
+the IDNA architecture, and would let things break during the transition
+(it amounts to "just send UTF-8"), but I suppose it's an option.
+
+The current 2396bis draft does not make such an update.  It says:
+
+    When a non-ASCII host name represents an internationalized domain
+    name intended for resolution via DNS, the name must be transformed
+    to the IDNA encoding [RFC3490] prior to name lookup.
+
+It does not tell us when a non-ASCII host name represents an IDN, so
+presumably that determination is left up to the scheme.  Existing
+schemes like http don't use non-ASCII names to represent IDNs (the IDNA
+spec makes that clear).
+
+Getting back to the original questions regarding the purported IRI
+http://jos%e9.example.net/, we have not been able to determine whether it
+is valid or what it means, because the answers change depending on which
+conversion to to URI we happen to use, and the IRI spec blesses both
+conversions.
+
+Of course the same indeterminacy exists for ftp://jos%e9.example.net/ and
+mailto:postmaster@jos?.example.net etc.
+
+Is this indeterminacy intended?
+
+If not, I can think of two ways to rectify the situation (and maybe
+other folks can think of other ways).  One way is for the URI spec to
+update all URI schemes along these lines:
+
+    All schemes that use data types that use an ASCII-Compatible
+    Encoding (ACE) for internationalization are hereby updated to
+    allow the use of equivalent non-ASCII forms, represented as
+    percent-encoded UTF-8.  An example of such a data type is domain
+    names, see [IDNA].
+
+(Here I've generalized from IDNs to ACEs because there is a possibility
+that email address local parts will also use an ACE.)
+
+Alternatively, the URI spec could be left as-is, and the IRI spec could
+redefine the validity of IRIs along these lines:
+
+    An IRI is valid if it conforms to the syntax of the corresponding
+    URI except for the following two additional freedoms:
+
+       1) Wherever the URI might contain percent-encoded octets
+       representing UTF-8, the IRI may instead use non-ASCII characters
+       whose UTF-8 encoding is those same octets.
+
+       2) Wherever the URI might contain a data type that uses an
+       ASCII-Compatible Encoding (ACE) for internationalization, the IRI
+       may instead use an equivalent non-ASCII form.  An example of such
+       a data type is domain names, see [IDNA].
+
+    When an IRI is converted to a URI, the conversion MAY use
+    scheme-specific knowledge to convert appropriate components to ACE
+    forms rather than percent-encoded UTF-8.  Lack of scheme-specific
+    knowledge (or failure to use it) can cause valid IRIs to be
+    converted to invalid URIs that contain percent-encoded non-ASCII
+    text where only the ACE form would be permitted.  Such invalid URIs
+    cannot in general be resolved directly, but can always be converted
+    back into valid IRIs, which could then be reconverted to valid URIs
+    by a scheme-specific converter.
+
+Maybe it would be bothersome to bless a conversion procedure that can
+produce invalid output.  If not, disregard the rest of this message.
+Otherwise, the possibility of invalid output could be avoided by
+creating a new "scheme name registration tree" (BCP-35).  For example,
+the "i" tree could be defined as follows:  For any scheme foo, the
+scheme i-foo is just like foo except for the following additional
+freedom:
+
+    Wherever the foo: URI might contain a data type that uses an
+    ASCII-Compatible Encoding (ACE) for internationalization, the
+    i-foo: URI may instead use an equivalent non-ASCII form, represented
+    as percent-encoded UTF-8.  An example of such a data type is domain
+    names, see [IDNA].
+
+A scheme-agnostic IRI-to-URI converter can avoid the possibility of
+invalid output by prefixing i- to the front of the output.  When the URI
+eventually makes its way to an agent with scheme-specific knowledge,
+that agent can know whether the prefix can simply be discarded, or if
+ACE conversions need to be performed first.
+
+A URI-to-IRI converter can always discard the i- prefix, even without
+recognizing the scheme.
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

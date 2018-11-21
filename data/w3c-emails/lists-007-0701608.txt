@@ -1,0 +1,184 @@
+docno="lists-007-0701608"
+received="Tue Apr 23 05:41:57 2002"
+isoreceived="20020423094157"
+sent="Tue, 23 Apr 2002 11:41:50 +0200"
+isosent="20020423094150"
+name="Julian Reschke"
+email="julian.reschke@greenbytes.de"
+subject="RE: Label header vs PROPFIND depth 1"
+id="JIEGINCHMLABHJBIGKBCEEFGEHAA.julian.reschke@greenbytes.de"
+charset="iso-8859-1"
+inreplyto="FDEHJMOEIDFPFLBKEICGIEHFCGAA.tim&#64;ellison.name"
+expires="-1"
+
+To:<tim@ellison.name>,"'Deltav WG'"<ietf-dav-versioning@w3.org>
+
+
+Tim,
+
+before going into details, I'd like to repeat that the way the label header
+is defined makes the selected revision a variant of the VCR. That's what
+RFC2616 says, and IMHO there's no way to avoid that.
+
+If you strongly feel that this is a problem (I may agree), than the label
+header should be removed from the spec (deprecated in the issues list), and
+we should go back looking at the original requirements it's supposed to
+handle.
+
+> From: ietf-dav-versioning-request@w3.org
+> [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Tim Ellison
+> Sent: Tuesday, April 23, 2002 10:58 AM
+> To: 'Deltav WG'
+> Subject: RE: Label header vs PROPFIND depth 1
+>
+>
+> Juliam wrote:
+>
+> > > Right, so imagine what kind of answer you would get back in the
+> > > multistatus -- some would be from the unversioned resource
+> propfinds and
+> > > some from version propfinds, and you wouldn't know which were
+> versioned
+> > > (without explictly looking for a live property to distinguishe
+> > > them), _and_
+> >
+> > Yes -- I think this is what RFC3253 says.
+> >
+> > > it would contravene the 2518 depth result requirement I
+> > mentioned earlier.
+> >
+> > I don't think so.
+>
+> From your example below I see that you envisage the hrefs being
+> those of the
+> version-controlled resource (even though the properties come from the
+> labelled version).
+>
+> This is too confusing.  Al the existing code that people write to
+> associate
+> the href with the properties would have to be re-written as the reported
+> properties are from a different resource to the href.
+
+No, they aren't. They are from a specific variant of the VCR (as defined by
+HTTP).
+
+> > > a version-controlled resource for which the label doesn't exist?
+> > > >
+> > > > See section 8.6, the DAV:must-select-version-in-history
+> precondition.
+> > > > It is an error if you request a label that does not exist on a
+> > > given VCR.
+> >
+> > So assume we have /a (collection, not-versioned), /a/b
+> > (not-versioned), /a/c
+> > (versioned, having a version labeled "x") and /a/d (versioned,
+> > without that
+> > label).
+> >
+> > I think we all agree that
+> >
+> > GET /a/c
+> > Label: x
+> >
+> > Should return the content of the version selected by the label x
+> > (including
+> > a vary header and probably a content-location header).
+>
+> Agreed -- I think we specify a Location: header, but whatever
+> (i.e. resource
+> location, not content location).
+
+I think content-location is correct:
+
+"The Content-Location entity-header field MAY be used to supply the resource
+location for the entity enclosed
+in the message when that entity is accessible from a location separate from
+the requested resource?s URI. A server
+SHOULD provide a Content-Location for the variant corresponding to the
+response entity; especially in the
+case where a resource has multiple entities associated with it, and those
+entities actually have separate locations by
+which they might be individually accessed, the server SHOULD provide a
+Content-Location for the particular
+variant which is returned."
+
+while the RFC says for location:
+
+"The Location response-header field is used to redirect the recipient to a
+location other than the Request-URI
+for completion of the request or identification of a new resource. For 201
+(Created) responses, the Location is that
+of the new resource which was created by the request. For 3xx responses, the
+location SHOULD indicate the server?s
+preferred URI for automatic redirection to the resource. The field value
+consists of a single absolute URI."
+
+> > GET /a/d
+> > Label: x
+> >
+> > will return 403 or 409 with an error element (precondition
+> > DAV:must-select-version-in-history failed).
+>
+> Agreed.
+>
+> > GET /a/b
+> > Label: x
+> >
+> > will just return b's content, and the vary header when present will NOT
+> > include "Label".
+>
+> Can I hedge on the vary: header in the response?  Given that the GET cache
+> may be invalidated by the resource /a/b coming under version control, and
+> acquiring a label, I may be inclined to believe that we should
+> return a vary
+> header for every label: request for a version-controlled or versionable
+> resource.
+
+I think this is right. Which means that vary: label must be set upon GET on
+*any* resource that is versionable (on a server supporting the LABEL
+feature).
+
+> > Similarily, similar results will be returned for a PROPFIND/depth
+> > 0 on these
+> > resources. Note that the response element will be "/a/c" in the
+> > first case, even if the properties of a version with a different
+> > URI were reported.
+>
+> No.  I think the href must be for the version resource selected by the
+> label, not the version-control resource at the request-URI.
+
+Nope. You can't do that. This breaks PROPFIND. HTTP offers you:
+
+- variants (representations) of the resource, which will have the same URI,
+or
+
+- redirects (where the request is redirected to a different URI).
+
+You can't have both.
+
+> > Finally, we have PROPFIND/depth 1 on /a:
+> >
+> > - as /a isn't version-controlled, the label header is ignored for *this*
+> > resource
+> >
+> > - Geoff and I claim that it *should* apply to the members then,
+> > so we'd get:
+>
+> ...and I say it shouldn't apply to members, otherwise the result will
+> contain properties from resources that are not in the same collection
+> membership hierarchy, and thereby contravene 2518 (as well as
+> complicate the
+> result enourmously).
+
+RFC2518:
+
+"Consequently, the multistatus XML element for a collection resource with
+member URIs MUST include a response XML element for each member URI of the
+collection, to whatever depth was requested. Each response XML element MUST
+contain an href XML element that gives the URI of the resource on which the
+properties in the prop XML element are defined. Results for a PROPFIND on a
+collection resource with internal member URIs are returned as a flat list
+whose order of entries is not significant. "
+
+
+

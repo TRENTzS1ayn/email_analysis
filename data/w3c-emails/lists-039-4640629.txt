@@ -1,0 +1,346 @@
+docno="lists-039-4640629"
+received="Mon Mar  8 17:00:15 1999"
+isoreceived="19990308220015"
+sent="Mon, 8 Mar 1999 17:01:38 -0500 "
+isosent="19990308220138"
+name="Slein, Judith A"
+email="JSlein@crt.xerox.com"
+subject="Summary of Advanced Collections Discussion"
+id="201BB34B3A73D1118C1F00805F1582E801BA4D2A@x-wb-0128-nt8.wrc.xerox.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'WebDAV'"<w3c-dist-auth@w3.org>
+
+This note summarizes the discussions that have followed Yaron's review of
+the first part of the advanced collections protocol.  I suggest that we
+focus discussion at the IETF meeting next week on the difficult issues: 7 -
+11.
+
+I propose these resolutions of issues 1 - 6:
+
+Issue #1: Keep the current definition of "Collection", which is copied from
+rfc 2518.  Add a statement that a response to a request for a listing of
+members of the collection includes exactly those URIs that the collection
+contains.
+
+Issue #2: 
+Change the definition of "Referential Resource" to the following:
+
+A new type of resource that provides access to the content and
+properties of another resource, but has no content of its own (though it
+does have properties)
+
+Keep the current definitions of "Direct Reference" and "Redirect Reference".
+
+Issue #3: Use just the currently-defined Location header with 302 responses.
+
+Issue #4: For the Ref-Integrity header, define only the value
+"do-not-enforce", require the Ref-Integrity header on MKREF requests, and
+require the server to fail any request with a value for Ref-Integrity that
+it does not understand.  Add something like Yaron's proposed syntax to
+OPTIONS responses to allow clients to discover what values of Ref-Integrity
+are supported at a particular URI.
+
+Issue #5:  Instead of having separate DAV:reftype and DAV:refintegrity
+properties, incorporate them into the DAV:reference value of the
+DAV:resourcetype property.  The DAV:reftarget property will stay separate.
+
+Issue #6: Change the protocol to allow a body to be included in a MKREF
+request.
+
+For those who want a review of the discussions so far, read on . . .
+
+---------------------------
+
+Issue #1: Definition of "Collection"
+
+Yaron requests clarification of what it means for a collection to contain a
+URI.  I will keep the existing text, since it is copied from RFC 2518.  I'll
+add a statement that a response to a request for a listing of members of the
+collection includes exactly those URIs that the collection contains.
+
+Issue #2: Definition of "Referential Resource"
+
+Yaron suggests (1) that we explicitly state that this is a new type of
+resource, (2) that we misuse the term "body" in the current definition, (3)
+that we should get rid of the generic notion of a reference and rename
+"direct reference" and "redirect reference" so that we can treat them as
+completely independent concepts.
+
+From the discussion so far, it appears that the design team is happy with
+(1) and (2), but not with (3).
+
+We are not willing to define "direct reference" and "redirect reference" in
+terms of their implementations, and when defined more abstractly, we believe
+that they really are two specializations of the same more general concept.
+
+Direct references are presumably what most clients would prefer.  The server
+bears the burden of resolving a direct reference and passing requests on to
+its target.  Since implementing direct references may be too expensive for
+some servers and may raise security issues that they are unwilling to
+accept, we also define another sort of reference that is simpler and less
+expensive for servers to implement.  Redirect references require the client
+to take on part of the burden of resolving the reference and submitting its
+request to the target resource.
+
+I propose the following definition of "Referential Resource":
+
+A new type of resource that provides access to the content and properties of
+another resource, but has no content of its own (though it does have
+properties)
+
+I propose keeping the current definitions of "Direct Reference" and
+"Redirect Reference".
+
+Issue #3: Location Header
+
+Yaron points out that the Location header only allows a single URI to be
+returned.  However, there may be multiple URIs that could be used to access
+the target resource.  So he suggests an extension header LocationEx to
+contain additional URIs to be used in case the one in Location fails.
+
+Geoff points out that the purpose of redirect references is to insure that
+the server will never have to go to another server in order to process a
+reference.  So we cannot *require* the server to provide the complete list
+of URIs that could be used to access the target resource.  If the reference
+and target are both local, then the server might be able to provide multiple
+URIs, though there still might be remote references to the target that the
+server would not know about.  
+
+Really we had expected servers only to examine the DAV:reftarget property of
+the reference and return that URI in Location.  In any case, the server
+would have to start with that value in order to discover any additional URIs
+that provide access to the same resource.  If the value of DAV:reftarget is
+broken, the server won't be able to provide any useful alternatives.  If it
+is not broken, the client doesn't need any alternatives.
+
+So unless there is further discussion, I propose that we stick with just the
+Location header for use with 302 responses.
+
+Issue #4: Values of the Ref-Integrity Header
+
+The protocol currently defines the values "enforce" and "do-not-enforce" and
+allows for extension values.  It also makes the Ref-Integrity header
+optional on MKREF requests.  Yaron objects that if a client uses the value
+"enforce" or leaves the header off, it does not know what the result of a
+successful processing of its request will be.
+
+He proposes instead defining only the value "do-not-enforce", requiring the
+Ref-Integrity header on MKREF requests, and requiring the server to fail any
+request with a value for Ref-Integrity that it does not understand.  Jim
+Davis supports this proposal.
+
+I objected that for all practical purposes, this would mean clients could
+only create references for which integrity would not be enforced.  And
+compliant servers would have to be willing to create references for which
+integrity would not be enforced.  I proposed that to improve this situation,
+we provide a discovery mechanism for clients to find out what values of
+Ref-Integrity can be used for a particular URI.  (Jim Amsden pointed out
+that different URIs on the same server may support different values of
+Ref-Integrity.)  This could be just some additional syntax for use in
+responses to OPTIONS.
+
+Yaron was willing to accept this. He considers it bad practice for a client
+to perform any action that it does not fully understand, including creating
+a reference without understanding how referential integrity will be enforced
+for it.  But he is willing to allow clients to do this provided that they
+make this choice deliberately.
+
+Unless there is further discussion, I propose to add something close to
+Yaron's proposed syntax to OPTIONS responses for resources that support
+referencing.
+
+Issue #5: Should DAV:reftype, reftarget, and refintegrity be separate
+properties?
+
+Yaron proposes that these be part of a structured value for
+DAV:resourcetype.
+
+Geoff argues against this that reftarget is more like the value of the
+resource than its type.  He argues that the other properties are all
+orthogonal to each other and so should not be part of the same structured
+value.  However, I think it is quite common (and even the normal case) for
+the elements of a data structure to be orthogonal.  Think about an author
+property with elements name, phone, e-mail, ... all orthogonal.
+
+I argued for keeping these properties separate, based on the practical
+consideration that we want to be able to search on these properties, but
+DASL doesn't yet support search on structured values.  Jim Davis and Yaron
+disagreed with me, arguing that we should not base design decisions on the
+current shortfalls of another protocol.
+
+Jim Davis agreed that reftype and refintegrity are part of what
+distinguishes the resource type.  He argued that reftarget should not be
+part of the value of resourcetype, because two references with different
+values of reftarget could still be the same type of reference.
+
+I propose that we change the syntax of the reference element to contain
+reftype and refintegrity elements, and no longer treat reftype and
+refintegrity as separate properties.  The reftarget property will stay
+separate.
+
+Issue #6: MKREF body
+
+The protocol prohibits sending an entity body with a MKREF request.
+
+Yaron argues that MKREF should be analogous to MKCOL and allow a body.
+
+I opposed this unless we had some idea how the entity body would be used.
+Geoff argued in favor of allowing a body, and suggested that it might be
+used to set property values as part of the creation request.  Yaron felt
+that it should be allowed even if we don't yet know how it might be used.
+
+I propose that we change the protocol to allow a body to be included in a
+MKREF request.
+
+Issue #7: If one creates a reference to a collection, does that cause
+creation of references to all the members of the collection?
+
+No, it does not cause creation of references to all the members of the
+collection.  It does make it possible to access each member of the
+collection using a new URI that was not available before.
+
+If collection /a/ has members b and c, and I create a reference /x whose
+target is the collection /a/, then it becomes possible to submit requests to
+/a/b and /a/c using the URIs /x/b and /x/c, respectively.  The only resource
+that was created to make this possible was the reference /x.
+
+There is no need to create additional references in order for the server to
+resolve URIs like /x/b.  Jim Davis described one possible resolution
+algorithm to the design team:  When a server is processing a URL, if the
+corresponding resource does not exist, the server SHOULD check for an
+ancestor reference as follows.  Examine the path of the URL, starting from
+the end, working towards the root, searching for the first ancestor for
+which a corresponding resource does exist.  If this resource is not a
+reference, then the server MUST treat the request as it would any other
+request for a non-existant
+resource.  If the corresponding resource is a reference, then generate a new
+URL, by appending the original path below this point to the target of the
+reference.  The server should then process this URL as appropriate for the
+reference type, that is either by forwarding to it or returning a redirect
+response.
+
+Geoff pointed out that it would be hard to make sense of any requirement to
+create references for all the members of the collection, because it is
+unclear where the references to the members of the target collection would
+reside.  They would have to be members of some collection, but not
+collection /a/.  /x is not a collection, so it can't have members.
+
+It's unclear whether we have reached consensus on this issue.
+
+Issue #8: reftype and reftarget in responses to COPY
+and Issue #11: reftype and reftarget in responses to LOCK
+
+The protocol currently requires reftype and reftarget to be included in any
+responses to COPY requests on collections that contain references.  This has
+the consequence that even if the COPY was completely successful, a
+Multi-Status response must be returned.  Yaron is concerned that some
+non-referencing clients may break as a result, because they will assume that
+they will get a simple 201 response if all went well.
+
+This is related to Issue 11, which points out similar problems with
+including reftype and reftarget in responses to LOCK requests.
+
+The protocol tries to follow a general policy that whenever a client submits
+a request to a reference, it should be made aware of that fact.  And
+whenever the request actually affects a resource other than the reference
+(gets passed through to the target), the client should be told what resource
+was actually affected.  Rather than change this policy on a case-by-case
+basis, we should review the policy as a whole.  More discussion is needed.
+
+Issue #9: DELETE, MOVE, and COPY
+
+There is general agreement that the default behavior of DELETE and MOVE for
+references should be to delete or move the reference, not its target.  A
+mechanism should be provided to allow reference-aware clients to cause
+DELETE or MOVE to apply to the target.  (In the current specification, this
+can be done by looking up the value of DAV:reftarget and sending the request
+to that URI.)
+
+COPY: On one hand, you expect the result to be an independent resource that
+can be modified without affecting the source.  On the other hand, if you are
+operating on a collection, you may expect the result to be a collection that
+behaves just like the original (and is about the same size as the original).
+These expectations may conflict.
+
+(On the size issue, if a down-level client examined the sizes of the members
+of a collection, it would see the sizes of the targets for any references in
+the collection.  So its expectation about the size of the new collection
+would correspond to the size of the collection with the targets copied into
+it.)
+
+Appeals to precedent: In NT, when you copy a shortcut, you get a new
+shortcut.  Unix by default copies the target, not the hard or soft link.
+
+Maybe we should take the point of view of the site administrator, whose
+interest is in keeping down-level clients from messing up the site.  From
+his point of view, it may be desirable to *prevent* down-level clients from
+performing some operations on references.  COPY may be one of these.
+
+If you have COPY apply to the reference, you have to worry about fixing up
+relative URIs in DAV:reftarget.
+
+More discussion is needed.
+
+Issue #10: LOCK for direct references
+
+The behavior you would expect is for both the reference and its target to be
+locked.  If only the target is locked, someone could replace the reference
+with one pointing somewhere else while the target is locked.
+
+Geoff points out that even locking both the reference and the target will
+not guarantee that the same URI will identify the same target resource after
+the lock is released.  He gives the example of locking /x/y/z.html, where /x
+is a reference and /x/y/z.html is a reference.  In order to get that
+guarantee, the server would have to lock not only the reference and the
+target, but also /x.  But if /x is locked, no one can operate on any
+resource identified by a URI starting with /x.  This would be unacceptable
+in a versioning / configuration environment where the aim is to allow
+multiple copntributors to work on resources in the same collection at once.
+So he argues that by default we should not lock the reference at all, but
+just the target.  This is consistent with most other operations on
+references.
+
+Yaron believes that rfc 2518 requires that a LOCK on a reference locks the
+reference.  (In design team meetings we also noted that rfc 2518 requires
+that a LOCK on a collection lock every member of the collection, so if the
+collection contains references those references must be locked.)  Geoff
+claims that rfc 2518 says nothing about whether a URI that identifies a
+locked resource can be changed to identify something else while that
+resource is locked.
+
+There appears to be confusion about whether references are themselves
+resources or whether they are just alternative names for a resource.
+
+Yaron believes that rfc 2518 requires both the reference and its target to
+be locked (for direct references), because what it really requires is that
+if a resource is write locked, then the lock holder can count on the fact
+that any GET it performs through the URI it used to lock the resource will
+get the same results (until the lock holder does something to alter the
+reference or its target).
+
+References to versioned-resources are more complicated than other
+references.  The resource selected by that reference is not the
+versioned-resource, but is the result of a computation based on the state of
+the versioned-resource and the contents of a Workspace or Revision-Name
+header.  Applying a lock to this reference is in conflict with the basic
+purpose of these headers, namely to select a different revision when
+appropriate.  Thus a definition of locking that requires locking the
+reference would be incompatible with the way versioning uses references to
+versioned-resources.
+
+More discussion is needed.
+
+--Judy
+
+Judith A. Slein
+Xerox Corporation
+jslein@crt.xerox.com
+(716)422-5169
+800 Phillips Road 105/50C
+Webster, NY 14580
+
+
+

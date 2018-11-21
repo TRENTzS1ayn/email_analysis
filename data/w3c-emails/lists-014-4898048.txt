@@ -1,0 +1,222 @@
+docno="lists-014-4898048"
+received="Mon Feb 10 15:23:46 1997"
+isoreceived="19970210202346"
+sent="Mon, 10 Feb 1997 22:24:35 +0200 (SAT)"
+isosent="19970210202435"
+name="Mark Shuttleworth"
+email="marks@thawte.com"
+subject="Simple TLS/SSL negotiation proposal"
+id="Pine.LNX.3.95q.970210222147.13851E100000@bilbo.thawte.com"
+charset="USASCII"
+expires="1"
+
+To:ssl-talk@netscape.com,ietf-tls@w3.org
+
+
+Hi folks
+
+I promised this today ;-) 
+
+ <---- BEGIN SIMPLE TLS TRIGGER PROPOSAL ---->
+
+There has been considerable debate over the allocation of IP ports purely 
+for the sake of indicating that TLS is required underneath an otherwise 
+standard protocol.  The alternative to a port assignment is a negotiation
+or trigger mechanism within the existing protocol.
+
+Here is a proposal for such a mechanism.
+
+Please note the following:
+
+  - the proposed mechanism is as minimalist as possible.  It is a trigger
+    mechanism,  not a negotiating mechanism.  It specifies a way in which
+    either the client or the server can require that a connection be 
+    secured.
+
+  - the proposed mechanism can be applied to any existing protocol which:
+
+      1. is command oriented
+      2. is client driven (the client sends all the commands)
+      3. has server responses to these client commands.  The protocols
+         envisaged,  like SMTP, NNTP,  and POP-3,  all use server responses
+         to indicate the success or failure of client commands
+      4. has a clearly defined standard response to unimplemented or 
+         unknown commands from the client
+      5. does not require that the client know what every response means,
+         but does allow the client to "get a feel" for the success or 
+         failure component of the response.
+
+   - the proposal was not written by a cryptographic specialist.  Flame
+     gently ;-)
+
+The allocation of separate ports to secured and non-secured protocol
+servers allows the following:
+
+   A. Server operators can require all connections to be secured by
+      enabling only the secured port.
+
+   B. Clients can require a secure connection by connecting only to the
+      known secure port.  Failure to negotiate security results in the
+      termination of the connection.  Note that the user instructs the
+      client to initiate security by specifying the secured protocol
+      name (e.g. https rather than http).  It is accepted that the client
+      would not attempt an HTTP connection to the same URL should https
+      negotiation fail.  However,  this is an implementation, common sense
+      thing,  not a result of the port separation,  as a malicious or
+      intellectually challenged vendor could easily create a client to
+      "roll back" from https to http.
+
+   C. Old server and client software will not be broken by the specification
+      of a secured protocol.  Old servers listen on unsecured ports and
+      should never receive a secure connection.  Old clients will simply
+      ignore requests to connect to services "https" that they do not 
+      implement.
+
+The proposed mechanism allows for all this,  too.
+
+SPECIFICATION
+
+The generic mechanism proposed is as follows:
+
+One new client command,  and one or two new server responses are to be defined 
+for each protocol to be secured.  The actual command and response must fit 
+with the command-response model that the original protocol specification
+defines.  Specific recommendations for well-known protocols follow.
+
+  NEW CLIENT COMMAND
+  The new client command is a trigger.  For English-ish-command protocols
+  which us CR-LF as the command terminator,  the recommended command is 
+  "TLS".  For other protocols (binary command oriented protocols for example)
+  the command sequence would be specified in an update to the original
+  protocol specification.
+
+  If the protocol specifies a generic "all is well" server response
+  (200 OK for example) then the client would expect that response from
+  a server that implemented this proposal.  If there is no "all is well"
+  server response then a server response needs to be defined which will
+  indicate "TLS Negotiation Request Accepted".  That response definition
+  would need to fit in with the paradigm of the underlying protocol.
+
+  NEW SERVER RESPONSE
+  Where a server has been configured ONLY to accept secured connections,
+  or where the server has been configured to require secured connections
+  after a certain point, a new server response is used to indicate the
+  server's desire to negotiate TLS.
+
+  The server should wait for the client to deliver it's first command,
+  or for the dialogue to meet the conditions under which the server is
+  programmed to require TLS,  and should deliver the new response as a
+  response to the client command.
+
+  The response should indicate,  at the least,  failure.  Clients that
+  not implement this proposal need only be able to tell that the response 
+  indicates failure.
+
+  Clients that do implement this proposal would respond to the server 
+  response with the TLS initiation byte sequence (client hello I think).
+  If the server receives anything other than the TLS initiation sequence
+  it should assume that the client does not implement this proposal and
+  terminate the connection.
+
+GENERIC PROTOCOL EXAMPLE
+
+Here are some sample protocol conversations.  We refer to the new client 
+command as "TLS",  the standard server "OK" response as "GENOK",  the
+custom server OK response as "TLSOK",  the TLS initiation byte sequence
+as CLIENTHELLO, and the server "TLS required" response as "TLSREQ".  
+The end-of-command sequence is referred to as "\n". It is usually CR-LF
+or some such. The server "unknown or implemented" response is referred
+to as "QUE?"
+
+
+Example 1:  Client requires secure connectivity (e.g. pop3s), but server
+            does not implement this proposal:
+   Client:  TLS\n
+   Server:  QUE?\n
+   => client terminates connection.
+
+
+Example 2:  Client requires secure connectivity and server does implement
+            this protocol.  Server has a generic "OK" response.
+   Client:  TLS\n
+   Server:  GENOK 
+   Client:  CLIENTHELLO
+   => normal TLS handshaking commences.
+
+
+Example 3:  Server requires secure connectivity for certain transactions.
+            Client does not know this proposal.
+   Client:  command 1
+   Server:  GENOK
+   Client:  command 2,  which makes the server realise it wants TLS
+   Server:  TLSREQ
+   Client:  tries to resend command 2,  or other command
+   Server:  terminates connection.
+
+
+Example 4:  Server requires secure connectivity for certain transactions,
+            and the client does know this proposal.
+
+   Client:  command 1
+   Server:  GENOK
+   Client:  command 2,  entering servers required secure domain
+   Server:  TLSREQ
+   Client:  CLIENTHELLO
+     =>     handshaking as per normal TLS
+   Client:  command 2 again over a secure connection
+     =>     dialogue continues over TLS.
+
+
+EXAMPLE PROTOCOL EXTENSION:  NNTP
+
+Here is an example of the application of this protocol to NNTP.
+
+  1. The client trigger will be "TLS\n" where \n is the NNTP standard
+     end-of-command CR-LF sequence.
+
+  2. The server generic OK response is "200 xxx\n" where XXX is (I think)
+     implementation specific.  Usually "200 OK\n"
+
+  3. The server "TLS Required" response is "401 xxx\n" where "xxx" is
+     implementation-specific,  probably something like "please initiate TLS."
+
+  4. No "TLSOK" is required because a "GENOK" is already present"
+
+The TLSREQ response of 401 was chosen because RFC977 (NNTP) specifies that
+4XX responses imply that "the command was correct but could not be performed
+for some reason".  X0X responses imply that the problem had to do with
+"the connection, setup or miscellaneous".  401 was chosen because it does not
+appear to be designated in that standard.  If 401 is already in use by
+many NNTP server implementations another 40X response could be specified.
+
+
+NOTES
+
+1. Rollback attacks
+-------------------
+Just like we do not expect a client to attempt http when https fails,
+we would expect a client to terminate the connection if the TLS command
+failed and a secure service was requested by the user.
+
+2. Denial of Service
+--------------------
+A third party with the ability to interfere with bits on the wire could
+send a "what?" back,  implying that the server does not talk this protocol.
+This is no different to a third party interfering with the initial client
+hello on a pre-designated port.
+
+3. Versions and parameters
+--------------------------
+All parameterisation and versioning is handled by the TLS handshaking.
+This protocol just lets the client or the server trigger TLS handshaking,
+and figure out if the other side has a clue what it's talking about.
+
+
+
+
+--
+Mark Shuttleworth
+Thawte Consulting
+
+
+

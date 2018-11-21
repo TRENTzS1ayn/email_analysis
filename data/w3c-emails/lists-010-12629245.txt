@@ -1,0 +1,154 @@
+docno="lists-010-12629245"
+received="Mon Dec  2 19:58:21 1996"
+isoreceived="19961203005821"
+sent="Mon, 02 Dec 96 19:42:44 PST"
+isosent="19961203034244"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Some data related to the frequency of cachebusting"
+id="9612030342.AA26855@acetes.pa.dec.com"
+inreplyto="Pine.LNX.3.95.961128065718.22708B100000&#64;ns.viet.net"
+expires="1"
+
+
+To: Benjamin Franz<snowhare@netimages.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Benjamin Franz points out several ways in which my simplistic trace
+analysis might have overestimated the number of possibly cache-busted
+responses seen at our proxy.
+
+In particular, he suggests that some of the non-query
+possibly-cachable references that I counted might actually
+have been CGI output, which should not have been included
+in the set of "possibly cache-busted responses".  (I will
+note, however, that one of the examples he gave would NOT
+have been counted as such by my analysis, because that URL
+included the string "cgi-bin".  I explicitly did not count
+such URLs.)
+
+If someone would like to propose a *feasible* filter on URLs
+and/or response headers (i.e., something that I could implement
+in a few dozen lines of C) that would exclude other CGI
+output (i.e., besides URLs containing "?" or "cgi-bin", which
+I already exclude), then I am happy to re-run my analysis.
+
+Drazen Kacar pointed out that I should probably have
+excluded .shtml URLs from this category, as well, because
+they are essentially the same thing as CGI output.  I checked
+and found that 354 of the references in the trace were to .shtml
+URLs, and hence 10075, instead of 10429, of the references
+should have been categorized as possibly cache-busted.  (This
+is a net change of less than 4%.)
+
+    I would say the only *confirmable* deliberate cache busting done
+    are the 28 pre-expired responses. And they are an insignificant
+    (almost unmeasurable) percentage of the responses.
+
+If I was writing a scientific paper whose thesis was that a
+significant fraction of the responses are cache-busted, then
+you are right that I would not have a rigorous proof regarding
+anything but these 28 pre-expired responses.  And, no matter
+how much more filtering I do on the data, I would not expect
+to be able to construct a rigorous proof based on such a trace.
+
+On the other hand, I don't believe that this trace could provide
+a rigorous proof of the converse hypothesis, that no deliberate
+cache-busting is done.  Nor do I believe that any trace-based
+analysis could prove this, given the frequency with which I
+found responses that leave the question ambiguous.
+
+In short, if we are looking for a rigorous, scientific *proof*
+that cache-busting is either prevalent or negligible, I don't
+think we are going to find it in traces, and I can't think of
+where else one might look.
+
+But we are engaged in what fundamentally is an *engineering*
+process, rather than a scientific one.  This means that, from
+time to time, we are going to have to infer future reality from
+an imprecise view of current reality, and that the future is
+in large part determined by the result of our engineering, not
+independent of it.
+
+I welcome other sources of data that might help make this inference
+more reliable.  Certainly we should not base everything on five
+hours of trace data from one site.  On the other hand, it's
+foolish to dismiss the implications of the data simply because
+it fails to rigorously prove a particular hypothesis (pace the
+Tobacco Institute, which has taken about 30 years to admit that
+there might in fact be a connection between smoking and cancer.)
+
+    As you noted - much more study is needed. This one is utterly
+    inconclusive. You conclude from your numbers that significant
+    savings can be found.
+
+I wouldn't say I concluded that.  I said "there does seem to
+be some potential here."
+
+    I conclude from the same numbers that the extra overhead of the hit
+    metering in fact is *higher* than the loses to deliberate cache
+    busting. You would have more network traffic querying for hit meter
+    results than the savings for such a tiny number of cache busted
+    responses.
+
+This mystifies me.  What overhead of hit-metering are you talking about?
+
+There are three kinds of overhead in our proposed scheme:
+
+(1) additional bytes of request headers
+(a) for agreeing to hit-meter
+(b) for reporting usage-counts
+(2) additional bytes of response headers
+(3) additional HEAD request/response transactions for
+"final reports"
+
+Overheads of types #1(b), #2, and #3 are *only* invoked if the origin
+server wants a response to be hit-metered (or usage-limited,
+but that's not relevant to this analysis).  This means that
+if hit-metering were not useful to the origin-server, it would
+not be requested, and so these overheads would not be seen.
+(I'm assuming a semi-rational configuration of the server!)
+
+Note that #3 can *only* happen instead of a full request
+on the resource, and is likely to elicit a smaller (no-body)
+response, so it's not really clear that this should be
+counted as an "overhead".
+
+What remains is the overhead (type #1(a)) of a proxy telling
+a server that it is willing to meter.  I'll ignore the obvious
+choice that a proxy owner could make, which is to disable this
+function if statistics showed that hit-metering increases overheads
+in reality, and assume that the proxy is run by someone of less
+than complete understanding of the tradeoffs.
+
+So, once per connection, the proxy would send
+Connection: meter
+which is 19 bytes, by my count.  If each connection carried just
+one request, then (assuming that the mean request size stays
+at about 309 bytes, which is what I found for all of the requests
+I traced, and this does not include any IP or TCP headers!), then
+this is about a 6% overhead. (But at one request/connection,
+and with a mean request size smaller than 576 bytes, there would
+probably be almost no increase in packet count.)
+
+However, since hit-metering can only be used with HTTP/1.1 or
+higher, and persistent connections are the default in HTTP/1.1,
+and because we defined this aspect of a connection to be "sticky"
+in our proposal, one has to divide the calculated overhead by
+the expected number of requests per connection.  As far as I know,
+nobody has done any quantitative study of this since my SIGCOMM '95
+paper, which is presumably somewhat out of date, but (using simulations
+based on traces of real servers) I was expecting on the order of 10
+requests/connection.  It might even be higher, given the growing
+tendency to scatter little bits of pixels throughout every web page.
+
+Anyway, I wouldn't presume to put a specific number on this, because
+I'm already basing things on several layers of speculation.  But I
+would appreciate seeing an analysis based on real data that supports
+your contention, that "the extra overhead of the hit metering in fact
+is *higher* than the loses to deliberate cache busting."
+
+-Jeff
+
+
+

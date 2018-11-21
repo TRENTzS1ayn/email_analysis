@@ -1,0 +1,132 @@
+docno="lists-019-7951202"
+received="Fri Oct 17 06:20:55 2003"
+isoreceived="20031017102055"
+sent="Fri, 17 Oct 2003 12:19:51 +0200"
+isosent="20031017101951"
+name="Guido Moerkotte"
+email="moerkotte@informatik.uni-mannheim.de"
+subject="Re: XQuery"
+id="200310171219.57139.moerkotte@informatik.uni-mannheim.de"
+charset="iso-8859-1"
+inreplyto="20031017045011.GT15934&#64;w3.org"
+expires="-1"
+
+To: Liam Quin<liam@w3.org>,public-qt-comments@w3.org
+Cc: Michael Brundage<xquery@comcast.net>
+
+
+
+
+Michael Kay writes:
+> I think all database query languages have to allow the implementation to
+> choose efficient access paths, and different access paths might or might not
+> hit errors. Therefore, I don't think there's any practical alternative to
+> saying that dynamic errors will depend to some extent on the implementation.
+> Note that database query languages have much more stringent requirements
+> here than conventional programming languages, because optimizations (eg. of
+> joins) give performance improvements of a factor of 1000000, not just a
+> factor of 2.
+
+Michael Rys writes:
+> a)       SQL is also indeterminstic (non-deterministic is probably the
+> correct English word, no?) as are other database query languages for the
+  /* yes non-deterministic is better but indeterministic is easier to type */
+> reasons Michael explains below.
+
+The point is that you need many different query execution plans that are equivalent
+to the original query. Theoretically, equivalence means that they give the same result for all
+databases. (in practice this equivalence is defined by the spec.)
+The huge search space (the set of all plans equivalent to the query) of relational
+systems is great for query optimization. 
+What are the reasons for the huge search space:
+1) Joins: on sets and bags they commute and are associative
+   /* not that order preserving joins do not commute */
+2) reorderability: one can reorder selections, joins, maps freely and
+   some other operators under certain conditions.
+This has *NOTHING* to do with indeterminism. In fact, there are only very few cases
+where SQL is indeterministic and these cases do *NOT* contribute to the search space.
+Of course, as  Michael Brundage points out, if runtime errors are present,
+indeterminism is necessary to retain the search space.
+I couldn't agree more with what he writes.
+My whole point is that indeterminism should be kept at a minimum and I think the
+use of NULL values and three-valued logic can help here.
+
+Michael Kay writes:
+> The adverse effects of indeterminism can be reduced if you reduce the number
+> of run-time errors, though this has to be balanced against the desirability
+>  of reporting genuine programmer errors rather than giving wrong answers. In
+> some cases, like this one, I think we are reporting errors that would be
+> better treated as not being errors; and it would be perfectly feasible to
+> define the rules so that comparing an untyped value against a typed value
+> testing castability to the required type before attempting the conversion.  
+
+I agree with Michael Rys that this is not a nice solution.
+(see also my previous email.)
+
+Michael Rys writes:
+> b)       Actually the reason why we removed three-valued logic was that
+> all predicates in XQuery and XPath are existentially quantified which
+> always maps the third truth-value to false. The only expression that
+> thus would preserve the third-value was an expression of the form $a eq
+> 3 (if $a is ()) that is not part of a predicate. We considered this to
+> be a very small use case...
+
+> In addition, in XPath/XQuery, = and predicates in general are mapped to
+> an existential quantification, so even if you have three valued logic,
+> existential quantification normally maps the third-value to false. This
+> design is in the language for two reasons:
+> 
+> 1. XPath 1.0 did it.
+> 2. Existential quantification on predicates is the more natural
+> semantics if you operate on semi-structured data.
+
+Well, seems everybody has problems with existential quantification and
+three-valued logic. Before I come back to this point let me say the following:
+
+I very much like Michael Kay's example/argument on (explicit/implicit) union types.
+I think this is also a strong case against runtime exceptions.
+
+Now existential quantification:
+The problem is not with the existential quantification but with the application
+of existential quantification where it is not needed.
+Let us denote by 
+  S_=_S comparison of two sequences
+    =_S  testing of membership of a single item in a sequence
+    =_2 comparison of single items with 2-valued result
+    =_3 comparison of single items with 3-valued result
+Let us denote by x,y single items and by X and Y sequences.
+
+Note that XQuery identifies 
+  single items with singleton sequences containing that single item.
+Hence, (3) is the same as 3. (something I personally dislike)
+
+From this we could follow that there are no single items and
+everything is a sequence. 
+Then, the XQuery comparison = always applies existential semantics S_=_S
+where X S_=_S Y in XQuery is defined as:
+   X S_=_S Y ::= exists x in X, y in Y x =_2 y
+As pointed out by Michael: 
+Even if we define 
+   X S_=_S Y ::= exists x in X, y in Y x =_3 y
+this does not help much.
+
+But how about:
+  X S_=_S Y ::=
+     x =_S Y  if (X = (x) or X = x) and Y is neither a single item nor a singleton sequence
+     y =_S X  if (Y = (y) or Y = y) and X is neither a single item nor a singleton sequence
+     x =_3 y  if (X = (x) or X = x) and (Y = (y) or Y = y)
+     exists x in X, y in Y x =_3 y else
+with
+  x =_S Y ::=
+    UNKNOWN  if x is NULL
+    x =_3 y if (Y = (y) or Y = y)
+    exists y in Y x =_3 y else
+
+Best,
+ Guido
+
+
+
+
+
+

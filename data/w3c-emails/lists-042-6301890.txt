@@ -1,0 +1,197 @@
+docno="lists-042-6301890"
+received="Thu Jul 17 19:22:37 2003"
+isoreceived="20030717232237"
+sent="Thu, 17 Jul 2003 15:03:24 -0700"
+isosent="20030717220324"
+name="Eric Sedlar"
+email="eric.sedlar@oracle.com"
+subject="Re: Interest in standardizing Batch methods?"
+id="01a601c34caf$3e82c090$86aa2382@us.oracle.com"
+charset="iso-8859-1"
+inreplyto="JIEGINCHMLABHJBIGKBCGEELHOAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+
+To:"Julian Reschke"<julian.reschke@gmx.de>,"Geoffrey M Clemm"<geoffrey.clemm@us.ibm.com>,"WebDAV"<w3c-dist-auth@w3.org>
+
+
+I think something along the lines of what NFSv4 supports with the COMPOUND
+method would be in order.  The big benefit of doing a COMPOUND/BATCH method
+is the atomicity.  Note that the transaction you want to do may operate on
+multiple resources, and while LOCK will help, rolling back incomplete
+changes is a big pain in the ass for the client to do.  Do you expect the
+client to implement a log file (like a database) which will be updated on
+each successful response, and then require that the client know how to apply
+undo from the log file in case of an error?
+
+Let's look at a use case:  I want to PROPPATCH resources /a1, /a2 ... /a10
+with the same dead property called foo to some new value either as a unit or
+not at all.  With today's WebDAV, I LOCK all of these resources and start
+pipelining the PROPPATCH requests.  As the replies come back in, I log them
+to a file on the client that is fsync'ed to the disk (so that I'm sure my
+logging makes it to disk in case the client crashes at some point, the way
+databases do).  It turns out that there was an error in the PROPPATCH on /a8
+(ACL violation) and I want to rollback all of the preceding proppatches in
+the client log.  Now the client starts to replay the log (since the last
+transaction start), re-PROPPATCHing /a1 through /a7 hoping there is no other
+error, and then cleans up the log entries (or marks them as rolled back).
+Just in case this work sounds easy for client implementors to do, it's not.
+Plus, this strategy would only work if I happened to know the old values of
+the foo property so that I could undo them.  PROPPATCH doesn't tell me what
+the old values were (you need the equivalent of the SQL statement "UPDATE
+foo RETURNING foo INTO :1") to do this.  In general, undoing WebDAV
+operations is not easy and not always possible (e.g. some versioning
+operations).
+
+Given that NFSv4 could handle COMPOUND, I don't think that this is too hard
+or out of scope for WebDAV.  Also, I believe that none of the publically
+announced NFSv4 implementations are built on databases, so I don't think
+this is too hard for server implementors in general, but we could make BATCH
+methods an optional feature to address this concern.
+
+As to Julian's particular concern about transactions started but not
+completed, the same solution should be applied as for any method in which
+part of the request has arrived but the rest has not after a few
+minutes--you timeout the entire request.
+
+--Eric
+
+
+----- Original Message -----
+From: "Julian Reschke" <julian.reschke@gmx.de>
+To: "Geoffrey M Clemm" <geoffrey.clemm@us.ibm.com>; "WebDAV"
+<w3c-dist-auth@w3.org>
+Sent: Thursday, July 17, 2003 2:20 PM
+Subject: RE: Interest in standardizing Batch methods?
+
+
+>
+> True, but...
+>
+> ...speaking from personal experience working on a document management
+> system, the temptation "give up" and just state "transactions are going to
+> solve this problem in general" is big. However, transactions can be very
+> expensive to implement, in particular in a HTTP server scenario. How many
+> concurrent transactions are you going to support? What are you going to do
+> if a client starts a transaction but doesn't finish it within a few
+minutes?
+>
+> IMHO it makes a lot of sense to try to *avoid* them by
+>
+> a) defining methods with the "right" level of transactionality (for
+> instance, see PROPPATCH or ORDERPATCH) or
+>
+> b) try to do things using the existing locking and/or versioning
+machinery.
+>
+>
+> So at a minimum, I'd expect a working group activity on transactions to
+> start with a list of use cases. Then we can take a look at the use cases
+and
+> decide whether they require a generic transaction mechanism, or whether
+> something simpler can do that as well (and please don't say: I want to do
+> JDBC over HTTP).
+>
+>
+> Julian
+>
+> --
+> <green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+>
+> > -----Original Message-----
+> > From: w3c-dist-auth-request@w3.org
+> > [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Geoffrey M Clemm
+> > Sent: Thursday, July 17, 2003 11:02 PM
+> > To: WebDAV
+> > Subject: Re: Interest in standardizing Batch methods?
+> >
+> >
+> >
+> > If you are interested in defining a transactioning model, then
+> > it would be best to make that explicit, because the term "batch"
+> > is used to encompass many things.  To date, the WebDAV approach has
+> > been to define specific transacted operations (e.g. PROPPATCH),
+> > because that is something that can be implemented on a wide range
+> > of repositories, while generic transactioning support is likely to
+> > only be feasible on repositories that are actually databases.
+> >
+> > But enough repositories really are databases that it probably is
+> > worthwhile trying to define generic transactioning support for
+> > WebDAV.
+> >
+> > Cheers,
+> > Geoff
+> >
+> > >
+> > > I am sure that you guys, who don't agree with standardising Batch
+> > > method, have good reasons for that. But shall we be more clear about
+> > > those reasons which might not quite clear for all. Of course I know
+> > > some of those reasons by chasing the thread with the same subject in
+> > > the WebDAV mailing list. But I think the WebDAV protocol is almost
+> > > enough mature to interest many organisations and Web users. So that
+> > > they would like to apply this protocol rather HTTP protocol, and use
+> > > the WebDAV advantages such as metadata, access control,... to author
+> > > Web resources.
+> > >
+> > > Now the question is: if the WebDAV is going to be a substitute for
+HTTP
+> > > protocol, can it handle authoring all kind of Web resources as it
+> > > claims, or still we need other conventions based on the HTTP protocol
+> > > in order to support authoring Web resources except file systems.
+> > >
+> > > So if you believe the WebDAV as a protocol for authoring all Web
+> > > resources (and not only the file systems), then how we can handle Web
+> > > resources such as emails and databases. In order to implement some
+> > > operations on those resources, you might use a sequence of WebDAV
+> > > methods which need to be considered as one transaction. In those cases
+> > > lock method cannot help. So what is your suggestion to handle those
+> > > operations?
+> > >
+> > > I think a mechanism for supporting transactions is a strong point that
+> > > WebDAV needs.
+> > >
+> > > >
+> > > > I agree with Chris.  The easy things aren't worth doing (you get
+> > > > virtually
+> > > > all of the benefit by streaming your requests and not blocking
+> > > > waiting for
+> > > > the response to each request), and the hard things are very complex
+> > > > and
+> > > > any given approach is unlikely to be a good basis for
+> > > > interoperation.
+> > > >
+> > > > Cheers,
+> > > > Geoff
+> > > >
+> > > > Chris wrote on 07/17/2003 02:27:27 PM:
+> > > >
+> > > > > And boy, the semantics of batch requests are pretty hairy. At the
+> > > > end of
+> > > >
+> > > > > the day is there much benefit? Is each request in a batch atomic
+> > > > and/or
+> > > > > is the entire batch? (Do you have multiple levels of
+transactions?)
+> > > > How
+> > > > > do you cache a batch? (Boy, there's a long topic...)
+> > > > >
+> > > > > The HTTP overhead for multiple requests (made over the same TCP
+> > > > > connection, mind you) is small (arguably, couldn't be much
+smaller)
+> > > > and
+> > > > > if you want atomic batches, locks do an ok job of it.
+> > > > >
+> > > > > I've certainly considered something like a PUT/PROPPATCH
+> > > > combination
+> > > > > (for example if you had "required dead properties") but it's
+> > > > probably
+> > > > > just easier to do a null lock and the two requests separately.
+> > > > >
+> > > >
+> > >
+> >
+>
+>
+
+
+

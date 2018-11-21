@@ -1,0 +1,434 @@
+docno="lists-104-0110958"
+received="Thu Jul 12 01:19:46 2001"
+isoreceived="20010712051946"
+sent="Thu, 12 Jul 2001 00:19:45 -0500"
+isosent="20010712051945"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: DOM Level 3 XPath: editorial, use case analysis, and counterproposal"
+id="000f01c10a92$43a2cbd0$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="3B4CDBB0.9030304&#64;netscape.com"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+> > The name seems inconsistent with the names for other Document related
+> > interfaces.  Other specs typically use Document[SpecName],
+> > DocumentEvent, DocumentRange, DocumentViews, DocumentTraversal, for
+> > their augmentation of the Document.   Though it may not be the most
+> > intuitive naming convention, naming the interface DocumentXPath would
+> > be consistent with the other DOM specs.
+> >
+> The evaluation of XPath expressions is available in XPathEvaluator . A
+> Document which implements the XPath module will be castable using
+> language-specific mechanisms to XPathEvaluator, which will provide
+> evaluation of XPath expressions with no special extension functions or
+> variables. XPathEvaluator implementations may be available from other
+> sources that provide extension functions or variables.
+
+Not a big issue, but did seem to be a departure from the other DOM specs.
+
+> > a) Types corresponding to the 19 primitive XML Schema data types be
+> > defined for each of the bindings.  For example, that for the Java
+> > binding, xs:dateTime be represented by java.util.Date for the Java
+> > binding, that xs:date be represented by the starting instant in a
+> > java.util.Date.  Since the identity of the 19 types are fixed since
+> > XML Schema datatypes is a recommendation, these bindings could be
+> > defined now, though it would not be possible to get a java.util.Date
+> > from evaluate without an XPath 2.0 compatible query.
+> >
+> It is not clear to me that there is a real advantage in forcing people
+> to invent so many different new types (in most cases) to handle all
+> these different schema types in Java, ECMAScript, etc.  Where there are
+> not already native language types created to handle them, I do not
+> believe it does much good to map them to anything.  Many, for example,
+> work much better as string or the specific application may have some
+> specific type it wants to put them into.
+>
+> If we are going to go to all the trouble of converting the text which is
+> in the DOM into 19 different objects representing schema types, I would
+> think this should be done in a library outside of DOM XPath.  We have
+> the 1.0 common types covered as  conveniences for XPath 1.0, but I say
+> let additional XPath 2.0 simple types just evaluate as a String and then
+> call some schema conversion routine if something else is desired, that
+> can also be called by those not using XPath.
+
+If I have an XPath expression like "number(@val)"  and an appropriate object
+is returned, then I can do formatting appropriate to the type.  For example,
+do locale-sensitive number or date formatting.  If I have no way of knowing
+what the type of the query result is, then I have to treat everything as a
+generic string.
+
+An XPath 2.0 will have to have these conversions as part of its
+implementation since comparisions would be type aware.  For example:
+
+xs:date(@time1) = xs:date(@time2)
+
+would return true as long as the times values were identical even though
+their lexical representation could be radically different.  The type of the
+expression would be known within the XPath evaluator, converting it back to
+String would just toss the information.
+
+However, defining the mapping between schema types to platform types is
+probably better done somewhere else.  For XPath 1.0, all you would need is
+to state the obvious mapping for XPath 1.0, number == Double, string ==
+String, boolean == Boolean
+
+> > b) That feature strings are specified so that you can determine the
+> > version of XPath expression supported.
+> >
+> Possibly, but I am not yet confident enough that XPath 2.0 can even be
+> evaluated using these interfaces, given significant differences.
+
+I would think that any query that was expressed as a string and operated on
+a node could be be evaluated using these interfaces.
+
+>
+> > Use Case 1: Immediate evaluation with static result or node set
+> >
+>  ....
+> Again, on the implementation side, there is a great advantage in getting
+> this result incrementally, because a list can be huge.  Wrapping an
+> object that implemented NodeSet could turn out to be much less
+> efficient, because case 1 has to still have a snapshot after mutation,
+> whereas case 2 does not.
+
+What I was trying to communicate here is that applications have an essential
+requirement, eventually getting the results of the query, but also a desire
+to remain responsive which the could be better fulfilled if the query
+processor knew a little bit more about how it app was going to be accessing
+the data.
+
+It is definitely tolerable that an implementation only implement one
+execution strategy.  However, if an implementation wanted to support
+multiple execution strategies, then it would be extremely helpful if the
+caller was able to suggest what strategy would be best for its use.
+
+Actually, thinking about is some more me realize that I still wanted more,
+like a timeout (say if the query was against a remote data store and might
+stall) or a limit to the return set.  That got me looking at classes like
+java.sql.Command and how they approached the same problems.
+
+The following snippets basically remove the evaluationStrategy and
+invalidate flags from the evaluateAsNodeSet and createExpression methods and
+add properties to the XPathExpression patterned after those in
+java.sql.Command.  This allows apps that don't want to bother tailoring the
+executation to use the XPathEvaluator interface calls and apps that do want
+to suggest how the query should be executed can create an XPathExpression
+and set properties to appropriate values.
+
+
+public interface XPathEvaluator {
+
+  public NodeSet evaluateAsNodeSet(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver
+namespaceResolver,
+                                                       XPathSortCriteria
+sort)
+                                                       throws
+XPathException;
+...
+
+    public XPathExpression createExpression(String queryLanguage,
+                                                       String expression,
+                                                       NamespaceResolver
+namespaceResolver,
+                                                       XPathSortCriteria
+sort)
+                                                       throws
+XPathException;
+}
+
+public interface XPathExpression {
+    //
+    //   roughly equivalent to properties of java.sql.statement
+    //
+
+    //
+    //    nodes beyond the max node could get truncated
+    public int getMaxNodes();
+    public void setMaxNodes(int maxNodes);
+
+    //
+    //   Double.INF for no timeout, 0 for immediate return if no result
+present
+    //      set throws an exception if implementation can't
+    //            execute asynchronously
+    public double getTimeout();
+    public void setTimeout(double seconds) throw XPathException;
+
+    //
+    //   a small fetch size (1) would suggest lazy eval, large immediate
+eval
+    //
+    public int getFetchSize();
+    public void setFetchSize(int nodeCount);
+
+    public static final short FETCH_UNKNOWN = 0;
+    public static final short FETCH_FORWARD = 1;
+    public static final short FETCH_REVERSE = 2;
+
+    public short getFetchDirection();
+    public void setFetchDirection(short ordered);
+
+    //
+    //   allows specification of mutation policy
+    //      set would throw exception if data source (like an remote
+database)
+    //          can't notify of changes after the query is executed
+    //
+    public static final short CAN_INVALIDATE = 0;
+    public static final short MUST_INVALIDATE = 1;
+    public static final short STATIC = 2;
+    public short getMutationBehavior();
+    public void setMutationBehavior(short flag) throws XPathException;
+
+
+    //
+    //   the previous evaluate methods
+    //
+    public NodeSet evaluateAsNodeSet(Node contextNode) throws
+XPathException;
+    ...
+
+}
+
+> Having this expressed as a specific interface is not equivalent to a
+> NodeSet and an EventListener, because there is no way for an interface
+> to specify that it needs a NodeSet that is not stale but reflects an
+> expression evaluated on the current hierarchy, as is essential for many
+> use cases unless this constraint is expressible as an interface.
+
+I'm in favor of being able to declaratively state that you want the result
+set to be invalidated since the processor can optimize its behavior based on
+that information.  However, if that capability wasn't provided and Events
+was implemented, something like the following would produce the same effect
+
+class MyActiveNodeSet implements NodeSet, EventListener {
+   public MyActiveNodeSet(Node contextNode, NodeSet resultSet) {
+      this.resultSet = resultSet;
+      Document doc = contextNode.getDocument();
+      //   capture any mutation events in the document
+      ((DocumentEvent) doc).addListener("DOMSubtreeModified",this,true);
+   }
+   public void handleEvent(Event evt) {
+      resultSet = null;
+   }
+   public Node item(int index) throws DOMException {
+       if(resultSet == null) {
+          throw new DOMException(INVALID_NODESET);
+       }
+       return resultSet.item(index);
+    }
+    ...
+}
+
+However, not all implementations can implement result set validation (or at
+least can't do it economically).  Maybe it needs to be tri-state, one
+setting requires the result set to be available indefinitely, one setting
+requiring the result set to be invalidated on any document mutation and a
+third that can invalidate the result set but isn't required to.
+
+> This is implementation, which should produce the same behavior, so
+> making it a hint is OK, but I am not sure why the application should
+> care much at all how the implementation chooses to do it.  It seems to
+> me that the application is very likely to make the wrong choice.
+>
+>  Combine that likelyhood with the likelyhood that the implementation
+> does not give the application a choice and I don't see the point.  The
+> application's primary concern is that it gets the result, and the
+> implementation's concern is to make it available as efficiently as
+> possible balancing various factors.
+>
+> The issue of a stateful has been discussed and typically hasn't seemed
+> to be a big concern to many people.  In your example, you created a
+> state object anyway -- although if the code is supposed to be Java, last
+> time I checked, Integer was an immutable class.  Try an integer array
+> size 1 instead.  I think it is simpler to keep the state in the iterator
+> if we want to control order of access and not worry about what happens
+> if someone keeps a random key value around and tries to use it later.
+
+It was the C++ programmer in me that wanted to do the Java equivalent of
+
+Node* iterator(int*);
+
+I was trying to avoid
+
+Node iterator(Node prevNode);
+
+which I thought might be too expensive if you had to marshall the prevNode
+to a remote machine.
+
+> > Interface NamespaceResolver:
+> >
+>  In an earlier version of the API, we used an Element instead of a
+> NamespaceResolver.  For many, getting it from the context node will be
+> the only use case (whenever the XPath string comes from a document, such
+> as XSL, XLink XPointers, etc.)  Creating a custom factory for various
+> bindings is a convenience of value for some applications, but it is not
+> clear to me how many.  Many applications may prefer to just parse a
+> namespace definition tag from a constant string that has all the desired
+> namespaces letting DOM supply the map or write a very small wrapper on
+> their own favorite object.  I think it is not burdensome to leave
+> alternative map creation up to the application, which was the point of
+> having the interface, so the application could do it in any way it
+> needed to.
+
+Two different use cases here
+
+a) query is interpreted in the context of a node
+
+For example, evaluating a query from an XML document
+
+b) query is expressed independently of a node
+
+For example, finding every {http://www.w3.org/2001/XMLSchema}:element node
+in a collection of documents regardless of the prefix used in those
+documents.
+
+For use (a), the most convienient method would be just to pass the context
+Node into the function.   For use (b), the most convienient method would be
+to pass a platform appropriate map interface (java.lang.Map or
+System.Collection.IDictionary).
+
+My personal take was that use case (b) would be more prevalent.
+
+These don't have a common ancestor, you could use an Object parameter and
+let the implementation sort out how to construct its internal resolver.
+
+Case a: query based on document prefixes
+
+//   counts complexType elements from whatever namespace is associated
+//      with xsd in the document
+double count =
+xeval.evaluateAsNumber("XPath","count(//xsd:complexType[@name]"),doc,doc);
+
+//
+//   counts complexType elements from schema namespace
+//       regardless of document prefix mapping
+Map nsMap = new HashMap();
+nsMap.put("xsd","http://www.w3.org/2001/XMLSchema");
+double elementCount =
+xeval.evaluateAsNumber("XPath","count(//xsd:element[@name])",doc,nsMap);
+
+The code inside of the implementation of the evaluate methods could do
+something like:
+
+double evaluateAsNumber(String lang,String query,Node context,Object
+nsResolver) {
+Map nsMap;
+if(nsResolver instanceof Map) {
+   nsMap = (Map) nsResolver;
+}
+else {
+   if(nsResolver instanceof Node) {
+       nsMap = new NsMapOnNode((Node) nsResolver);
+   }
+}
+...
+String nsurl = nsMap.get(nsPrefix);
+}
+
+public class NsMapOnNode implements Map {
+    public NsMapOnNode(Node node) {
+       this.node = node;
+   }
+   public Object get(Object key) {
+       return node.lookupNamespacePrefix((String) key);
+   }
+}
+
+> We need the invalid error.  I think any asynchronous implementation must
+> behave as though it is synchronous, blocking until the necessary data is
+> available.
+
+Blocking would be the dominant case, but there would also be cases where you
+want to peek if something is ready and if not continue to doing something
+else and check again.  With the java.sql.Command type approach, this would
+be accomplished by setting the timeout to a small or zero value (+INF would
+be for indefinite waits) and if the node isn't ready in time then you would
+get a timeout code in the DOMException.
+
+> It is not clear to me that in most cases the application should care how
+> the evaluation occurs.  The implementation should always do its best.  I
+> would forget these for now.
+
+Maybe not in most cases, but in some cases, it would be critical to the
+responsiveness of the application.
+
+> I do not fully understand your intent with "PREVENT" but I find many
+> problems with the idea.  I know of no language where you can "force a
+> garbage collect to make sure that an unused NodeSet is not blocking
+> them."  Java only permits hints, and if you have ever monitored what it
+> does, it seldom collects all or even most of the available objects, even
+> after dozens of calls in a tight loop.  It is also historically
+> ill-fated to try to tie anything to the garbage collector because it can
+> cause bizarre deadlocks and other problems.
+
+PREVENT came from trying to achieve symmettry with INVALIDATE, there are two
+ways that you could keep the result set from being out of synch with the
+document (when that is important to you), either invalidate the result set
+or prevent the document from changing.  However, if you write-locked the
+document, unreferenced but unreclaimed result sets could keep the document
+locked longer than appropriate, hence the GC comment.
+
+I didn't want to add an explicit Close() command since that would not make
+sense for NodeList and other things that are conceptually NodeSets.
+However, that suggests that we might clear things up by using distinguishing
+XPath query result sets from existing interfaces like NodeList and
+NamedNodeMap that are conceptually Node set and NodeIterator in DOM 2
+Traversal and Range.
+
+//  patterned after java.sql.ResultSet
+//
+public interface XPathResultSet {
+     public Node absolute(int index);
+     public void afterLast();
+     public void beforeFirst();
+     void close();
+     public Node first();
+     public int getIndex();
+     public boolean isAfterLast();
+     public boolean isBeforeFirst();
+     public boolean isLast();
+     public boolean isFirst();
+     public Node last();
+     public Node next();
+     public Node previous();
+     public Node relative(int offset);
+}
+
+> Let's use different interfaces for different query languages -- even
+> perhaps for XPath 2.0.  It will be simpler for users rather than trying
+> to overload this API with things it doesn't need trying to anticipate.
+
+Creating duplicate implementations of result set processing
+code depending on the language that I used to formulate the query
+would not be a good thing.  If different API are used to build the
+queries, they should at least share the same result sets interfaces.
+
+However, compared with the complexity of parsing the XPath
+or other query, checking if the queryLanguage is recognized
+seems trivial, especially if null indicates XPath.
+
+> If there isn't a single document order most are happy with, then let's
+> leave sorting up to some other layer.  The reasons for supporting
+> sorting is that it seems common so having it easily available is good
+> and the implementation might be able to produce the nodes in that order
+> anyway.  Making the order user defined seems to make it not easy for the
+> user and very unlikely that the implementation could know it was
+> naturally producing them in an order that matched the order.
+
+Doing it in the XPath processor seems the appropriate place since it would
+typically involve ordering by the value of the result of an XPath expression
+on each member of the result set, would require a substantial amount of code
+and could be considerably less efficient if done in the application and the
+logic is already available if the XPath engine is lifted from an XSLT
+processor.
+
+
+

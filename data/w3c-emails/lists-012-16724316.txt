@@ -1,0 +1,255 @@
+docno="lists-012-16724316"
+received="Tue May  8 08:04:22 2001"
+isoreceived="20010508120422"
+sent="Tue, 8 May 2001 00:02:56 0700 (PDT)"
+isosent="20010508070256"
+name="Koen Holtman"
+email="koen@hep.caltech.edu"
+subject="Re: Proposal (I-D) for extending HTTP to support out-oforder responses"
+id="Pine.A41.4.10.10105072127280.17796100000@hep216.cithep.caltech.edu"
+charset="USASCII"
+inreplyto="200104111846.LAA05896&#64;wera.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+cc:http-wg@hplb.hpl.hp.com, Koen Holtman<koen@hep.caltech.edu>
+
+
+
+
+On Wed, 11 Apr 2001, Jeffrey Mogul wrote:
+
+> Title: Support for out-of-order responses in HTTP
+> Author(s): J. Mogul
+> Filename: draft-mogul-http-ooo-00.txt
+> Pages: 14
+> Date: 09-Apr-01
+> 
+> http://www.ietf.org/internet-drafts/draft-mogul-http-ooo-00.txt
+
+Just read the draft, overall it looks good.  The hop-by-hop approach
+seems to be the right one.  I could not discover any potential problems
+in interacting with correctly implemented legacy caches.
+
+Some comments:
+
+1. The end of section 3.1 got me thinking a bit:
+
+   A client SHOULD NOT send an RID header field with a request if the
+   semantics of the operation might not permit reordering.  A server
+   SHOULD NOT reorder a response if the semantics of the operation might
+   not permit reordering.  For example, a DELETE request probably ought
+   not to be reordered with other requests.
+
+This language is really too vague, as it does not spell out the criteria
+for knowing when "the semantics of the operation might not permit
+reordering". In theory, as people can layer whatever they want on top of
+GET, of course *any* two operations *might* not permit reordering, so what
+is a poor proxy in the middle to do?  So what is a hard criterion one can
+define for not permitting reordering?
+
+The end of Section 8.1.2.2 (Pipelining) of RFC 2616 gives some guidance
+here:
+
+   Clients SHOULD NOT pipeline requests using non-idempotent methods or
+   non-idempotent sequences of methods (see section 9.1.2). Otherwise, a
+   premature termination of the transport connection could lead to
+   indeterminate results. A client wishing to send a non-idempotent
+   request SHOULD wait to send that request until it has received the
+   response status for the previous request.
+
+So it looks like correctly implemented clients will already avoid
+pipelining for non-idempotent requests.  So there will not be a big
+potential loss of efficiency if all non-idempotent requests are are
+defined as `does not permit reordering'.
+
+On the other hand, 2616 seems to imply that pipelining idempotent requests
+is OK.  Also I believe it is considered to be legal for a 1.1 proxy to
+multiplex one incoming request stream over multiple outgoing streams to
+the same server.  So I believe 1.1 already implies that idempotent
+requests could arrive out-of-order at the server -- is this correct?  If
+that is the case then just reordering the responses to non-idempotent
+requests should also be OK.
+
+So it looks like 2616 implies that the hard criterion for not permitting
+re-ordering should be whether the request is non-idempotent.  However the
+example in the draft "a DELETE request probably ought not to be reordered
+with other requests." seems to even broaden this, as DELETE *is*
+idempotent, though not safe.  So this implies a preference for broadening
+the criterion to non permitting the re-ordering of unsafe requests???  
+Probably so.
+
+One additional observations before I propose new language for the draft..  
+In general I do not like the specification style where both sides of the
+wire are responsible for enforcing a protocol constraint (here the
+constraint is not being able to do response reordering in some cases).
+While this style potentially creates a higher tolerance against bugs in
+implementations it also adds some software complexity and limits the
+ability to override such constraints in protocol extensions.  In this case
+I would like the policing of this constraint to be the responsibility of
+the client only -- the server should trust that the client knows what it
+is doing, as it has potentially out-of-band information about
+reorderability.
+
+So all in all I propose this new language to replace the qouted paragraph
+above:
+
+   A client MUST NOT send an RID header field on an unsafe
+   request (all requests except GET and HEAD requests are unsafe),
+   unless it has out-of-band information that the potential
+   re-ordering of the response to the request is not a problem.  
+   A client MAY send a RID header on any safe request.
+
+
+
+2. The language in section 3.1 does not answer these questions:
+
+2A) If a proxy server gets a sequence of (idempotent) requests, all with a
+RID header, section 3.1 is currently silent as far as I can see on whether
+this means that the requests may be forwarded upstream in a different
+order.
+
+2B) If an origin server gets a sequence of (idempotent) requests, all with
+a RID header, section 3.1 is currently silent as far as I can see on
+whether this means that the requests may be processed (this processing may
+generate side effects!!!) in a different order.
+
+Section 2.1 seems to imply that the answers to both these are `yes'.  
+According to my reasoning about multiplexing pipelined requests above,
+HTTP/1.1 implies that answering `yes' to both 2A) and 2B) should be safe.  
+However I am not completely sure if this is true for all HTTP applications
+in practice...
+
+In any case, the draft should answer the above questions in the
+`specification' section, though I am not sure if the answer to A) should
+be yes.
+
+3. The following language at the end of section 3.3 looked scary on first
+reading:
+
+   A proxy might need to establish a new inbound transport connection in
+   order to allow continued reordering of unrelated responses while
+   preserving the ordering constraints implied by the RID-Barrier header
+   (relative to a previous request that it has forwarded without yet
+   receiving a response).
+
+On second reading I am assuming that "unrelated responses" means
+`responses to requests gotten from a different client', which would make
+the language non-scary.  Though I am not 100% sure that this is what was
+meant, so the language probably needs to be clarified.
+
+4. The purpose of rid-barrier seems to be to separate on the whole path to
+the origin server 2 sets of reorderable request sequences for which the
+responses should not be mixed among the sequences. HOWEVER if a proxy
+somwhere along this path multiplexes the request stream onto 2 (or more)
+different outgoing connections (this might easily happen especially if not
+all requests are on the same origin server) then one of the streams will
+have the rid-barrier missing, which means that the (parts of the) 2
+request sequences in this sequence with missing rid-barrier become
+re-orderable again. So it looks like rid-barrier will not always work for
+its intended use.
+
+Alternatives: 
+
+A1) instead of sending rid-barrier have the client `drain the pipeline'
+(as HTTP/1.1 suggests you do before a non-idempotent request), this will
+prevent any mixing between the two sequences.
+
+A2) change the RID field to add an extra identifier which denotes a group
+of requests with reorderable responses.
+
+i.e.  the sequence (each line a requesr)
+
+RID: 1
+RID: 2
+RID-BARRIER:
+RID: 3
+RID: 4
+
+becomes
+
+RID: A,1
+RID: A,2
+<non-rid normal request, could also be ommitted>
+RID: B,3
+RID: B,4
+
+and then one can put a constraint on any server that responses can only be
+reordered when the first token in the RID field is the same.
+
+I would prefer alternative A1), A2) seems to be overkill.
+
+Note that for the same reason that rid-barrier does not always work, a
+nonsafe request between two rid-sequences can also not be counted on to
+prevent re-ordering of the responses (and requests too???) between the
+sequences further upstream. It looks like to only way to be sure is to
+drain the pipeline.  This should be documented in the draft!  If the
+answer to question 2A above is `yes' we now have the somewhat non-obvious
+result that if the client sends through some proxies
+
+RID: 1
+RID: 2
+RID-BARRIER or non-safe
+RID: 3
+RID: 4
+
+without waiting anywhere for the pipeline to drain, it is entirely
+possible that the origin server will see
+
+RID: 4
+RID: 3
+RID-BARRIER or non-safe
+RID: 2
+RID: 1
+
+because a proxy in the middle multiplexed the `RID-BARRIER or non-safe'
+onto a different connection than the other requests.
+
+5. About the security considerations: if a client sends
+
+GET /a RID: 1
+GET /b RID: 2
+
+then resource /a could potentially respond with
+
+200 OK
+RID: 2
+bla bla bla
+
+thus spoofing a reponse from resource /b!!!  Resource /a might then get
+the server to abort or hang the connection -- a client or proxy getting
+the single response might then cache or use the response as a valid
+response from /b without suspecting that anything is wrong. If /b is a
+known URL at which to get a certificate this will be a problem...  The
+attacker /a might be able to put up a web page that makes many browsers
+emit the above two requests with a high predictability. 
+
+
+In general a client cannot assume that two resources on the other end of a
+hop-to-hop connection are in the same trust domain.  Also in the
+arrangement
+
+rid-aware client --- 1.1 proxy not rid-aware -- origin server with /a
+                                           \
+                                            ---- origin server with /b
+
+unless the client has checks to prevent this, the resource /a could spoof
+/b which is on a different origin server by sending a `rid: 2' header not
+protected by a connection header through the proxy.
+
+Overall it looks like tight sanity checking of the responses by the
+client, and deferring the use of the response for something important
+(like caching, saving, certification) until all responses are received and
+checked, will prevent many (maybe all?) spoofing attacks.  
+But a more complete analysis is needed for sure.
+
+
+OK, these are all my comments.  I only thought of some of these points
+while writing the message, so the message has become a bit less structured
+than I intended, for this I apologize.
+
+
+Koen.
+
+
+

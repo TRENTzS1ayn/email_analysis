@@ -1,0 +1,215 @@
+docno="lists-046-1952484"
+received="Mon Jan  7 00:06:44 2002"
+isoreceived="20020107050644"
+sent="Mon, 07 Jan 2002 00:03:50 -0500"
+isosent="20020107050350"
+name="Donald E. Eastlake 3rd"
+email="dee3@torque.pothole.com"
+subject="Re: About whitespace in ds:SignedInfo"
+id="200201070503.AAA0000087765@torque.pothole.com"
+inreplyto="40AC2C8FB855D411AE0200D0B7458B2B04D636BD&#64;scidalmsg01.csg.stercomm.com"
+expires="-1"
+
+
+To:"Cherian, Sanjay"<Sanjay_Cherian@stercomm.com>
+cc:"'w3c-ietf-xmldsig@w3.org'"<w3c-ietf-xmldsig@w3.org>,"'galvin@eListX.com'"<galvin@eListX.com>,"'david@drummondgroup.com'"<david@drummondgroup.com>,"Damodaran, Suresh"<Suresh_Damodaran@stercomm.com>
+
+Hi,
+
+There are several questions here.
+
+On Transforming SignedInfo:
+
+We deliberately made a general transform chain unavailable on
+SignedInfo, at least among the mandatory or recommended to implement
+algorithms, because it is a geneal Artificial Intelligence problem to
+figure out if such transforms are safe. Note that they could
+completely screw around with all your References, Signature Algorithm,
+and themsevles. So they can trivially arrange for the post-transform
+version signature to always succeed or always fail and to look
+generally secure. So, for any application allowing Transforms over
+SignedIfno to be secure, you probably need a complete description of
+all allowed sets of Transforms...
+
+Anyway, to discourage this, we permitted only CanonnicalizationMethod.
+But, of course, it is an algorithm so it can actually do
+anything. (IE, you could define a CanonicalizationMethod that took a
+Transforms as an explicit parameter.)
+
+On WhiteSpace:
+
+As I see it, if intermediaries are going to generally reformat things
+to be pretty, then it is kind of hopeless to try to be secure.
+
+I believe there are actually three types of white space. White space
+inside tags is truly insignificant. It isn't even handed to
+applications. Then there is white space in the content of something
+with element only content that appears between content elements or
+before the first or after the last content element. This is defined by
+the XML spec as "insignificant", although only a validating parser can
+tell that.  Nevertheless, such white space is required to be given to
+the application.  Since the application can do anything with it, that
+it is flagged as "insignificant" has no security meaning. And
+if you have a non-valiating parser or if the element has mixed
+content, then it doesn't even have this meaningless "insignificant"
+flag affixed to it. Finally, there is actual content white space,
+which can also be changed if some intermediate node pretty printed
+<a>foo bar</a> as
+<a>
+    foo
+    bar
+</a>
+for example.
+
+Your suggestion:
+
+If you guys want to define a canonicalization function that deletes
+all pure white space text nodes and make support of it required for
+your application, you can do so.  But I'm not sure of your logic in
+doing so but not dropping leading and trailing white space and/or
+changing internal runs of white space to one space or something else
+canonical. And I don't see how this can be safe and secure. You may
+know the schema for SignedInfo but it is harder to know the schema for
+every parameter of every Transform someone might use.
+
+Donald
+
+From:  "Cherian, Sanjay" <Sanjay_Cherian@stercomm.com>
+Message-ID:  <40AC2C8FB855D411AE0200D0B7458B2B04D636BD@scidalmsg01.csg.stercomm.com>
+Date:  Thu, 20 Dec 2001 10:32:54 -0600
+
+>Hi,
+>
+>This could likely be a problem that has been debated a lot in the past but I
+>would appreciate if someone explained
+>(or pointed to a previous explanation on the mailing list or elsewhere) what
+>the current thinking is regarding this.
+>
+>The ebXML Messaging Services Specification (
+>http://www.ebxml.org/specs/ebMS.pdf ) uses XMLDSIG to sign portions
+>of the ebXML message (an XML structure based on SOAP) and the ds:Signature
+>element is embedded into the signed
+>ebXML message.
+>
+>The signed ebXML message is subject to modification, passing through a
+>sequence of intermediary SOAP and ebXML
+>processors before reaching the ultimate recipient, which also validates the
+>signature. One such modification that is difficult
+>to predict is change in whitespace (indentation, CRLF characters) in the
+>ebXML message. The ds:SignedInfo element
+>is itself subject to such modification (being part of the ebXML message).
+>
+>A proposed modification to the ebXML Messaging Specification suggests this
+>XSL transform in the ds:Reference element:
+>
+>    <Transform Algorithm="http://www.w3.org/TR/1999/REC-xslt-19991116">
+>      <xsl:stylesheet version="1.0"
+>xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+>        <xsl:strip-space elements='*'/>           <!-- Strip trivial
+>whitespace in all elements. -->
+>        <xsl:template match='node()|@*'>       <!-- Identity transform. -->
+>          <xsl:copy>
+>            <xsl:apply-templates select='@*'/>
+>            <xsl:apply-templates/>
+>          </xsl:copy>
+>        </xsl:template>
+>      </xsl:stylesheet>
+>    </Transform>
+>
+>the signature has been made robust to changes in trivial whitespace in the
+>ebXML message but outside the embedded
+>ds:SignedInfo elements. However, because the ds:SignedInfo elements are not
+>processed by any XSL transform (but by
+>the algorithm specified in ds:CanonicalizationMethod, for which we are using
+>http://www.w3.org/TR/2001/REC-xml-c14n-20010315 ), changes in trivial
+>whitespace in ds:SignedInfo invalidates the
+>signature.
+>
+>To give some context on how ebXML Messaging uses XMLDSIG, I have included an
+>sample signature element (taken from
+>an ebXML example in the ebXML specification), later in this email.
+> 
+>The first guess would be that by using a 'smarter' canonicalization
+>algorithm for the ds:SignedInfo element, the ds:SignedInfo
+>element can also be made robust to changes in trivial whitespace.  Rather
+>than use the schema-unaware canonicalization
+>algorithm ( http://www.w3.org/TR/2001/REC-xml-c14n-20010315 ), it would seem
+>that a different canonicalization algorithm
+>could be written which, being aware of the XMLDSIG schema, could do a better
+>job of eliminating trivial whitespace.
+>
+>This 'smarter' CanonicalizationMethod algorithm might certainly not be smart
+>enough to always know whether a particular
+>whitespace character is significant or not. However, if such an algorithm
+>was created that simply removed all whitespace where
+>an element has textual content consisting entirely of whitespace (the kind
+>xsl:strip-space would remove), people that don't have
+>very sophisticated Transform elements (that could get mangled) would be able
+>to benefit from it.
+>
+>In other words, a 'smarter' XMLDSIG schema-aware CanonicalizationMethod
+>algorithm could be published with the caveat that
+>changes in whitespace in descendants of ds:SignedInfo would become
+>irrelevant.  In situations where this might be a problem,
+>the earlier schema-unaware canonicalization algorithm could be used instead.
+>
+>Just as an example, the stylesheet presented earlier, which is a parameter
+>to the ds:Transform element does not contain any
+>whitespace that needs to be preserved and so a CanonicalizationMethod
+>algorithm that removed all trivial whitespace would not
+>hurt us but actually benefit us a lot.
+>
+>Here is a typical Signature element, as it is used by the ebXML Messaging
+>Specification.
+>
+><Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+><SignedInfo>
+><CanonicalizationMethod
+>Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+><SignatureMethod
+>Algorithm="http://www.w3.org/2000/09/xmldsig#dsa-sha1"/>
+><Reference URI="">
+><Transforms>
+><Transform
+>Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+><Transform
+>Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+><XPath>
+>not(ancestor-or-self::()[@SOAP:actor=
+>
+>&quot;urn:oasis:names:tc:ebxml-msg:actor:nextMSH&quot;]
+>
+>| ancestor-or-self::()[@SOAP:actor=
+>
+>&quot;http://schemas.xmlsoap.org/soap/actor/next&quot;])
+></XPath>
+></Transform>
+><Transform
+>Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+></Transforms>
+><DigestMethod
+>Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+><DigestValue>...</DigestValue>
+></Reference>
+><Reference URI="cid://blahblahblah/">
+><DigestMethod
+>Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+><DigestValue>...</DigestValue>
+></Reference>
+></SignedInfo>
+><SignatureValue>...</SignatureValue>
+><KeyInfo>...</KeyInfo>
+></Signature>
+>
+>I was just trying to convey my thoughts on this matter.  Thanks for taking
+>the time to read this email.
+>
+>Regards,
+>
+>Sanjay J. Cherian
+>Sterling Commerce
+>Irving, TX
+>
+
+
+

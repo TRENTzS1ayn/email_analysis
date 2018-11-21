@@ -1,0 +1,429 @@
+docno="lists-018-16470051"
+received="Thu Mar 27 11:18:32 2003"
+isoreceived="20030327161832"
+sent="Thu, 27 Mar 2003 17:18:14 +0100"
+isosent="20030327161814"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="RE: resultdocument from a temporary tree"
+id="DFF2AC9E3583D511A21F0008C7E621060453E1B6@daemsg02.softwareag.de"
+inreplyto="resultdocument from a temporary tree"
+expires="1"
+
+
+To: Andre Cusson<ac@hyperbase.com>,public-qt-comments@w3.org
+Cc:michael.h.kay@ntlworld.com
+
+
+Thanks for supplying the example, which I think I now understand.
+
+As far as I can see, the main controlling iteration of your stylesheet,
+namely:
+
+<xsl:template name="invoicing">
+     <xsl:param name="source"/>
+     <xsl:for-each select="$source/*">
+         <xsl:call-template name="makepage"><!-- TOC (ex: invoicing report
+page-->
+             <xsl:with-param name="content">
+                 <xsl:for-each select="$clients">
+                     <p style="font-weight: bold;"><!-- TOC link to mailing
+-->
+                         <a href="{concat($path, @id,
+'html')}"><xsl:value-of select="@id"/></a>
+                     </p>
+                     <xsl:call-template name="envelope"><!--mailing page-->
+                         <xsl:with-param name="client-id" select="@id"/>
+                     </xsl:call-template>
+                     <xsl:for-each
+select="$outstanding-invoice-for-this-client">
+                         <xsl:call-template name="invoice"><!--invoice
+page-->
+                              <xsl:with-param name="invoice-id"
+select="@id"/>
+                         </xsl:call-template>
+                             <p><!-- TOC link to invoice -->
+                                 <a href="{concat($path, @id,
+'html')}"><xsl:value-of select="@id"/></a>
+                             </p>
+                     </xsl:for-each>
+                 </xsl:for-each>
+             </xsl:with-param>
+         </xsl:call-template>
+     </xsl:for-each>
+</xsl:template>
+
+can be rewritten as:
+
+<xsl:template name="invoicing">
+     <xsl:param name="source"/>
+     <xsl:for-each select="$source/*">
+         <xsl:call-template name="makepage"><!-- TOC (ex: invoicing report
+page-->
+             <xsl:with-param name="content">
+                 <xsl:for-each select="$clients">
+                     <p style="font-weight: bold;"><!-- TOC link to mailing
+-->
+                         <a href="{concat($path, @id,
+'html')}"><xsl:value-of select="@id"/></a>
+                     </p>
+                     <xsl:for-each
+select="$outstanding-invoice-for-this-client">
+                         <p><!-- TOC link to invoice -->
+                             <a href="{concat($path, @id,
+'html')}"><xsl:value-of select="@id"/></a>
+                         </p>
+                     </xsl:for-each>
+                 </xsl:for-each>
+             </xsl:with-param>
+         </xsl:call-template>
+         <xsl:for-each select="$clients">
+           <xsl:call-template name="envelope"><!--mailing page-->
+             <xsl:with-param name="client-id" select="@id"/>
+           </xsl:call-template>
+           <xsl:for-each select="$outstanding-invoice-for-this-client">
+             <xsl:call-template name="invoice"><!--invoice page-->
+                  <xsl:with-param name="invoice-id" select="@id"/>
+             </xsl:call-template>
+           </xsl:for-each>
+         </xsl:for-each>
+     </xsl:for-each>
+</xsl:template>
+
+and it will no longer violate the rule against writing final trees during
+the writing of a temporary tree. Although this involves iterating over
+$clients twice, this seems a more natural solution to me than trying to
+produce two (or even three) different outputs during one iteration. This is
+the structure you would have to use if all the final documents were subtrees
+of some composite single result tree, and the processing model we want to
+use is essentially of this form (indeed, at one stage we did consider
+defining "multiple result documents" as essentially a method of serializing
+a single composite result tree.
+
+You are obviously attached to a rather different processing model. To me,
+your code has the basic problem that it relies on an output document being
+written as a side-effect of computing the value of a parameter. What would
+happen if, for example, your "makepage" template instead of doing;
+
+<xsl:copy-of select="$content"/>
+
+did
+
+<xsl:if test="some condition">
+  <xsl:copy-of select="$content"/>
+</xsl:if>
+
+There would then be circumstances in which the parameter $content is not
+used by the called template. With lazy evaluation, when a parameter is not
+used, it's quite likely that it isn't going to be evaluated, so it becomes
+undefined whether the <xsl:result-document> will ever be executed, and the
+final result of the transformation then becomes implementation-dependent.
+This is precisely why we introduced this restriction in the specification.
+
+I don't feel that this solution to this problem is an unreasonable one,
+though I accept that you've probably become rather locked in to the more
+flexible approach offered by the extensions in earlier releases of Saxon and
+other products offering this facility.
+
+I have to say that my preferred solution would be that instead of passing
+the makepage template a parameter containing the content of the page, it
+should be passed a function (or template) to generate this content, making
+it effectively a higher-order function. Although XSLT 2.0 doesn't provide
+higher-order functions directly, Dimitre Novatchev has shown how to simulate
+them. Essentially you would pass your makepage template a single element
+node as a parameter, and the template would call apply-templates on that
+node, typically in a special mode. The element node that you pass thus
+determines the template that is called to populate the page: in effect, the
+element node acts as a surrogate for a template, so you are effectively
+passing one template as a parameter to another. This design would avoid the
+creation of temporary trees entirely, and might therefore be much more
+efficient in its memory usage. 
+
+Regards,
+
+Michael Kay 
+
+> -----Original Message-----
+> From: Andre Cusson [mailto:ac@hyperbase.com] 
+> Sent: 26 March 2003 21:33
+> To: saxon-help@lists.sourceforge.net; public-qt-comments@w3.org
+> Cc: michael.h.kay@ntlworld.com
+> Subject: RE: result-document from a temporary tree
+> 
+> 
+> 
+> At 01:39 PM 3/10/2003 +0000, you wrote:
+> 
+> I had a word with my colleagues on the WG about this (though 
+> not on the official agenda) and could find little support for 
+> relaxing the current rule. There was a general feeling that 
+> outputting a result document while producing a temporary tree 
+> is a side-effect and should not be allowed; also that it 
+> should be possible to achieve the required effect without doing this.
+> 
+> If you could construct an example, preferably simplified, 
+> that shows why you need to do this, it would be most helpful. 
+> I know you have sent me code in the past, but I don't think 
+> it was a complete stylesheet that I could work with.
+> 
+> Michael Kay
+> 
+> 
+> 
+> 
+> Hi,
+> 
+> The way I see this, it is a very simple case of recursive 
+> traversal of a 
+> nodeset.
+> I believe that the example that I sent already had everything 
+> required to 
+> reproduce the situation.
+> 
+> As for the use-cases, I tried to give you a few examples of 
+> where/how we 
+> use it.
+> To do more, I would have to show you the real code where we 
+> use it. I would be happy to do that if I new that I wasn't 
+> throwing proprietary 
+> code out in the open.
+> Is there a way of doing this securely ?
+> 
+> Of course I could also rework the code, build another 
+> application so that 
+> it does not need to be protected but I feel that it probably 
+> is not worth 
+> the effort since if you cannot see the simplicity, basicness 
+> and straight 
+> forwardness of the case from a simple example I doubt that a 
+> more elaborate 
+> one would help.  And if it would, a set of real world 
+> applications would 
+> probably be best.  But I need to protect the IP and source 
+> for the people here.
+> 
+> As for getting the same results some other way, it is surely 
+> possible, I 
+> could even do it in Java or any other language that supports 
+> recursion.  Alternatively, I could also completely redesign 
+> the application 
+> and try to do something that is inherently simple and natural 
+> in a more 
+> complex way but the price to pay in redesign and performance does not 
+> attract me at this point (although some day I may not have any other 
+> choice.  At that point, I will also have to take a look at up coming 
+> alternatives to XSLT, like STX).
+> 
+> Still, I am puzzled that something so basic and fundamental does not 
+> register with the WG and others.
+> Does everybody agree that "XSLT 2.0 does not support output 
+> of multiple 
+> pages (files) in recursive traversal of node sets, in pull 
+> processing" ? For me, it is a very powerful design tool, in 
+> pull processing.  Some 
+> problems are better resolved by push processing, but others 
+> by pull. I like and use both ..., up to XSLT 2.0 !
+> 
+> Nevertheless, I will try again here with a simplified 
+> example/use-case that 
+> works ok in XSLT1.1 but not anymore in XSLT2.0 :
+> 
+> The node set being traversed contains information to be processed and 
+> mapped to html pages (can't output everything to just one 
+> page/file).  As 
+> the application traverses the information in the node set, it 
+> builds a page 
+> and that page links to sub-pages generated from further 
+> traversing and 
+> processing the node set, and so on, recursively, until the 
+> node set has 
+> been completely traversed and no more pages need to be generated.
+> 
+> So, for example, let's say we have a template called 'makepage' that 
+> renders one page to html, using result-document.  We are 
+> going to call it 
+> every time that we have gathered the data for a page, as we 
+> are traversing 
+> the node set.  For our example here, we will try to do 
+> invoicing, that is 
+> to produce outstanding invoices for many customers (let's 
+> say, at the end 
+> of the month, for example).  Here, we want one html page with 
+> links to each 
+> of the invoices (and envelopes) produced, as a table of 
+> content and one (or 
+> more) html page per invoice produced.  For every customer for 
+> which we are 
+> generating an invoice, we also need to generate another html 
+> page with the 
+> corresponding mailing label/envelope, also providing a link 
+> to this page on 
+> our TOC page.  Also, because we want to stream data as much 
+> as possible, we 
+> want to avoid reprocessing the nodeset multiple times. So,
+> 
+> we define a template called makepage to render a page data to html, 
+> something like :
+> 
+> <xsl:output name="output-format" .../>
+> 
+> <xsl:template name="makepage">
+>          <xsl:param name="content"/>
+>          <xsl:param name="filename"/>
+>          <xsl:result-document href="{concat($filename, 'html')}" 
+> format="output-format">
+>                  <html>
+>                          <head>
+>                                  <title>
+>                                          <xsl:value-of 
+> select="$filename"/>
+>                                  </title>
+>                          <body>
+>                                  <xsl:copy-of select="$content"/>
+>                          </body>
+>                  </html>
+>          <xsl:/result-document>
+> </xsl:template>
+> 
+> then, assuming that we have a template called 
+> 'get-client-address' that 
+> simply outputs the address for a given client, we define a 
+> template to 
+> build a mailing label like :
+> 
+> <xsl:template name="envelope">
+>          <xsl:param name="client-id"/>
+>          <xsl:call-template name="makepage">
+>                  <xsl:with-param name="filename" 
+> select="concat('mail-', 
+> $client-id)"/>
+>                  <xsl:with-param name="content">
+>                          <table>
+>                                  <tr>
+>                                          <td align="top">
+>                                                  <xsl:copy-of 
+> select="$logo"/>
+>                                          </td>
+>                                          <td align="bottom">
+>                                                  <xsl:call-template 
+> name="get-client-address">
+>                                                          
+> <xsl:with-param 
+> name="client" select="$client-id"/>
+>                                                  </xsl:call-template>
+>                                          </td>
+>                                  </tr>
+>                          </table>
+>                  </xsl:with-param>
+>          </xsl:call-template>
+> </xsl:template>
+> 
+> then, we need a template to generate the body for an invoice, like :
+> 
+> <xsl:template name="invoice">
+>          <xsl:param name="invoice-id"/>
+>          ...
+>          <xsl:call-template name="makepage">
+>                  <xsl:with-param name="filename" 
+> select="$invoice-id"/>
+>                  <xsl:with-param name="content">
+>                          <table>
+>                                  ...
+>                          </table>
+>                  </xsl:with-param>
+>          </xsl:call-template>
+>          ...
+> </xsl:template>
+> 
+> and finally, the invoicing template that traverses the source 
+> node set, like :
+> 
+> <xsl:template name="invoicing">
+>          <xsl:param name="source"/>
+>          <xsl:for-each select="$source/*">
+>                  <xsl:call-template name="makepage"><!-- TOC 
+> (ex: invoicing 
+> report page-->
+>                          <xsl:with-param name="content">
+>                                  <xsl:for-each select="$clients">
+>                                          <p 
+> style="font-weight: bold;"><!-- 
+> TOC link to mailing -->
+>                                                  <a 
+> href="{concat($path, 
+> @id, 'html')}"><xsl:value-of select="@id"/></a>
+>                                          </p>
+>                                          <xsl:call-template 
+> name="envelope"><!--mailing page-->
+>                                                  <xsl:with-param 
+> name="client-id" select="@id"/>
+>                                          </xsl:call-template>
+>                                          <xsl:for-each 
+> select="$outstanding-invoice-for-this-client">
+>                                                  <xsl:call-template 
+> name="invoice"><!--invoice page-->
+>                                                          
+> <xsl:wiith-param 
+> name="invoice-id" select="@id"/>
+>                                                  </xsl:call-template>
+>                                                  <p><!-- TOC link to 
+> invoice -->
+>                                                          <a 
+> href="{concat($path, @id, 'html')}"><xsl:value-of select="@id"/></a>
+>                                                  </p>
+>                                          </xsl:for-each>
+>                                  </xsl:for-each>
+>                          </xsl:with-param>
+>                  </xsl:call-template>
+>          </xsl:for-each>
+> </xsl:template>
+> 
+> Of course, this is a simplified use-case and example but if 
+> processed in 
+> XSLT2.0, an error will be generated on the result-document 
+> line of the 
+> 'makepage' template, every time an invoice is requested and 
+> every time an 
+> envelope is requested.
+> 
+> I hope that this example is useful and that I am not alone in 
+> thinking that 
+> recursion, whether in push or pull processing is fundamental 
+> to node set 
+> traversal, and not a side-effect.
+> 
+> Whether the output is to a single file or multiple file 
+> should not change 
+> anything and is in fact imposed by standards like HTML (and 
+> by the physical 
+> world in which applications operate).
+> 
+> In our application, we have many cases for this as I have 
+> already pointed 
+> out, including invoicing, OR-mapping, compound document 
+> processing, etc. 
+> The basic issue is always the same.
+> 
+> Again, I hope that this helps.
+> Thank you for your time and consideration.
+> Regards,
+> 
+> Andre Cusson
+> ac@hyperbase.com
+> 01 Communications Inc.
+> 
+> PS: come to think of it, simply building a table of contents 
+> as one is pull 
+> processing the pages of a document is a typical use of 
+> result-document from 
+> a temporary tree.
+> 
+> PSS: the same issue could come up in push processing also, 
+> especially when 
+> required to pass parameters in apply-templates.  It just 
+> seems natural in 
+> pull though.
+> 
+
+
+

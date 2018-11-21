@@ -1,0 +1,166 @@
+docno="lists-103-13559911"
+received="Wed Jun 27 10:48:39 2001"
+isoreceived="20010627144839"
+sent="Wed, 27 Jun 2001 07:52:47 -0700"
+isosent="20010627145247"
+name="Ray Whitmer"
+email="rayw@netscape.com"
+subject="Re: Document Object Model (DOM) Level 3 XPath Specification"
+id="3B39F33F.7050803@netscape.com"
+charset="us-ascii"
+inreplyto="046201c0fe21$2c7b2e20$75181eac&#64;itools.symantec.com"
+expires="-1"
+
+
+To: Bob Foster<bob.foster@webgain.com>
+CC:www-dom@w3.org
+
+Bob Foster wrote:
+
+>Very nice to see this! As an implementor of a DOM-based XPath, it is always
+>nice to think that someday I will be able to stop maintaining it. I tried to
+>make my comments brief, but there are 10 of them.
+>
+>1) [1.2.1 Text Nodes] This is very imprecise. Does the section describe the
+>behavior of the text() node test or are there other incompatibilities? Each
+>incompatibility should be specifically identified.
+>
+I do not understand your confusion.  As I attempt to respond, I write 
+exactly what is there, so I don't know how I can clarify (without 
+further feedback).  We are talking about the actual DOM nodes returned 
+from an xpath expression, and what to do when XPath says there should be 
+a single node, having discarded information, but DOM has fragmented it 
+across multiple nodes.  Answer: in case of fragmentation, return just 
+the first node.
+
+>2) Irrespective of the data model differences the XPath text() node test is
+>defined as true for all text children, not for "the text child" and
+>certainly not for "the first text child". Arbitrarily redefining text() in
+>this way fixes nothing and introduces further incompatibilities. If the
+>definition of text() is left alone a normalized DOM document written without
+>CDATA sections should be processed compatibly.
+>
+I do not think we are talking about a boolean XPath function here.  We 
+are talking about the actual nodes enumerated in the returned set, how 
+to get 1:1 mapping when there is no 1:1 mapping in the nodes themselves.
+
+>3) If you are going to add a method to the DOM, it would be far better to
+>introduce a variant of normalize() that coalesces adjacent text (that is,
+>Text and CDATA) nodes exactly as described in the XPath specification.
+>
+While such a normalize function is a good idea, it is not sufficient in 
+cases where stripping out all CDATASections and EntityReferences is not 
+an option.  It is also questionable whether XPath inquiries should only 
+function correctly on a completely normalized tree.
+
+A big part of the use of XPath in DOM is to find nodes in the document 
+so that they can be manipulated and later written out.  One of the big 
+differences between DOM and XPath is that XPath affords itself the 
+luxury of considering the document read-only, so CDATA or Entity 
+References are not preserved.  DOM, on the other hand, has to worry in 
+many cases about writing the document out.  Some users care whether 
+CDATASection and EntityReference nodes are lost.  Otherwise, they never 
+would have been included in DOM, and we could stop worrying about them.
+
+IMHO those specifications which rely on the XPath data model should 
+expect this to only be the tip of the iceberg of issues if they suddenly 
+want to mutate the data (for example updating a database that has been 
+queried) since XPath's model has never worried about modifying the 
+hierarchy nodes.  This is where ActiveNodeSet and a number of other DOM 
+things come into play.
+
+>4) [Interface XPathEvaluator] There should be a single evaluate() method
+>returning an Object. The number of possible types from XPath 2.0 expressions
+>will make enumerating them unproductive; might as well get it right the
+>first time. A general-purpose method may have no way to determine the type
+>beforehand, and would need an inelegant switch statement to make use of the
+>type if it knew it. I did it wrong in a similiar way myself thinking it
+>would be a convenience for programmers before discovering that a) the
+>Object-returning variant is needed in any case and b) in most cases the
+>convenience amounts to the absence of a cast and, for nodeset values, a call
+>to getFirst(). Programmers can provide this level of sugar for themselves.
+>
+While enumerating all types is impossible for XPath 2.0, I still think 
+there is no reason to in the common cases of String, integer, or boolean 
+to force users to muck with untyped object returns and native coercion, 
+when well-defined system primatives can be supported.
+
+For XPath 2.0, we should probably consider adding:
+
+Object evaluateAs(<type>, ...)
+
+It is good to be able to ask the XPath evaluator to supply any available 
+XPath coercion to whatever type is desired.  We will likely be adding a 
+method to evaluate the type, so coercion can be avoided and switch 
+statements are possible if people really want it.
+
+>6) Some responses seem to think that the Node-returning variant is meant as
+>a hint to XPath that at most one node need be returned. If this is the sly
+>intention ("There is nothing to stop an XPath implementor from taking
+>advantage...") it should be made explicit. I agree that this is a common
+>case and a useful optimization (you can slap a /.[1] at the end of any node
+>locator, but you can't stop most XPath implementations from grinding out and
+>testing all n nodes). It just shouldn't sneak in the back door.
+>
+The call is not a "hint", but a very clear statement that one node is 
+requested.  The implementation may or may not be "sly" about only 
+computing the first node, just as it may be sly enough to evaluate 
+ActiveNodeSets incrementally as the caller requests additional nodes, in 
+which case this method wasn't needed to avoid computation.  There are 
+quite a few gains, and some of the best ones have to do with not 
+returning a NodeSet, and are just as true of evaluateAsString, for 
+example.  It is not clear to me that we should spend a lot of time in 
+the specification discussing these implementation optimizations which 
+may or may not be available.  Implementations will choose how sly they 
+should be.
+
+>7) [Interface ActiveNodeSet] For simplicity and concurrency reasons,
+>ActiveNodeSet should be eliminated entirely in favor of StaticNodeSet.
+>Without explicit synchronization of access to the DOM, the useful lifetime
+>of an ActiveNodeSet cannot be determined. It is possible a returned instance
+>might already be invalid.
+>
+>Obviously, if this were done some methods should transfer to StaticNodeSet,
+>esp. getDocumentOrderedSet().
+>
+I disagree that it is simpler or better for concurrency to use 
+StaticNodeSet.  It is often extremely complex to have to worry about 
+what if the node set no longer matches the hierarchy.  With 
+ActiveNodeSet, you can guarantee in the API that either it does or there 
+is a programming exception.  This provides a much simpler failure than 
+what results if you assume they match and really they do not.
+
+I would eliminate StaticNodeSet before ActiveNodeSet, because the user 
+can copy the list before resuming processing if he needs a static copy, 
+rather than forcing implementations to do it on every call.  Static is 
+just convenience (but very convenient for whenever the caller may be 
+using the list to mutate the hierarchy).
+
+Without some idea of how your program is synchronized, you cannot do 
+much that is useful or reliable with the DOM.  How can you do an XSL 
+transform, for example, if you don't know the document is not shifting 
+underneath you.  The ActiveNodeSet guarantees that you are not 
+processing a skewed static view of the data.  If you want a skewed 
+static view of the data, then you request a static set, and you take 
+responsibility for the additional upfront processing and allocation that 
+may be required for a StaticNodeSet, and then you have to avoid making 
+assumptions about the state or location of the nodes you are manipulating.
+
+>8) [Interface StaticNodeSet] A getFirst() method defined as returning the
+>first element or null would be a handy addition. A getOnly() method defined
+>as getFirst() but throws if there is more than one node in the set might be
+>even better.
+>
+I think it is clear that being able to get a single node is good.  It is 
+not obvious to me why I would want to have a node set just to guarantee 
+that I have a single node.  If we determined that raising an exception 
+was a common use case where only 1 node was desired and more than one 
+was returned, then perhaps what we really need is a flag on 
+evaluateAsNode, saying whether to raise an exception if more than one 
+node are matched.
+
+Ray Whitmer
+rayw@netscape.com
+
+
+

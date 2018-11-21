@@ -1,0 +1,291 @@
+docno="lists-040-1722839"
+received="Thu Feb 24 02:56:30 2000"
+isoreceived="20000224075630"
+sent="Wed, 23 Feb 2000 23:56:00 -0800"
+isosent="20000224075600"
+name="Yaron Goland"
+email="yarong@Exchange.Microsoft.com"
+subject="An analysis of the proposal to place locks on URIs rather than re sources"
+id="7DE119D3D0E15543874F7561EECBDBED02619DE6@BEG.platinum.corp.microsoft.com"
+expires="-1"
+
+
+To:"'Geoffrey M. Clemm'"<geoffrey.clemm@rational.com>,w3c-dist-auth@w3.org,"'yaron@goland.org'"<yaron@goland.org>
+
+The following mind blowingly long nightmare of a post was never intended to
+be posted. The reason is that I find that dropping 3.5 page long posts on WG
+mailing lists is a really great way to make people's eyes glaze over.
+However I still write up the really long posts because I find that it helps
+me ensure that my own arguments are at least internally consistent. It also
+allows me to project where arguments about an issue are likely to go. I then
+use those projections to head off certain threads before they start and to
+generally direct the discussion to the conclusion I would like to see. I
+knew reading all that Plato would help some day.
+
+However the changes in my employer are sucking away all my time. As such I
+am dumping this nightmare on the group mostly because I know that Geoff will
+read it and then call me up and ask lots of questions. I suppose I could
+just have sent this to Geoff but there are a number of people on the list
+who get really annoyed when I do that. They claim that they actually read
+these outrageous monster posts. I think they are daft but I find it best not
+to annoy the truly daft.
+
+As such, without further ado, my thoughts on Geoff's original locking
+proposal.
+
+Execute summary: 
+
+The proposal to put locks on URIs rather than resources introduces URIs as
+first class objects into HTTP that are able to do things like answer
+methods. This introduces a number of complications and contradictions into
+the HTTP object model. As such, in order to best maintain the HTTP object
+model and to enable it to be both robustly expressed and extended one must
+understand HTTP in terms of the state of the resources. Part of the state of
+a resource is the set of URIs under which it is accessible. A write LOCK
+request is then understood as asking, in part, that one member of that set
+of URIs only be removable by the lock owner.
+
+Long Winded Examination of Proposal:
+
+I oppose the proposal that locks be placed on URIs rather than on resources.
+There is no such thing as a URI in the sense that URIs do not have
+addressable existences. Only resources can be addressed and therefore locks
+can only exist on resources. To attempt to turn URIs into something that can
+have state one introduces an endless recursion. If state can be associated
+with a URI then one must be able to access that state. Of course that means
+one needs a URI to get to the state of the first URI. But since URIs can
+have state that means that the URI that points to the URI with state can
+itself have state which means one needs a URI to point to the URI that
+points to the URI with state and so on.
+
+Let's examine a manifestation of this problem. 
+
+In his letter below Geoff states that the proposal to associate locks with
+URIs rather than resources would result in a situation where "...a LOCK
+request *never* requires a lock token". I though hard about this, trying to
+understand exactly what it meant. Below I lay out my thinking process so
+that if I have misunderstood the proposal my error can be found and
+corrected.
+
+Imagine user U takes out a depth 0 lock on collection C. Collection C has no
+children. The ramification is that no one but U may add a new child to C.
+User A then shows up and wants to create a new resource with the URL C/R.
+Before creating the resource, however, A would like to first reserve the
+name C/R. To this end A takes out a lock on C/R. To someone thinking in
+terms of the current locking system we appear to have reached a
+contradiction. No one but U may add a child to C but Geoff has clearly
+stated that A can lock C/R without having to present a lock token.
+
+What has happened is that the example illustrates a critical but subtle
+difference between the two proposals. In the old system locks are on
+resources. Therefore for A to lock the name C/R, A MUST have locked some
+resource which claims to be accessible through C/R. This is where lock null
+resources came in. Therefore the act of locking C/R created a new resource,
+this new resource is a child of C, no one but U may add a child to C,
+therefore A's lock request would be denied.
+
+But in the new proposal locks aren't on resources, they are on URIs.
+Therefore when A locks C/R it is not locking a resource, it is locking a
+name. Names aren't members of collections, resources are. Therefore A can
+lock C/R without running afoul of U's lock on C because C/R, even though it
+is locked, is still not a member of the collection. When A will run into
+trouble is when it attempts, through a COPY, MOVE, PROPPATCH, PUT, MKCOL,
+etc. to associate the URL C/R with a resource. By associating a resource
+with C/R A will cause that resource to become a member of C. Of course U has
+reserved the right to create new members of C, therefore A's request will be
+rejected. But this analysis seems to explain Geoff's statement that in the
+new locking system one never needs a lock token to take out a lock.
+
+The previous line of reasoning seems to produce at least two major issues. 
+
+The first issue is that I believe that a lock of depth 0 on a collection
+should reserve both the right to add new members and the exclusive right to
+choose the name of the new members. That means that when U locked C not only
+should it be impossible for anyone but U to add a new resource to C but U
+should also have the exclusive right to choose whatever name it wants for
+that new member. Therefore I would argue that A's lock on C/R should fail
+because the act of allowing A to take out the lock would restrict U in his
+choice of names for new resources of C. That is, C couldn't decide to create
+a new child of C and call it C/R because the name was locked by A even
+though C had locked C.
+
+The trivial solution to this issue is to state that a depth 0 lock
+on a collection actually locks both the collection and any names which have
+the collection's name as a base. Let us now look at an example where this
+solution causes serious problems.
+
+Let us imagine again that we have a collection C, but this time it
+already has a child resource called C/X. User U takes out a depth 0 lock on
+C. Under the old locking system this would mean that no one but C could
+delete C/X but anyone could, for example, issue a PUT against C/X. U's lock
+only covered the adding and removing of members to C, not changing their
+state.
+
+But under the new system user Z could not issue a PUT against C/X if
+U has locked C with a depth 0 lock. The reason is that in order to reserve
+for U the exclusive right to choose the name of the children of C it was
+necessary to lock all names that began with C, including C/X. However the
+very definition of the new proposal is that a lock is on the URI, not the
+resource. Therefore the act of locking all URIs that began with the segment
+C meant that the resources referred to by those children where themselves
+locked. That is, by locking C we are forced to lock C/X in order to reserve
+for C the right to control the name C/X. But in locking C/X we removed the
+right for anyone but U to issue a PUT against C/X.
+
+The point here is extremely subtle and I apologize for my ham fisted
+attempts to tease it out. What is happening is that the new proposal
+actually calls for there to be two different types of locks. The first type
+of lock is the one on the URI C. This is the lock that prevents anyone from
+issuing PUT, DELETE, PROPPATCH, etc. against C. The second type of lock is
+the ones on the URIs that begin with the segment C. This lock only prevents
+DELETE and if the URI isn't associated with a resource,
+PUT/MKCOL/COPY/MOVE/etc. The general rule in protocols is that there are
+only three numbers, 0, 1 and infinity. That we need 2 different lock types
+to cover this scenario therefore makes me nervous because 2 lock types will
+almost certainly mean we actually need an infinite number of lock types to
+cover a variety of different situations.
+
+The second issue has to do with the problem of having state on URIs. Let us
+use the previous example to illustrate the problem. U has locked C. A has
+locked C/R. No resource is associated with C/R. So under the new proposal,
+everything is fine. However, what happens when someone performs a PROPFIND,
+depth infinity, on C? Do they see C/R? I imagine the answer is no because
+C/R, given the reasoning before, is not a member of C. C/R will only become
+a member of C when a resource is associated with C/R. However, if U were to
+attempt to issue a PUT against C/R then U would get a lock error since the
+name C/R is locked by A and therefore only A may associate a resource with
+C/R. Of course A can't associate a resource with C/R because of U's lock on
+C. But that isn't even the problem I'm worried about. Deadlocks are an
+inherent problem in any distributed system. 
+
+What worries me is how do we figure out which URIs under C are
+locked? You can imagine this to be a very common act for an administrator to
+want to do. Today the way we handle this is through a recursive PROPFIND.
+The reason this works is that one can only lock resources, all resources
+which are bound to a name with C as a segment are children of C, all
+children of C show up in a recursive PROPFIND. It is because locks are on
+resources that we can always discover what under C is locked. The new
+proposal, however, places locks on the URI, not the resource. As such the
+PROPFIND can't tell you that C/R is locked because C/R is not bound to a
+resource and only resources show up in PROPFIND.
+
+This is then the problem of having state on URIs. Because the URI
+C/R has its own state, it is locked, we need a way to find that out. One way
+to do this is to issue a LOCK request against C/R. But what does it mean to
+issue a method against C/R? Methods are issued against resources yet there
+is no resource associated with C/R, therefore who answers the method call?
+In the object model I previous proposed
+(http://lists.w3.org/Archives/Public/w3c-dist-auth/1999JulSep/0020.html) I
+suggested that the resource that would handle the method sent to C/R is the
+universal NULL resource. But that answer can't apply here. The reason is
+that the universal NULL resource is, well, universal. It doesn't have any
+state of its own. 
+
+Here we need state, that state is that the name C/R is locked. But
+again, the lock is on the name, not the resource. There is no resource. So
+who answered the method sent to C/R with a LOCK error? In HTTP the only
+thing that answers methods are resources but there is no resource here, just
+a name.
+
+The result is that now we need some way of talking to "names".
+Without this mechanism there is no way to ask questions like "Which names
+under C are locked?".
+
+This means that URIs are now resources. They must be, otherwise they
+couldn't answer methods. If they can't answer methods then we can't get lock
+errors. Therefore they must be resources.
+
+At least by making URIs resources we can ask questions like "which
+URIs are locked". However I don't look forward to PROPFIND responses since
+they will contain every single possible name. After all, PROPFIND returns
+all the resources that are members of C. All URIs are resources. Therefore
+all possible URIs under C are members of C and therefore will be returned by
+PROPFIND.
+
+Of course, URIs can't be resources. Because the whole new locking
+proposal is that locks aren't on resources at all. Ack.
+
+In conclusion (yes, it's over!!!!!) I believe that in order to best maintain
+the HTTP object model and to enable it to be both robustly expressed and
+extended one must understand HTTP in terms of the state of the resources.
+Part of the state of a resource is the set of URIs under which it is
+accessible. A LOCK request is then understood as asking that one member of
+that set of URIs not be removed from the table during the duration of the
+LOCK. In other words, resources have state, URIs don't.
+
+Yaron
+
+> -----Original Message-----
+> From: Geoffrey M. Clemm [mailto:geoffrey.clemm@rational.com]
+> Sent: Thu, December 30, 1999 2:33 PM
+> To: w3c-dist-auth@w3.org
+> Subject: Re: Creating a lock-null in a locked collection
+> 
+> 
+> 
+> As an addendum to Yaron's response, I'll note that there is a proposal
+> that WebDAV locking is better understood as locks on URL's rather than
+> on resources.  This not only makes the current WebDAV locking behavior
+> easier to motivate (e.g. a resource "loses" a lock after a move
+> because it is no longer identified by the locked URL), but removes the
+> need to define a "lock null resource".
+> 
+> One effect of this proposal would be that the answer to Joe's question
+> would change, i.e. that a LOCK request *never* requires a lock token.
+> A LOCK request can fail (such as when it would collide with 
+> an existing
+> exclusive lock), but no failure would be resolvable through 
+> the addition
+> of a lock token.
+> 
+> FYI, the current state of the lock proposal is:
+> 
+> A lock can be placed on a URL with a LOCK request.  This URL is called
+> the "lock base".  If the lock is Depth:N, then a lock is induced on
+> any URL that consists of the lock base extended by N or fewer
+> segments.  Only an authorized holder of a lock token for a locked URL
+> can modify either the state of the resource identified by the URL, or
+> which resource is identified by the URL.  A URL MAY NOT be locked
+> with two exclusive locks with the same locktype.
+> 
+> Cheers,
+> Geoff
+> 
+>    From: "Yaron Goland (Exchange)" <yarong@Exchange.Microsoft.com>
+> 
+>    The depth 0 lock controls the ability to add level 1 
+> children to the
+>    collection.
+>    A lock null resource is a resource and hence is a member 
+> of whatever
+>    collections it exists within.
+>    Therefore to create a lock null resource as a level 1 
+> child of a collection
+>    with a depth 0 lock one must have the depth 0 lock.
+> 
+>    In other words, yes, you must submit the token on the LOCK 
+> on /foo/bar.
+> 
+>    Yaron
+> 
+>    > -----Original Message-----
+>    > From: Joe Orton [mailto:joe@orton.demon.co.uk]
+>    > Sent: Thu, December 30, 1999 6:45 AM
+>    > To: w3c-dist-auth@w3.org
+>    > Subject: Creating a lock-null in a locked collection
+>    > 
+>    > 
+>    > I have an depth 0 write lock on /foo/. If I do LOCK /foo/bar 
+>    > to create a
+>    > lock-null resource, do I need to submit the locktoken 
+> for /foo/ in the
+>    > LOCK request? Or only in the PUT to /foo/bar later?
+>    > 
+>    > (Or is it decided that lock-null resources are going to go away?)
+>    > 
+>    > joe
+>    > 
+> 
+
+
+

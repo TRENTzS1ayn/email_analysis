@@ -1,0 +1,160 @@
+docno="lists-038-16268948"
+received="Tue Apr  6 20:19:03 1999"
+isoreceived="19990407001903"
+sent="Tue, 6 Apr 1999 17:17:29 -0700"
+isosent="19990407001729"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="Proposal: BIND method"
+id="004701be808c$05cf48c0$d115c380@ics.uci.edu"
+charset="iso-8859-1"
+expires="-1"
+
+To: WEBDAV WG<w3c-dist-auth@w3.org>
+
+
+Within the author's group for Advanced Collections, we've been exploring the
+idea of creating a mechanism for adding new URL to resource bindings,
+possibly in addition to Direct References, perhaps to replace Direct
+References.
+
+Since the goal of a Direct Reference is to create a new location in the HTTP
+namespace which can be used to access the reference's target resource, the
+basic idea behind the mapping concept is to have a mechanism for creating a
+new URL for a resource which acts, in every possible way, just like any
+existing URL does for any existing resource.
+
+This would remove some of the limitations of Direct References which result
+from a Direct Reference creating a resource for the direct reference, in
+addition to the resource which is the target of the reference.  This extra
+resource creates problems for methods which have a source and a destination
+like COPY and MOVE -- which resource do they apply to by default, the
+reference or the target?  The two resources also create problems for LOCK --
+lock really needs to lock both to preserve RFC 2518 semantics.
+
+Current best understanding of how a URL relates to a resource is given in
+RFC 2396 (http://www.ics.uci.edu/pub/ietf/uri/rfc2396.txt).
+
+I like to visualize the relationships between URI, resources, and underlying
+chunks of state with the followng diagram:
+
+
+    uri1    uri2     uri3
+      \       |        |
+       \      |        |
+        \     |        |
+         \    |        |
+        +-------------------+
+        |   resource R      |
+        +-------------------+
+                  |
+                  |
+                  |
+        +---------------------+
+        | chunk of state      |
+        | (e.g., a file,      |
+        |  or multiple files, |
+        |  or a EEPROM memory |
+        |  or database record |
+        |  or DMS object, ...)|
+        +---------------------+
+
+That is, there is a mapping of one or more URIs to a resource, which is an
+abstraction maintained by a server which models a chunk of state.  Note that
+the same chunk of state can be mapped to more than one resource (and each
+resource can be mapped to several URI).
+
+In a nutshell, the proposed BIND method would take two URIs as input.  The
+first one will be the new URI through which the resource will be accessible
+once the operation has completed.  The other URI will be an existing URI by
+which the resource is accessible.  When the server performs the operation,
+it performs a lookup on uri3, finds the resource to which it has been
+mapped, and then creates a new mapping of uri4 to that resource.
+
+So, a bind operation with uri4 (new URI) and uri3 (existing URI) as inputs
+on the resource in the previous diagram, would produce the following:
+
+
+    uri1    uri2     uri3     uri4
+      \       |        |       /
+       \      |        |      /
+        \     |        |     /
+         \    |        |    /
+        +-------------------+
+        |   resource R      |
+        +-------------------+
+                  |
+                  |
+                  |
+        +---------------------+
+        | chunk of state      |
+        | (e.g., a file,      |
+        |  or multiple files, |
+        |  or a EEPROM memory |
+        |  or database record |
+        |  etc.)              |
+        +---------------------+
+
+That is, after the operation, a GET on uri4 will produce the same response
+as a GET on uri3, uri2, or uri1.  No new resource is created.  The chunk of
+state has not been modified.
+
+To preserve namespace consistency, the proposed BIND method would have some
+side effects.  Creating a binding would have the side effect of adding the
+new URI into its parent collection (take the new URI, whack off the last
+path segment, then resolve this URI to a collection and add the new URI to
+this collection.)  If the parent collection doesn't exist, BIND would fail.
+
+BIND can create a binding to a collection resource.  The new collection
+would behave exactly as would a current DAV collection.  This could create
+loops, and servers would need to check for these during "Depth: infinity"
+operations.
+
+In the example above (a new URI, uri4 has been bound to resource R), the
+effect of methods on the new URI is exactly the behavior these methods would
+have if this binding had been created by another HTTP method, such as PUT
+(which creates the resource, and also creates a binding from a URI to the
+resource).
+
+GET uri4: return an entity response for R
+
+HEAD uri4: return the protocol metadata for the GET entity response for R
+
+PUT uri4: if overwrite active, overwrites R, affecting the GET entity
+response for uri1, uri2, and uri3
+
+POST uri4: this method can do anything
+
+OPTIONS uri4: return the same as OPTIONS on uri1, uri2, or uri3
+
+DELETE uri4: my read of RFC 2068 is it deletes R, and removes the bindings
+for uri1, uri2, uri3, and uri4  (we might want to introduce an UNBIND
+operation which only removes the binding)
+
+COPY uri4, uriX: duplicate R in new resource T, then create a mapping of
+uriX to T.  Mappings of uri1, uri2, uri3, and uri4 are unaffected.
+
+MOVE uri4, uriX: duplicate R in new resource T, then create a mapping of
+uriX to T.  Perform fix-up stage, which is currently under-specified in RFC
+2518, but which in this case would mean re-mapping uri1, uri2, and uri3 to
+T.  One of the things that would be required by introducing BIND is to
+specify well this "fix-up" stage.
+
+LOCK uri4:  Resource R is locked, and the lock is visible via uri1, uri2,
+and uri3.
+
+UNLOCK uri4: remove the lock from R, and the lock is no longer visible via
+uri1, uri2, and uri3.
+
+PROPFIND uri4: retrieve properties on R
+
+PROPPATCH uri4: set or delete properties on R
+
+MKCOL uri4: fails, since there is already a resource bound to uri4.  But, if
+no resource were bound to uri4, it would create a collection resource, and
+bind it to uri4.
+
+- Jim
+
+
+

@@ -1,0 +1,119 @@
+docno="lists-012-0407753"
+received="Thu Feb 26 07:47:31 1998"
+isoreceived="19980226124731"
+sent="Thu, 26 Feb 98 10:16:33 EST"
+isosent="19980226151633"
+name="Dave Kristol"
+email="dmk@research.belllabs.com"
+subject="Re: Rev02: seek clarification on conditional headers"
+id="9802261516.AA01478@aleatory.tempo.belllabs.com"
+inreplyto="Rev02: seek clarification on conditional headers"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com,mogul@pa.dec.com
+
+[More lengthy commentary follows.]
+
+My thanks to Jeff Mogul for his clarifications.  I won't copy the whole
+discourse here, but I do have follow-up comments.
+
+Despite the IESG's need for independent implementations, I resorted to
+looking at the Apache code in the hope that that code would help me to
+understand what the spec. was trying to say.  It didn't help.
+
+The reasons I didn't follow the tangled discussions in November on this
+issue were multiple.  The most obvious is that, with something this
+tangled, it's hard to follow in the abstract.  Now that I'm actually
+trying to implement, my interest is higher, and my attention is
+greater.
+
+Jeff's comments, taken piece by piece, make sense.  While I'm not the
+sharpest person in HTTP-WG, I think I should have been able to follow
+the spec. and I couldn't.  I'm concerned that my difficulty suggests it
+will be far too easy for others to "get it wrong" too, which is the
+antithesis of what the spec. is meant to do.  I commend Jeff's little
+snippets of pseudo-code, and I wonder whether they aren't a whole lot
+more helpful that the paragraphs of confusing words.  Maybe they should
+be in the spec.  (And, see below.)
+
+The overall problem I have with Jeff's explanation is that it assumes a
+reasonable client.  But a good implementation has to deal with an
+arbitrary combination of headers, even those that seem to make no
+sense.  Of course the spec. itself should also be consistent even in
+the face of "unreasonable" combinations of headers.  So I find myself
+trying to deal with all combinations of I-M-S, I-U-S, I-M, and I-N-M.
+
+Architecturally I want to have a single routine to handle all the
+conditional headers.  At the very least it would have to look something
+like
+if (header1 exists)
+    process header1
+if (header2 exists)
+    process header2
+...
+
+Those might be "else if", but you get the idea.  The "process" step
+might end with exiting the routine.  So the next question is, which
+header is header1, which is header2, etc.?
+
+Let me try the following pseudo-code on the group.  Do you think it
+reflects the spec. (as revised by Jeff's remarks about 412)?
+
+=============
+    /* Test conditional headers. */
+
+    suppress-IMS = 0;
+
+    /* If-None-Match */
+    if (I-N-M is present) {
+if (any entity tags match) {
+    if (IMS-date == last-modified) {
+/* MUST NOT perform method */
+if (method == GET or HEAD)
+    return 304
+else
+    return 412
+}
+    }
+    /* Note: fall through to test other conditionals. */
+}
+else {
+    /* no tags match; must suppress 304 (Not Modified) */
+    suppress-IMS = 1;
+}
+    }
+
+    /* If-Modified-Since */
+    if (   suppress-IMS == 0
+&& I-M-S is present
+&& method == GET
+&& IMS-date != last-modified)
+return 304
+
+    /* If-Match */
+    if (I-M is present && no entity tags match)
+return 412
+
+    /* If-Unmodified-Since */
+    if (I-U-S is present && IUS-date != last-modified)
+return 412
+
+    return process method
+================
+
+One nit from 14.26 If-None-Match
+       Instead, if the request
+    method was GET or HEAD, the server SHOULD respond with a 304 (Not
+    Modified) response, including the cache-related entity-header fields
+    (particularly ETag) of one of the entities that matched.
+
+The description of If-Modified-Since says it applies to GET, but when
+it's used in conjunction with If-None-Match it evidently also applies
+to HEAD.  Is that what is intended?  Should something in that regard
+be said in the I-M-S description?
+
+Dave Kristol
+
+
+

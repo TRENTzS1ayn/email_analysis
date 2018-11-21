@@ -1,0 +1,104 @@
+docno="lists-013-8062336"
+received="Mon Mar 15 13:31:18 2004"
+isoreceived="20040315183118"
+sent="Mon, 15 Mar 2004 18:31:16 +0000"
+isosent="20040315183116"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="LWS around header names"
+id="20040315183116.GC9731@mail.shareable.org"
+charset="usascii"
+expires="1"
+
+To:ietf-http-wg@w3.org
+
+
+
+Apache was recently changed to skip LWS (more specifically, SP and
+HT) characters between the field name and colon in a HTTP header.
+
+Previously, Apache would treat this header as having a name including
+the space character, "Authorization " (!):
+
+    Authorization : mumble
+
+Current versions treat it as a header with name "Authorization".
+
+This change was made because someone could send a message with a
+header like that through Apache's proxy, and the proxy would fail to
+recognise that header.
+
+This change to Apache raising several questions about the syntax of
+HTTP headers, particularly as Apache was changed to look for LWS and
+ignore it there, yet many other servers I have looked at (Squid,
+thttpd, phttpd, lighttpd) assume a field-name is followed immediately
+by the colon.
+
+    1. Is LWS permitted between the field-name and colon?
+
+       The grammar of RFC 2616 suggests that it is, because ":" is a
+       separator character, and thus the rule for implied LWS between
+       a token and a separator applies
+
+       The wording suggests otherwise, although it is not explicit:
+
+          Each header field consists of a name followed by a colon
+          (":") and the field value. Field names are
+          case-insensitive. The field value MAY be preceded by any
+          amount of LWS, though a single SP is preferred.
+
+       The wording explicit states LWS is permitted after the colon,
+       suggesting that the intention is that it's not permitted before
+       the colon.
+
+       Many authors have taken that interpretion, resulting in most of
+       the servers I looked at not accepting LWS before the colon.
+       (They should probably reject the request, but all of them treat
+       it as an unknown header name including a space in the name token).
+
+       Apache now, and Mozilla, accept LWS at that position.
+
+    2. What about LWS before the field-name?
+
+       At first sight, this doesn't make sense: LWS at the start of
+       the line indicates folding.  However, all implementations I looked at
+       accept a line beginning with LWS immediately after the
+       Request-Line or Status-Line.  Some of them treat the initial LWS
+       as part of the field-name (they don't enforce the limited character
+       range of tokens), or they skip the LWS.
+
+       Apache doesn't look for and ignore LWS prior to the first field-name.
+       Neither do Squid, thttpd or lighttpd.  Mozilla and phttpd do.
+
+       Technically, the grammar disallows LWS before the field-name:
+       Implied LWS is only implied _between_ words and separators.
+
+Both of these inconsistencies between programs, and also that lone CR
+is treated as LWS by some and not others, lead to potential security
+holes due to non-compliant messages that claim to be HTTP/1.1.
+Although it isn't the standard's role to state how a program should
+respond to every kind of invalid message, it would be good to clarify
+these points because they do have security implications (which was
+Apache's stated reason for their change):
+
+   1. Whether LWS is actually permitted between the field-name and colon.
+      (Grammar says it is; wording suggests it isn't.  Implementations vary).
+
+   2. Whether LWS is actually permitted before the field-name.
+      (Grammar says it isn't.  Implementations vary).
+
+   3. That lone CR in a line is explicitly not allowed and SHOULD (or
+      MUST?) be rejected, for the specific reason that implementations
+      vary as to whether it is treated as LWS, which has security
+      implications for programs which must match on the field-name.
+
+   4. That invalid field-names (such as containing control characters
+      or LWS) SHOULD (or MUST?) be rejected.
+
+Just a few little thoughts.  The most immediate question is number 1,
+as implementations vary in their interpretation of the standard on that.
+
+-- JAmie
+
+
+

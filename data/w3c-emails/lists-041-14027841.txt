@@ -1,0 +1,134 @@
+docno="lists-041-14027841"
+received="Mon Oct 21 04:47:55 2002"
+isoreceived="20021021084755"
+sent="Mon, 21 Oct 2002 10:47:10 +0200"
+isosent="20021021084710"
+name="Julian Reschke"
+email="julian.reschke@gmx.de"
+subject="RE: Interop issue: how can clients force authentication?"
+id="JIEGINCHMLABHJBIGKBCAEOFFJAA.julian.reschke@gmx.de"
+charset="us-ascii"
+inreplyto="4073DA40-E11F-11D6-8202-0003931036B4&#64;adobe.com"
+expires="-1"
+
+To:<w3c-dist-auth@w3.org>
+
+
+
+Dan,
+
+a few comments:
+
+- trying to set a dead property before going on with resource modifications
+certainly is interoperable,
+
+- I don't think that the information "which methods can I invoke with the
+current credentials" belongs into a live property -- it certainly sounds
+like an additional optional REPORT (for which support can be detected using
+DAV:supported-report-set),
+
+- I've got the feeling that this isn't how authentication should work in
+HTTP. Either you are authenticated, or you aren't. If your current
+privileges are not sufficient for a specific method, you'll get a 403. IMHO,
+if a client thinks that it might succeed with different credentials, it
+should be initiate the new authentication itself.
+
+Julian
+
+--
+<green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+> -----Original Message-----
+> From: w3c-dist-auth-request@w3.org
+> [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Dan Brotsky
+> Sent: Wednesday, October 16, 2002 5:52 PM
+> To: w3c-dist-auth@w3.org
+> Cc: Dan Brotsky
+> Subject: Re: Interop issue: how can clients force authentication?
+>
+>
+>
+> The problem: Before starting a sequence of requests on a resource, a
+> client wants to ensure that it is authenticated as a principal who is
+> authorized to perform all the various methods in the sequence.  If it
+> is not so authenticated, it wants to be rechallenged so it can
+> reauthenticate.
+>
+> The proposal (with thanks but no blame to Julian): The client sends a
+> (probably unauthorized) request to PROPPATCH the DAV:authorized-methods
+> property of the resource with an methods element containing a
+> checkauthorization element and elements for each of the methods it
+> wishes to use.
+>
+>    <!ELEMENT methods (checkauthorization? options? get? put? mkcol?
+> lock? ...) >
+>    <!ELEMENT checkauthorization EMPTY >
+>    <!ELEMENT options EMPTY >
+>    <!ELEMENT get EMPTY >
+>    ...
+>    (extra credit: guess who desperately needs Julian, Stefan, and Geoff
+> to fix his XML...)
+>
+> In the wonderfully-future-compliant case: the server actually looks at
+> the value of the property specified, and continues to challenge (401)
+> the client until the client authenticates as a user who is actually
+> authorized to perform all those methods on that resource.  At that
+> point the server return 409 because (ha!) DAV:authorized-methods is
+> actually a read-only property.
+>
+> In the currently compliant server case: the server just
+> authenticates/authorizes the user for the PROPPATCH on the resource,
+> and then either sets the (dead) property or refuses the request (403,
+> presumably), because the user is trying to set a property in the DAV:
+> space that's not mentioned in the current version of the spec. :^)
+>
+> ----------
+>
+> PROPOSED LANGUAGE (first shot, sort of):
+>
+> - Define the property DAV:authorized-methods as a live property whose
+> value is a methods element.
+>
+> - A server SHOULD return, as the result of a PROPFIND on
+> DAV:authorized-methods, EITHER the set of methods that the requesting
+> principal is authorized for over that resource OR 404 Not Found
+> (meaning the server doesn't want to or is unable to tell you).
+>
+> - A server MAY treat DAV:authorized-methods as a dead property (for
+> backward compatibility).
+>
+> - If a client attempts to PROPPATCH the value of
+> DAV:authorized-methods, it MUST use a checkauthorization element as the
+> first member of the property, and it MUST include all the methods that
+> it want to check authorization for.
+>
+> - Servers SHOULD respond to client attempts to PROPPATCH the value of
+> DAV:authorized-methods by responding with 401 until the client
+> authenticates as a principal authorized to perform all such methods on
+> the target resource (if there were a target resource).
+>
+> - Servers MAY respond to client attempts to PROPPATCH the value of
+> DAV:authorized-methods as if DAV:authorized-methods were a dead
+> property.
+>
+> ----------
+>
+> Some impressions and issues:
+>
+> 1. Sheesh.  What a hack.  But at least it covers the fairly common case
+> of servers that authorize LOCK, PUT, PROPPATCH, UNLOCK (and usually
+> DELETE) the same way.  Those servers just treat the new property as
+> dead, and clients get what they want.
+>
+> 2. What exactly happens if you PROPPATCH an URL that's not bound to a
+> resource, anyway?  That's going to be a very common case if you were
+> planning to LOCK the resource first, and you probably don't want the
+> server creating the resource on the PROPPATCH.
+>
+> OK, folks, have at it! :^)
+>
+>      dan
+>
+
+
+

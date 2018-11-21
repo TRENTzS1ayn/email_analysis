@@ -1,0 +1,142 @@
+docno="lists-010-5917002"
+received="Mon Aug  5 14:43:50 1996"
+isoreceived="19960805184350"
+sent="Mon, 5 Aug 1996 14:40:47 0700"
+isosent="19960805214047"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="Sticky headers and pipelining (was: Sticky header draft &ndash;&ndash; as an attachment)"
+id="c=US%a=_%p=msft%l=RED-77-MSG-960805214047Z34049@tide19.microsoft.com"
+expires="1"
+
+
+To: 'Jeffrey Mogul'<mogul@pa.dec.com>
+Cc: 'http-wg'<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+
+>----------
+>From: Jeffrey Mogul[SMTP:mogul@pa.dec.com]
+>Subject: Re: Sticky header draft -- as an attachment 
+>
+>Your draft says:
+>
+>    The negotiation of the sticky headers option may take place on any
+>    request sent over a persistent connection. The client may add the
+>    connection-token "Sticky" to the Connection header in a request; if the
+>    server accepts the use of sticky headers, it responds with the same
+>    token in the Connection header of its response.
+>    
+>    Once the use of sticky headers has been negotiated, specified message-
+>    headers (see section 4.1 and 4.2 of [1]) are remembered from message to
+>    message, so that they need to be transmitted in a message only if they
+>    have changed since the last message. The use of sticky headers continues
+>    until the connection is closed, without further need for the "Sticky"
+>    connection-token on each request.
+>
+>I think this leads to an ambiguous situation when the client is
+>pipelining requests.
+
+>  We identified this ambiguity at the meeting
+>we had in January of the persistent-connections subgroup.
+>
+>Consider this **somewhat contrived** example
+>
+>     client:
+>     ## requesting first object, negotiating sticky headers ##
+>     GET / HTTP/1.1<CRLF>
+>     Accept: text/html<CRLF>
+>     Accept-Language: en<CRLF>
+>     Connection: sticky<CRLF>
+>     <CRLF>
+>
+>     server:
+>     HTTP/1.1 200 OK<CRLF>
+>     MIME-Version: 1.0<CRLF>
+>     Connection: sticky<CRLF>
+>     Content-Type: text/html<CRLF>
+>     Content-Length:94<CRLF>
+>     <CRLF>
+>     <94 bytes body data here>
+>
+>     client:
+>     ## requesting second object, changing one of the to-be-sticky headers ##
+>     GET /a.gif HTTP/1.1<CRLF>
+>     Accept: image/gif<CRLF>
+>     <CRLF>
+>     ## requesting 3rd object, again changing 1 of the to-be-sticky headers
+>##
+>     GET /b.jpeg HTTP/1.1<CRLF>
+>     Accept: image/jpeg<CRLF>
+>     ## requesting 4th object, not sending one of the to-be-sticky headers ##
+>     GET /c.gif HTTP/1.1<CRLF>
+>     <CRLF>
+>
+>OK, so what are the effective request headers for the 4th request?
+>Your design implicitly disallows the client from assuming "stickiness"
+>until it has received
+>     Connection: sticky<CRLF>
+>from the server.  However, because there is no way for the server
+>to tell whether the client received that header before or after
+>sending the fourth request, the server cannot unambiguously know
+>what the client means (i.e., should the fourth request be interpreted
+>as having "Accept: image/jpeg" or not?)
+
+I don't see the ambiguity in this example. The fourth request should be
+interpreted as having
+Accept: image/jpeg
+and the second, third and fourh requests all should be interpreted as
+having
+Accept-Language: en
+The server doesn't need to know when the client received
+Connection: sticky
+instead, the client has to send requests that are unambiguous. I.e.,
+until it receives the
+Connection: sticky
+it sends ALL headers that have ever been sent, which is unambiguous --
+even if the server thinks that the client *could* be omitting headers,
+none are actually omitted, so the server won't be confused. The server
+should remember the headers, regardless of what it thinks the client
+knows, so that when the client starts omitting headers, the server has
+the previous value to add to the message.
+
+I think maybe your example was just buggy (or not clear to me). If the
+client had sent the second request _before_ it got the reply from the
+server, then it would have been ambiguous as to whether
+"Accept-Language: en" was omitted from the request. So, in such a case,
+it should either send
+Accept-Language:
+if there wasn't supposed to be any Accept-Language header, or
+Accept-Language: en
+if it was supposed to have remained the same as the previous message.
+
+>
+>One could argue that this kind of thing could never happen in practice,
+>and so my contrived example (which admittedly is pretty foolish on the
+>part of the client) is not worth discussing.  But the race condition
+>seems to be intrinsic in the current draft design, and I'd feel more
+>confident if there were either a proof that it is not really a problem,
+>or a design modification that prevented the ambiguity.
+
+I agree that something exlicit should be said about pipelining.
+>
+>I can see several possible ways to solve this:
+>(1) Explicitly declare that the client, after having sent
+>"Connection: sticky", may start omitting headers as soon as it
+>receives the server's "Connection: sticky" response, but MUST
+>NOT change any such headers before receiving a response to the
+>first request sent *after* it has received that "Connection:
+>sticky" response from the server.  This rule has to be
+>interpreted "per connection".  (If you draw out the timing
+>diagram, you can see that this will always avoid the race
+>condition.)
+
+I agree it needs to be per connection. I don't see why it has to wait
+the extra round trip. I think the modification above solves the problem.
+If a client were _required_ to omit headers that were the same as in the
+last message once it had received the "Connection: sticky" from the
+server, then I think there would need to be tighter synchorization.
+>
+
+
+

@@ -1,0 +1,84 @@
+docno="lists-012-13327614"
+received="Thu Mar 23 23:49:51 2000"
+isoreceived="20000324044951"
+sent="Thu, 23 Mar 2000 15:48:24 0800"
+isosent="20000323234824"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Proxies and incorrect ContentLength"
+id="200003232348.PAA03864@wera.pa.dec.com"
+inreplyto="AA4C152BA2F9D211B9DD0008C79F760A95D74C&#64;odin.cromwellmedia.co.uk"
+expires="1"
+
+
+To: Miles Sabin<msabin@cromwellmedia.co.uk>
+Cc:http-wg@hplb.hpl.hp.com
+
+    I'm looking for a brief rundown on best-practice for how non-
+    caching, limited-buffering, proxies should handle origin server
+    responses with incorrect Content-Length headers.
+
+We decided, when editing the HTTP/1.1 spec, NOT to specify
+the behavior of the protocol in every possible error condition,
+because there are so many possible error cases (since there
+are so many different headers).
+
+Instead, I think one should fall back on one or both of two
+very basic principles, when looking for guidance about how
+to make an implementation decision (and when you are sure
+that the spec itself provides no guidance!):
+
+(1) The Robustness Principle, as explained in RFC791 (the
+IPv4 specification), section 3.2:
+  The implementation of a protocol must be robust.  Each implementation
+  must expect to interoperate with others created by different
+  individuals.  While the goal of this specification is to be explicit
+  about the protocol there is the possibility of differing
+  interpretations.  In general, an implementation must be conservative
+  in its sending behavior, and liberal in its receiving behavior.  That
+  is, it must be careful to send well-formed datagrams, but must accept
+  any datagram that it can interpret (e.g., not object to technical
+  errors where the meaning is still clear).
+
+To apply this to an HTTP proxy, I would focus on the "be liberal
+in its receiving behavior" - i.e., don't drop responses because
+they appear to be illegal.  In fact, I don't think we have ever
+defined a status code that a proxy could use to say "I dropped
+the response you were expecting because it seemed illegal to me",
+and it seems like a bug to silently drop (or truncate) responses.
+
+(2) The (less formally stated) rule for HTTP proxies:
+It's always allowed to act like a tunnel.
+
+RFC2616 says
+tunnels are used when the
+   communication needs to pass through an intermediary (such as a
+   firewall) even when the intermediary cannot understand the contents
+   of the messages.
+
+which arguably applies in this case.
+
+However, there is a catch: if the proxy has modified the client's
+original request (e.g., to convert a simple request into a Range
+request), then it has already blown its chance to act like a
+true tunnel.  I'm not sure what to do in this case.
+    
+You suggest, as one option:
+
+  Forward any content overrun, then close the connection.
+    Problematic for HTTP1.0 Keep-Alive clients which might
+    attempt to interpret the overrun as the headers of a
+    subsequest response; technically illegal for an HTTP1.1
+    proxy. OTOH, the proxy would be forwarding stuff which is
+    no more broken than would have been received had the origin
+    server been contacted directly.
+
+This seems like the most straightforward "act like a tunnel"
+approach.  As you point out, it's no worse than if the proxy
+weren't involved in the first place, which is really the
+implication of the Robustness Principle ("first, do no harm").
+
+-Jeff
+
+
+

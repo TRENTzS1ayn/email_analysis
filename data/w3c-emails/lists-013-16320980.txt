@@ -1,0 +1,137 @@
+docno="lists-013-16320980"
+received="Tue May 21 22:54:32 1996"
+isoreceived="19960522025432"
+sent="Tue, 21 May 1996 19:53:57 0700"
+isosent="19960522025357"
+name="Bennet Yee"
+email="bsy@cs.ucsd.edu"
+subject="Re: Missing requirements"
+id="199605220254.TAA26484@work.ucsd.edu"
+inreplyto="9605201546.AA01595&#64;mordred.sware.com"
+expires="1"
+
+
+To: Charles Watt<watt@sware.com>
+Cc:ietf-tls@w3.org
+
+
+In message <9605201546.AA01595@mordred.sware.com>, Charles Watt writes:
+> 
+> ....  The group's focus seems to be "let's slam something together 
+> ASAP so all of our browsers will interoperate, and maybe what we wind up 
+> with will also be useful to other applications".  Although I too would 
+> like to see security deployed ASAP, I find this approach short sighted.  
+> In order to truly support electronic commerce applications, we shall 
+> need secure systems, not just secure applications.  
+
+To build secure systems, we would need to do a lot more work.  Do you
+mean Orange Book B level at least?  I doubt that you meant to replace
+Windows / MacOS / Unix with an alternative OS.  In this context, what
+do you mean by "secure system"?
+
+> As an admittedly biased example, SecureWare's Hannah product 
+> (see http://www.secureware.com/papers for a white paper and protocol
+> specifications) creates a secure system by providing transport 
+> layer security for ALL network communications in a manner that is 
+> transparent to the applications -- i.e., existing applications are 
+> secured without modification.  It then controls access to transport 
+> layer networking (who can access which applications, what security 
+> services must be enforced, which algorithms and key sizes must be 
+> used, etc...) through ties to the system's underlying security policy.  
+> Although a security-aware user or application can request specific 
+> security services and algorithms, such requests cannot override 
+> security policy.
+
+From the white paper, it appears that Hannah "creates a secure system"
+only in the sense that it tries to mediate in all network traffic and
+provides some node management functionality.  It is not multi-level
+security, obviously, since there's no data labelling and the node
+management functionality apparently provide basic, low level access
+control for network connections.
+
+I briefly looked at http://www.secureware.com/papers/pakmp/pakmp.ps,
+and have some questions.  It is a 65 page document that dives quickly
+into the layout of the packets and does not seem to include a high
+level description of the cryptographic protocols used.
+
+On page 13, it states that Family C "provides key management using
+Diffie-Hellman", and that "authentication is achieved by having each
+side encrypt a nonce with the public key of the peer and having the
+peer return the decrypted value."  Presumably with RSA, since that
+paragraph mentions RSA later, and presumably the nonce, both
+RSA-encrypted and not, are actually sent over a channel encrypted with
+the key derived in the D-H exchange.  Later sections that I found on
+Family C had only "TBD" (4.4, pg 46).
+
+Now, this sort of authentication is subject to a man-in-the-middle
+attack, unless the D-H keys are somehow certified and the RSA
+certificates are linked to the D-H certificates.  This is a very
+important requirement that does not seem to be stated anywhere.
+Now, pg 22 mentions PKCS3, so it does not appear that you're using
+the pair-wise fixed keys scheme but rather D-H with global p,g to
+obtain a shared secret the value of which neither side controls.
+
+Without something stronger than plain D-H, we can have the following
+scenario: Alice and Bob wishes to communite.  Guy is the man in the
+middle.  G pretends to be B to A (denoted G_B), and at the same time
+pretends to be A to B (G_A).  G performs two independent D-H key
+exchanges with A and B (as G_B and G_A resp) to obtain two shared
+secrets k_a = g^{r_a r_{g_b}} mod p and k_b = g^{r_b r_{g_a}} mod p
+respectively.  Now, suppose A wishes G_B to authenticate his identity
+as B.  G_B can not do this directly, since he lacks Bob's RSA private
+key (d_b).  However, when A sends her nonce r_n^{e_b} mod n_b, it is
+over the channel encrypted with k_a -- the D-H derived key Alice
+believes that she shares with Bob.  Guy can easily obtain r_n^{e_b}
+mod n_b, of course, since he has k_a.  Now G re-encrypts this value
+with k_b and sends it to B (acting as G_A).  B decrypts using secret
+key cryptosystem key k_b, decrypts using RSA to obtain r_n, and
+replies with r_n over his secret-key protected channel.  Straight to
+G, who can forward it to A.
+
+This is a simple, standard textbook-example MITM attack that I'd
+expect any of my students to understand and avoid.  Perhaps your
+document is in error and does not actually describe the real
+cryptographic protocol family C as originally designed.
+
+In any case, a clearer document that describes the protocols involved
+rather than a which-byte-goes-where document (which is more useful to
+an implementer than a cryptographer) would be nice.
+
+I haven't looked at any of the other families A-G (or whatever the
+highest letter is); C just jumped out at me.
+
+> In order to provide such pervasive security, Hannah implements
+> transport security services within the protocol stack.  This can best 
+> be achieved when there is clean separation between the actual transport
+> layer security protocol and its supporting key management and 
+> authentication -- the approach taken by SDNS's SP4, OSI's TLSP, and 
+> other previous attempts to "standardize" transport layer security.
+
+Maybe Microsoft wouldn't care (;-), but Hannah's implementation -- as
+described in the white paper -- requires in-kernel modifications on
+Unix hosts (Hannah is only available HPUX and SCO -- for Windows
+Hannah takes over the Winsock DLL to control the network connections).
+This is contradictory to one of the (perhaps implicit) goals of being
+usable on all popular systems.  Granted, the Hannah protocols may be
+implemented as a user-level library just like SSL/PCT/etc, but in that
+case the advantage of being pervasive (and thus can handle all network
+connections by mandate) disappears.
+
+-bsy
+
+p.s.: the Hannah protocol description appears to be missing a
+requirement to verify that the cert matches the DNS name somehow.  For
+web use, we wouldn't want a certified but malicious web server to be
+providing Web documents that are purportedly from e.g. SecureWare
+using DNS spoofing tricks and its own certificate(s), which the users
+(or users' Web browsers) would not be able to examine in a completely
+transparent scheme.
+
+--------
+Bennet S. YeePhone: +1 619 534 4614    Email: bsy@cs.ucsd.edu
+
+Web:http://www-cse.ucsd.edu/users/bsy/
+USPS:Dept of Comp Sci and Eng, 0114, UC San Diego, La Jolla, CA 92093-0114
+
+
+

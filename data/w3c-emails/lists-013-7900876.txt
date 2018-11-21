@@ -1,0 +1,101 @@
+docno="lists-013-7900876"
+received="Fri Mar 12 06:41:54 2004"
+isoreceived="20040312114154"
+sent="Fri, 12 Mar 2004 11:41:53 +0000"
+isosent="20040312114153"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Can the response entity be transmitted before all the request entity has been read?"
+id="20040312114153.GA17780@mail.shareable.org"
+charset="usascii"
+expires="1"
+
+To:ietf-http-wg@w3.org
+
+
+
+Dear all,
+
+I have been implementing an HTTP/1.1 server which consumes the request
+entity lazily, as need by the application.
+
+If the application decides that it can generate some or all of the
+response before it finishes reading the whole request entity, is that
+allowed?
+
+Can the application generate all the response without reading any of
+the request entity and without sending 100 (Continue) - is that
+allowed?
+
+I've been studying RFC 2616 and don't see an answer.
+
+RFC 2616, 8.2.2:
+
+  8.2.2 Monitoring Connections for Error Status Messages
+
+     An HTTP/1.1 (or later) client sending a message-body SHOULD monitor
+     the network connection for an error status while it is transmitting
+     the request. If the client sees an error status, it SHOULD
+     immediately cease transmitting the body. If the body is being sent
+     using a "chunked" encoding (section 3.6), a zero length chunk and
+     empty trailer MAY be used to prematurely mark the end of the message.
+     If the body was preceded by a Content-Length header, the client MUST
+     close the connection.
+
+I'm not entirely sure if this means _network_ errors (such as TCP
+shutdown or reset), or HTTP Error Status codes 4xx and 5xx.  I guess
+it means HTTP Error Status codes, because of the implication that the
+connection might continue.
+
+1. Regarding my first question, whether the response can be partly
+transmitted before all of the request entity has been read.
+
+If the above section means HTTP Error Status codes, then the answer is
+no if the status is an error code.  In other words, if the server
+wanted to generate an error response, but use data from the request
+entity to do it, incrementally, it would have to read all of the
+request entity that it needs before transmitting any of the response.
+Is this right?
+
+What is the answer if the status is not an error code.  Can the server
+begin transmitting the response entity before all of the request
+entity has been read?  (Assume that the server is intelligent enough
+to avoid deadlock by always reading request data when it arrives).
+
+One simple example would be a server which serves the file it is being
+transmitted, or a transformation of it.  It would be quite nice to
+upload a file, and have the transformed version generated
+incrementally and downloaded as the upload proceeds.  (This is
+obviously possible using two separate connections, but my question is
+is it supported by HTTP/1.1 over a single connection?)
+
+2. Regarding my second question, whether a non-error response can be
+safely transmitted without reading the request entity.  Is it allowed?
+Does the connection have to be made non-persistent; i.e. closed afterwards?
+
+If 100 (Continue) isn't transmitted, some clients may start
+transmitting their request entities anyway.  Therefore there's no way
+for the server to determine whether data received from the client is
+the request entity or the next request, if it wants to try avoiding
+100 (Continue) to produce a non-error response without using the
+request entity.
+
+This comes up because the server will transmit 100 (Continue) only
+when the application begins to read the request entity via the server,
+naturally.  If the application generates a 200 OK response complete
+with entity, and has not read the request entity, what must the server
+do?  What should it do?
+
+Does it have to read the request entity anyway if it wants to keep the
+connection persistent?  (If so, it might be worth doing that if the
+request entity is known to be very small).
+
+Or can it avoid reading the request entity completely, by not sending
+100 (Continue) and somehow determining when the next request arrives
+on that connection.  Is that possible?
+
+Thanks for your answers :)
+-- Jamie
+
+
+

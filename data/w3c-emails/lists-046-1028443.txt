@@ -1,0 +1,178 @@
+docno="lists-046-1028443"
+received="Wed Jun  5 04:40:16 2002"
+isoreceived="20020605084016"
+sent="Wed, 05 Jun 2002 01:42:05 -0700"
+isosent="20020605084205"
+name="Aleksey Sanin"
+email="aleksey@aleksey.com"
+subject="Re: Provokant proposal on Exclusive C14n"
+id="3CFDCEDD.407@aleksey.com"
+charset="us-ascii"
+inreplyto="5880956.1023272799&#64;clouseau"
+expires="-1"
+
+
+To: Christian Geuer-Pollmann<geuer-pollmann@nue.et-inf.uni-siegen.de>
+Cc: Joseph Reagle<reagle@w3.org>, John Boyer<jboyer@PureEdge.com>,"Donald  E. Eastlake 3rd"<Donald.Eastlake@Motorola.com>,w3c-ietf-xmldsig@w3.org
+
+
+Yes, I agree with this. But I do not like the case
+when we have following document
+
+    <foo:Something xmlns:foo="http://example.org/foo">
+        <bar:Something xmlns:bar="http://example.org/bar" />
+    </foo:Something>
+
+the XPath expression looks like
+
+    self::bar:Something
+
+and the canonicalized output looks like
+
+    xmlns:foo="http://example.org/foo"
+        <bar:Something xmlns:bar="http://example.org/bar" 
+xmlns:foo="http://example.org/foo" />
+   
+ From my point of view it should look have *only* <bar:Somehting />
+
+        <bar:Something xmlns:bar="http://example.org/bar" />
+
+So the suggestion is to include all visibly utilized namespace nodes and 
+simply
+do not check namespace nodes for presence in the input nodes set.
+
+Aleksey.
+
+Christian Geuer-Pollmann wrote:
+
+>
+>
+> Right. What I suggest is to include ALL namespace nodes (not the ones 
+> from the DOM model but the ones from the XPath model). Every namespace 
+> node in an ancestor should effect the current node, not only the 
+> namespaces nodes whose owner element is in the document subset.
+>
+> Thanks,
+> Christian
+>
+> --On Mittwoch, 5. Juni 2002 01:25 -0700 Aleksey Sanin 
+> <aleksey@aleksey.com> wrote:
+>
+>> I like this proposal for its simplicity but I have one small correction:
+>>
+>>   "If a document subset is to be canonicalized using 'Exclusive C14n',
+>>   all namespace nodes for all element nodes in the document subset
+>>   are included in the document subset prior the serialization process."
+>>
+>> (the difference is that we include only namespace nodes for the
+>> nodes from the input nodeset, not all nodes from the document).
+>> This is similar to the current XPath filter 2 subtrees proposal and
+>> it should simplify implementations and potentially improve performance.
+>>
+>>
+>> Aleksey.
+>>
+>>
+>> Christian Geuer-Pollmann wrote:
+>>
+>>>
+>>> Hi all,
+>>>
+>>> first a big thank you to Merlin who made the very cool edge-cases for
+>>> c14n and exclC14n to understand how these standards handle the
+>>> namespace stuff. Till a few weeks ago, I did not understood that a
+>>> properly choosen document subset (in c14n) can exclude namespaces from
+>>> the documents subset. For me, namespaces were not 'regular' nodes but
+>>> they were inseparable twisted with the document.
+>>>
+>>> For "Canonical XML", I see that the possibility to include only
+>>> particular namespaces to a document subset is really cool if a
+>>> transfroms author wants to create context-independent document subsets.
+>>>
+>>> For "Exclusive Canonical XML", I don't see why we have to inherit the
+>>> (complicated) namespace handling from "Canonical XML".
+>>>
+>>> Provokant proposal: If the PR-Status of exclC14n allows this
+>>> (substantial) change, I want to propagate to canonicalize document
+>>> subsets as follows:
+>>>
+>>>  "If a document subset is to be canonicalized using 'Exclusive C14n',
+>>>   all namespace nodes in the original document are included in the
+>>>   document subset prior the serialization process; this inclusion is
+>>>   done regardless whether a namespace node is already in the subset
+>>>   or if it's excluded from the subset."
+>>>
+>>> After that 'pre-processing', the exclusive c14n process is started
+>>> with the following change: All passages in the text which refer to
+>>> namespace nodes which are not in the document subset can be omitted.
+>>>
+>>> Why do I suggest that: For standard c14n, it was necessary to be able
+>>> to omit namespace nodes from the document subset. For exclusive c14n,
+>>> we have (1) the mechanism of the "InclusiveNamespaces PrefixList" and
+>>> (2) the visibly-utilizes mechanism. I think that such a change will
+>>> make exclusive c14n reliable and consistent (not consistent to the
+>>> c14n REC but consistent to what c14n should really do).
+>>>
+>>> I think canonicalization should serve two purposes:
+>>>
+>>> (1) create a bit-accurate representation of a document
+>>>     or document subset for use in cryptographic algorithms
+>>>     like a message digest
+>>>
+>>> (2) allow the verifier of a signature to take these signed
+>>>     octets and re-parse the octets to get back a
+>>>     "trusted" XML structure which can be reliably used in
+>>>     the application. This goes to "process-what-is-signed".
+>>>     But with the current processing model where namespaces
+>>>     can be excluded from the document subset, it's possible
+>>>     that a "reparse signed contents" step does encounter
+>>>     'illegal' XML.
+>>>
+>>> I had no better word as 'illegal'. I know that it's possible that the
+>>> signed contents are not well-formed, e.g. like this:
+>>>
+>>>      <A /><B />
+>>>
+>>> or like this
+>>>
+>>>      foo text <A />
+>>>
+>>> but these are problems which can be handled easily by "wrapping" the
+>>> octets into a dummy root element. But if a namespace is used e.g. by
+>>> an element but the namespace decl does not appear, this can't be
+>>> handled in any way, and from the semantics point, it's even completely
+>>> meaningless:
+>>>
+>>> <foo:A>
+>>>   <foo:B xmlns:foo="http://foo" />
+>>> </foo:A>
+>>>
+>>> In this case, the namespace is (maybe accidently?) omitted from the
+>>> foo:A element, but what happens if we have such an input document:
+>>>
+>>> <foo:Contract  xmlns:foo="http://companyA.com">
+>>>   <foo:Detail xmlns:foo="http://companyB.com" />
+>>> </foo:Contract>
+>>>
+>>> and I choose a rogue document subset which results in
+>>>
+>>> <foo:Contract  xmlns:foo="http://companyA.com">
+>>>   <foo:Detail />
+>>> </foo:Contract>
+>>>
+>>> That's so bad; I think that the above proposal will stop that kind of
+>>> cheating: foo:Detail visibly utilizes foo and so
+>>> xmlns:foo="http://companyB.com" is output in the exclusive canonical
+>>> form, regardless whether the XPath transform author did include it or
+>>> not.
+>>>
+>>>
+>>>
+>>> Kind regards,
+>>> hope that you all don't eat me alive for this ;-)
+>>>
+>>> Christian
+>>
+
+
+

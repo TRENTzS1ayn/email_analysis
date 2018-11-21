@@ -1,0 +1,315 @@
+docno="lists-020-14880451"
+received="Fri Jun 11 19:37:32 2004"
+isoreceived="20040611233732"
+sent="Fri, 11 Jun 2004 16:38:56 -0700"
+isosent="20040611233856"
+name="Kevin Wilkinson"
+email="wilkinson@hpl.hp.com"
+subject="Re: requirement 3.10 (was Re: Minutes of RDF DAWG telecon Tuesday   2004-06-08   for review)"
+id="40CA4290.FE04BF42@hpl.hp.com"
+charset="us-ascii"
+inreplyto="20040611043308.GD12275&#64;w3.org"
+expires="-1"
+
+
+To: RDF Data Access Working Group<public-rdf-dawg@w3.org>
+
+
+it's really up to the query processor to determine how/when
+the LIMIT clause can be propogated to the data servers. you're
+right that if there are dependencies (joins) across data
+sources (or clauses), then anomalies may occur and maybe the
+query processor should not propogate the LIMIT to the data servers.
+
+yes, you're right that, in my proposal, the LIMIT clause is
+not a guarantee of results, just a best effort. it goes back
+to the motivation of the requirement. if the motivation is to
+reduce query latency, e.g., for quick browsing, then propogating
+the LIMIT is desirable. if the motivation is to get a subset
+of the result set, regardless of execution time (or network
+bandwidth), then my proposal doesn't make sense. if the
+motivation is to reduce network bandwidth, as andy suggests,
+then i think my proposal does do this. 
+
+kevin
+
+
+Eric Prud'hommeaux wrote:
+> 
+> On Thu, Jun 10, 2004 at 04:36:18PM -0700, Kevin Wilkinson wrote:
+> >
+> > on specifying an upper bound ...
+> >
+> > note that federation is just the general case. the simple
+> > case has the same problem, where the simple case is a 3-tier
+> > architecture consisting of an RDF application talking
+> > to an RDF query processor talking to a database store
+> > containing RDF triples.
+> >
+> > you suggested a work-around in which the query processor can
+> > pass the LIMIT to the database and then process the results
+> > (filter/infer/whatever). if the result set size is less than
+> > the LIMIT, the query processor should discard the result and
+> > resend the query to the database with a higher LIMIT.
+> >
+> > this requires the query processor to completely buffer the
+> > result set before returning any partial result to the
+> > application (to ensure that the result set size reaches the
+> > LIMIT). is this acceptable, i.e., having to buffer the result?
+> > i thought not. it also forces a more complicated architecture
+> > on the query processor.
+> 
+> But how can you promise query satisfaction if you take advantage of
+> this upper bound? It doesn't seem sufficient to spit the query, ask
+> the for clause 1 LIMIT 10, ask for clause 2 LIMIT 10, and see if any
+> of them happen to line up.
+> 
+> I think that, if you don't assume the more complicated architecture,
+> you provide the client with only a statistical promise of success.
+> Even if you ask for clause 1 LIMIT 10 and then ask for clause 2
+> iteratively, using the bindings from the clause 1 results, you run
+> a risk that those particular clause 1 results don't happen to unify
+> with the KB answering clause 2.
+> 
+> > Eric Prud'hommeaux wrote:
+> > >
+> > > On Thu, Jun 10, 2004 at 07:06:29AM +0900, Eric Prud'hommeaux wrote:
+> > > >
+> > > > In the above, I assume tuples as the unit of measure. Rob raised
+> > > > the issue that (correct me here) the client could be doing some
+> > >
+> > > oops, sorry, make that Kevin.
+> > >
+> > > On Wed, Jun 09, 2004 at 04:12:28PM -0700, Kevin Wilkinson wrote:
+> > > >
+> > > > re: requirement 3.10, i'll restate my concern about making
+> > > > the LIMIT an exact bound on the number of "results" returned.
+> > > > i think an exact limit may have a negative impact on performance
+> > > > for a common query processing scenario. i think it should be
+> > > > an upper bound. here's why.
+> > >
+> > > I fear that this encourages returning 0 results when the results to your
+> > > federated queries didn't happen to line up. Specifics down 100 lines.
+> > >
+> > > > assumption: in a common scenario, the query processing is distributed
+> > > >    among a client module (providing a query API to an application
+> > > >    program) and one or more servers (data sources), likely accessed
+> > > >    across a network. the client module may do additional processing
+> > > >    over the results from the servers (e.g., for inferencing, union,
+> > > >    whatever) and this may add or remove results.
+> > > >
+> > > > assumption: the primary motivation of the LIMIT clause is to
+> > > >    reduce query latency for queries where the result size is unknown
+> > > >    or known to be undesirably large.
+> > > >
+> > > > to support an exact limit, the client module first decomposes the query
+> > > > and dispatches subqueries to the servers. to retrieve the results,
+> > > > the client module must open a stream connection and keep that stream
+> > > > open until the LIMIT is reached by the client module.
+> > > >
+> > > > the problems with this approach are (1) creating a stream connection
+> > > > is more expensive than returning a single batch of results (2) in the
+> > > > common case of JDBC access to a database, the server is required to
+> > > > materialize the entire result set of the subquery. so, the LIMIT clause
+> > > > cannot be extended to the servers. consequently, the application may see
+> > > > little or no reduction in query latency (which is a primary motivation
+> > > > for the LIMIT clause).
+> > >
+> > > I believe the spottiness of JDBC setMaxRows(int) implementation comes
+> > > from the lack of LIMIT in SQL92 entry or intermediate specifications.
+> > > JDBC drivers have to use server-dependent hacks to provide this
+> > > functionality.
+> > >
+> > > This argues *for* putting such a function into DAWG-QL.
+> > >
+> > > The MySQL JDBC driver could use their "LIMIT x" extension to SQL, but
+> > > it doesn't actually parse the SQL query and therefor doesn't know how
+> > > to stick the "LIMIT x" clause to implement setMaxRows or scrollable
+> > > result sets.
+> > >
+> > > This argues that even if we put it in the QL, folks might be too lame
+> > > to use it.
+> > >
+> > > > an alternative approach would allow the client module to pass a LIMIT
+> > > > clause on to the servers. the servers would then process their
+> > > > subqueries
+> > > > with that LIMIT (which could be larger than the original query LIMIT)
+> > > > and return that result as one batch to the client module.
+> > > >
+> > > > the problem with the alternative is that, if the client module does
+> > > > a lot of filtering on the partial results, then the LIMIT is not
+> > > > reached, despite the fact that are more matching results available on
+> > > > the servers.
+> > > >
+> > > > the alternative has much better behavior with respect to system
+> > > > resources and latency because it can pass the LIMIT clause to the
+> > > > servers. since this is the primary motivation for the LIMIT clause
+> > > > (faster response time), i prefer the alternative. in the case that
+> > > > the client module filters out too many results (which, i expect
+> > > > would be rare), i propose that an error condition or indicator
+> > > > be raised to the application which can then increase the LIMIT.
+> > > >
+> > > > as an aside, we chose not to support aggregates. yet, making
+> > > > LIMIT an exact bound makes it a type of aggregate query (it's
+> > > > really doing a count query).
+> > >
+> > > I'm still fuzzy on aggregate queries. Can nth queries reference
+> > > variables used in the 1st query?
+> > >
+> > > Suppose I want some people at the New York site with chronic conditions:
+> > >
+> > > SELECT (who, dept)
+> > > AT <http://example.com/personel>
+> > > FROM (who p:department dept)
+> > >      (who p:site "New York")
+> > > USING p FOR <http://example.com/p-schema>
+> > >
+> > > [ aggregate with ]
+> > >
+> > > SELECT (illness)
+> > > AT <http://example.com/medRecords>
+> > > FROM (who m:record x)
+> > >      (x m:chronic illness)
+> > > USING m FOR <http://example.com/m-schema>
+> > >
+> > > is the second "who" defined by the results of the first query?  It
+> > > seems that, regardless of whether users will know how to use them,
+> > > LIMITs on clause 1, clause 2, or the whole thing could have easily-
+> > > defined semantics. eg. A LIMIT on clause 1 controls how many whos
+> > > we are looking at. A LIMIT on clause 2 controls how many illnesses
+> > > we look FOR EACH who. A LIMIT on the whole thing controls how many
+> > > results we get back at the end of the day.
+> > >
+> > > There is no way to say how a LIMIT on the whole thing would translate
+> > > to LIMIT 1 without knowing something about the data. Perhaps each
+> > > person is allowed no more than two chronic illnesses, but the very
+> > > nature of being in New Your guarantees at least one illness.
+> > >
+> > > I think that the complexities of query federation should not prevent
+> > > our protocol/ql from having otherwise critical features. Whether LIMIT
+> > > is critical? Up to the jury.
+> > >
+> > > SPECIFYING AN UPPER BOUND
+> > >
+> > > I think the only way a federater can take advantage of the upper bound
+> > > approach is to carry the aggregate LIMIT to each of the sub clauses.
+> > > Suppose the user imposes an (aggregate) LIMIT of 10. We then search
+> > > for 10 employees in New York. We then impose the LIMIT on clause 2.
+> > > We are asking "of the 10 people I happened to bind in the first query,
+> > > give me up to 10 of their illnesses*." If illnesses are scarce (maybe
+> > > 1 in 21? not so good at stats), we are likely to return 0 answers.
+> > > This is not what the person asked for.
+> > >
+> > > Instead I think we have to do what Kevin said, keep a stream open to
+> > > the first server and keep asking the second server for matches on each
+> > > batch of results from the first server until we reach the limit or the
+> > > end of the solutions from the first server. But this implies a stream,
+> > > and that makes me think of cursors and they are mentioned in the
+> > > charter as being out of scope.
+> > >
+> > > A stateless way to do this is to passs the aggregate LIMIT to the
+> > > first (and second) server. If, at the end, we get too few results,
+> > > multiply by 10 and retry. Then multiply by 100...
+> > >
+> > > Federation isn't easy. I don't think we have to write query
+> > > specifications that make it trivial to implement federaters.
+> > >
+> > > * Names only, please; I don't want to gave the illnesses myself.
+> > >
+> > > > Eric Prud'hommeaux wrote:
+> > > > >
+> > > > > On Wed, Jun 09, 2004 at 02:07:21PM +0100, Seaborne, Andy wrote:
+> > > > > >
+> > > > > > > > -- 3.10 Result Limits
+> > > > > > > >
+> > > > > > > > straw poll: who's convinced this is a requirements? are we close
+> > > > > > > > to a decision here?
+> > > > > > > AndyS: RDQL does not have a limit. Joseki provides limits.
+> > > > > > > PatH: it could mean 2 things: I don't want more than 10 answers
+> > > > > > >   and the next ones after that or *just* 10
+> > > > > >
+> > > > > > It occurred to me that one way of differentiating between exactly 10 and
+> > > > > > more than 10 (and an unknown number) when we have "LIMIT 10" is to ask for
+> > > > > > 11.  If 11 results return up, it is more than 10.  Otherwise, it is exact
+> > > > > > and 10 or less.  This is making the (trailing) flag we discussed a matter of
+> > > > > > whether the 11th slot gets filled at all.
+> > > > > >
+> > > > > > Hence, no requirement for a special flag and the client can decide whether
+> > > > > > to ask for 11 if it needes to know the difference.  It still might be a
+> > > > > > better design overall to have a flag.
+> > > > >
+> > > > > This came up during the telecon. I think the outcome was that it
+> > > > > depended on what extra bit you had in the respones. It could be
+> > > > > a boolean say there were more results; it could be a count of
+> > > > > those results:
+> > > > >
+> > > > > query   response        server  network
+> > > > > limit   extra bit       effort  burden
+> > > > > -----   ---------       ------  ------
+> > > > > none    none            full    full
+> > > > > 10      none            light1  light
+> > > > > 10      boolean         light2  light
+> > > > > 11      none            light2  light
+> > > > > 10      count           full    light
+> > > > >
+> > > > > where "light" meant the effort was shortcutted by the limit.
+> > > > > "light2" means the server had to compute one more tuple (or
+> > > > > the existance of) than "light1".
+> > > > >
+> > > > > In the above, I assume tuples as the unit of measure. Rob raised
+> > > > > the issue that (correct me here) the client could be doing some
+> > > > > inferencing which would give more [or fewer, i note] results than
+> > > > > specified in the limit. I think that's fine, that it does't reduce
+> > > > > the utility of specifying a limit.
+> > > > >
+> > > > > > > AndyS: seen this to prevent error conditions
+> > > > > > > EricP: SQL has it
+> > > > > > > RobS: there are other things in SQL that we don't have
+> > > > > > > Steve: can affect latency
+> > > > > > > AndyS: can be either a query or a protocol issue
+> > > > > > > EricP: arguing from the point of view of a straightforward
+> > > > > > >   implementation (for both client and server)
+> > > > > > > Yoshio: but then we need a way to specify the snapshot of the database
+> > > > > > > RobS: what is understood as a "result"
+> > > > > > > Kevin: do we want an exact upper bound? could cause more impl burden on
+> > > > > > > the server
+> > > > > > > DanC: does "upper bound" appeal to somebody?
+> > > > > > > Kevin: yes
+> > > > > > > FarrukhNajmi: +1
+> > > > > > > PatH: DQL could, by request, give a count of results
+> > > > > > > DanC: motivation to spend time on this is in discussing/bounderaries
+> > > > > > > with
+> > > > > > > other groups
+> > > > >
+> > > > > --
+> > > > > -eric
+> > > > >
+> > > > > office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+> > > > > cell:   +1.857.222.5741
+> > > > >
+> > > > > (eric@w3.org)
+> > > > > Feel free to forward this message to any list for any purpose other than
+> > > > > email address distribution.
+> > >
+> > > --
+> > > -eric
+> > >
+> > > office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+> > > cell:   +1.857.222.5741
+> > >
+> > > (eric@w3.org)
+> > > Feel free to forward this message to any list for any purpose other than
+> > > email address distribution.
+> 
+> --
+> -eric
+> 
+> office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+> cell:   +1.857.222.5741
+> 
+> (eric@w3.org)
+> Feel free to forward this message to any list for any purpose other than
+> email address distribution.
+
+
+

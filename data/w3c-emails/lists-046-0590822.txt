@@ -1,0 +1,194 @@
+docno="lists-046-0590822"
+received="Fri May 31 07:31:04 2002"
+isoreceived="20020531113104"
+sent="Fri, 31 May 2002 12:29:49 +0100"
+isosent="20020531112949"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: c14n/exc-c14n interop samples"
+id="20020531112949.0E4754432D@yog-sothoth.ie.baltimore.com"
+inreplyto="3CF70912.7040901&#64;aleksey.com"
+expires="-1"
+
+To: Aleksey Sanin<aleksey@aleksey.com>
+Cc:w3c-ietf-xmldsig@w3.org
+
+
+
+
+Hi Aleksey,
+
+r/aleksey@aleksey.com/2002.05.30/22:24:34
+>I have a question regarding your examples. You've canonicalized the second
+>reference as follows (c14n-1.txt):
+>
+><bar:Something xmlns:bar="http://example.org/bar" xml:lang="en-ie">
+>     <foo:Something xmlns:foo="http://example.org/foo">
+>        <bar:Something xmlns:bar="http://example.org/bar">
+>           <foo:Something xmlns:foo="http://example.org/foo">
+>             <baz:Something xmlns:baz="http://example.org/baz"></baz:Something>
+>           </foo:Something>
+>        </bar:Something>
+>     </foo:Something>
+>  </bar:Something>
+>
+>and it seems to me that according to 
+>http://www.w3.org/TR/xml-c14n#SuperfluousNSDecl
+>the correct c14n form is the following (unnecessary namespace 
+>declarations are removed):
+>
+> [...]
+
+To provide context, the document is:
+  <foo:Root xmlns:bar="http://example.org/bar"
+            xmlns:baz="http://example.org/baz" 
+            xmlns:foo="http://example.org/foo"
+            xmlns="http://example.org/"
+            xml:lang="en-ie">
+    <bar:Something>
+       <foo:Something>
+          <bar:Something>
+             <foo:Something>
+               <baz:Something />
+             </foo:Something>
+          </bar:Something>
+       </foo:Something>
+    </bar:Something>
+    <Signature xmlns="http://www.w3.org/2000/09/xmldsig#" ... />
+  </foo:Root
+
+And the XPath is:
+  ancestor-or-self::bar:Something  and
+  ((name() != "bar") or parent::bar:Something)  and
+  ((name() != "foo") or parent::foo:Something)  and
+  ((name() != "baz") or parent::baz:Something)  and
+  ((name() != "") or self::text())
+
+An equivalent of which, from the next example, is:
+  ancestor-or-self::bar:Something  and
+  (self::text()  or
+   (namespace-uri() != "")  or
+   (string(self::node()) = namespace-uri(parent::node())))
+
+This is *NOT* the same node set as the result of just
+ancestor-or-self::bar:Something; it is the following
+(showing the namespace axis explicitly, and omitted
+nodes in []):
+  [foo:Root ... ]
+    <bar:Something xmlns:bar="http://example.org/bar"
+                   [xmlns:baz="http://example.org/baz"]
+                   [xmlns:foo="http://example.org/foo"]
+                   [xmlns="http://example.org/"]>
+       <foo:Something [xmlns:bar="http://example.org/bar"]
+                      [xmlns:baz="http://example.org/baz"]
+                      xmlns:foo="http://example.org/foo"
+                      [xmlns="http://example.org/"]>
+          <bar:Something xmlns:bar="http://example.org/bar"
+                         [xmlns:baz="http://example.org/baz"]
+                         [xmlns:foo="http://example.org/foo"]
+                         [xmlns="http://example.org/"]>
+             <foo:Something [xmlns:bar="http://example.org/bar"]
+                            [xmlns:baz="http://example.org/baz"]
+                            xmlns:foo="http://example.org/foo"
+                            [xmlns="http://example.org/"]>
+               <baz:Something [xmlns:bar="http://example.org/bar"]
+                              xmlns:baz="http://example.org/baz"
+                              [xmlns:foo="http://example.org/foo"]
+                              [xmlns="http://example.org/"] />
+             </foo:Something>
+          </bar:Something>
+       </foo:Something>
+    </bar:Something>
+    [Signature ... /]
+  [/foo:Root]
+
+Now, according to the XPath spec (which you quote in your
+next mail), a namespace node is only suppressed if
+the nearest ancestor element of its parent element that is
+in the node set has a namespace node in the node set with
+the same local-name and value. For the namespace nodes
+of the second bar:Something and foo:Something elements,
+this condition is not met; although those matching
+namespace nodes do exist, they are not *in the node set*.
+Hence my c14n. Now I will grant that this is not a normal
+case, and that I may be in error, however I don't think so.
+
+Merlin
+
+>With best regards,
+>
+>Aleksey Sanin
+>XML Security Library <http://www.aleksey.com/xmlsec>.
+>
+>
+>
+>merlin wrote:
+>
+>>Hi,
+>>
+>>Attached is a signature with 9 XPath-transformed examples
+>>run through c14, exc-c14n and exc-c14n with an inclusive
+>>namespace prefix list. The XPath transforms variously
+>>manipulate the namespace axis to demonstrate c14n behaviour
+>>in different situations. For example:
+>>
+>><foo:Root xmlns:bar="http://example.org/bar"
+>>          xmlns:baz="http://example.org/baz" 
+>>          xmlns:foo="http://example.org/foo"
+>>          xmlns="http://example.org/"
+>>          xml:lang="en-ie">
+>>  <bar:Something>
+>>     <foo:Something>
+>>        <bar:Something>
+>>           <foo:Something>
+>>             <baz:Something />
+>>           </foo:Something>
+>>        </bar:Something>
+>>     </foo:Something>
+>>  </bar:Something>
+>>  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#" ... />
+>></foo:Root
+>>
+>>The following XPath selects the bar:Something subtree, but
+>>only includes namespace nodes that are directly used by their
+>>parent element.
+>>
+>>  ancestor-or-self::bar:Something  and
+>>  (self::text()  or
+>>   (namespace-uri() != "")  or
+>>   (string(self::node()) = namespace-uri(parent::node())))
+>>
+>>I believe that the canonical form is then:
+>>
+>><bar:Something xmlns:bar="http://example.org/bar" xml:lang="en-ie">
+>>     <foo:Something xmlns:foo="http://example.org/foo">
+>>        <bar:Something xmlns:bar="http://example.org/bar">
+>>           <foo:Something xmlns:foo="http://example.org/foo">
+>>             <baz:Something xmlns:baz="http://example.org/baz"></baz:Somethin
+>g>
+>>           </foo:Something>
+>>        </bar:Something>
+>>     </foo:Something>
+>>  </bar:Something>
+>>
+>>And I believe that the exclusive canonical form is:
+>>
+>><bar:Something xmlns:bar="http://example.org/bar">
+>>     <foo:Something xmlns:foo="http://example.org/foo">
+>>        <bar:Something>
+>>           <foo:Something>
+>>             <baz:Something xmlns:baz="http://example.org/baz"></baz:Somethin
+>g>
+>>           </foo:Something>
+>>        </bar:Something>
+>>     </foo:Something>
+>>  </bar:Something>
+>>
+>>Merlin
+>>  
+>>
+>
+>
+
+
+

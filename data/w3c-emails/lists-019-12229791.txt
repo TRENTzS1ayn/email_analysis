@@ -1,0 +1,433 @@
+docno="lists-019-12229791"
+received="Tue Apr 20 18:42:12 2004"
+isoreceived="20040420224212"
+sent="Tue, 20 Apr 2004 17:59:06 -0400 (EDT)"
+isosent="20040420215906"
+name="Vladimir Gapeyev"
+email="vgapeyev@seas.upenn.edu"
+subject="[FS]  A few comments on formal semantics"
+id="Pine.GSO.4.58.0404201747050.1453@red.seas.upenn.edu"
+charset="US-ASCII"
+expires="-1"
+
+To:public-qt-comments@w3.org
+Cc: Mary Fernandez<mff@research.att.com>,vgapeyev@seas.upenn.edu
+
+
+
+Dear FS Editors,
+
+Below is a list of some possible issues with FS Feb 2004 Working
+Draft, with occasional suggestions, ordered by FS sections.
+
+Hopefully, it does not come too late to be useful...  My apologies if
+there are too many already known issues and false alarms down there.
+
+Sincerely,
+
+Vladimir Gapeyev
+
+------------------------------------------------------------------------
+
+
+[General]
+
+Shouldn't normative inference rules have formal identifiers by which they
+can be referenced, similar to those of grammar productions?
+
+
+[2.5.1 Namespaces, last para]
+
+The term "host language" appears here and nowhere else in the spec!
+Should it just say "language" or "XQuery or XPath"?
+
+
+[3.1, just before 3.2]
+
+The statement in this section that $fs:dot, $fs:position and $fs:last are
+_built-in_ variables in FS is confusing when one considers their use
+in the normalization rules of Section 4: One could assume that if the
+variables are built-in they somehow magically contain appropriate
+values whenever referenced.  However, the normalization rules treat
+them as regular variables, by binding them in for and let expressions
+whenever their value is changed -- no magic!
+
+Suggestion:
+
+Perhaps the def of these variables should be moved to Section 4 where
+it would just say that they are special variables used in
+normalization rules that are assumed to be distinct from any user
+variables.  They are supposed to mimic the functionality of '.',
+fn:position, fn:last, and this is achieved by careful formulation of
+the normalization rules, no magic.
+
+In light of this I wonder, if in addition to the rule
+       [ . ] == $fs:dot
+one also needs the rules
+       [ fn:last() ] == $fs:last
+       [ fn:position() ] == $position
+?
+
+
+
+[3.1, just before 3.2]
+
+It says: "Variables with the "fs" namespace prefix are reserved for use in
+the definition of the Formal Semantics. It is a static error to define a
+variable in the "fs" namespace."
+
+This appears to be at odds with the last para of 2.5.1 saying that
+entities with fs prefix are abstract, introduced just for the purposes
+of this spec and are not supposed to be provided in the host language.
+So, under the 2.5.1 proviso, defining the fs prefix in a user query should
+lead to absolutely no trouble!
+
+
+[3.1.1 Static Context, last 2 para before 3.1.1.1]
+
+These paragraphs define functions fs:active-ns and
+fs:get_ns_from_items, which perhaps better be done in 6.1.
+
+The descriptions of the functions aren't very clear...
+
+[fs:active-ns] Perhaps should say "fs:active-ns(statEnv) returns all
+prefix mappings from statEnv.namespace that are of 'active' kind."
+
+[fs:get_ns_from_items]: The expanded-QName and URI appear in the def
+from nowhere and their role is unclear!  It also should say that the
+return are prefix-to-namespace mappings with kind indication, not just
+namespaces.
+
+
+[4.2 Path Expressions, just before 4.2.1]
+
+It appears that according to the spec the last normalization rule,
+the one for [ StepExpr1 "/" StepExpr2 ]_Expr is supposed to handle all
+"seminormalized" path expressions of the form StepExpr1 / StepExpr2 /
+.... / StepExpr_n.
+
+However, RelativePathExpr is defined as
+[71 (XQuery)] RelativePathExpr ::= StepExpr (("/" | "//") StepExpr)*,
+i.e. it can contain one or more StepExpr, while the rule in question
+handles the case of exactly two.
+
+Perhaps this can be fixed just by changing StepExpr2 to
+RelativePathExpr in the rule.
+
+
+[4.2 Path Expressions]
+
+It is said in "Core Grammar" section: "The grammar for path
+expressions in the Core starts with the StepExpr production".
+According to the productions [52,58,59(Core)] in 4.2.1. it should be
+rather said "starts with AxisStep production".
+
+
+[4.2.1 Steps -- Dynamic Evaluation, also Static Type Analysis]
+
+The eval rule for the judgment dynEnv |- Axis NodeTest => Value refers
+to the variable $fs:dot.  Somehow it does not feel right to make the
+Core semantics depend on the name of an auxiliary variable, especially
+if one takes the position (see also comments for [3.1]) that $fs:dot
+is a usual Core variable, albeit introduced for special purposes
+during normalization.
+
+Suggestion:
+
+Extend the Core syntax to contain an explicit step application
+construct.  In more detail:
+
+(1) Introduce an expression form Expr / AxisStep (or PrimaryExpr /
+AxisStep, or even $Var / AxisStep -- if more restrictive syntax is
+desired).  The semantics is that Expr evaluates to a single node (to
+be checked by the type system) which is an explicit context node for
+AxisStep.  [Of course, if the use of "/" is objectionable, the syntax
+can be different.]
+
+(2) Modify the single-step normalization rules to read:
+     [ ForwardStep ]_Expr == $fs:dot / [ ForwardStep ]_Axis
+
+(3) Now, the above evaluation rule would look like
+
+  dynEnv |- Expr => Value1
+  <-- the rest of clauses unchanged -->
+----------------------------------------------------------------
+  dynEnv |- Expr / Axis NodeTest => fs:distinct-doc-order(Value3)
+
+
+
+[4.2.1.1, Axes]
+
+The text and normalization rules indicate that
+preceding/following(-sibling) axes are not on the Core, but the
+grammar rules [(Core) 60,61] still contain them. (Also in Appendix
+A.1)
+
+
+[4.2.1.1, Axes]  For ForwardAxis, the grammar [91(XQuery)] does not define
+namespace:: axis, while [60 (Core)] does!  Consequently, the normalization
+rule that follows normalizes from non-existing syntax.
+
+[This could be a problem with XQuery, rather than FS spec, since XQ
+Datamodel does define the kind of namespace nodes.  On the other hand, if
+namespace:: is to be removed from FS, it currently also appears in
+[7.2.1, Principal Node Kinds]
+
+There is also cross-spec-numbering discrepancy: FS [91(XQuery)] is
+XQuery[89]
+
+
+[4.2.1.1] The normalization rules for sibling axes are given as follows:
+
+[following-sibling:: NodeTest]_Axis
+==
+[let $e := . in parent::node()/child:: NodeTest [.<<$e]]_Expr
+
+[preceding-sibling:: NodeTest]_Axis
+==
+[let $e := . in parent::node()/child:: NodeTest [.>>$e]]_Expr
+
+I think their bodies should be swapped!  E.g., in the 1st, if I get it
+right, in [.<<$e] predicate, $e refers to the original node and . ranges
+over all siblings, so the predicate is true for siblings that _precede_
+$e.
+
+Also, it could make sense to be a notch more explicit by writing
+[following-sibling:: NodeTest]_Axis
+==
+[let $e := . in $e/parent::node()/child:: NodeTest [.>>$e]]_Expr
+                ^^
+
+[4.3.2 Filter Expressions]
+
+Subsection "Core Grammar" should be renamed "Normalization".
+
+
+[4.7.3.1. Computed Element Constructors, both Dynamic Evaluation rules]
+
+In extended static environments statEnv_1, ... , statEnv_n, there are
+missing indexes in NCName, should be NCName_1 .... NCName_n
+
+
+[5. Modules and Prologs, Intro]
+
+It says: "Namespace declarations and schema imports always precede
+function definitions, as specified by the following grammar
+productions."  However, the production [33 (XQuery)] Prolog allows to
+intermix them freely.
+
+
+[5.8 Schema import]
+
+In the rule:
+
+statEnv |- Definition* =>type statEnv1
+statEnv1 |- Definition1 =>type statEnv2
+---------------------------------------
+Definition1 Definition* =>type statEnv2
+
+--- input statEnv is missing in the conclusion
+
+
+[5.8 Schema Import]
+(Also see comments for [F] below.)
+
+I am afraid the schema importing formalization in [5.8] and [F] is not
+robust w.r.t. namespace prefix bindings possibly defined in the
+imported schema.  Namely, the import is formalized by the rule
+
+[schema String (at String)?]_Schema
+statEnv |- Definition* =>type statEnv1
+-------------------------------------------------------------
+statEnv |- import schema String (at String)? =>stat statEnv1
+
+and a representative rule for the second judgment above the line is
+
+statEnv |- TypeName of elem/type expands to expanded-QName
+statEnv1 = statEnv +
+            typeDefn(expanded-QName => define type TypeName TypeDerivation
+)
+----------------------------------------------------------------------------
+statEnv |- define type TypeName TypeDerivation =>type statEnv1
+
+where statEnv maps a resolved expanded-QName of TypeName to a
+definition containing unresolved TypeName and where TypeDerivation can
+contain other unresolved Qnames (see current defs in [F]).  But, even
+though TypeName is supposed to reside in the target namespace of the
+imported schema, statEnv may lack a prefix mapping necessary for
+resolving it into expanded-QName, since the first rule above does not
+add it by default!  (And even if the version of the import statement
+is used that binds schema's namespace to a prefix, this prefix can
+only coincidentally be the same as the one in TypeName.)  Moreover, if
+the schema defined other prefixes (e.g. for namespaces of the imported
+schemas), they can occur in TypeDerivation, and there is no provision
+in the current formalization for them to get into statEnv.
+
+I can see two possible approaches for cleaning this up:
+
+(1) Specify that schema import, in addition to Definitions (with
+    unresolved QNames), also returns a set of prefix-to-namespace
+    bindings that can now be incorporated into statEnv.
+
+(2) Specify that the definitions returned by schema import actually
+    contain only resolved QNames.
+
+The obvious (killer?) shortcoming of (1) is that it implicitly
+introduces prefixes that explicitly appear only in the schema and can
+even shadow earlier prefixes defined by the query programmer.
+
+Approach (2) appears to be more sound, although it would require
+significant changes to the specification, at least:
+
+  - Definitions productions in [2.3.4] need to be duplicated to
+    similar defs that refer only to resolved QNames.  (Although, since
+    those productions describe entities not available in the source
+    language, maybe the modified version is the only one that is
+    needed?)
+
+  - statEnv needs to be modified to contain definitions with
+    _resolved_ names.
+
+
+[6.1 Formal Semantics Functions]
+
+Here is a summary list of fs-prefixed functions that appear throughout
+the spec but do not have subsections in 6.1, which is perhaps an
+unintended omission:
+
+fs:active-ns, fs:get_ns_from_items, fs:count, fs:is-same-node,
+fs:node-before, fs:node-after, fs:local-variables, fs:local-functions
+
+
+[7.1.9 Type expansion]
+
+(1) The inference rule given here is for the case when type TypeName
+    is defined by extension.  There must be another one for s
+    derivation by restriction.
+
+(2) The inference rule contains the judgment
+
+   statEnv |- Type2 is Type1 extended with union interpretation of
+TypeName
+
+where Type1 is defined in the previous judgment to be the extension
+fragment that TypeName's extension adds to the type BaseTypeName.
+I believe, however, Type1 should be the concatenation of
+BaseTypeName's definition and TypeName's extension fragment.
+
+Suggestion:
+
+It might help to obtain Type1 as the result of the following "derives"
+judgment:
+           statEnv |- TypeName derives Type
+which produces the type model for TypeName that composes the effects
+of all type derivations on the path from the root of the type
+hierarchy down to TypeName.
+
+Rules(still need to be tinkered with to handle Mixed? correctly):
+
+statEnv |- TypeName of elem/type expands to expanded-QName
+statEnv.typeDefn(expanded-QName) =>
+          define type TypeName extends BaseTypeName Mixed? { Type0? }
+statEnv |- BaseTypeName derives BaseType
+   Type = BaseType, Type0
+----------------------------------------------------------------------
+ statEnv |- TypeName derives Type
+
+statEnv |- TypeName of elem/type expands to expanded-QName
+statEnv.typeDefn(expanded-QName) =>
+          define type TypeName restricts BaseTypeName Mixed? { Type0? }
+statEnv |- BaseTypeName derives BaseType
+   <<? affirm that Type0 is a subtype of BaseType  ?>>
+   Type = Type0
+----------------------------------------------------------------------
+ statEnv |- TypeName derives Type
+
+Note that using these two rules would automatically resolve the issue
+(1) above.
+
+
+[7.1.10 Union interpretation of derived types]
+
+The inference rule should contain the judgment to obtain
+expanded-QName from TypeName0.
+
+
+[7.2.2.2 Dynamic semantics of axes]
+
+In most rules, the judgments are written like
+     dynEnv |- axis Axis child:: of NodeValue => Value1
+                    ^^^^
+--- "Axis" should be dropped.
+
+
+[A. Normalized core grammar]
+
+There seems to be quite a few unreachable non-terminals in the grammar:
+
+- QuantifiedExpr [43 (Core)] -- perhaps it should be mentioned in [34
+  (Core)] for ExprSingle
+
+- OrderByClause [39 (Core)] -- Perhaps it should appear in [35 (Core)]
+   production for FLWORExp
+
+- PrimaryExpr [53 (Core)] -- perhaps should appear in [51 (Core)] for
+  ValueExpr
+
+- ComputedConstructor [57 (Core)] -- perhaps should appear in
+  PrimaryExpr [53 (Core)]
+
+
+[F.2 Schemas as a whole]
+
+The rule
+    [Pragma]pragma(targetNCName) == Definition*
+in [F.2.1] for, presumably, handling Schema's "include" | "import" |
+"redefine" features, does not make sense: its rhs comes from nowhere!
+
+On the other hand, [F.2.2-4] say that handling of "include" | "import"
+| "redefine" is not specified in this document since it is assumed to
+be handled by the XML Schema processor.
+
+Suggestion:
+
+Perhaps [F.2] should just say that the helper function
+open-schema-document(SchemaName) encapsulates the functionality of a
+Schema processor, which is assumed to handle "include" | "import" |
+"redefine" features.  I.e., the result of
+open-schema-document(SchemaName) is described by Content production
+[(56) Formal].
+
+Then there is no need for [Pragma]_pragma rule, and Schema mapping
+ rules at the end of [F.2.1.] should be
+
+   [schema SchemaName (at SchemaNamespace)?]_Schema
+        ==
+   [open-schema-document(SchemaName,
+SchemaNamespace)]_definition(targetNCName)
+
+
+[F.2 Schemas as a whole]
+
+This section mentions targetURI (that comes from the imported schema)
+and targetNCName (that parameterizes all the mapping rules), which are
+supposedly related, but the relationship is nowhere spelled out.
+
+Also, in the presence of Schema <import> and relatives, there can be
+multiple target URIs...
+
+Perhaps a good way to tackle both difficulties would be to say that
+open-schema-document() is also assumed to resolve all QNames defined
+and referenced in the imported schema.  The mapping rules in the rest
+of the section then refer to the fully resolved names and don't need to
+be parameterized by targetNCName.
+
+
+[F.7, F.8 Attribute and model group definitions]
+
+These sections say that the corresponding features are not handled by the
+mapping, and refer to Issue 501 (FS-Issue-0158).  But the Issues document
+marks the issue as resolved!
+
+
+

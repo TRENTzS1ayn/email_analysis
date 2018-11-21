@@ -1,0 +1,146 @@
+docno="lists-037-11201635"
+received="Fri Feb 21 18:08:58 1997"
+isoreceived="19970221230858"
+sent="Fri, 21 Feb 1997 16:07:50 -0700"
+isosent="19970221230750"
+name="Steve Carter"
+email="SRCarter@novell.com"
+subject="Re: Range locking"
+id="s30dc88d.036@novell.com"
+inreplyto="Range locking"
+expires="-1"
+
+
+To:fabio@CS.UniBO.IT,w3c-dist-auth@w3.org
+
+Everyone is focusing on the monolithic model of data management. Simply keep a
+fixed-length index of the "sections" that are lockable. When the document is open
+break each lockable entity into a separate piece (the index helps keep track of each
+piece). Now put the document back together when it is saved, closed, etc. Don't worry
+about the index, we won't change byte ranges in it either, even though we have locked
+a range. If something changes in the index we will mark the current instantiation
+out and create a new one at the end.
+
+I see a lot of conversation about examples that can not work in the proposed model.
+Range locking has value, we don't need to tie it to various fictitious implementations.
+
+-src
+
+>>> Fabio Vitali <fabio@CS.UniBO.IT> 02/21/97 01:07PM >>>
+I'm slightly amused by this discussion, because it is beginning to prove
+what I deeply think (and have never failed to show in this group): that
+locking is inherently evil.
+
+Larry Masinter wrote:
+>This would justify "section" locking, but not "byte range"
+>locking, since in word, powerpoint, HTML, PDF, GIF, JPEG,
+>tiff, and most other formats, editing a section of a document
+>generally changes all of the byte ranges.
+
+Mark_Day/CAM/Lotus@lotus.com wrote:
+>Section locking also has this
+>problem, but in a milder form: the problem arises as sections are added and
+>removed, which one would expect to be much less common than adding and
+>removing bytes.
+
+Yaron Goland wrote:
+>It a'int necessarily so. Much like a LOCK is a way of breaking ties
+>among users w/equivalent access rights, so range locks help to break
+>ties for people trying to edit the same section of a document.
+
+Larry Masinter wrote:
+>Document in MS Word, chapter 2 is bytes 30-50 and bytes 80-90.
+>
+>User A wants to edit chapter 2
+>User B wants to edit chapter 1
+>User C wants to edit chapter 2
+>
+>A locks bytes 30-50, bytes 80-90
+>B locks bytes 10-20
+>B edits chapter 1, adds 20 bytes. Can B check this in?
+>Create a new version? Increases the size of the existing
+>version?
+
+Byte locking is evil because the byte count may change outside the scope of
+the lock, thereby voiding the addresses we hold in the lock. So an
+extremely fine-grained lock won't work.
+
+But a middle-grained lock won't work either, as Mark Day hints without
+really stressing: we are simply rarefying the troublesome situations, not
+removing them: if sections are counted, instead of named, there will be the
+situation in which, after I obtained a lock on version 5, someone comes and
+creates a new section 3, and my lock is void. BTW, what are sections in
+HTML?
+
+So we are coming to the conclusion that locking something based on a
+relative address (such as byte count) is bad anyway, because the base on
+which addresses are related to may change, thereby voiding the address we
+hold.
+
+Relying on names is the only solution we can rely on, because locks on
+named entities will exist as long as the *name* is valid, and not the
+position. What are the named entities? And how can I be sure that the names
+won't be changed while I have a lock on them? Should I provide a different
+lock for changing names, which can only be issued when no content lock
+exists on the whole entity?
+
+Or should we allow owners of locks on named objects to act on names? And in
+this case, how do we handle name clashes? (e.g.: I have a lock on section
+3, which is an object named "Section3". Someone comes and adds a new
+section between 2 and 3, and would like to call it "Section3" and update
+all the names in the following sections. What happens now?)
+
+Middle-grained locking won't work either. Would large-grained lock work?
+Not quite. Again, the bad situations rarefy, but never disappear. URLs *can
+be* position-dependent, because they most often are placed in a
+hierarchical space. With WebDAV we are introducing client-controlled
+server-side operations on namespaces, such as MOVE. For instance, what
+happens if I have a document lock on http://host.com/dir/file.html, and
+someone MOVEs /dir/ to something else?
+
+Should owning a lock on an entity also block all the hierarchically
+superior containers? Should a lock on http://host.com/a/b/c/.../z/tiny.html 
+also imply a lock on a, b, c, ..., and z? And would a lock on /a/ also
+block all the hierarchically dependent namespaces b, b1, b2, and c, c1, c2,
+etc. ?
+
+The ONLY reliable solution for fine-, middle- or large- grained objects to
+work is change-tracking. It must be implemented by the client for the
+changes that are performed on the client (e.g. insertions and
+modifications), or by the server for the operations that are performed on
+the server (e.g. creations, deletions and moves). VTML is an example of
+change-tracking language for the client.
+
+At this point keeping locks are just an easy trick not to mess with
+multiple change logs and multiple parallel variants of the same entity,
+i.e. to avoid having to deal with tree-shaped versions. Which is a
+legitimate decision, but adds complexity instead of simplifying the
+situation.
+
+Alternatively, you can impose locks only on named entities, and request a
+different type of lock for the modification of names, so that changing the
+name of a section requires a lock on the entire document, and changing a
+directory requires a lock on the entire namespace, and locks can be as
+finely-grained as the names you specify.
+
+Fabio
+
+
+
+
+Fabio Vitali                            Tiger got to hunt, bird got to fly,
+Dept of Computer Science         Man got to sit and wonder "Why, why, why?'
+Univ. of Bologna  ITALY               Tiger got to sleep, bird got to land,
+e-mail: fabio@cs.unibo.it            Man got to tell himself he understand.
+                                                             Kurt Vonnegut
+
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               !
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               !
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               !
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               !
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               !
+                                              
+
+
+

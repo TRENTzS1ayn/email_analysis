@@ -1,0 +1,167 @@
+docno="lists-046-4366197"
+received="Fri Mar 15 12:47:50 2002"
+isoreceived="20020315174750"
+sent="Fri, 15 Mar 2002 09:47:17 -0800"
+isosent="20020315174717"
+name="John Boyer"
+email="JBoyer@PureEdge.com"
+subject="RE: New XPath Filter Transform"
+id="7874BFCCD289A645B5CE3935769F0B52328468@tigger.PureEdge.com"
+inreplyto="New XPath Filter Transform"
+expires="-1"
+
+
+To:"Gregor Karlinger"<gregor.karlinger@iaik.at>,"merlin"<merlin@baltimore.ie>
+Cc:"TAMURA Kent"<kent@trl.ibm.co.jp>,<w3c-ietf-xmldsig@w3.org>,<reagle@w3.org>
+
+
+
+Hi Gregor,
+
+Firstly, I should reiterate that I agree with and like the set intersect
+and subtraction operations.  While I suspect there would be less need
+for the XPath transform to do set operations if they were native to
+XPath as union currently is, the reality is that we are stuck with XPath
+1.0, so I would not mind (i.e. would prefer) seeing additional keywords
+that offer these options.  They would be easy to implement and allow one
+to do exactly the kind of wonderful things that appear in your example.
+
+I am also amenable to changing the current keywords, e.g.
+include-from-document, exclude-from-document, to be as clear as possible
+about the semantics.
+
+My main point, however, is that intersection and subtraction do more
+work and will therefore be slower for the simple include/exclude cases
+that involve only one transform.  It should be noted that PureEdge has
+been applying signatures to XML for over four years now, and we have not
+yet run across a business application that requires more than this.  And
+we absolutely need these cases to be as fast as possible to maximize
+server-side throughput.
+
+You asked me to provide more info on the claim that it will be slower.
+I did that in the last email.  Here is a copy of what I said; if this is
+not enough, please let me know and I will elaborate:
+
+<jb>
+The case of having the entire document as input and including or
+excluding certain subtrees, then signing the result  can be performed
+with far less filtering work than what you suggest here.  Remember, we
+only have to *behave as if* performing according to the given specs.
+
+For include filters, we just run the XPath then render the subtrees
+rooted by the resultant nodes, so the work is quite a bit less than set
+intersection.
+
+For exclude filters, we run the Xpath then set a flag for each node.
+Then we go right to serializing each node in document order, except that
+we do not descend into subtrees rooted by flagged nodes.  This still
+avoids O(n) work (i.e. the run-time is reduced by a healthy constant
+factor) plus we do no work over the excluded subtrees.
+</jb>
+
+It is worth noting that an implementation could be specially programmed
+to recognize that the input is a whole document and that there is only
+one transform.  In such cases, intersection and subtraction could be
+performed in the manner described currently for include/exclude.
+However, for a low-level operation like signature validation, high
+performance is an important-- and up to now implicit-- interoperability
+requirement.  We cannot count on implementors who care to make certain
+markup 'fast enough' to be of practical use because it means that XML
+consumers cannot freely switch technologies and count on at least a
+similar performance profile.  
+
+Even within using include/exclude as defined now (and as was previously
+defined before we decided to make implementers run an Xpath on every
+node), I think there will still be a substantial performance difference.
+It may be worthwhile recommending the strategy above for implementation
+in order to maximize the probability that implementations will have
+acceptably similar performance profiles.
+
+John Boyer, Ph.D.
+Senior Product Architect
+PureEdge Solutions Inc.
+
+
+-----Original Message-----
+From: Gregor Karlinger [mailto:gregor.karlinger@iaik.at]
+Sent: Friday, March 15, 2002 3:56 AM
+To: 'merlin'; John Boyer
+Cc: 'TAMURA Kent'; w3c-ietf-xmldsig@w3.org; reagle@w3.org
+Subject: RE: New XPath Filter Transform 
+
+
+> -----Original Message-----
+> From: w3c-ietf-xmldsig-request@w3.org 
+> [mailto:w3c-ietf-xmldsig-request@w3.org] On Behalf Of merlin
+> Sent: Thursday, March 14, 2002 10:05 PM
+> To: John Boyer
+
+[...]
+
+> I strongly feel that the current specification is wrong. I 
+> don't think that it will be materially faster, and I do think 
+> is is non-intuitive and that it goes against the spirit of 
+> the transform model. Adding more options that perform 
+> similar, but subtlely different operations will only serve to 
+> confuse matters.
+> 
+> However, this is just my opinion; I'm open to input from others!
+
+I agree with Merlin regarding the feeling that the current speci-
+fication does not fit in the general idea of having a chain of
+transforms, where the second transform operates on the output of
+the first transform.
+
+Of course - as John does - it can be argued that the XPath Filter
+transform does not violate the model in principal, but I am SURE
+that it will cause lots of misunderstandings since people think
+that the XPath filter transform will operate on the result of 
+the previous transform in the chain, and not on the whole 
+document.
+
+To make my feeling clear, consider the following example:
+
+<root>
+  <child1>
+    <grandChild1/>
+    <grandChild2/>
+  </child1>  
+  <child2>
+    <grandChild1/>
+    <grandChild2/>
+  </child2>
+</root>
+
+If I were a programmer using XMLDSIG and not knowing the inherent 
+secrets ;-) of the XPath filter transform, I would use the following
+transfroms to select
+
+  <child1>
+    <grandChild1/>
+  </child1>   
+
+(1) Use a XPath filter transform "include" to select the child1.
+(2) Use a XPath filter transform "exclude" to exclude grandChild2.
+
+But, as the transform is currently specifed the actual result would
+be:   
+
+<root>
+  <child1>
+    <grandChild1/>
+  </child1>  
+  <child2>
+    <grandChild1/>
+    <grandChild2/>
+  </child2>
+</root>
+
+John: Could you please explain in more detail, where you expect the
+big difference regarding performance between the current include/exclude
+and a set intersection/exclusion as Merlin suggests?
+
+Regards,
+Gregor
+
+
+

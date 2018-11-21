@@ -1,0 +1,109 @@
+docno="lists-037-12837617"
+received="Wed Mar 26 03:22:59 1997"
+isoreceived="19970326082259"
+sent="Wed, 26 Mar 1997 00:10:38 -0800"
+isosent="19970326081038"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Check-In"
+id="11352BDEEB92CF119F3F00805F14F485026B72C7@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To: DAV Discussion<davdisc@microsoft.com>
+
+1.CHECK-IN
+
+1.1Problem Description
+
+Like checkout, check-in is a roundly abused method. In the same survey
+on versioning systems mentioned previously, the DAV authors determined
+that check-in is used for:
+*Specifying the resource from which the checked in resource is
+derived
+*Specifying a working location from which the server should
+obtain the new version
+*Specifying the version identifier that should be associated with
+the newly created resource
+*Linking in the newly created version to the version tree and
+updating history
+
+
+I believe that the features that check-in should provide are the ability
+to specify a resource to be checked in, either by including it in the
+check-in method or by referring to it in a header, and the ability to
+specify the parent(s) and version identifier of the new resource.
+
+1.2Proposal
+
+In the same vein as my previous proposal, I propose to be rid of the
+CHECKIN method. My observation is that the only relationship between
+check-in and checkout, is the implied permission that a checkout gives
+to perform a check-in. This permission is maintained through the use of
+the lock method, even if the lock is advisory.
+Given that the primary duty of Check-In is to create a new file I
+propose providing the creation facility through PUT.
+In order to achieve check-in's full functionality it is necessary to use
+the Merge, Source, and Version-ID headers.
+The Source header, which I have previously defined, is used to create a
+new resource by reference rather than by value. This functionality is
+identical to copy, hence the use of the Source header.
+The Merge header, defined separately, is used to indicate that the
+resource to be created is the result of a merger between the specified
+URIs and, if included, the request body.
+The Version-ID header, defined in this section, is used to request or
+define the version identifier to be associated with this resource. 
+
+1.3Version-ID Header
+
+VersionID = "Version-ID" ":" ReqType VID
+ReqType = "Request" | "Demand" | "Set" | Token
+VID = "<" Token ">" | Quoted-String
+
+The Version-ID header may be used to either request or demand a version
+identifier. If the "Request" attribute is used then the server may
+freely ignore the version-id header. However, if the "Demand" header is
+used then the server may only accept the PUT if it will assign the
+specified version identifier to the new resource. If the server can not
+comply then it should return a 412 Precondition Failed.
+
+If the server wishes to inform the client of the version identifier
+assigned to their resource it can return the Version-ID header with the
+Set attribute.
+
+Note: The reason I have chosen a new header rather than using
+Content-Version is because of the need to specify the strength of the
+request. However it is equally acceptable to use the Content-Version
+header along with a second header to specify the strength of the
+Content-Version request.
+
+1.4Where to Check In To?
+
+Most versioning systems do not support arbitrary check-in locations when
+creating a new version of an existing resource. To handle this situation
+I propose that the default behavior when creating a new version of a
+resource is to perform the PUT on the tree handle of the resource with
+the merge headers set to the parents. If successful a 201 "Created"
+response will be returned with a Location header containing the URI of
+the new version.
+
+In the case of a truly distributed system the client may create the new
+version wherever they desire but there will be no guarantee that the
+various versioning headers will be properly maintained. The client will
+have to check the relevant resources and if the headers have not been
+properly set, the client will have to use the LINK method to set and
+maintain them itself.
+
+1.5Requiring Check Out
+
+Many systems will only allow a new version of a resource to be created
+if its parent is checked out. Rather than introducing a new result that
+says "You must lock this resource in order to create a new version" I
+propose we make a LOCK/UNLOCK of the appropriate type implicit in the
+creation of a new version of a resource. The LOCK will only last for the
+duration of the PUT. Furthermore, if the client is PUTting to a tree
+handle it MUST be prepared to accept a LOCK error response in case there
+is a problem.
+
+
+

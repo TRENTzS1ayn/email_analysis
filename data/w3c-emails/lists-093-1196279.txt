@@ -1,0 +1,125 @@
+docno="lists-093-1196279"
+received="Wed Sep 18 10:52:34 1996"
+isoreceived="19960918145234"
+sent="Wed, 18 Sep 1996 10:51:42 +0200"
+isosent="19960918085142"
+name="Daniel Veillard"
+email="Daniel.Veillard@imag.fr"
+subject="HOWTO debug Amaya install problems (Was : Linux problem with Amaya)"
+id="199609180851.KAA15639@praslin.inrialpes.fr"
+charset="us-ascii"
+expires="-1"
+
+
+To: Timothy Fossum<fossum@cs.uwp.edu>
+Cc:www-amaya@w3.org
+
+>
+>So if anyone on the Amaya team can give some suggestions on this,
+>I would appreciate it!
+>
+>Timothy Fossum -- Computer Science and Engineering Dept. -- UW-Parkside
+>900 Wood Road -- Kenosha, WI 53144 -- fossum@cs.uwp.edu -- 414-595-2297
+
+  Ok,
+
+Here is a check-list of things to verify in order to debug
+Amaya installation problems :
+
+0/ Of course the amaya-???.tar.gz should have extracted fine and
+   you should have a /tmp user writable, and /bin/sh is a Bourne
+   compatible shell .
+
+1/ verify that your environment variables are OK :
+     - DISPLAY is correctly set up
+     - No THOTDIR or THOTSCH environment variable exists
+     - HOME correctly points to your user home directory
+
+   if not fix them,
+
+2/ start the script Amaya/bin/MachineType by hand,
+   it should return the correct system informations on stdout.
+   Values should be :
+
+    solaris2    on Solaris
+    LINUX       on an a.out Linux system
+    LINUX-ELF   on an ELF Linux system
+
+    If not, the script is quite simple and hacking it to fit
+    to your environment should not be difficult.
+
+3/ verify that all the shared libraries needed are available :
+
+    ldd Amaya/bin/`Amaya/bin/MachineType`/amayamain
+    ldd Amaya/`Amaya/MachineType`/amayamain
+    ldd Amaya/`Amaya/MachineType`/amayamain
+
+   should not show any unreferenced library, if not contact your
+   system administrator to get your system updated. On Linux we
+   need X11R6 libraries and on Solaris the /usr/openwin ones.
+
+4/ Check your network connectivity, try to ping www.w3.org or
+   opera.inrialpes.fr. Upon startup, if no argument is passed to
+   amaya command line, it will try to fetch the Amaya page from
+   www.w3.org . If your name resolution service is not properly
+   installed Amaya may freeze, name resolution being a blocking
+   syscall on Unix.
+
+5/ Launch Amaya/bin/amaya, with the filename of a
+   local HTML page given as the only argument.
+   If the amaya windows shows the page, perfect go to 7/, this mean
+   that you have a problem accessing files thought the network.
+   Overwise, try to see if the amayamain process is still running.
+   If needed kill it.
+
+6/ If step 5/ failed without showing up the window, the best way
+   is to use syscall tracing facilities to debug what's happening.
+   Thees utilities are strace on Linux (available in d3 package of
+   slackware distribution) and truss on Solaris system. On both machine
+   these install to /usr/bin .
+   One need to modify the Amaya/bin/amaya script (do a backup first !).
+   Replace the 6 last lines :
+
+if [ "$1" = "" ]
+then
+    ${THOTBIN}/amayamain $HOME_PAGE 2> /dev/null >/dev/null &
+else
+    ${THOTBIN}/amayamain $* 2> /dev/null >/dev/null &
+fi
+
+    by 
+
+[Linux]
+/usr/bin/strace -o /tmp/amaya.trace ${THOTBIN}/amayamain $*
+
+[Solaris]
+/usr/bin/struss -o /tmp/amaya.trace ${THOTBIN}/amayamain $*
+
+    and restart step 5/ .
+    The file /tmp/amaya.trace should have been created, usually
+    one can find the problem at the end of this file, with a failing
+    syscall, probably related to a filesystem access error.
+    Decripting the strace (truss) output might not be easy for a
+    non Unix programmer, if you are really in trouble you can
+    download it to ftp://opera.inrialpes.fr/incoming , people
+    around may help you.
+
+
+  This HOWTO is probably not complete, but all the basic steps here
+should help you debug a non working Amaya environment. It will
+eventually be turned into a WWW page.
+
+   Hope this help,
+
+Daniel
+
+-- 
+Daniel Veillard :       | INRIA Rhone-Alpes  | You should give me a chance
+Daniel.Veillard@imag.fr | 655 av de l'Europe | This can't be the end
+Tel : (33) 76 61 53 85  | 38330 Montbonnot   | I'm still loving you
+Fax : (33) 76 54 76 15  | France             |              Scorpions
+Home: (33) 76 63 05 86  | http://opera.inrialpes.fr/veillard/veillard.html
+L'erreur est humaine mais un veritable desastre necessite un ordinateur
+
+
+

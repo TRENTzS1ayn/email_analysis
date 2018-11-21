@@ -1,0 +1,194 @@
+docno="lists-000-0863656"
+received="Mon May  3 18:34:29 1999"
+isoreceived="19990503223429"
+sent="Tue, 04 May 1999 00:33:01 +0200"
+isosent="19990503223301"
+name="Peter Lewerin"
+email="peter.lewerin@krax.pp.se"
+subject="Different slide naming scheme"
+id="3.0.6.32.19990504003301.00897b20@mailbox.swipnet.se"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+
+I'm interested in the slide creation functionality, partly because I use an
+AWK/sed mechanism to do something similar with my own course material.
+
+Has anyone suggested changing the slide naming scheme to allow the names to
+be sorted in the correct order?
+
+e.g. instead of
+
+   slide1.html
+   ...
+   slide9.html
+   slide10.html
+
+it would be
+
+   slide01.html
+   ...
+   slide09.html
+   slide10.html
+
+or, if the slide count is greater than 99 but less than 999:
+
+   slide001.html
+   etc
+
+As far as I understand it changes would have to be made to two functions in
+pprint.c; PrintNavBar() and CreateSlides(), something like the following
+(diff (against the Apr 15 source)):
+
+*** pprint._Thu Apr 15 19:35:34 1999
+--- pprint.cMon May  3 23:37:22 1999
+***************
+*** 6,11 ****
+--- 6,12 ----
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <string.h>
++ #include <math.h>
+  #include "platform.h"
+  #include "html.h"
+  
+***************
+*** 210,215 ****
+--- 211,217 ----
+                  outc(' ', fout);
+          }
+  
++ 
+          for (i = 0; i < linelen; ++i)
+              outc(linebuf[i], fout);
+      }
+***************
+*** 1229,1255 ****
+  void PrintNavBar(Out *fout, uint indent)
+  {
+      char buf[128];
+  
+      PCondFlushLine(fout, indent);
+      PPrintString(fout, indent , "<center><small>");
+  
+      if (slide > 1)
+      {
+!         sprintf(buf, "<a href=\"slide%d.html\">previous</a> | ", slide-1);
+          PPrintString(fout, indent , buf);
+          PCondFlushLine(fout, indent);
+  
+!         if (slide < count)
+!             PPrintString(fout, indent , "<a
+href=\"slide1.html\">start</a> | ");
+!         else
+!             PPrintString(fout, indent , "<a
+href=\"slide1.html\">start</a>");
+  
+          PCondFlushLine(fout, indent);
+      }
+  
+      if (slide < count)
+      {
+!         sprintf(buf, "<a href=\"slide%d.html\">next</a>", slide+1);
+          PPrintString(fout, indent , buf);
+      }
+  
+--- 1231,1262 ----
+  void PrintNavBar(Out *fout, uint indent)
+  {
+      char buf[128];
++     int field_width;
+  
++     field_width = (int)log10(count) + 1;
+      PCondFlushLine(fout, indent);
+      PPrintString(fout, indent , "<center><small>");
+  
+      if (slide > 1)
+      {
+!         sprintf(buf, "<a href=\"slide%0*d.html\">previous</a> | ",
+field_width, slide-1);
+          PPrintString(fout, indent , buf);
+          PCondFlushLine(fout, indent);
+  
+!         if (slide < count) {
+!             sprintf(buf, "<a href=\"slide%0*d.html\">start</a> | ",
+field_width, 1);
+!             PPrintString(fout, indent , buf);
+!         } else {
+!             sprintf(buf, "<a href=\"slide%0*d.html\">start</a>",
+field_width, 1);
+!             PPrintString(fout, indent , buf);
+!         }
+  
+          PCondFlushLine(fout, indent);
+      }
+  
+      if (slide < count)
+      {
+!         sprintf(buf, "<a href=\"slide%0*d.html\">next</a>", field_width,
+slide+1);
+          PPrintString(fout, indent , buf);
+      }
+  
+***************
+*** 1358,1371 ****
+      char buf[128];
+      Out out;
+      FILE *fp;
+  
+      body = FindBody(root);
+      count = CountSlides(body);
+      slidecontent = body->content;
+  
+      for (slide = 1; slide <= count; ++slide)
+      {
+!         sprintf(buf, "slide%d.html", slide);
+          out.state = FSM_ASCII;
+          out.encoding = CharEncoding;
+  
+--- 1365,1380 ----
+      char buf[128];
+      Out out;
+      FILE *fp;
++     int field_width;
+  
+      body = FindBody(root);
+      count = CountSlides(body);
+      slidecontent = body->content;
++     field_width = (int)log10(count) + 1;
+  
+      for (slide = 1; slide <= count; ++slide)
+      {
+!         sprintf(buf, "slide%0*d.html", field_width, slide);
+          out.state = FSM_ASCII;
+          out.encoding = CharEncoding;
+  
+***************
+*** 1386,1392 ****
+  
+      for (;;)
+      {
+!         sprintf(buf, "slide%d.html", slide);
+  
+          if (unlink(buf) != 0)
+              break;
+--- 1395,1401 ----
+  
+      for (;;)
+      {
+!         sprintf(buf, "slide%0*d.html", field_width, slide);
+  
+          if (unlink(buf) != 0)
+              break;
+
+and the modified pprint.c is available as
+<http://home.swipnet.se/pelewin/html-tidy/pprint.c>.  IMPORTANT: I present
+this modified source only as a reference for evaluation, with no intention
+of violating copyrights or stealing intellectual property etc.  Let me know
+if I'm out of line rather than helpful.
+
+
+

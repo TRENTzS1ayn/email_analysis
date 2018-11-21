@@ -1,0 +1,91 @@
+docno="lists-097-5635163"
+received="Thu Jan  9 10:35:32 2003"
+isoreceived="20030109153532"
+sent="Thu, 9 Jan 2003 10:35:32 -0500"
+isosent="20030109153532"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="a crude solution to underconstrained queries"
+id="20030109153531.GE31395@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:www-annotation@w3.org
+
+
+
+In this message, I will discuss the affects of under-constrained algae
+queries. These happen when folks write their own algae. That folks are
+writing algae is a _good_thing_. Underconstrained queries happen all
+the time in SQL work, much as programs seldom compile and run the first
+time. I am documenting the underconstraint issue and the crude solution
+in order to encourage the folks who are fabricating algae queries and
+encourage others to join them.
+
+
+Periodically, annotest requests encounter arbitrarily large amounts of
+latency. Whenever I've noticed this, a MySQL process list showed that
+the SQL server was handling some queries producing very large amounts
+of data. This is usually the product of an underconstrained query like
+
+  ask '((rdf::type ?s1 ?o)(a::annotates ?s2 ?a))
+Note that the subject of the first term is different from the second.
+This will give every combination of a the two arcs. Given
+  rdf::type    annot1 a::Annotation
+  a::annotates annot1 http://www.w3.org/
+  rdf::type    annot2 a::Annotation
+  a::annotates annot2 http://example.org/
+  rdf::type    earl1  earl::Assertion
+the above query will give:
+  rdf::type    annot1 a::Annotation     a::annotates annot1 http://www.w3.org/
+  rdf::type    annot2 a::Annotation     a::annotates annot1 http://www.w3.org/
+  rdf::type    annot1 a::Annotation     a::annotates annot2 http://example.org/
+  rdf::type    annot2 a::Annotation     a::annotates annot2 http://example.org/
+  rdf::type    earl1  earl::Assertion   a::annotates annot1 http://www.w3.org/
+  rdf::type    earl2  earl::Assertion   a::annotates annot1 http://www.w3.org/
+  rdf::type    earl1  earl::Assertion   a::annotates annot2 http://example.org/
+  rdf::type    earl2  earl::Assertion   a::annotates annot2 http://example.org/
+ie, a combinatorial explosion yielding no particularly useful data.
+This corresponds to the SQL query
+  select * from Statements as a,Statements as b where a.predicate=1 and b.predicate=2212
+Each additional type or annotates arc doubles the result set. There
+are currently 14,210 rdf:type arcs and 4039 annotates arcs --
+57,394,190 combinations.
+
+Frequently these questions are a mis-expression of a more constrained
+query like:
+
+  ask '((rdf::type ?s1 ?o)(a::annotates ?s1 ?a))
+This binds the two subjects together, corresponding to the SQL
+query
+  select * from Statements as a,Statements as b where a.predicate=1 and b.predicate=2212 and a.subject=b.subject
+which gives 8694 results in the current database.
+
+as promised, the CRUDE SOLUTION:
+
+In order to manage this, I've added an arbitrary LIMIT 1000 to all
+queries. It is possbile this will encumber some useful queries, but
+it does decrease latency for others. For instance, the above example
+takes 2 seconds rather than 34 seconds if we limit it to 1000 results.
+It makes the underconstrained version of this query take .03 seconds,
+rather than something probably in the order of hours or days.
+
+Let me know if this limit hampers you and we can re-address it.
+
+Someday I hope to implement a constraint monitor that I've tested for
+another RDF SQL engine. It looks at all the joins and makes sure there
+is at least one constraint between them. If there is a break in the
+constraint chain, it throws an exception. I guess this exception would
+result in a message to the requestor.
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

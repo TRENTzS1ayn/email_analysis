@@ -1,0 +1,144 @@
+docno="lists-011-10246505"
+received="Tue Nov  4 13:53:29 1997"
+isoreceived="19971104185329"
+sent="Tue, 04 Nov 97 13:47:18 PST"
+isosent="19971104214718"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Question on byte ranges"
+id="9711042147.AA07731@acetes.pa.dec.com"
+inreplyto="Pine.LNX.3.95.971031185621.29110A100000&#64;hopf.math.nwu.edu"
+expires="1"
+
+
+To: http working group<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+John Franks writes:
+
+    If a server receives a byte range requests for a 100 byte file like
+    
+    a)   Range: bytes = 0-10, 130-140
+    or
+    b)   Range: bytes = 30-20
+    or
+    c)   Range: bytes = 0-10, 30-20, 40-50
+    
+    
+    what is the correct response?  
+    
+    In case a) one of the two ranges is invalid, but the spec says send
+    a 416 only if *all* are invalid.  If the valid ones are returned with
+    a 206 then there is no way to signal an error.  
+    
+    In case b) the spec says
+    
+If the last-byte-pos value is present, it must be greater
+than or equal to the first-byte-pos in that byte-range-spec,
+or the byte-range-spec is invalid. The recipient of an
+invalid byte-range-spec must ignore it.
+    
+    If the server ignores it then it should send what?
+    
+    Case c) is like b) except it is possible to send the valid ranges.
+
+I think the confusion here arises because, when I drafted this part
+of the spec, I failed to make a clear distinction between "syntactically
+invalid" byte-range-specs, and what I probably should have called
+"unsatisfiable" byte-range-specs.
+
+A "syntactically invalid" byte-range-spec is one for which there are no
+circumstances in which it would ever be valid.  E.g., "bytes = 30-20"
+and "bytes = 10-20-30" are both syntactically invalid
+byte-range-specs.  Basically, this is a coding bug in the client.
+
+An "unsatisfiable" byte-range-spec is one that is syntactically
+valid, but which cannot be satisfied (even partially) given the
+current state of the resource.  The fact that the client made
+such an unsatisfiable request might not be the result of a
+coding bug; it might just be because the client's information
+about the resource's current length is either out-of-date or
+"optimistic".
+
+Note that some of this terminology already appears in section
+14.17, but it isn't used consistently in the entire document.
+
+The philosophy behind the entire byte-range design is that
+requests that have "syntactically invalid" byte-range-specs
+should be treated as buggy, and the server should simply
+ignore the Range header and treat the request just as it
+would have treated a regular GET without the buggy Range.
+
+However, when a request contains a Range header which is
+syntactically valid, the server should provide as much
+as it can to the client, consistent with the request.
+That means that if any of the byte-range-specs are even
+partially satisfiable, then the server should send a 206
+(Partial content) response; if none of the byte-range-specs
+are satisfiable, then the server should return a 416 response.
+
+This is basically an application of the Robustness Principle
+("be conservative in what you send, be liberal in what you accept").
+
+I think this also clears up Dave Kristol's concern.  Dave wrote:
+    However, I have a problem with section 10.4.17, 416 Requested range
+    not found.  The helpful hint, "(For byte-ranges, this means that
+    the first-byte-pos of all of the byte-range-spec values were
+    greater than the current length of the selected resource.)" is
+    incorrect.  The byte-range-spec "30-20" (as in (b) above) is
+    invalid, but the first-byte-pos is valid.
+
+I think the "helpful hint" is accurate if you treat 416 as
+meaning "Requested range not satisfiable" rather than "Requested
+range not valid".    
+
+Here are my proposed rewrites:
+
+(1) Section 10.4.17 416 "Requested range not valid" should be
+retitled "Requested range not satisfiable", and in section
+6.1.1, the BNF for Status-Code should be changed from
+
+                                  | "416"   ; Requested range not valid
+
+to
+
+                                  | "416"   ; Requested range not satisfiable
+
+This name change should also be applied at three places in section 14.17
+where this status code is mentioned.
+
+(2) In section 14.36.1 Byte Ranges, change
+
+            If the last-byte-pos value is present, it must be greater
+            than or equal to the first-byte-pos in that byte-range-spec,
+            or the byte-range-spec is invalid. The recipient of an
+            invalid byte-range-spec must ignore it.
+
+to
+
+    If the last-byte-pos value is present, it must be greater
+    than or equal to the first-byte-pos in that
+    byte-range-spec, or the byte-range-spec is syntactically
+    invalid.  The recipient of a byte-range-set that includes
+    one or more syntactically invalid byte-range-spec values
+    MUST ignore the header field that includes that
+    byte-range-set.
+
+(3) Also in section 14.36.1 Byte Ranges, before the paragraph that
+starts "Examples of byte-ranges-specifier values ...", insert this
+paragraph:
+
+If a syntactically valid byte-range-set includes at least one
+byte-range-spec whose first-byte-pos is less than the current
+length of the entity-body, or at least one
+suffix-byte-range-spec with a non-zero suffix-length, then the
+byte-range-set is satisfiable.  Otherwise, the byte-range-set
+is unsatisfiable.  If the byte-range-set is unsatisfiable, the
+server SHOULD return a response with a status of 416 (Requested
+range not satisfiable).  Otherwise, the server SHOULD return a
+response with a status of 206 (Partial Content) containing the
+satisfiable ranges of the entity-body.
+
+-Jeff
+
+
+

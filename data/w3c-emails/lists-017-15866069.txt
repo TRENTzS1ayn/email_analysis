@@ -1,0 +1,172 @@
+docno="lists-017-15866069"
+received="Sun Dec 29 19:53:26 2002"
+isoreceived="20021230005326"
+sent="Sun, 29 Dec 2002 16:52:35 0800"
+isosent="20021230005235"
+name="XQuery"
+email="xquery@attbi.com"
+subject="Six comments on the XQuery grammar (2002 Nov 15 draft)"
+id="000001c2af9d$beb9f760$0900a8c0@brundage1"
+charset="usascii"
+expires="1"
+
+To:<public-qt-comments@w3.org>
+
+
+
+1. ExprComment disallows } for no good reason.
+(By analogy, CdataSection and XmlComment do not prohibit >.)
+Recommended change:
+
+[6] ExprComment ::= "{--" Char* "--}"
+
+Note that ExprComment, CdataSection, XmlComment, and
+XmlProcessingInstruction could be more properly defined using:
+
+[6] ExprComment   ::= "{--" ([^-]* | "-" [^-]* | "--" [^}]*) "--}"
+[99] CdataSection ::= "<![CDATA["
+                      ([^&#x005D;]* | "]" [^&#x005D;]* | "]]" [^>]*)
+                      "]]>"
+[100] XmlPI       ::= "<?" PITarget ([^?]* | "?" [^>]*)  "?>" 
+[101] XmlComment  ::= "<!--" ([^-]* | "-" [^-]* | "--" [^}]*) "-->" 
+
+This change would remove the need to specify the exception cases in
+prose outside the grammar ("Char*, except for the terminator"), and also
+would make the lookahead explicit.
+
+
+2. VarName should include "$".
+Every occurrence of "$" precedes VarName; conversely every occurrence of
+VarName follows "$".  Therefore, "$" should be rolled into VarName.
+Recommended change:
+
+[13] VarName ::= "$" QName
+
+(and update all referring productions)
+
+
+3. ElementContent is ambiguous.
+In ElementContent, whitespace is significant.  How then should the
+following expression parse?
+
+<x>{--x--}</x>
+
+I see three possible ways to parse this XQuery:
+(i)   An element containing the seven characters {, -, -, x, -, -, and }
+(ii)  An empty element (parsing the content as an XQuery comment which
+is ignored)
+(iii) An element whose content is the value of the enclosed expression
+--x-- (which is semantically equivalent to -(-(x--)), that is, unary
+minus applied twice to the path x--)
+
+Which is the correct one?
+
+
+4.  Another ambiguity in ElementContent.
+The Char must disallow {, }, <, and &. In other words, the production
+should be changed to:
+
+[102] ElementContent ::= [^{}<&]
+                       | "{{" | "}}"
+                       | ElementConstructor
+                       | EnclosedExpr
+                       | CharRef
+                       | PredefinedEntityRef
+                       | XmlComment
+                       | XmlProcessingInstruction
+(see also next feedback item)
+
+5. AttributeValueContent is ambiguous.
+Clearly the Char must disallow the terminator, so at a minimum these
+productions must be changed to:
+
+[104] AttributeValue ::= ('"' (EscapeQuot | [^"] |
+AttributeValueContent)* '"')
+                       | ("'" (EscapeApos | [^'] |
+AttributeValueContent)* "'") 
+[105] AttributeValueContent ::=  CharRef 
+                              |  "{{"
+                              |  "}}"
+                              |  EnclosedExpr 
+                              |  PredefinedEntityRef 
+
+However, there are still ambiguities with & and { (see next item).
+
+6. Escapes, strings, and content could be simplified.
+
+According to the explanation of the *_ATTRIBUTE_CONTENT lexical states,
+the EnclosedExpr nests lexical states and therefore may contain the
+terminator.  For example, the XQuery expression <x a="{""}"/> is
+syntactically valid and semantically equivalent to <x a=""/>.
+
+On the one hand, you could potentially simplify the lexer by eliminating
+this nesting condition (i.e., any occurrence of the terminator, even in
+an EnclosedExpr, ends the attribute value).
+
+On the other hand, as long as this nesting condition remains, you have
+no less than four different ways to escape the terminator:
+   (a) use a predefinedEntityRef: <x a="&quot;"/>
+   (b) use a numerical ref (hex or decimal): <x a="&#x22;"/>
+   (c) use an enclosed expr: <x a="{'"'}"/>
+   (d) double it up: <x a=""""/>
+
+There is no good reason to introduce a fourth mechanism (doubling-up)
+when three others already exist.  I recommend removing it, and then
+simplifying the grammar as follows:
+
+Delete: 11, 18, 105 (EscapeQuot, EscapeApos, AttributeValueContent) 
+Add:
+[X1] ComputedString    ::= ('"' (QuotStringContent | EnclosedExpr)* '"')
+                         | ("'" (AposStringContent | EnclosedExpr)* "'")
+[X2] QuotStringContent ::= [^"&{}] | EscapeSequence
+[X3] AposStringContent ::= [^'&{}] | EscapeSequence
+[X4] EscapeSequence    ::= CharRef
+                         | PredfinedEntityRef
+                         | "{{" | "}}"
+Change:
+[4] StringLiteral    ::= '"' QuotStringContent* '"'
+                       | "'" AposStringContent* "'"
+[5] URLLiteral       ::= StringLiteral
+[104] AttributeValue ::= ComputedString
+[102] ElementContent ::= Char
+                       | EscapeSequence
+                       | ElementConstructor
+                       | CdataSection
+                       | XmlComment
+                       | XmlProcessingInstruction
+
+(or if you adopt item #4 above, this would instead be:
+[102] ElementContent ::= [^{}<&]
+                       | EscapeSequence
+                       | ElementConstructor
+                       | CdataSection
+                       | XmlComment
+                       | XmlProcessingInstruction
+)
+
+Personally, I would then enhance the language by allowing ComputedString
+in PrimaryExpr (and possibly also ProcessingInstructionTest) :
+
+[62] PrimaryExpr ::= Literal
+                   | ComputedString
+                   | FunctionCall
+                   | ("$" VarName)
+                   | ParenthesizedExpr
+
+These changes have the added advantage that now the grammar allows
+charref and predefinedentityref in StringContent, and eliminates the
+Char ambiguity that occurred in AttributeValue.
+
+Note also that the "}}" escape is technically unnecessary, and both it
+and the "{{" escape are redundant with the existing CharRef escapes.
+Consider removing these redundant escapes.
+
+
+Cheers,
+
+Michael Brundage
+xquery@attbi.com
+Author, "XQuery: The XML Query Language", Addison-Wesley
+
+
+

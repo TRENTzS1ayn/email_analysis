@@ -1,0 +1,205 @@
+docno="lists-014-8491853"
+received="Wed Mar 31 09:11:26 2004"
+isoreceived="20040331141126"
+sent="Wed, 31 Mar 2004 09:07:20 0500"
+isosent="20040331140720"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: [Moderator Action] another idea for the URN approach to local UIDs in bookmarks"
+id="20040331140720.GP23162@w3.org"
+charset="usascii"
+inreplyto="20040331130436.GH3785&#64;inrialpes.fr"
+expires="1"
+
+To:public-annotea-dev@w3.org
+
+
+
+On Wed, Mar 31, 2004 at 08:10:34AM -0500, Jose Kahan wrote:
+> 
+> 
+> Last Friday I missed the last bus home. While walking 9 km back home,
+> I thought about this problem and came up with another less polemical
+> solution, but that requires more application involvement. 
+> 
+> It's basically applying what the server already does when attributing 
+> URLs and keeping state using owl:sameAs.
+> 
+> 1. Define a new property, Bookmark#Base which is the equivalent of
+>    xml:base and html:base. The value of this property will be the
+>    location of the local bookmark file. It's a way of keeping this
+>    information without having parsers losing it (by applying it to the
+>    URLs.
+
+I'd like to paint a picture of this in action to help myself and
+others consider the mechanics of this approach:
+
+Jose is on a plane poking around some cached portion of the web and
+wants to bookmark something with a new topic.
+
+<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+       xmlns:b="http://www.w3.org/2002/01/bookmark#"
+       xml:base="file://localhost/home/jose/bookmarks.rdf">
+
+   <r:Description r:id="topic1">
+      <dc:title>fruitinfo</dc:title>
+      <b:subTopicOf r:resource="#MyHomeTopic"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+
+   <r:Description r:id="bm1">
+      <b:recalls r:resource="http://sample.example.com/appledoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+
+   <r:Description r:id="bm2">
+      <recalls r:resource="http://demo.example.com/orangedoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+</r:RDF>
+
+As you note, this is likely to lose the xml:base when the first RDF
+processor get it and evaluates the names of the topics and bookmarks
+relative to that xml:base:
+
+<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+       xmlns:b="http://www.w3.org/2002/01/bookmark#">
+
+   <r:Description r:id="file://localhost/home/jose/bookmarks.rdf#topic1">
+      <dc:title>fruitinfo</dc:title>
+      <b:subTopicOf r:resource="#MyHomeTopic"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+
+   <r:Description r:id="file://localhost/home/jose/bookmarks.rdf#bm1">
+      <b:recalls r:resource="http://sample.example.com/appledoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+
+   <r:Description r:id="file://localhost/home/jose/bookmarks.rdf#bm2">
+      <recalls r:resource="http://demo.example.com/orangedoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+</r:RDF>
+
+
+> 2. Give anything as a name to bookmarks and topics, but make sure the
+>    base of their URL is the same as the one defined in Bookmark#Base.
+
+done in the above example by keeping these names relative
+
+> 3. When opening a file, check the value of Bookmark#Base. If the
+>    file contains bookmarks or topics that have a different base,
+>    assume that the file has changed location.
+
+Let's make this a system-wide bookmark file:
+mv /home/jose/bookmarks.rdf /usr/local/bookmarks/current.rdf
+
+>    In this case, have the application reassign new URLs for all its
+>    topics and bookmarks using the current base and, for each item,
+>    store the previous URL value using owl:sameAs. We can have
+>    the application prompt the user "do you want to keep track
+>    of the previous location?" in case the user is just moving the
+>    bookmark file around, but has not made any RDF statements about any 
+>    of the items it contains.
+
+Bookmark app reads /usr/local/bookmarks/current.rdf and globally
+changes /home/jose/bookmarks.rdf
+to /usr/local/bookmarks/current.rdf .
+
+> 4. Use owl:sameAs to track statements made about the previous URLs
+>    and have the application resolve them.
+
+... and adds:
+   <r:Description
+    rdf:about="http://laptop.example.com/usr/local/bookmarks/current.rdf">
+     <owl:sameAs rdf:resource="file://localhost/home/jose/bookmarks.rdf"/>
+   </r:Description>
+
+Applications on this machine now know that they can see a reference to
+file://localhost/home/jose/bookmarks.rdf#topic1 and it's the same as
+http://laptop.example.com/usr/local/bookmarks/current.rdf#topic1 .
+
+> 5. When an RDF server sends back a set of bookmarks, it can include
+>    the Bookmark#Base property so that the application knows that they
+>    have the same base. This will make the way the file is stored
+>    (as a single file or inside a database) transparent to the
+>    application.
+
+<r:RDF xmlns:r="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+       xmlns:b="http://www.w3.org/2002/01/bookmark#">
+
+   <r:Description
+    r:id="http://laptop.example.com/usr/local/bookmarks/current.rdf#topic1">
+      <dc:title>fruitinfo</dc:title>
+      <b:subTopicOf r:resource="#MyHomeTopic"/>
+      <b:base
+     rdf:resource="http://laptop.example.com/usr/local/bookmarks/current.rdf"/>
+   </r:Description>
+
+   <r:Description
+    r:id="http://laptop.example.com/usr/local/bookmarks/current.rdf#bm1">
+      <b:recalls r:resource="http://sample.example.com/appledoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base
+     rdf:resource="http://laptop.example.com/usr/local/bookmarks/current.rdf"/>
+   </r:Description>
+
+   <r:Description
+    r:id="http://laptop.example.com/usr/local/bookmarks/current.rdf#bm2">
+      <recalls r:resource="http://demo.example.com/orangedoc"/>
+      <b:hasTopic r:resource="#topic1"/>
+      <b:base
+     rdf:resource="http://laptop.example.com/usr/local/bookmarks/current.rdf"/>
+   </r:Description>
+</r:RDF>
+
+I haven't included the owl:sameAs assertion because it described the
+relationship between a universally identified resource
+  http://laptop.example.com/usr/local/bookmarks/current.rdf
+and a local resource that was created when there was no net access
+  file://localhost/home/jose/bookmarks.rdf
+
+> 6. If I have a single bookmark file and I put it to the server using
+>    a specific "Save As" for bookmarks, the application can rewrite the
+>    URLs and add the owl:sameAs when writing the file. 
+> 
+>    If this is not done, the application will catch the error when
+>    reading a file that has a different base.
+> 
+> Does this make sense to you compared to the previous URN approach?
+> It puts a bigger burden on the application, but makes things work
+> even if a file moves around... and it removes the burden from us
+> of guaranteeing we have a unique URN for each item.
+
+I think this is an interesting technique, and I'm glad to have worked
+through the details of it, but I think we still need the URN approach
+to deal with the scenario of documents that are shared before they get
+a universal name. For instances, a user could queue mail containing a
+local form (not yet named with a non-local name) while still on the
+plane [1].
+
+Perhaps this approach addresses the mailed-local scenario in a way I
+haven't spotted.
+
+[1] http://www.w3.org/2003/12/20-local-global.html#L153
+-- 
+-eric
+
+office: +81.466.49.1170 W3C, Keio Research Institute at SFC,
+                        Shonan Fujisawa Campus, Keio University,
+                        5322 Endo, Fujisawa, Kanagawa 252-8520
+                        JAPAN
+        +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741 (does not work in Asia)
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

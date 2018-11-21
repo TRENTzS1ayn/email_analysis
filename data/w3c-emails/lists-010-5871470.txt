@@ -1,0 +1,161 @@
+docno="lists-010-5871470"
+received="Mon Aug  5 13:28:33 1996"
+isoreceived="19960805172833"
+sent="Mon, 05 Aug 96 13:22:07 MDT"
+isosent="19960805192207"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Sticky header draft &ndash;&ndash; as an attachment"
+id="9608052022.AA25808@acetes.pa.dec.com"
+inreplyto="c=US%a=_%p=msft%l=RED-77-MSG-960805183922Z32713&#64;tide21.microsoft.com"
+expires="1"
+
+
+To: Paul Leach<paulle@microsoft.com>
+Cc: 'http-wg'<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+Your draft says:
+
+    The negotiation of the sticky headers option may take place on any
+    request sent over a persistent connection. The client may add the
+    connection-token "Sticky" to the Connection header in a request; if the
+    server accepts the use of sticky headers, it responds with the same
+    token in the Connection header of its response.
+    
+    Once the use of sticky headers has been negotiated, specified message-
+    headers (see section 4.1 and 4.2 of [1]) are remembered from message to
+    message, so that they need to be transmitted in a message only if they
+    have changed since the last message. The use of sticky headers continues
+    until the connection is closed, without further need for the "Sticky"
+    connection-token on each request.
+
+I think this leads to an ambiguous situation when the client is
+pipelining requests.  We identified this ambiguity at the meeting
+we had in January of the persistent-connections subgroup.
+
+Consider this **somewhat contrived** example
+
+     client:
+     ## requesting first object, negotiating sticky headers ##
+     GET / HTTP/1.1<CRLF>
+     Accept: text/html<CRLF>
+     Accept-Language: en<CRLF>
+     Connection: sticky<CRLF>
+     <CRLF>
+
+     server:
+     HTTP/1.1 200 OK<CRLF>
+     MIME-Version: 1.0<CRLF>
+     Connection: sticky<CRLF>
+     Content-Type: text/html<CRLF>
+     Content-Length:94<CRLF>
+     <CRLF>
+     <94 bytes body data here>
+
+     client:
+     ## requesting second object, changing one of the to-be-sticky headers ##
+     GET /a.gif HTTP/1.1<CRLF>
+     Accept: image/gif<CRLF>
+     <CRLF>
+     ## requesting 3rd object, again changing 1 of the to-be-sticky headers ##
+     GET /b.jpeg HTTP/1.1<CRLF>
+     Accept: image/jpeg<CRLF>
+     ## requesting 4th object, not sending one of the to-be-sticky headers ##
+     GET /c.gif HTTP/1.1<CRLF>
+     <CRLF>
+
+OK, so what are the effective request headers for the 4th request?
+Your design implicitly disallows the client from assuming "stickiness"
+until it has received
+     Connection: sticky<CRLF>
+from the server.  However, because there is no way for the server
+to tell whether the client received that header before or after
+sending the fourth request, the server cannot unambiguously know
+what the client means (i.e., should the fourth request be interpreted
+as having "Accept: image/jpeg" or not?)
+
+One could argue that this kind of thing could never happen in practice,
+and so my contrived example (which admittedly is pretty foolish on the
+part of the client) is not worth discussing.  But the race condition
+seems to be intrinsic in the current draft design, and I'd feel more
+confident if there were either a proof that it is not really a problem,
+or a design modification that prevented the ambiguity.
+
+I can see several possible ways to solve this:
+(1) Explicitly declare that the client, after having sent
+"Connection: sticky", may start omitting headers as soon as it
+receives the server's "Connection: sticky" response, but MUST
+NOT change any such headers before receiving a response to the
+first request sent *after* it has received that "Connection:
+sticky" response from the server.  This rule has to be
+interpreted "per connection".  (If you draw out the timing
+diagram, you can see that this will always avoid the race
+condition.)
+
+(2) Change the proposed protocol so that the client explicitly
+signals to the server that negotiation is over and it is
+starting to use the sticky-header mechanism.  This is
+similar to how Telnet negotiation works.  E.g.,
+
+client sends
+Connection: want-sticky ->
+server replies
+<- Connection: sticky-OK
+client sends
+Connection: doing-sticky ->
+
+immediately after which the client can start taking full
+advantage of the sticky-header mechanism, one RTT sooner than
+with option #1.  You could still get by with a single "sticky"
+token, by adopting the rule that the client must send it a
+second time, but only after receiving it from the server.
+
+Regarding:
+    2.2 Contexts
+    
+    Proxies can operate just like user-agents if they want. However, they
+    typically act on behalf of many clients, multiplexing a single
+    connection to a server across messages from many clients. Such
+    multiplexing will likely destroy the correlation between consecutive
+    messages that makes sticky headers an effective compression technique.
+
+It might be a good idea for you to provide a means for negotiating
+multiple contexts over a single proxy-server connection, but I am
+not sure it's wise to implicitly bless the multiplexing of request
+streams from several clients.  This can lead to something akin to
+the "head of line blocking" problem seen in network switches:
+
+    Head of line blocking occurs when a packet at the head of an input
+    queue blocks, thereby preventing a packet behind it from using an
+    available output port. The problem is common to networks which
+    employ input FIFOs which prevent packets from passing one another.
+    The solution to head of line blocking is to use random access
+    buffers which permit packets to be forwarded out of order.
+
+    quoted from "High Performance Communication for Distributed Systems"
+    by William Stasior,
+    http://www.tns.lcs.mit.edu/~wstasior/distrib_sys_comm/distrib_sys_comm.html
+
+Consider the case where proxy P is combining request streams from
+client C1 and client C2 over the same TCP connection to server S.
+Since we don't allow reordering of requests (i.e., we use "input FIFOs"
+at the server side), if C2 makes a request that takes a long time to
+answer, C1 may have to wait even though there is no intrinsic reason
+for this.  The situation is especially bad if S is actually proxy
+as well, and C1 and C2 are really making their requests to unrelated
+origin servers S1 and S2.  If S2 is down, the C1->S1 request is stalled
+until the C2->S2 request times out.
+
+This is why draft-ietf-http-v11-spec-06.txt says
+
+8.1.4 Practical Considerations
+
+[...] A proxy SHOULD use up to 2*N connections to another
+server or proxy, where N is the number of simultaneously active
+users. These guidelines are intended to improve HTTP response
+times and avoid congestion of the Internet or other networks.
+
+-Jeff
+
+
+

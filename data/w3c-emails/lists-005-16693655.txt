@@ -1,0 +1,128 @@
+docno="lists-005-16693655"
+received="Fri May 11 18:00:35 2001"
+isoreceived="20010511220035"
+sent="Fri, 11 May 2001 22:59:39 +0100"
+isosent="20010511215939"
+name="Tim_Ellison@uk.ibm.com"
+email="Tim_Ellison@uk.ibm.com"
+subject="Resource class"
+id="80256A49.0078D6CB.00@d06mta07.portsmouth.uk.ibm.com"
+charset="us-ascii"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+
+
+[I did send this mail once, but it hasn't appeared, so here's attempt #2]
+---------------------------
+The issue of determining a versioning resource's classification based on
+the absence (or otherwise) of properties has been raised before on the
+list.  Recently however, (in other contexts) people have shifted in favour
+of extensions to <DAV:resourcetype> to convey more 'type' information.
+
+In support of this shift of opinion, here's my renditioning of how a client
+currently determines the resource classification (if, for example, if a
+client were given a URL in a property with no other information) in a
+versioning world.
+
+To get an accurate classification the client has to issue a PROPFIND then
+look at the results as follows (hopefully my layout is not too cryptic):
+
+>>REQUEST
+     PROPFIND /foo HTTP/1.1
+     Host: bar.com
+     Content-Type: text/xml; charset="utf-8"
+     Content-Length: xxx
+
+     <?xml version="1.0" encoding="utf-8" ?>
+     <D:propfind xmlns:D="DAV:">
+         <D:prop>
+             <D:resourcetype/>
+             <D:auto-checkout/>
+             <D:checked-in/>
+             <D:checked-out/>
+             <D:version-name/>
+             <D:workspace-checkout-set/>
+             <D:baseline-controlled-collection/>
+             <D:subactivity-set/>
+         </D:prop>
+     </D:propfind>
+
+Interpreting the results
+--------------
+Key: The major classifications are listed below from (1) to (8).
+
+Each entry marked with a plus-sign can exist in a checked-in xor
+checked-out state.
++
+ <DAV:checked-in> defined -- the resource is checked-in.
+ <DAV:checked-out> defined -- the resource is checked-out.
+
+Each entry marked with an astrix can exist as a collection resource xor a
+non-collection resource.
+*
+ <DAV:resourcetype> value is not <DAV:collection/> -- the resource is not a
+collection.
+ <DAV:resourcetype> value is <DAV:collection/> -- the resource is a
+collection.
+
+
+(1+*) Version-controlled resource.
+     <DAV:auto-checkout> defined
+
+(2*) Version.
+     <DAV:version-name> defined
+
+(3) Version history.
+     <DAV:resourcetype> value is <DAV:version-history/>
+
+(4) Workspace.
+     <DAV:resourcetype> value is <DAV:collection/>
+     <DAV:workspace-checkout-set> defined
+
+(5*) Working resource.
+     <DAV:checked-out> defined
+     <DAV:auto-checkout> *not* defined
+
+(6+) Version-controlled configuration.
+     <DAV:baseline-controlled-collection/> defined
+
+(7) Baseline.
+     <DAV:resourcetype> value is <DAV:baseline/>
+
+(8) Activity.
+     <DAV:subactivity-set> defined.
+
+
+Observations
+----------
+(i) For the most part we only care if a property is defined - i.e., it
+exists, and not what it's value is.  There is currently no way to ask this
+question in WebDAV.
+
+(ii) It would seem that activities should have a <DAV:resourcetype> of
+<DAV:activity>, but I didn't see that in the -15 spec.
+
+(iii) The only way I could see to distinguish a workspace from a 'regular'
+collection was the presence of <DAV:workspace-checkout-set/> which it would
+seem is likely a very expensive property to query.
+
+
+Conclusions
+---------
+(a) We should extend <DAV:resourcetype> to provide all this classification
+information in a single property.
+(b) How about extending <DAV:propname/>? such as
+<DAV:propname>
+    <DAV:checked-out/>
+</DAV:propname>
+then the client would get back just the name or a 404 to determine if it
+exists.
+
+
+Tim
+
+
+

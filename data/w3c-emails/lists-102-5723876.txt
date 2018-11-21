@@ -1,0 +1,104 @@
+docno="lists-102-5723876"
+received="Tue Jul 28 01:57:42 1998"
+isoreceived="19980728055742"
+sent="Tue, 28 Jul 1998 05:56:57 GMT"
+isosent="19980728055657"
+name="Myrddin Emrys"
+email="myrddin@iosys.net"
+subject="Re: Implementing NodeList"
+id="35bf60c0.49561867@mail.iosys.net"
+charset="us-ascii"
+inreplyto="qcn29uajb9.fsf&#64;gelion.crc.ricoh.com"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+On 27 Jul 1998 17:52:10 -0700 steve@crc.ricoh.com (Stephen R. Savitzky)
+sent this message:
+
+>I think that ``in practice'' depends on who is practicing what; in my
+>opinion the advice you got was worth exactly what you paid for it.  In a
+>multithreaded environment (which we have in our application) with very large
+>documents (such as a database or document store) this kind of implementation
+>trick is unacceptable.
+<snip>
+>I'll stand by my original statement.  For example, consider a document
+>derived in the obvious fashion from a table in a relational database.  A
+>node with several million children is not unreasonable to expect.  If the
+>document is ``live'', the implementor might have to query the database and
+>obtain the entire table at each iteration.
+
+I am a part-time programmer... my practical knowledge of implementing
+things such as the DOM spec is very limited. But one question has kept
+plaguing me throughout this discussion... why can't the nodeList be
+implemented as a linked list? Removing and inserting nodes into a linked
+list is a trivial matter, whether it is live or not. Traversing a linked
+list is also trivial. What about the spec or the required implementation
+makes using linked lists unacceptable?
+
+One thing I saw was that it is required to be indexed... ie, require a
+unique, sequential access number for each node, as if it were an array. Has
+anyone considered using a generated index, as opposed to a fixed index? If
+the nodes are linked in a hash tree, or some other tree format, you can
+make a generated index by summing the count of the nodes beneath each
+branch.
+
+
+I
++-D
+| +-C
+|   +-A
+|   +-B
++-H
+  +-F
+  | +-E
+  +-G
+
+This tree represents the nodelist ABCDEFGHI (if traversed sequentially
+using a depth first traverse). We can generate and use an index by creating
+a count of the nodes beneath each branch... like so:
+
+I9
++-D4
+| +-C3
+|   +-A1
+|   +-B1
++-H4
+  +-F2
+  | +-E1
+  +-G1
+
+The index of nod G can be calculated by adding D+F+G = 4+2+1 = 7. This is
+equivalent to counting the top node of every branch that is completely
+before G, plus counting itself (since because you are performing a depth
+first search, the branch below itself also comes before the node).
+
+Assuming a well made hash tree, this calculation can be performed very
+quickly... a balanced tree with a million nodes can be calculated by
+summing an average of only 10 nodes. Further traversing of the tree in a
+forward or reverse direction can be done with no more calculations needed,
+unless an edit is performed on the tree (a node is removed or added). To
+regain coherence, only 10 nodes (on average) would have to be recounted.
+
+When an edit is performed, the count of all nodes above it to the top have
+to be updated... but that is far less intensive than updating an average of
+half the nodelist. If a node was added below E in the example above, the
+values of E, F, H, and I would need to increment by 1... a trivial matter.
+
+It seems, to my inexperienced eyes, to solve the problem of requiring an
+array-like index to be available for a frequently updated nodelist. It
+allows the nodelist to be live, with the benefits that creates. This
+implementation assumes a well formed hash is used to generate the nodelist.
+A poorly formed tree would accrue higher costs re-calculating the index
+value, but it should still be less CPU intensive than most solutions. I do
+not know if this is not possible given the DOM spec, but I would like to
+hear ideas.
+
+Myrddin
+--
+Myrddin Emrys, Io Systems Network Administrator
+mailto:myrddin@iosys.net
+
+
+

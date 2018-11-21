@@ -1,0 +1,192 @@
+docno="lists-056-1141423"
+received="Thu Jun 19 16:13:33 1997"
+isoreceived="19970619201333"
+sent="Thu, 19 Jun 1997 15:10:54 -0500"
+isosent="19970619201054"
+name="W. Eliot Kimber"
+email="eliot@isogen.com"
+subject="Re: Update on namespaces"
+id="3.0.32.19970619151036.00c28398@swbell.net"
+charset="us-ascii"
+inreplyto="Update on namespaces"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+At 01:48 PM 6/18/97 -0500, Paul Grosso wrote:
+>Considering only the issue of specifying the namespace for the
+>names in a given element instance's "markup" (its start and endtag),
+>here are my problems with archforms:
+>
+>1.  you would need to parse the start tag for all attributes (and
+>    maybe check the internal subset and/or DTD) to determine if it
+>    has a namespace-specifying attribute BEFORE you can determine
+>    what the namespace is for the very element gi and attribute
+>    specification list you just parsed!  If, in fact, you are going
+>    to make any use of any declarations (DTD or internal subset),
+>    you may discover after resetting the namespace that you've parsed
+>    all the attributes wrong.  You might even discover that, in your
+>    new namespace, you've got different arch forms so the attribute
+>    you thought just changed your namespace doesn't really change
+>    namespace in your new namespace!
+
+The use of architectural forms doesn't affect the *parsing* of elements in
+any way.  Therefore, the recognition or non recognition of "name spaces"
+can't affect the parsing of the attributes.  
+
+>2.  by using archforms, you have no way to allow different names in
+>    a start tag to come from different namespaces.  I'm not sure how
+>    far we'd want to go here, but I predict there will be call for
+>    having some attributes from one namespace and others from another
+>    (Andrew and others have already shown some examples of this), and
+>    going with archforms precludes ever being able to do this.
+
+This is not true.  The attributes on a start tag are associated with
+architectures either because they have the same name as the attributes
+declared in the applicable meta-DTD or because the local names have been
+mapped to the architectural names using an architectural renaming attribute
+(e.g., "hynames").  As an element can be derived from any number of
+architectures concurrently, you can have attributes from each one without
+difficulty (for disambiguating name clashes, if any).
+
+For example, given this architectural element form from the "part-list"
+architecture (which I've just made up for this example):
+
+<!ELEMENT part-number  - - (#PCDATA|part-brid)* >
+<!ATTLIST part-number
+          product    CDATA #IMPLIED -- Product this is a part for --
+>
+
+I can derive my own element from it like so:
+
+<!ELEMENT PartNo  - - (#PCDATA)* >
+<!ATTLIST PartNo
+          product   CDATA #IMPLIED 
+          part-list NAME  #FIXED "part-number"
+>
+
+The "part-list" attribute is the "architectural form naming attribute" and
+indicates that "PartNo" is derived from the "part-number" element form in
+the "part-list" architecture.  Because the "product" attribute has the same
+name as the "product" attribute of the "part-number" form, the Part-Number
+architectural processor assumes that the product attribute is its and
+processes (and, optionally, validates) it according to its semantics for
+the product attribute. [The form "part-brid" in the part-number meta
+content model represents a general-purpose architectural place holder that
+can be used for any element you want to be architectural.  The content
+model (#PCDATA|x-brid)* means "whatever goes here is fine".]
+
+If we subsequently want to derive PartNo from another form in a different
+architecture, say one for expressing formatting semantics, it would work
+like as follows: 
+
+First we declare a new architectural form in a new architecture, the
+"format-stuff" architecture):
+
+<!-- Formatting stuff architecture -->
+<!ELEMENT Bold  - - (#PCDATA|format-brid)* >
+<!ATTLIST Bold
+          product (msie|netscape|cello|dontcare) dontcare
+          -- Product this format spec is intended for --
+> 
+
+Now we update the ProdNo declaration to reflect the new derivation:
+          
+<!ELEMENT PartNo  - - (#PCDATA)* >
+<!ATTLIST PartNo
+          product      CDATA #IMPLIED 
+          browser      (msie|netscape|dontcare) dontcare
+          part-list    NAME #FIXED "part-number"
+          format-stuff NAME FIXED "bold"
+          format-stuff-names
+                       CDATA #FIXED "product browser"
+                     
+>
+
+I now have two schema spaces associated with the PartNo element.  The
+format-stuff architecture recognizes the "browser" attribute as being its
+expected "product" attribute because the "format-stuff-names" attribute has
+defined the mapping that disambiguates the name conflict.
+
+>3.  if you go with something like a "namespaceid:" prefix, as long as
+>    you've added : to namechar, a standard XML parser will be able to
+>    parse the (fully namespace-qualified) document properly distinguishing
+>    the distinct names (and, e.g., knowing what style sheets to use for
+>    each element).  With arch forms, you have what I consider to be an
+>    undesirable situation where the actual parsing of the document (as
+>    opposed to just its application-dependent semantic interpretation)
+>    is affected by the recognition of and proper reaction to the meaning
+>    of the arch forms.  Said another way, I think archforms should only
+>    affect the application-level semantic processing of a document, not
+>    its basic parsing.  
+
+Archforms *do* only affect the application-level semantic processing of the
+document.  They don't (and can't) affect the parsing at all.  Architectural
+validation is *not* the same as parsing--it happens after parsing of the
+base document.  The only issue is whether the architecture control
+attributes are fixed in some declarations or explicit on each element.
+
+>I also tend to agree with Tim's "massive resistance in webland" comment,
+>and I'm not sure I understand the comment attributed to James that a
+>vanilla XML parser can handle the archform solution (how can it unless
+>you assume it has built-in handling for the namespace archform semantic).
+
+Because ultimately it's nothing more than associating a variety of semantic
+labels (architectural forms) with elements.  You can implement this with a
+case statement conditioned off the values of the architectural
+attributes--it requires no more sophistication than that if you don't
+intend to do architectural validation.  I wrote a whole architecture-based
+processor in Rexx using just this technique.  I did the same thing in Perl
+for HyTime (www.isogen.com/demos/hy-lib.html).  It's just not that hard:
+
+# Apply part-number architecture processing to elements derived from 
+# part-number forms
+switch (attval("part-number")) {
+  case "product":
+    rc = PN_load__part_database(attval(archatt("product", "part-number")))
+    break;
+  default "part-brid:
+    rc = do_default_part_number_processing($attlist, $content)
+}
+
+>If you need to refer to fancier combination of namespaces--I wouldn't call
+>it "multiple inheritance"--(and I'm not sure we do, but we might want to
+>allow for it later), that can be handled as follows.  Given that we use
+>a notation declaration to associate the "namespaceid" name that comes
+>before the ":", e.g.:
+><!NOTATION nsid SYSTEM "...some URI/FPI/FSI sort of thing...">
+>we can define a syntax that allows the system identifier to point to
+>multiple namespaces.  One obvious syntax is that of FSIs which are
+>structured identifiers that allow for sequences and/or or-groups of
+>URIs and such.
+
+Note that architectures are declared as notations, which provides the
+connection from the document to the architectures from which it is derived.
+ The architecture notation declaration also defines the attributes used in
+the instance to associate the architecture with elements (you use data
+attributes to declare the names of the architectural form naming attribute
+and the architectural renaming attribute).
+
+In both cases you're associating a set of semantic names with the
+definition of the semantics behind those names.  The key question is the
+syntax by which the new names get associated with the base elements and
+attributes.  Architectural forms have the advantage that the association
+can be completely hidden from the instance *when you have a DTD*.
+Obviously, when you don't, they have to be exposed.  [One problem with the
+":" proposals is that they are *always* exposed.]
+
+In a normal SGML environment, where you (today) always have explicit DTDs,
+the architectural control attributes need never be exposed, so the use of
+AFs there is very low cost.  In XML, you have to worry about exposure.
+It's certainly true that from a "simplest syntax" standpoint, if you have
+to expose the names, doing it in the tag name or attribute name is better
+than doing it with attributes, but in the larger scheme of things, I don't
+think it makes that much difference.
+
+Cheers,
+
+E.
+
+
+

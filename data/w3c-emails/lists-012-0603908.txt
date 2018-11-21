@@ -1,0 +1,107 @@
+docno="lists-012-0603908"
+received="Wed Mar  4 14:40:55 1998"
+isoreceived="19980304194055"
+sent="Wed, 04 Mar 98 14:37:57 PST"
+isosent="19980304223757"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="new editorial(?) issue HEAD_WITH_IMS"
+id="9803042237.AA00826@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Dave Kristol and I have been working in private to nail down
+a precise description of how the various conditional headers
+(If-Modified-Since, If-None-Match, etc.) interact.
+
+DESCRIPTION OF PROBLEM:
+
+One new question came up: is it "legal" to send an
+If-Modified-Since header with a HEAD method?
+
+The current revision of the specification does not address
+this question directly.  However, it makes two somewhat
+contradictory statements:
+
+Section 9.4 (HEAD) says:
+    The HEAD method is identical to GET except that the server MUST NOT
+    return a message-body in the response.
+
+"identical" implies that HEAD+IMS should be the same as GET+IMS,
+except that a 200 response would carry no body (a 304 response
+never has a body, of course).
+
+On the other hand, section 14.24 (or 14.25, depending on whether
+the alphabetical ordering has been fixed in your copy of -rev-02)
+says
+The If-Modified-Since request-header field is used with the
+GET method to make it conditional ...
+but does not mention the possibility of using this header with
+any other method.
+
+(The specifications of the other four If-* headers do not mention
+a specific method, although If-Range is introduced as a way
+to avoid an extra GET request.)
+
+PROPOSED SOLUTION:
+
+Our intuition is that, based on the language in 9.4, any headers
+allowed with GET should be allowed with HEAD (and interpreted
+the same way by the server).  I.e., the language in 14.24
+should be changed to
+The If-Modified-Since request-header field is used with the
+GET (or HEAD) method to make it conditional ...
+or even
+The If-Modified-Since request-header field is used with a
+method to make it conditional ...
+
+WHAT SERVERS ALREADY DO:
+
+Although I'm not a fan of testing existing implementations to
+see what the specification should say, I'll note that Apache/1.2.5
+seems to allow and support HEAD+IMS:
+
+    % telnet www.freebsd.org 80
+    Trying 204.216.27.18...
+    Connected to hub.freebsd.org.
+    Escape character is '^]'.
+    HEAD / HTTP/1.0
+    
+    HTTP/1.1 200 OK
+    Date: Wed, 04 Mar 1998 22:20:33 GMT
+    Server: Apache/1.2.5
+    Last-Modified: Wed, 04 Mar 1998 12:02:49 GMT
+    ETag: "2742a6-2fa4-34fd42e9"
+    Content-Length: 12196
+    Accept-Ranges: bytes
+    Connection: close
+    Content-Type: text/html
+    
+    Connection closed by foreign host.
+    % telnet www.freebsd.org 80 
+    Trying 204.216.27.18...
+    Connected to hub.freebsd.org.
+    Escape character is '^]'.
+    HEAD / HTTP/1.0
+    If-Modified-Since: Wed, 04 Mar 1998 12:02:49 GMT
+    
+    HTTP/1.1 304 Not Modified
+    Date: Wed, 04 Mar 1998 22:20:44 GMT
+    Server: Apache/1.2.5
+    Connection: close
+    ETag: "2742a6-2fa4-34fd42e9"
+    
+    Connection closed by foreign host.
+    %
+    
+By the way, Apache/1.2.5 also returns "304" when the request includes
+    If-None-Match: "2742a6-2fa4-34fd42e9"
+instead of
+    If-Modified-Since: Wed, 04 Mar 1998 12:02:49 GMT
+
+-Jeff
+
+
+

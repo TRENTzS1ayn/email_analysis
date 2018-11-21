@@ -1,0 +1,164 @@
+docno="lists-020-13850949"
+received="Thu Jun  3 19:38:53 2004"
+isoreceived="20040603233853"
+sent="Fri, 4 Jun 2004 08:38:54 +0900"
+isosent="20040603233854"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: Bandwidth efficiency"
+id="20040603233853.GC8052@w3.org"
+charset="us-ascii"
+inreplyto="20040602133313.GA7484&#64;login.ecs.soton.ac.uk"
+expires="-1"
+
+To: DAWG public list<public-rdf-dawg@w3.org>
+
+
+
+On Wed, Jun 02, 2004 at 02:33:13PM +0100, Steve Harris wrote:
+> 
+> On Wed, Jun 02, 2004 at 05:58:28 -0700, Howard Katz wrote:
+> > > The situation where the namespaces are declared after the results is not
+> > > much better as the client cant interpret them untill its parsed all the
+> > > namespace decls anyway.
+> > 
+> > Right. So what you're saying is that the tradeoff is basically between :
+> > 
+> > (1) taking processing time to compute the namespace of every uri in the
+> > result set before they depart the scene, or
+> > (2) leaving it to the client to do the inverse operation following arrival,
+> 
+> I dont think I follow. If the server just streams the results with fully
+> qualified URIs then the server and client doesnt have to do anything, but
+> it takes more bandwidth.
+>  
+> > I wouldn't have thought that (1) was all that expensive offhand -- I need to
+> > have some hands-on play with this one.
+> 
+> It means that the sever has to hold onto the reuslt set, which can be
+> quite large.
+
+Serializing in a language with nested namespace scope ala RDF/XML, the
+serializer can make a tradeoff between holding onto some amount of the
+result set and risking repeated namespace decls. Pushing the slider
+towards holding more of the document gives the serializer a chance to
+serialize all the namespaces for nested elements once in the parent
+element:
+
+  <rdf:RDF xmlns:rdf="ob0">
+    <ns1:Thing rdf:about="ob1" xmlns:ns1="..." xmlns:ns2="...">
+      <ns2:p1>...</ns2:p1>
+      <ns2:p2>...</ns2:p2>
+    </ns1:Thing>
+  </rdf:RDF>
+
+Pushing the slider the other way introduces some inefficiency, but
+still results in valid XML/RDF (note xmlns:ns2):
+
+  <rdf:RDF xmlns:rdf="ob0">
+    <ns1:Thing rdf:about="ob1" xmlns:ns1="...">
+      <ns2:p1 xmlns:ns2="...">...</ns2:p1>
+      <ns2:p2 xmlns:ns2="...">...</ns2:p2>
+    </ns1:Thing>
+  </rdf:RDF>
+
+Taking a non-nested namespace scope, we can eliminate storing more
+than one statement if the language allows namespace declarations to be
+interspersed with the statements (and those declarations are valid for
+the remainder of the document or until overriden by another decl).
+
+I'm not sure what the authoritative n3 grammar is, but this one [1]
+doesn't quite meet this goal:
+
+  document ::= void 
+           | statementlist;
+
+  statement ::= subject space+ property_list
+            | directive;
+
+  statementlist ::= (statement space* ("." space*)?)* ;
+
+  directive ::= "bind" space+ nprefix ":" uri_ref2
+            | "@prefix" space+ nprefix ":" space+ uri_ref2;
+
+For instance,
+N3variantA:
+  @prefix rdf=<...>
+  @prefix ns1=<...>
+  <ob0> rdf:type ns1:Thing .
+  @prefix ns2=<...>
+  <ob0> ns1:p1 "..." ;
+        ns1:p2 "..." .
+
+is legal and demonstrates minimal result set storage. However, 
+N3variantB:
+  @prefix rdf=<...>
+  @prefix ns1=<...>
+  <ob0> rdf:type ns1:Thing ;
+  @prefix ns2=<...>
+        ns1:p1 "..." ;
+        ns1:p2 "..." .
+
+is illegal (according that the above grammar), and, 
+N3variantC:
+  @prefix rdf=<...>
+  @prefix ns1=<...>
+  @prefix ns2=<...>
+  <ob0> rdf:type ns1:Thing ;
+        ns1:p1 "..." ;
+        ns1:p2 "..." .
+
+requires some lookahead (or holding onto the result set).
+
+Note, graphs with bNodes as the subject of one arc and the object of
+others can't be serialized in N3variantA.
+
+  @prefix rdf=<...>
+  @prefix ns1=<...>
+  @prefix ns2=<...>
+  <ob0> ns1:p0 [ns1:p1 "..." ;
+                ns1:p2 "..." ] .
+
+I bet that allowing clients to request RDF/XML is "good enough". An
+ASCII (i18n alarms ring!) protocol (well, non-XML) that allows ns
+decls anywhere would be more efficient, but I'd rather not wait for
+the working group to invent one.
+
+I *thought* that the XML specification said that a non-well-formed XML
+document [2] was not XML and thusly, the document consumer (query
+client, in this case) really ought to read an entire RDF/XML document
+before extracting any triples from it. However, I can't find that
+text; perhaps it was relaxed to account for looong XML streams.
+
+> > There's one other alternative of course, but only if the store was created
+> > to your own specification (which makes me realize I only have a vague
+> > understanding of the various possible scenarios) :
+> > 
+> > (3) store the namespace (or at least some sort of integer key representation
+> > of it) along with the uri for each node in the repository as it's added.
+> > Then there's no latency or bandwith issues on the way out. However there
+> > might be other internal processing issues that would arise in the area of
+> > self-consistency and the like, and of course increased data size.
+> 
+> Thats what 3store v1 did, for prety much that reason, actually to
+> reconstruct RDF/XML cheaply. It was too much overhead though. Slows down
+> assertion and query.
+>  
+> > Our painful motto: No free lunch in computerland,
+> 
+> Too true
+
+[1] http://dev.w3.org/cvsweb/2001/blindfold/sample/n3.bnf?rev=1.4&content-type=text/x-cvsweb-markup
+[2] http://www.w3.org/TR/2004/REC-xml11-20040204/#sec-well-formed
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

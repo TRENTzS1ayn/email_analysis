@@ -1,0 +1,110 @@
+docno="lists-104-4980825"
+received="Tue Apr  2 18:18:18 2002"
+isoreceived="20020402231818"
+sent="Tue, 2 Apr 2002 16:19:02 -0700 "
+isosent="20020402231902"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: XPath DOM and XPath 2.0"
+id="4D62A7266F41D611B92C00E018C1C19C0DD4FB@thor.aeathtl.com"
+inreplyto="XPath DOM and XPath 2.0"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+You would need to separate the value datatype enums (NUMBER, BOOLEAN,
+STRING, NODE) from the collection type enums
+(UNORDERED_VALUE_ITERATOR_TYPE, ORDERED_VALUE_ITERATOR_TYPE,
+UNORDERED_VALUE_SNAPSHOT_TYPE,
+ORDERED_VALUE_SNAPSHOT_TYPE,ANY_UNORDERED_VALUE_TYPE) since they now
+overlap.  In your sample code, how would the implementation determine if you
+were asking for a ORDERED_VALUE_ITERATOR_TYPE or a BOOLEAN_VALUE.
+
+The current draft combines several things into the one result type argument:
+
+Type of the value or values
+Whether the caller desires result order to be maintained
+Whether the caller is only interested in one value
+Whether the user wants a snapshot or an iterator
+
+The last three will still be applicable with XPath 2.0, though they could
+now be qualifying a sequence of values instead of a sequence of nodes.
+However, the value "type" part of the "resultType" will be obviously
+inadequate.  If you want to make it XPath 2.0 and schema datatype friendly,
+I'd remove the value type from the characterization of the iterator/snapshot
+and represent it by a namespaceURI and localName for the corresponding
+schema datatypes.  So evaluate might be:
+
+ XPathResult        evaluate(in Node contextNode, 
+                              in unsigned short iteratorType, 
+                              in DOMString valueTypeNS,
+in DOMString valueTypeLocalName,
+                              in XPathResult result)
+                                        raises(XPathException, 
+                                               DOMException);
+
+Where, for Xpath 1.0, valueTypeNS would have to be null,
+"http://www.w3.org/2001/XMLSchema" or
+"http://www.w3.org/2001/XMLSchema-datatypes" (?), and valueTypeLocalName
+would be null (for a node), "boolean", "double", or "string" .
+
+interface XPathResult {
+
+  // XPathResultType
+  const unsigned short      ANY_TYPE                       = 0;
+  const unsigned short      VALUE_TYPE                     = 1; 
+  const unsigned short      NODE_TYPE                      = 2;
+//would be nice if the values could be combinations
+//    of NODE_TYPE | ORDERED | 
+//      (ITERATOR | SNAPSHOT) | ONLY_ONE_REQUIRED bits
+  const unsigned short      UNORDERED_NODE_ITERATOR_TYPE   = X;
+  const unsigned short      ORDERED_NODE_ITERATOR_TYPE     = X;
+  const unsigned short      UNORDERED_NODE_SNAPSHOT_TYPE   = X;
+  const unsigned short      ORDERED_NODE_SNAPSHOT_TYPE     = X;
+  const unsigned short      ANY_UNORDERED_NODE_TYPE        = X;
+  const unsigned short      FIRST_ORDERED_NODE_TYPE        = X;
+
+  readonly attribute unsigned short  resultType;
+//
+//   maybe memberType instead
+//        (null, null) for nodes in Xpath 1.0
+      //        ("http://www.w3.org/2001/XML-Schema", "double" | "boolean" |
+"string")
+//             for double, boolean and string
+  readonly attribute DOMString       valueTypeNamespaceURI;
+  readonly attribute DOMString       valueTypeLocalName;
+  readonly attribute double          numberValue;
+                                        // raises(XPathException) on
+retrieval
+
+  readonly attribute DOMString       stringValue;
+                                        // raises(XPathException) on
+retrieval
+
+  readonly attribute boolean         booleanValue;
+                                        // raises(XPathException) on
+retrieval
+
+  readonly attribute Node            singleNodeValue;
+                                        // raises(XPathException) on
+retrieval
+
+  readonly attribute boolean         invalidIteratorState;
+  readonly attribute unsigned long   snapshotLength;
+                                        // raises(XPathException) on
+retrieval
+
+//
+//   The returned XPathResult would always be a singleNodeValue for
+Xpath 1.0
+//   
+  XPathResult               iterateNext()
+                                        raises(XPathException, 
+                                               DOMException);
+  XPathResult               snapshotItem(in unsigned long index)
+                                        raises(XPathException);
+};
+
+
+

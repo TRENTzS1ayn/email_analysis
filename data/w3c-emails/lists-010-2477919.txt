@@ -1,0 +1,266 @@
+docno="lists-010-2477919"
+received="Fri Apr 19 15:12:01 1996"
+isoreceived="19960419191201"
+sent="Sat, 20 Apr 1996 00:05:12 +0200 (MET DST)"
+isosent="19960419220512"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: cookie draft available"
+id="199604192205.AAA04634@wsooti04.win.tue.nl"
+charset="USASCII"
+inreplyto="199604172238.PAA05706&#64;merlot.arc.nasa.gov"
+expires="1"
+
+
+To:hardie@nasa.gov
+Cc:dmk@allegra.att.com,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Ted Hardie:
+>
+>Dave,
+>
+[...]
+>The list of Koen's dimensions for the
+>solution space of stateful dialogs, for example, seems to be a useful
+>thing for implementors to keep in mind, but I believe that the bullets
+>would have to be fleshed out a good bit before someone who has not
+>been following the discussion would be sure of what you meant.
+
+Actually, I wrote this list as a checklist for seeing if a stateful
+dialog _support_ mechanism (like cookies) is good enough.  So the list
+is for the http-wg, not for implementers, and can be deleted from the
+draft.  Fleshing it out is not worth the trouble I think.
+
+[...] 
+>In Section 8.2, you discuss Cookie spoofing, but I believe that you
+>are missing at least one of the possible problems--the way domain
+>matching is described, it appears that someone from the host sub.tld
+>could successfully get or spoof cookies for anyhost.sub.tld .
+
+Eek!   I believe you are right, we missed that case.  anyhost.sub.tld
+would indeed get
+
+      Cookie: $Version="1";
+                      session_id="1234";
+                      session_id="1111";
+                                         ^^^^^No Domain=sub.tld here!
+
+I believe NetScape's original cookie mechanism required a Domain= in
+the Set-Cookie header in order for the session_id="1111" cookie set by
+sub.tld to get sent to anyhost.sub.tld, but the current rules do not
+require this.  
+
+We could tweaks the draft to solve this: we could change the following
+sentences from Section 4.3.4:
+
+ The value for the      
+ domain attribute must be the value from the Domain attribute, if any, of  
+ the corresponding Set-Cookie response header.  Otherwise the attribute    
+ should be omitted from the Cookie request header.  
+
+into
+
+ The value for the domain attribute must be the (default) value of the
+ Domain attribute of the corresponding Set-Cookie response header, if
+ this value is not equal to the request-host of the request to be
+ sent.  Otherwise the attribute should be omitted from the Cookie
+ request header.
+
+But I think the above tweak would not be the best solution (and we do
+need to solve this).  We could solve this, and better match current
+use of domain=, and improve the readability of the draft in several
+places, if we go for domain attributes which always start with a dot:
+
+  Set-Cookie: session_id="1111";Domain=".sub.tld".
+
+Only the default domain attribute, the request-host, would not start
+with a dot.
+
+I include editing instructions which would bring this about below.
+Note that there also are two editing instructions which fix a mistake
+and an oversight in the draft, these are unconnected to domains
+starting with dots.
+
+>                        Best Regards,
+>                                Ted Hardie
+
+Koen.
+
+--snip--
+
+
+#2.  TERMINOLOGY
+#
+
+Rewrite text below:
+
+#Hosts can be specified either as an IP address or a FQHN string.
+#Sometimes we compare one host with another.  Host A domain-matches host
+#B if
+#
+#   * both hosts are IP addresses and their host strings match exactly;
+#     or
+#
+#   * both hosts are FQHN strings and their host strings match exactly;
+#     or
+#
+#   * both hosts are FQHN strings and host A's string has the form N.B,
+#     where B is host B's FQHN string, and N is a name string that may     |
+#     have embedded dots, but not leading or trailing dots.  If host B     |
+#     has a leading dot, the leading dot is ignored.  (So, x.y.com         |
+#     domain-matches .y.com.)
+#
+#Note that domain-match is not a commutative operation: a.b.c.com
+#domain-matches c.com, but not the reverse.                                |
+
+to:
+
+Hosts can be specified either as an IP address or a FQHN string.
+Sometimes we compare one host with a domain string.  Host A
+domain-matches a domain B if
+
+   * the host is an IP address and equals the domain string
+     exactly;
+
+   * the host is an FQHN string and equals the domain string
+     exactly;
+
+   * the host is an FQHN string which has the from NB, where 
+     where B is the domain string, and N is non-empty string.
+     (So the host x.y.com domain-matches the domain .y.com.).
+
+
+
+#4.2.2  Set-Cookie Syntax  The syntax for the Set-Cookie response header
+
+Rewrite
+
+#Domain=domain
+#     Optional.  The Domain attribute specifies the host and domain name
+#     for which the cookie is valid.
+
+to
+
+Domain=domain
+      Optional.  The Domain attribute specifies the domain for which
+      the cookie is valid.  The domain must always start with a dot.
+
+
+#4.3.2  Rejecting Cookies 
+#
+#To prevent possible security or privacy
+#violations, a user agent rejects a cookie (shall not store its
+#information) if any of the following is true:
+#
+#   * The value for the Path attribute is not a prefix of the request-
+#     URI.
+
+Insert here:
+
+    *  A value for the Domain attribute was supplied in the
+       Set-Cookie header, and this value does not start with a dot
+
+#
+#   * The value for the Domain attribute contains no embedded dots.        |
+#
+#   * The value for the request-host does not domain-match the Domain      *
+#     attribute.
+#
+
+Rewrite text below:
+
+#   * The request-host is a name (not IP address), D is the value of the
+#     Domain attribute, and request-host has the form H.D, where H is a
+#     string, and H contains one or more dots.                             |
+
+to:
+
+   * The request-host is a name (not IP address), D is the value of
+     the Domain attribute, and request-host has the form HD,
+     where H is a string, and H contains one or more dots.
+
+#
+#Examples:                                                                 |
+#
+#   * A Set-Cookie from request-host y.x.foo.com for Domain=foo.com would
+#     be rejected, because H is y.x and contains a dot.                    |
+
+Change Domain=foo.com above to Domain=.foo.com
+
+#
+#   * A Set-Cookie from request-host x.foo.com for Domain=foo.com would    |
+#     be accepted.                                                         |
+
+Change Domain=foo.com above to Domain=.foo.com
+
+#
+#   * A Set-Cookie with Domain=.com, Domain=com., or Domain=.com., will    |
+#     always be rejected, because there is no embedded dot.
+
+Delete `Domain=com., ' above.
+
+
+#4.3.4  Sending Cookies to the Origin Server  
+
+#Domain Selection
+#     The Domain attribute of the cookie must domain-match the origin
+#     server's fully-qualified host name.                                  *
+
+OOPS!! The above text contains a mistake, it should be rewritten to:
+
+ Domain Selection 
+     The origin server's fully-qualified host name must
+     domain-match the Domain attribute of the cookie.
+
+even if we don't switch to domains starting with a dot.
+
+
+#8.2  Cookie Spoofing
+#
+#Proper application design can avoid spoofing attacks from related         |
+#domains.  Consider:
+#
+#  1.  User agent makes request to victim.hacker.edu, gets back cookie     |
+#      session_id="1234" and sets the default domain victim.hacker.edu.
+
+Oops!  Why did I not notice this sooner?  `hacker.edu' should of
+course be `cracker.edu', or else old-time hackers will accuse us of
+polluting their language.
+
+Please do a global query-replace from `hacker.edu' to `cracker.edu'.
+
+#  2.  User agent makes request to spoof.hacker.edu, gets back cookie      |
+#      session-id="1111", with Domain="hacker.edu".                        |
+
+Change Domain="hacker.edu" above to Domain=".cracker.edu"
+
+#  3.  User agent makes request to victim.hacker.edu again, and passes     |
+#
+#      Cookie: $Version="1";                                               |
+#                      session_id="1234";                                  |
+#                      session_id="1111"; $Domain="hacker.edu"             |
+
+Change Domain="hacker.edu" above to Domain=".cracker.edu"
+
+#
+#      The server at victim.hacker.edu should detect that the second       |
+#      cookie was not one it originated by noticing that the Domain        |
+#      attribute is not for itself and ignore it.
+#
+#8.3  Unexpected Cookie Sharing
+#
+
+Change the text:
+
+#A user agent should make every attempt to prevent the sharing of session  |
+#information between hosts that do not domain-match.
+
+to:
+
+A user agent should make every attempt to prevent the sharing of session  |
+information between hosts that are not in the same domain.
+
+That is all.
+
+
+

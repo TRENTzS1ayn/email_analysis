@@ -1,0 +1,307 @@
+docno="lists-045-11559406"
+received="Thu Aug  2 18:44:12 2001"
+isoreceived="20010802224412"
+sent="Thu, 2 Aug 2001 15:47:41 -0700 "
+isosent="20010802224741"
+name="Dournaee, Blake"
+email="bdournaee@rsasecurity.com"
+subject="RE: Re: Re: XPath Expression"
+id="E7B6CB80230AD31185AD0008C7EBC4D2DAF011@exrsa01.rsa.com"
+charset="iso-8859-1"
+inreplyto="Re: Re: XPath Expression"
+expires="-1"
+
+
+To:w3c-ietf-xmldsig@w3.org
+Cc:"'reagle@w3.org'"<reagle@w3.org>
+
+Hello All,
+ 
+I certainly didn't expect I would receive the flurry of discussion that
+transpired on this issue! I wan to thank everyone for their input on this.
+ 
+The reason why I asked was because I am focusing on the usability side of
+our XML Dsig toolkit - our customers (developers) must be able to understand
+XPath well-enough to be able to make useful, *well-understood*,
+transformations for the power of XPath to be fully realized.
+ 
+One problem right now is that it is difficult, if not impossible, to see
+what you have actually signed if an XPath expression is employed. That is,
+right now, you can "set" an expression and then make a signature - but if
+your expression is wrong or improper, there is no feedback in the final
+<Signature> structure that gives you a hint that you goofed. The problem
+gets compounded further if this signature is sent off and it verifies
+improperly. This sends developers on a huge bug-hunt for the problem.
+ 
+Further, because XPath is used as a boolean filter, and not a selection
+language (for XML Dsig),  it operates slightly differently than what is
+expected. Expressions like "/a/b/c" (to select the "c" child element of "b"
+and of "a") don't work as expected, (this would evaluate to "True" for all
+nodes and every node would get included, which is not the intended
+behavior).
+ 
+To alleviate the confusion in this area, I am working on a sample
+application that takes an arbitrary input XML file and an XPath expression,
+and then performs (and then canonicalizes) the output and spits it back out.
+This type of mechanism allows customers to "see" what they are actually
+signing after an XPath expression occurs.
+ 
+I have built the tool using Apache's Xalan 2.01 and it seems to work for the
+simpler expressions, but when I tried John's suggestion (removed the dsig
+namespace for now):
+ 
+XPath Expression: (//. | //@* | //namespace::*)[not (self::attribute and
+(name()=URI) and parent::Reference)]
+ 
+My transformed node-set was the same as the input node set. My input file
+was decidedly simple:
+ 
+<?xml version="1.0" encoding="UTF-8"?>
+<Reference URI="foo"> Hello People! </Reference>
+ 
+I was expecting to get:
+ 
+<Reference> Hello People! </Reference>
+ 
+But instead got:
+ 
+<Reference URI="foo"> Hello People! </Reference>
+ 
+I am perfectly willing to accept that I have a few bugs in my tool, or in
+Xalan for that matter, but I wanted ask others if they have actually tried
+this expression and met with success. 
+ 
+Joseph: What is the possibility of drafting a W3C Note that contains a set
+of "cooked" XPath expressions for performing common tasks? I am guessing
+this would be a godsend to developers who are struggling with this issue.
+ 
+Kind Regards,
+ 
+ 
+Blake Dournaee
+Toolkit Applications Engineer
+RSA Security
+ 
+"The only thing I know is that I know nothing" - Socrates
+ 
+ 
+
+-----Original Message-----
+From: John Boyer [mailto:JBoyer@PureEdge.com]
+Sent: Thursday, August 02, 2001 10:26 AM
+To: edsimon@xmlsec.com; merlin
+Cc: reagle@w3.org; Dournaee, Blake; w3c-ietf-xmldsig@w3.org
+Subject: RE: Re: Re: XPath Expression 
+
+
+
+Hi Ed, 
+
+Part of the problem with the exercise is that it really depends on how the
+<Reference> element was obtained in the first place.  Do we want to omit the
+URI attribute of every Reference element, or a particular Reference element?
+
+
+Moreover, in the context of dsig, it is already known that you can't apply
+an XPath transform to the SignedInfo anyway.  The question Blake originally
+asked sounds exactly like the type of thing I've been wanting to do for some
+time now, which is to have the ability to vary where signed information
+comes from without breaking the signature.  Having the ability to apply
+XPath to SignedInfo (with some caveats) is one clean way of doing that.  The
+mail archives have lots of comments from me on this issue, along with
+repeated statements from the WG that the method is too scary.  So, the short
+answer is that 'it can't be done'.
+
+From the purely academic standpoint, i.e. supposing it could be done AND
+supposing that XPath transforms returned a node-set result from a whole tree
+rather than returning a boolean for each node AND supposing that you wanted
+to get rid of every URI attribute from every Reference, the following should
+do the trick:
+
+(//. | //@* | //namespace::*)[not (self::attribute and (name()="URI") and
+parent::dsig:Reference)] 
+
+This is similar to your prior expression with the following exceptions.  
+
+1) I replaced node() with (//. | //@* | //namespace::*) because we want to
+descend to all element nodes (// is for descendant-or-self::node) plus all
+attribute and namespace nodes (//@* means all attributes of all nodes
+obtained by //., and //namespace::* means all namespace nodes of all
+elements).
+
+2) I replaced NodeType(attribute) with self::attribute.  NodeType is a
+non-terminal symbol in the XPath grammar, not a function that can be called.
+However, it is the right idea to make sure the node we want to reject is
+actually an attribute.  The prior expressions would've also thrown out child
+elements of Reference if they were named URI.
+
+If you want to get rid of a URI for a specific Reference element, then it is
+necessary to figure out how to identify that Reference element, then replace
+parent::dsig:Reference in the expression above.  For example, if you
+identified the reference with an ID attribute having the value 'foo', then
+the replacement would be parent::dsig:Reference[id('foo')].
+
+John Boyer 
+Senior Product Architect, Software Development 
+Internet Commerce System (ICS) Team 
+PureEdge Solutions Inc. 
+Trusted Digital Relationships 
+v: 250-708-8047  f: 250-708-8010 
+1-888-517-2675   http://www.PureEdge.com <http://www.PureEdge.com>  <
+http://www.pureedge.com/ <http://www.pureedge.com/> >     
+        
+
+
+-----Original Message----- 
+From: edsimon@xmlsec.com [ mailto:edsimon@xmlsec.com
+<mailto:edsimon@xmlsec.com> ] 
+Sent: Thursday, August 02, 2001 9:43 AM 
+To: merlin 
+Cc: reagle@w3.org; bdournaee@rsasecurity.com; w3c-ietf-xmldsig@w3.org 
+Subject: Re: Re: Re: XPath Expression 
+
+
+I think if XPath could be used to return a nodeset that excludes certain 
+attribute nodes, then what you have suggested would fit in.  I remain
+curious, 
+as an academic exercise, as to whether there exists such a single XPath 
+expression.  Perhaps something like 
+
+"node()[not (NodeType(attribute) and (name()="URI") and
+parent::dsig:Reference)]" 
+
+is getting closer. 
+
+Ed 
+
+-- Original Message -- 
+
+> 
+>Hi Ed, 
+> 
+>r/edsimon@xmlsec.com/2001.08.02/10:57:14 
+>>I'd certainly be keen to see the full working XPath expression if someone 
+>>wants to take up the challenge.  Merlin's suggestion, by itself, is not 
+>>the whole solution but only part as it returns a boolean, not nodes. 
+
+> 
+>Blake asked for something to put in an XPath transform; 
+>our XPath transform does a boolean test of each node in 
+>the node set against its expression. 
+> 
+>So, you are right; what I suggested is not a general 
+>XPath expression for selecting all of a document but 
+>its URI attributes; XSLT is the tool for that job. 
+>But, it is a suitable test expression for our XPath 
+>transform to perform this task. 
+> 
+>I think. (sometimes) 
+> 
+>Merlin 
+> 
+>>In general, XPath is good at selecting nodes but was not really intended 
+>>for removing subnodes.  With current tools, I'd say removing subnodes 
+is 
+>>best done with XSLT. 
+>> 
+>>BTW, the XSLT I've presented below does actually do the trick. 
+>> 
+>>Ed 
+>>-- Original Message -- 
+>> 
+>>> 
+>>>I'd guess that something like not ((name() =3D "URI") and parent::dsig:R=
+
+>>eference) 
+>>>might work. 
+>>> 
+>>>merlin 
+>>> 
+>>>r/edsimon@xmlsec.com/2001.08.02/09:37:38 
+>>>>>>This would allow me to change the URI without altering the validity 
+>>of 
+>>>>the 
+>>>>>>signature. 
+>>>>> 
+>>>>>If it's being used in the Canonical XML context, remove the '//@*' 
+fro= 
+>>m: 
+>>>>>         (//. | //@* | //namespace::*) 
+>>>> 
+>>>> 
+>>>>Correct me if I'm wrong but wouldn't the above remove ALL attributes, 
+>>not 
+>>>>just the one Blake wants removed. 
+>>>> 
+>>>>I'm not sure that there is an XPath solution but the solution in XSLT 
+>>would 
+>>>>look like this: 
+>>>> 
+>>>> 
+>>>><?xml version=3D"1.0" encoding=3D"UTF-8"?> 
+>>>><xsl:stylesheet version=3D"1.0" 
+>>>>  xmlns:xsl =3D" http://www.w3.org/1999/XSL/Transform
+<http://www.w3.org/1999/XSL/Transform> " 
+>>>>  xmlns:xmlsig=3D" http://www.w3.org/2000/09/xmldsig
+<http://www.w3.org/2000/09/xmldsig> #"> 
+>>>> 
+>>>><!-- Identity transform --> 
+>>>><xsl:template match=3D"@*|node()"> 
+>>>>  <xsl:copy> 
+>>>>    <xsl:apply-templates select=3D"@*|node()"/> 
+>>>>  </xsl:copy> 
+>>>></xsl:template> 
+>>>> 
+>>>> 
+>>>><!-- Skip the Reference/@URI attribute --> 
+>>>><xsl:template match=3D"xmlsig:Reference/@URI" priority=3D"2"/> 
+>>>> 
+>>>> 
+>>>></xsl:stylesheet> 
+>>>> 
+>>>> 
+>>>>-------------------------------------------------- 
+>> 
+>> 
+>>-------------------------------------------------- 
+>>Ed Simon 
+>>XMLsec Inc. 
+>> 
+>>Interested in XML Security Training and Consulting services?  Visit "www.=
+
+>>xmlsec.com". 
+>> 
+>> 
+> 
+> 
+>---------------------------------------------------------------------------
+-- 
+>Baltimore Technologies plc will not be liable for direct,  special,
+indirect 
+> 
+>or consequential  damages  arising  from  alteration of  the contents of 
+>this 
+>message by a third party or as a result of any virus being passed on. 
+> 
+>In addition, certain Marketing collateral may be added from time to time 
+>to 
+>promote Baltimore Technologies products, services, Global e-Security or 
+>appearance at trade shows and conferences. 
+> 
+>This footnote confirms that this email message has been swept by 
+>Baltimore MIMEsweeper for Content Security threats, including 
+>computer viruses. 
+>   http://www.baltimore.com <http://www.baltimore.com>  
+> 
+> 
+
+----------------------------------------------------------------------------
+------------------- 
+Ed Simon 
+XMLsec Inc. 
+
+Interested in XML Security Training and Consulting services?  Visit
+"www.xmlsec.com". 
+
+
+

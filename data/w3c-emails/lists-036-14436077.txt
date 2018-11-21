@@ -1,0 +1,221 @@
+docno="lists-036-14436077"
+received="Sun Feb 15 22:51:22 2004"
+isoreceived="20040216035122"
+sent="Sun, 15 Feb 2004 22:50:46 -0500"
+isosent="20040216035046"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: uri handling of hosts is too restrictive"
+id="4.2.0.58.J.20040215225030.0491b718@localhost"
+charset="ISO-2022-JP"
+inreplyto="uri handling of hosts is too restrictive"
+expires="-1"
+
+
+To:uri@w3.org
+
+
+
+
+
+[I apologize for breaking the no-cross-posting rule, but I guess if I'm
+replying to a message that was cross-posted by a W3C member, I should
+defer to his judgement.  I'm a newbie to W3C mailing lists.]
+
+Martin Duerst <duerst@w3.org> wrote:
+
+ > > Why go to the trouble of defining a backward-compatible encoding
+ > > (ACE) and then make it impossible to use?
+ >
+ > I don't think the current RFC2396bis draft says that you can't use
+ > ACE.  If you use ACE, it will just work.
+
+I meant that you can't use the ACE unless you know that the name in
+question is a domain name rather than a reg-name.
+
+ > > RFC-2396 defined the host field as a host name or IPv4 address; there
+ > > was no mention of registered names.
+ >
+ > Sorry, wrong.
+
+Oops!  I grepped for "reg-name" and "registered", and missed both
+"reg_name" and "registry".  Sorry!  I was suggesting to avoid
+introducing an ambiguity between hostnames and reg-names, but the
+ambiguity already existed in RFC-2396.
+
+ > The IRI draft (if and when I get around to do the edits this
+ > afternoon) will change to convert everything to %-escapes, but it will
+ > contain a note that points out that for backwards compatibility, in
+ > particular for proxy and similar scenarios where IRI -> URI mapping
+ > and DNS resolution are strictly separated (and under the condition
+ > that the scheme is known to be DNS-based), implementations MAY convert
+ > directly to punycode.
+
+The problem with this approach is that the IRI spec would be asking
+applications to use IDNs in a way that violates the IDNA spec.  Consider
+the IRI:
+
+foobar://jos x net/
+
+Suppose the foobar: scheme spec makes no reference to IDNA (maybe it
+predates IDNA).  Also suppose the application performing the IRI-to-URI
+conversion doesn't recognize the foobar: scheme.  Then it cannot be sure
+whether jos x net is an IDN or a reg-name.  If it's a reg-name and the
+application applies ToASCII, that is clearly wrong, because IDNA does
+not apply to reg-names.  Percent-escapes are allowed in reg-names, so
+the proper URI would be
+
+foobar://jos%C3%A9.net/
+
+On the other hand, if the name is a host name and the application uses
+the percent-encoded UTF-8 approach, then the application has violated
+the IDNA spec by putting a non-ASCII domain name into an IDN-unaware
+slot (remember that foobar: URIs are IDN-unaware).  (I'm viewing
+jos%C3%A9 as non-ASCII.  If it is viewed as ASCII, then it's wrong for a
+different reason: "jos%C3%A9" (literally) is not the intended label, and
+is not going to be found in the DNS, and it violates host name syntax.)
+
+I see two ways out of this.  One way is to make hostnames and reg-names
+syntactically distinguishable, but that would mean retracting some of
+the syntactic freedom that RFC-2396 granted to reg-names, by adding a
+requirement that reg-names must contain some marker that cannot appear
+in hostnames.  This would solve the problem for hostname fields in IRIs
+that begin scheme://server/ (which is the lion's share of cases), but
+the same or similar problem would still exist for traditionally-ASCII
+protocol elements in other kinds of schemes (for example, both the local
+part and domain part in the mailto: scheme).
+
+Another (more general) way out is to introduce an explicit
+half-way-house between IRIs and URIs.  The rule for converting IRIs to
+URIs would be:
+
+1) If the IRI contains only uric characters, then leave it as-is.
+
+2) Otherwise, if you know the foobar: URI scheme, then you know whether
+the name is a hostname or a reg-name, and therefore you can convert
+directly to a foobar: URI.  (And more generally, you know which
+components of a foobar: URI can use percent-encoded UTF-8 and which
+components need some other kind of conversion.)
+
+3) If you don't know the foobar: scheme, then you can only convert to an
+i: URI.  For example,
+
+foobar://jos x net/  -->  i:foobar://jos%C3%A9.net/
+
+The i: URI scheme acts as a meta-scheme, so we can think of i:foobar:
+as a URI scheme.  The i:foobar: URI scheme is just like the foobar: IRI
+scheme (not the foobar: URI scheme), except that it uses percent-encoded
+UTF-8 rather than native non-ASCII characters.  Therefore, any IDN-aware
+fields in the foobar: IRI scheme remain IDN-aware in the i:foobar: URI
+scheme.
+
+Anything that is foobar-aware can finish the conversion.  Note that
+anything that needs to resolve i:foobar://jos%C3%A9.net/ will need to be
+foobar-aware anyway.
+
+i:foobar://jos%C3%A9.net/
+   -->  foobar://xn--jos-dma.net/    (if foobar: uses hostnames)
+   -->  foobar://jos%C3%A9.net/      (if foobar: uses reg-names)
+
+If the name was a reg-name, then the introduction of i: has created
+a new opportunity for failure (the agent wanting to resolve the URI
+might recognize foobar: but not i:).  But if the name was a hostname
+(the more common scenario), then the introduction of i: has prevented
+an opportunity for non-graceful failure.  It has prevented the case of
+foobar://jos%C3%A9.net/ falling into the hands of an application that
+recognizes foobar: but is IDN-unaware.  Any agent that understands how
+to handle percent-escapes in hostnames can be expected to recognize i:,
+because they are both new syntax that could be introduced at the same
+time in the same new spec (RFC-2396bis).
+
+A nice feature of this i: trick is that it works not only for
+generic-syntax IRIs (scheme:/...) but all IRIs, and works not only for
+IDN-aware fields, but Ianything-aware fields.  For example, suppose that
+some solution for internationalized email local parts is adopted, and a
+mailto: IRI is defined.  An IRI-to-URI converter that doesn't know the
+mailto: IRI syntax will perform:
+
+mailto:jos x net  -->  i:mailto:jos%C3%A9@jos%C3%A9.net
+
+That i:mailto: URI can be tunneled through ASCII infrastrcture until
+eventually something that understands internationalized mail addresses
+and the mailto: scheme can perform the appropriate conversions:
+
+i:mailto:jos%C3%A9@jos%C3%A9.net  -->  mailto:????@xn--jos-dma.net
+
+???? stands for whatever ASCII local part needs to be substituted
+for the internationalized local part jos x   Or if there is no such
+ASCII fallback, then conversion to a mailto: URI is impossible, and
+the i:mailto: URI can just be resolved directly, but only by an agent
+that understands internationalized local parts (ILP).  The i: prevents
+ILP-unaware agents from being deceived into thinking they understand
+something that they really don't.
+
+Another nice feature of the i: trick is that it makes it easier for
+software authors to appreciate the implications of doing scheme-unaware
+IRI-to-URI conversions.  For example, http://jos%C3%A9.net/ is just as
+incompatible with legacy software as i:http://jos%C3%A9.net/ is (neither
+can be resolved without ToASCII), but the latter is more obviously
+incompatible and therefore more likely to remind software authors to
+use their knowledge of the http: scheme to invoke ToASCII and use
+http://xn--jos-dma.net/ instead.
+
+Also, since http://jos%C3%A9.net/ violates RFC-2396, it's hard to
+predict how applications will react.  Some might reject it, some
+might pass jos%C3%A9.net literally to their host name resolver, some
+might percent-decode it before calling the resolver, some might even
+perform charset transcoding before calling the resolver.  And then
+who knows what the resolver will do with whatever it gets.  There are
+undoubtedly spoofing opportunities in there.  I think it's cleaner to
+stick the i: in front of it so that old applications fail gracefully
+with "unrecognized scheme".
+
+ > > Currently, a URI like http://www.w%33.org/ will fail on many
+ > > browsers, which is no problem because the URI is invalid according
+ > > to RFC-2396.
+ >
+ > It works on IE, Opera, and Amaya.
+
+It fails on both of the browsers I use: Mozilla Firefox (formerly
+Firebird) and w3m (both on Linux).
+
+ > For %-escapes derived from IDNs, it's very easy to make IRIs, IDNs,
+ > and this %-escaping all work without problems.  Please remember: a
+ > browser that doesn't support IDNs just doesn't.
+
+I'm alarmed by that last sentence.  The goal of IDNA was that, at
+worst, a browser that doesn't support IDNs will fail to display IDNs
+intelligibly, and will fail to let you type IDNs into the location
+field, but it will still allow you to follow all links in HTML pages,
+because the domain name slots in the URI slots in HTML are IDN-unaware
+and therefore can contain ACEs but not percent-encoded UTF-8.
+
+A new URI spec that allows percent-encoded UTF-8 host names would not be
+backward-compatible with the previous URI spec, and should therefore not
+be automatically incorporated by reference into other specs.  HTML, for
+example, has done an admirable job of evolving in a backward-compatible
+way, so far.  If percent-encoded non-ASCII host names suddenly became
+legal in HTML, that would not be backward-compatible, and the new HTML
+should really have a different media-type.  The media type text/html
+should refer to an HTML that uses a kind of URI that uses only ASCII
+host names.  If we don't want to have two different kinds of URI,
+then the new URI spec cannot invite percent-escapes into host names;
+it needs to keep the distinction between hostnames (which prohibit
+percent-escapes) and reg-names (which allow them) as in RFC-2396.
+
+ > > So there is no doubt that host names can contain only ASCII letters,
+ > > digits, hyphens, and dots.  It's an open-and-shut case.
+ >
+ > So Stephen's host, with an underscore, just doesn't exist, or what?
+
+The purpose of standards is to let everyone know what is expected of
+them, so that they can interoperate.  If the standard says that host
+names cannot contain underscores, then someone out there could have
+legitimately created a protocol and/or software that uses underscores to
+delimit or annotate host names, and Stephen's host would be inaccessible
+via that protocol/software.
+
+AMC
+
+
+

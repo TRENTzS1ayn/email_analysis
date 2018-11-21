@@ -1,0 +1,202 @@
+docno="lists-039-3243366"
+received="Mon Feb  8 12:10:46 1999"
+isoreceived="19990208171046"
+sent="Mon, 8 Feb 1999 09:10:33 -0800 "
+isosent="19990208171033"
+name="Chris Kaler"
+email="ckaler@microsoft.com"
+subject="RE: WebDAV Collections: Rationale for Lock Semantics"
+id="4FD6422BE942D111908D00805F3158DF0A757CFF@RED-MSG-52"
+inreplyto="WebDAV Collections: Rationale for Lock Semantics"
+expires="-1"
+
+
+To:"'Slein, Judith A'"<JSlein@crt.xerox.com>,"'WebDAV'"<w3c-dist-auth@w3.org>
+
+Can I LOCK a direct reference and have just the reference LOCKed, not what
+it refers to?
+
+Chris
+
+-----Original Message-----
+From: Slein, Judith A [mailto:JSlein@crt.xerox.com]
+Sent: Monday, February 08, 1999 7:38 AM
+To: 'WebDAV'
+Subject: FW: WebDAV Collections: Rationale for Lock Semantics
+
+
+Locking for references has turned out to be a very difficult area that the
+advanced collections design team has been discussing for several weeks.  The
+position we have reached is:
+
+1. When locking a collection with Depth = infinity, if the collection
+contains redirect references, the redirect references will be locked.  The
+response will *not* include 302 response codes for redirect references.  The
+response element for a redirect reference does include reftype and
+reftarget, so that a referencing client can lock the reference's target if
+it wants to.
+
+Rationale: A 302 response code for a redirect reference would cause the
+entire lock request to fail.  In effect, we would be making it impossible to
+lock collections that contain redirect references.  This is unacceptable.
+This means that down-level clients will not realize that the target resource
+has not been locked, but we felt this consequence was less objectionable
+than failing the lock altogether.  Although we could have chosen to require
+the server to lock the target resource as well as the redirect reference,
+this would have violated the purpose of redirect references, which is to
+provide a level of referencing that is simple for servers to implement, and
+in particular does not require them to operate on target resources that may
+reside on other servers.
+
+2. When the request-URI of a LOCK request identifies a redirect reference,
+the reference will be locked.  Although most requests to redirect references
+get 302 responses, there will *not* be a 302 response to a LOCK request.
+This is for consistency with 1.
+
+The attached note discusses our decisions about LOCK for direct references
+and the rationale for them.
+
+
+> -----Original Message-----
+> From:Slein, Judith A 
+> Sent:Wednesday, February 03, 1999 1:51 PM
+> To:Alan Babich; Chuck Fay; Geoff Clemm; Jim Davis; Jim Whitehead;
+> jslein; Tyson Chihaya
+> Subject:WebDAV Collections: Rationale for Lock Semantics
+> 
+> I promised to try to capture the rationale behind our decision on locking
+> semantics for direct references.  We decided that by default, a LOCK on a
+> direct reference would lock the target, not the reference.  For locks with
+> Depth=infinity on collections that contain direct references, the targets
+> of the direct reference would be locked, and not the references
+> themselves.
+> 
+The No-Passthrough header can be used with any LOCK request, and causes the
+lock to be applied to any direct references in the scope of the request,
+rather than to their targets.
+
+> -------------
+> 
+> No matter what semantics we choose, there are some objectionable
+> consequences.  So we are forced to select the least objectionable
+> semantics.
+> 
+> The options for direct references are:
+> Lock only the target (our choice this week)
+> Lock only the reference
+> Lock both the target and the reference
+> 
+> Goals:
+> 1. No surprises for clients
+> 2. Efficient implementation possible
+> 3. Be consistent with the WebDAV spec
+> 4. Preserve the distinction between direct and redirect references as
+> cleanly as possible.
+> 5. Be consistent with the behavior of other methods on direct references
+> as far as possible, especially for collections (PROPFIND).
+> 
+> Lock only the target:
+> 1. Someone may change the reference to point elsewhere while the LOCK is
+> present. This will surprise the lock holder.  It's a change to the
+> namespace that appears as a change in content.  This problem can be
+> avoided if referencing clients make it a practice to check whether the
+> target is locked before moving or deleting a direct reference.  In
+> addition, a referencing client can lock both the reference and its target
+> by performing two LOCK operations, one with No-Passthrough.
+> Both down-level and referencing clients would be surprised, though the
+> referencing client at least could figure out what had happened.
+> 2. Locking a collection can be costly, especially if direct references in
+> the collection point to other collections.
+> 3. This is inconsistent with the WebDAV spec, which requires that if a
+> collection is locked with Depth=infinity, all members of the collection
+> get locked.  The reference is the member of the collection, but we are not
+> locking it.  (From the client's point of view, however, we are locking the
+> collection member.)
+> 4-5. This clearly maintains the difference between redirect and direct
+> references, and follows the general semantics we have established for
+> direct references: operations on direct references affect only the target,
+> unless the No-Passthrough header is used, in which case the operation
+> affects only the reference.
+> 
+> Lock Both the Target and the Reference:
+> 1. This prevents surprises caused by changing the reference to point to a
+> different target while only the target is locked.
+> (It's still possible to cause surprises in a hierarchy of references
+> /X/Y.html by changing /X/ to point to a difference target.)
+> 2. Locking a collection can be costly, especially if direct references in
+> the collection point to other collections.
+> 3. This is consistent with the semantics of locking defined in WebDAV.
+> 4. This maintains the difference between direct and redirect references.
+> 5. It is inconsistent with the semantics of other operations on direct
+> references.  There is no other case where both the reference and its
+> target are affected by a single operation.
+> It is inconsistent with PROPFIND on a collection that contains direct
+> references, which by default retrieves the properties of the targets.
+> 
+> Lock Only the Reference:
+> 1. Clients (especially down-level clients) may be surprised.  Their lock
+> operation is successful, but the target is not locked, so someone else can
+> change the target.  (Someone else can also lock a different direct
+> reference to the same target.)
+> 2. Makes locking a collection efficient.  You never have to go outside the
+> hierarchy where you started.
+> 3. This is consistent with the semantics of locking defined in WebDAV.
+> 4. Blurs the distinction between direct and redirect references, since the
+> server does not resolve the reference in this case, even though it is
+> dealing with a direct reference.
+> 5. This is inconsistent with the semantics of other operations on direct
+> references, which generally affect the target, not the reference.  There
+> are exceptions -- DELETE, MOVE, COPY -- but these are all because their
+> primary effect is to modify the namespace as seen by the client.  That
+> rationale wouldn't apply in this case.
+> This is inconsistent with the semantics of PROPFIND on collections.
+> 
+> 3 = best, 1 = worst
+> Lock TargetLock ReferenceLock
+> Both
+> 
+> Surprise213
+> 
+> Efficiency131
+> 
+> Consistency with WebDAV133
+> 
+> Consistency with definitions313
+> of direct / redirect
+> 
+> Consistency with other31
+> 1
+> referencing semantics
+> 
+> So in choosing to lock only the target of a direct reference, we are
+> choosing consistency with other referencing definitions and semantics over
+> other considerations.  We also can avoid surprising results by including
+> an implementation note encouraging referencing clients to check whether
+> the target is locked before deleting or replacing a direct reference.  We
+> choose not to be too concerned about efficiency because we have provided
+> redirect references for servers that want to provide low-cost referencing.
+> 
+> The most serious objection to our decision is that it is inconsistent with
+> the WebDAV specification's locking semantics.  In justification, we can
+> say that those semantics were specified before referencing had been
+> investigated, and that we are honoring the intent, though not the letter,
+> of those semantics. The point of direct references is to make it appear to
+> users as if the target resource is a member of the collection where the
+> reference in fact resides, and to hide from users the existence of the
+> reference.  Locking the target comes closer to giving the user the
+> illusion that the collection and its members have been locked than locking
+> the reference does.  (Locking both comes closer still, and also satisfies
+> the WebDAV semantics.)
+> 
+> -- Judy
+> 
+> Judith A. Slein
+> Xerox Corporation
+> jslein@crt.xerox.com
+> (716)422-5169
+> 800 Phillips Road 105/50C
+> Webster, NY 14580
+> 
+
+
+

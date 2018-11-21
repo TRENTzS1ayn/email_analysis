@@ -1,0 +1,85 @@
+docno="lists-017-14837171"
+received="Sat May 22 18:41:19 2004"
+isoreceived="20040522224119"
+sent="Sun, 23 May 2004 01:41:17 +0300"
+isosent="20040522224117"
+name="Ville Skytt?"
+email="ville.skytta@iki.fi"
+subject="Error log diving (was: Re: [Fwd: Software error:])"
+id="1085265677.3919.409.camel@bobcat.mine.nu"
+charset="ISO-88591"
+inreplyto="40c1c095.24768875&#64;smtp.bjoern.hoehrmann.de"
+expires="1"
+
+To: QA-dev<public-qa-dev@w3.org>
+
+
+
+On Sun, 2004-05-23 at 00:06, Bjoern Hoehrmann wrote:
+> * Ville Skytt? wrote:
+> >If upload, at least some (old) versions of Opera did have issues with
+> >file uploads, but AFAIK CGI.pm had a workaround for this already in
+> >version 2.89, and v.w.o has 3.01.
+> 
+> Did we change the CGI.pm during the upgrade / server change?
+
+I have no idea.  Olivier?
+
+> Could someone have a look at the error logs for some insight?
+
+It's a bit hard to find the interesting entries since validator is quite
+an errorlog-trasher (still, even though I managed to get some of the
+noisiest bugs fixed for 0.6.6).
+
+Anyway, there are 46 "Malformed multipart POST" and "Malformed multipart
+POST: data truncated" entries in today's error log, but unfortunately
+there doesn't seem to be anything terribly interesting nearby.  Samples
+(as well as POST examples with the same timestamp from access log, or
+complete_log as it's called on v.w.o) with IP addresses masked:
+
+  [Sat May 22 14:41:28 2004] check: Malformed multipart POST: data truncated
+  [Sat May 22 14:50:08 2004] check: Malformed multipart POST
+
+  2004-05-22T14:41:28Z 200 7054 na /usr/local/validator/httpd/cgi-bin/check xxx.xxx.xxx.xxx - "POST /check HTTP/1.1" "http://validator.w3.org/" "text/html" "-" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)" "validator.w3.org"
+  2004-05-22T14:41:28Z 200 265 na /usr/local/validator/httpd/cgi-bin/check yyy.yyy.yyy.yyy - "POST /check HTTP/1.1" "-" "text/html" "-" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0) Opera 7.23  [en]" "validator.w3.org"
+  2004-05-22T14:50:08Z 200 249 na /usr/local/validator/httpd/cgi-bin/check xxx.xxx.xxx.xxx - "POST /check HTTP/1.1" "http://validator.w3.org/" "text/html" "-" "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)" "validator.w3.org"
+
+Note that the response status has been 200 for all those POSTs.  There
+are also quite a few some weird error log entries, not necessarily near
+the above, like:
+
+  [Sat May 22 16:22:12 2004] [error] [client zzz.zzz.zzz.zzz] request failed: erroneous characters after protocol string: t reproduce in part or whole without permission.<br>
+
+While peeking into the logs, here's a bunch of URIs, checking all of
+which have resulted in "500 internal server error" today, some examples:
+
+http://www.w3.org/TR/query-semantics/ (~1.6MB)
+  My local installation and qa-dev seem to be fine with this, but the
+  memory footprint of the "check" process peaks at 170MB (!) in my local
+  instance just before the validation finishes.
+http://www.w3.org/TR/2003/WD-xsl11-20031217/ (~1.8MB)
+  Ditto, peak memory usage 107MB.
+http://www.go-mono.com/class-status-System.Windows.Forms.html (~0.9MB)
+  Ditto, plus takes ages to validate, I already thought this would   
+  kill my box until it eventually finished, peak mem usage 141MB.
+
+Running "top" on v.w.o suggests that it seems to kill the "check"
+process once its footprint reaches 100MB when validating any of the
+above URLs.  I did not see any related configuration or limits in
+httpd.conf, and the box does not run out of memory or anything.  Nothing
+meaningful in the error log when it terminates either, only:
+
+  [Sat May 22 18:21:20 2004] [error] [client nnn.nnn.nnn.nnn] Premature end of script headers: /usr/local/validator/httpd/cgi-bin/check
+
+BTW, Normal, smallish validation cases seem to take 10MB or so per
+"check" process on my box, so 100+ MB is pretty much... ideas?
+
+There is also one 500 from what is apparently caused by someone
+repeatedly (7ish times) clicking the referer badge in the lower right
+hand corner of the results page after having validated a pretty large
+document with show source and show parse tree options on, causing
+ovbiously pretty heavy recursion and an URL with length of about 2k...
+any ideas how we could prevent this?
+
+
+

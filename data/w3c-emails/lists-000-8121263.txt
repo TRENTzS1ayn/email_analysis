@@ -1,0 +1,83 @@
+docno="lists-000-8121263"
+received="Sun Jun 25 17:13:57 2000"
+isoreceived="20000625211357"
+sent="Sun, 25 Jun 2000 15:09:00 -0600"
+isosent="20000625210900"
+name="Kyle Kartchner"
+email="kylek@mycomputer.com"
+subject="Infinite loop fix for &lt;noframes&gt;&lt;frame&gt;&lt;/noframe&gt;"
+id="395674EC.EA220A75@mycomputer.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+First off Dave, I want to commend your excellent organization of code,
+and structure.  I'm very impressed with how thought out, and how nicely
+designed it is.  I am coding a daemon that will use tidy's parser, and I
+found that your data structure was very easy to traverse, so I grabbed
+it.
+
+In being that my program is a daemon, I can't afford any infinite
+loops.  In parsing a user's site I found an infinite loop that was
+caused by the parser.c ParseNoFrames() function.  It would would cause a
+loop on the following HTML snippet:
+
+<noframes>
+<body bgcolor="#000000" text="#ffffff">
+<h1>Need a Frame Capable Browser!</h1>
+<frame src="title.html" name="p1" scrolling=no>
+</body>
+</noframes>
+
+This is obviously a poorly written piece of html code, and I'm sure a
+very rare occurance which is why I'm sure Dave did not find it.  I'm not
+sure that this is how Dave would want to handle this code, but I have a
+fix (without the warning because I don't use them) below:
+
+Old code -
+2890-
+2891-        if ((node->tag == tag_frame || node->tag == tag_frameset))
+2892-        {
+2893-            ReportWarning(lexer, noframes, node,
+MISSING_ENDTAG_BEFORE);
+2894-            TrimSpaces(lexer, noframes);
+2895-            UngetToken(lexer);
+2896-            return;
+2897-        }
+2898-
+
+Fixed code -
+2890-
+2891-        if (node->tag == tag_frameset)
+2892-        {
+2893-        {
+2894-            ReportWarning(lexer, noframes, node,
+MISSING_ENDTAG_BEFORE);
+2895-            TrimSpaces(lexer, noframes);
+2896-            UngetToken(lexer);
+2897-            return;
+2898-        }
+2899-
+2900-        if (node->tag == tag_frame)
+2901-        {
+2902-            // Didn't worry about a warning message here, but it
+should have one. Just discard tag.
+2903-            // Kyle Kartchner
+2904-            FreeNode(node);
+2905-            continue;
+2906-        }
+2907-
+
+Regards,
+
+--
+Kyle Kartchner
+Software Engineer
+-----------------------------
+MyComputer.com
+tools to power your eBusiness
+
+
+

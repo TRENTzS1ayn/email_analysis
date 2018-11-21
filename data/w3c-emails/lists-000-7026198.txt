@@ -1,0 +1,220 @@
+docno="lists-000-7026198"
+received="Fri May  5 15:01:28 2000"
+isoreceived="20000505190128"
+sent="Fri, 5 May 2000 14:32:40 -0400 (EDT)"
+isosent="20000505183240"
+name="Alexey Veremenko"
+email="AlexeyVe@moscow.vestedev.com"
+subject="Conversion to XML"
+id="B308B62630E5D311ADA3000062A17FBB4570C6@EXCHANGE"
+expires="-1"
+
+
+To:html-tidy@w3.org
+Cc:dsr@w3.org
+
+Conversion to XML (with -asxml flag) doesn't result in correct XML, if
+source file contain scripts. 
+
+For ex. source:
+
+<BODY>
+<SCRIPT LANGUAGE="JavaScript">
+ document.write("test1<BR>");
+ document.write("test2<BR>");
+</SCRIPT>
+</BODY>
+
+after tiding won't be loaded by XML parser, because <BR> tag won't be
+closed, i.e converted to <BR/>.
+
+Solution: escape scripts tags with <!CDATA[[ section, I provide a possible
+fix below:
+
+File - pprint.c:
+
+/*
+Revised by Alexei Veremenko:
+Changes marked by //!!! [alexv]
+Escape scripts with CDATA section when XmlOut = yes
+*/
+
+void PPrintTag(Lexer *lexer, Out *fout, uint mode, uint indent, Node *node)
+{
+    char c, *p;
+
+    AddC('<', linelen++);
+
+    if (node->type == EndTag)
+        AddC('/', linelen++);
+
+    for (p = node->element; (c = *p); ++p)
+        AddC(FoldCase(c, UpperCaseTags), linelen++);
+
+    PPrintAttrs(fout, indent, lexer, node, node->attributes);
+
+    if ((XmlOut == yes || lexer->isvoyager) &&
+            (node->type == StartEndTag || node->tag->model & CM_EMPTY ))
+    {
+        AddC(' ', linelen++);   /* compatibility hack */
+        AddC('/', linelen++);
+    }
+
+    AddC('>', linelen++);;
+
+    if (node->type != StartEndTag && !(mode & PREFORMATTED))
+    {
+        if (indent + linelen >= wraplen)
+            WrapLine(fout, indent);
+
+        if (indent + linelen < wraplen)
+        {
+            /*
+             avoid wrapping after inline start tag unless
+             it or its parent follows a space and its not
+             an empty tag (e.g. IMG) followed by </a>
+            */
+            if (AfterSpace(lexer, node))
+            {
+                if (!(mode & NOWRAP) &&
+                    !((node->tag->model & CM_EMPTY) && 
+                      node->next == null &&
+                      node->parent->tag == tag_a))
+                {
+                    wraphere = linelen;
+                }
+            }
+        }
+        else
+            PCondFlushLine(fout, indent);
+    }
+
+//!!! [alexv]
+//!!! Escape scripts with CDATA section if the output is XML
+if (XmlOut == yes && node->tag == tag_script)
+{
+// Print <![CDATA[
+        AddC('<', linelen++);
+        AddC('!', linelen++);
+        AddC('[', linelen++);
+        AddC('C', linelen++);
+        AddC('D', linelen++);
+        AddC('A', linelen++);
+        AddC('T', linelen++);
+        AddC('A', linelen++);
+        AddC('[', linelen++);
+}
+//!!! [end of alexv]
+}
+
+void PPrintEndTag(Out *fout, uint mode, uint indent, Node *node)
+{
+char c, *p;
+
+//!!! [alexv]
+//!!! Escape scripts with CDATA section if the output is XML
+if (XmlOut == yes && node->tag == tag_script)
+{
+// Print <![CDATA[
+        AddC(']', linelen++);
+        AddC(']', linelen++);
+        AddC('>', linelen++);
+}
+//!!! [end of alexv]
+    
+   /*
+     Netscape ignores SGML standard by not ignoring a
+     line break before </A> or </U> etc. To avoid rendering 
+     this as an underlined space, I disable line wrapping
+     before inline end tags by the #if 0 ... #endif
+   */
+#if 0
+    if (indent + linelen < wraplen && !(mode & NOWRAP))
+        wraphere = linelen;
+#endif
+
+    AddC('<', linelen++);
+    AddC('/', linelen++);
+
+    for (p = node->element; (c = *p); ++p)
+        AddC(FoldCase(c, UpperCaseTags), linelen++);
+
+    AddC('>', linelen++);
+}
+
+begin 600 winmail.dat
+M>)\^(@42`0:0"``$```````!``$``0>0!@`(````XP0```````#G``$(@`<`
+M&````$E032Y-:6-R;W-O9G0@36%I;"Y.;W1E`#$(`06``P`.````T`<%``4`
+M%@`C`#8`!0!5`0$@@`,`#@```-`'!0`%`!8`)``$``4`)`$!"8`!`"$````S
+M.#<R,D0V-4(R,C)$-#$Q.4(U0C`P,3`T0C@X041$-0#^!@$$@`$`$@```$-O
+M;G9E<G-I;VX@=&\@6$U,`#H&`0V`!``"`````@`"``$#D`8`5`L``"T````+
+M``(``0```$``.0``22._P+:_`1X`<``!````$@```$-O;G9E<G-I;VX@=&\@
+M6$U,`````@%Q``$````6`````;^VP2!_92UR6B*R$=2;6P`02XBMU0``'@`Q
+M0`$````)````04Q%6$595D4``````P`:0``````>`#!``0````D```!!3$58
+M15E610`````#`!E```````(!"1`!````P08``+T&``"($```3%I&=4Z$JW0#
+M``H`<F-P9S$R-1<`4`$'"V!N#A`P-#F=`?<@`J0#XP(`8V@*P*AS970!T#0`
+M`"H"X3IA!X`@!Q,"@`<3($,<65("@P!0$'9P<G$J-Q#7,!(F?0J!=6.C`%`+
+M`W5L;@(@90NF^Q+P`B!V!)``D`(@`S`/!`0S,Q-A('1O(%AP34P@*!?U#V`"
+ML2`!`_!T:"`M87-XSFT#(1@*#O%G*1?F&;1D9&\'D&XG!4`)<'.W%E`%0`N`
+M(`6A"7!C!4!5&/$L';!F%^QS"&%C_1(09@,0$A`%H`(P"W$?L+D%`W,N"N,*
+MA`J`1@6Q+&5X(7`?Q#HAFCQ"$$]$63XCI5-#4@!)4%0@3$%.1P!504=%/2)*
+M86AV85,%`R(D51S!8R9U!X`","YW!1!T940H(B?0<W0Q)`!2L#XB*3LFKR>X
+M,BAK;#PO)-0D5B\D&2&48:<!@`20&+!I9`N`9QH`6P(@'2%B$A`)`&$!`&3=
+M+J!Y&.,*L1$P<AZ@+K#H8V%U$3`@*&(8L!O`K2Y(8PD`$3!D'J$N(&,?%W$G
+MT"\P&,$H82\^+K4AFE,&\'4MX`(@.B*`^03P87`2$"$%,0($(!H3`#PA0T1!
+M5$%;WEL?L!XQ%[$>H$DOL`-@]G8M\!(082^P,@``D`)@K2`2>"ZA"0!W(SM&
+M($)>+2^P%"`+@">`8R,[+^\1L"&D`9$'\&4X0#(1+T*"02!0>&5I(%8$D+)E
+M)U%K;R,V//)#$0`G#R`'D0#`<FLO)"\O,B%`X"!;!T`BD'9=?3R)135,&A,V
+MXS=6&@!H%PGP&.`:H$\TP"`]("9Y!Y`AE"HO(9IV;U$M\"!04#LR5!O`*'9,
+M/@$%P"H]\C`11.(J]P(0-,`>H'4[04`0!'%)%>\+@`$``C`>H$X$<4?P%G#]
+M`0`I(94``"CD3$$0\AW@&1Z@*G`HQ4OH061DH$,H)SPG'J!L"X!S.9`)\"LK
+M*+9+Z![!**%+$BT^='DU<3U%(+Y%2D!'84M53$)-^"].K^=-:P(0!<`H<$41
+M4,13P74G4CL9(&-%$4T`*+`@WU0`5R!2'TY@(E!L3E`:<'LGX$S153L0!)!9
+M$D=A<VXI4W]->D<$00)`$2`HOTC42C9(%4L27C11`&%<L=\X\#3`!Y!;+U!S
+M*$2V12-X('Q\7=11``0`1K!YYQO`!)`;X"8F5ZQ,0E"]_E,!D``@4:1A\E#%
+M&\!1``L$8@,@)A+P35]%37$E$%D@*5>92\I-^"!O4VQ,03Q@'>%M"K`MX&+/
+M`Q`:("]@$0!C:T?P1>6W4G]:CVBD?4T_3D,^;DR[7\]0C2%E;&-0="`H!&(!
+M9W%04D5&3U)-\3<`5$5$:#]M*5""2C3S5U!N9B`^12`GH#5@6M'K5YU,0E=Y
+M\4Q:H5S[7[_[>!]Y)SQYWVU4:/Y,0CQF[V/:.(!&LW^B<"X2+80+@.]N<A^P
+M99(Q`W6$\`>0167[@LL:("`%L1H@!"`*L7C2W0(0;#FA!"`XD',*L"`![P!P
+M+S"'XA9P=(9?@W$#H`\^@`4P+V`Q$BAE+F?Q(7!)34<;X(B4+R0K8%YA)I9C
+MV6S><P9!+9)3_8E"*%WI=JJ`CY.]4()U5\!.3U=205!C/X++_W504+9F[V?Q
+ME>(AA9:_;5/K4,06D'AA<VX64&=AEA\]FO\^B"28,U%B,1%?8?^1_Y+/HG]_
+MDT1P"7!%$6YU_V\9H2MOU:5_@%JF33F0$3`GIE]&\!=!9$8*0'-H_WO/;P\A
+MQSSC0,^N"T)/0U_O'L$:,!(02.%P1/$$`!CB_SR)4()A+'4AE_>?U@3T2U9_
+M#))+U0R$KD-&\#LR-K%;WS;D;/].;Z3-NN0ANU^\;[9;O8^^GT._O\#/1,'O
+M[<+_0<0?Q2]4QD_'7\8_?\E_OY^W2&_6KCD)\"\P;]\>T*[K;]M&N5&D*$B/
+M29__2J]+MSSC3(_.?Z[?K^^P__^R#[,?M"^U/[9/MU^X;[E__6UZ7<S?Y%_E
+M;^9_<3[-O__.S\_=H:-+]H)+!\`A4#53W&EG%G`=408`1QD!A5'_U(`+$2]"
+MBA'OY(1#Z(F%`WIB"7!A;+`NL%5!,*$O;D$P\`6Q*V!5,/`10&/](7!4&-"#
+ME(A!!($N$NB)_QHPW7$:<(MBA?`$@>H"+S#WB3,WTBX`<P&@(%&%`X/V?^B)
+M\\6$Y>R2-B,O4=S"(_L>P13P+OU@_/#LD0:02^?_1=;]`W*L?G]_AW4;E857
+MG?^CKZ2V_:I-G^G?!IMN/U1O_U5_5H]7GUBO6;\)SW!_$)\O;\$96:FT%8$`
+M%7`````#`-X_@E$```L``H`((`8``````,````````!&``````.%````````
+M`P`#@`@@!@``````P````````$8`````$(4````````#``2`""`&``````#`
+M````````1@````!2A0``\!,``!X`!8`((`8``````,````````!&`````%2%
+M```!````!````#@N-0`+``^`""`&``````#`````````1@`````&A0``````
+M``,`!H`((`8``````,````````!&``````&%````````"P`'@`@@!@``````
+MP````````$8`````#H4````````#``B`""`&``````#`````````1@`````1
+MA0````````,`"8`((`8``````,````````!&`````!B%````````'@`*@`@@
+M!@``````P````````$8`````-H4```$````!`````````!X`"X`((`8`````
+M`,````````!&`````#>%```!`````0`````````>``R`""`&``````#`````
+M````1@`````XA0```0````$`````````"P`-@`L@!@``````P````````$8`
+M`````(@````````+``Z`"R`&``````#`````````1@`````%B`````````,`
+M\3\)!````P#]/^,$```#`"8```````,`-@```````P"`$/____\"`4<``0``
+M`"X```!C/5)5.V$](#MP/59$23ML/4580TA!3D=%+3`P,#4P-3$X,S4U-%HM
+M,S8R-C8````>`#A``0````D```!!3$5815E610`````>`#E``0````D```!!
+M3$5815E610````!```<P$/\@O\"VOP%```@P=C+(Q,"VOP$>`#T``0````$`
+M````````'@`=#@$````2````0V]N=F5R<VEO;B!T;R!834P````>`#40`0``
+M`#(````\0C,P.$(V,C8S,$4U1#,Q,4%$03,P,#`P-C)!,3=&0D(T-3<P0S9`
+M15A#2$%.1T4^````"P`I```````+`",```````,`!A#&),MU`P`'$#L(```#
+M`!`0``````,`$1`!````'@`($`$```!E````0T].5D524TE/3E1/6$U,*%=)
+M5$@M05-834Q&3$%'*41/15-.5%)%4U5,5$E.0T]24D5#5%A-3"Q)1E-/55)#
+M149)3$5#3TY404E.4T-225!44T9/4D584T]54D-%.CQ"3T19/``````"`7\`
+M`0```#(````\0C,P.$(V,C8S,$4U1#,Q,4%$03,P,#`P-C)!,3=&0D(T-3<P
+10S9`15A#2$%.1T4^````IRL=
+`
+end
+
+
+

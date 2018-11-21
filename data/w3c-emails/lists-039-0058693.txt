@@ -1,0 +1,146 @@
+docno="lists-039-0058693"
+received="Mon Apr 19 17:15:30 1999"
+isoreceived="19990419211530"
+sent="Mon, 19 Apr 1999 13:12:24 -0700"
+isosent="19990419201224"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: Some problems with the WebDAV protocol"
+id="003f01be8aa0$f064f060$d115c380@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="37192749.860DD6AD&#64;mindless.com"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+> 1) RFC 2068 says about PUT: "If the Request-URI does not point to an
+> existing resource, and that URI is capable of being defined as a new
+> resource by the requesting user agent, the origin server can create
+> the resource with that URI."
+
+*snip*
+
+> RFC 2518, on the other hand, explicitly says: "When the PUT operation
+> creates a new non-collection resource all ancestors MUST already exist.
+> If all ancestors do not exist, the method MUST fail with a 409 (Conflict)
+> status code."
+>
+> So, if I have a server on which people can now create collections
+> by using existing HTTP/1.1 compliant clients (namely, with PUT), and I
+> will go and make it strictly WebDAV compliant, this important
+> functionality will be broken. This is a problem.
+
+The rationale for the extra constraints on PUT in WebDAV is:
+
+* Prevention of creation of intermediate collections on user error.
+
+Say I'm authoring a resource with URL:
+
+http://authoring.mycorp.com/users/jim/1999_reports/q1_report/rpt.htm
+
+And suppose that the server supports PUT, and does actually create
+intermediate collections as needed (as allowed by HTTP/1.1):
+
+Now, what happens if, when I go to save a backup of this report, I type in
+the URL:
+
+http://authoring.mycorp.com/users/jim/1999-reports/q1_report/rpt.htm
+
+(That is, the "_" in "1999_reports" is now a "-") Now, instead of getting an
+error, my server has gone ahead and made two new collections for me
+(1999-reports, and "q1_report"), a behavior I did not want.
+
+
+* Not *requiring* the creation of intermediate collections to support
+namespace consistency
+
+As far as HTTP/1.1 is concerned, a server is free to have what I term "free
+floating URLs", URLs that, if you remove the last path segment, do not
+resolve to a resource.
+
+For example:
+
+http://example.com/foo/fuzz/bar.html
+
+This URL would be free floating if you removed the "bar.html" path segment
+to create:
+
+http://example.com/foo/fuzz/
+
+AND if this URL is not mapped to a resource.
+
+In WebDAV, we wanted to prevent free-floating resources, since they would
+violate namespace consistency (that, ideally, every URL for a DAV-compliant
+resource must belong to a collection).  This would have required us to add a
+requirement that a PUT to a URL would have to create all intermediate
+collections.  But, this seemed to us to be adding excessive side-effects to
+PUT, especially since a user might not even want those extra collections to
+be created (i.e., they might have just committed an error).
+
+So, while you may not agree with this rationale, the requirement was not
+added arbitrarily.
+
+OK, so given that WebDAV has this extra requirement on PUT that HTTP/1.1
+does not have, you are assering that a downlevel HTTP/1.1 authoring client
+would experience interoperability problems authoring against a DAV server
+(or a DAV-capable portion of a server's namespace).  It seems to me that, if
+users of these downlevel clients depend on the side-effect behavior of PUT
+to create intermediate collections, they might indeed have some difficulty
+authoring against a DAV-capable server.
+
+So, having agreed to your main point, we are now left to argue over the
+severity of this interoperability problem.  I assert that it is minor, since
+there are several existing workarounds.
+
+Workaround #1:
+Use an existing DAV client as a helper to create the intermediate
+collections.
+
+This addresses your question:
+> And how do I do a MKCOL if I use Amaya, Netscape composer, AOLpress,
+etc.,...?
+
+Use the helper to do the MKCOL (or create the collections in the underlying
+repository, if you have access).
+
+Workaround #2:
+Don't author in spaces where you don't already have an existing collection.
+
+Since my personal use of HTTP/1.1 authoring tools has always been in an
+existing collection, it seems to me that these workarounds would be
+satisfactory.  Do you have real-world use scenarios in which these scenarios
+would not work?  If so, are these common use cases, or rare use cases?
+
+Since RFC 2518 is now a Proposed Standard, you would have to provide an
+extremely compelling argument, backed up with significant documentation,
+that this document is causing common and widespread interoperability
+problems for it to be modified, and re-issued.  At present, it is my opinion
+that you have not done so.
+
+> Another (not related) problem with the current protocol is the requirement
+> that servers must respect PROPFIND with Depth=infinity queries for
+collections.
+> Consider a site like ftp.cdrom.com, and suppose they would want to enable
+> WebDAV-based access to their site (say, in order to enable people to
+browse
+> their site with the new Microsoft web folders feature). The size of the
+ls-lR
+> file for their site is around 75 MB (yes MegaBytes) and the size of a
+proper
+> response to a PROPFIND with Depth=infinity to it would probably be at
+least
+> 500 MB.
+
+As a result, a conservative client should never perform a PROPFIND, depth
+infinity unless it knows the namespace it is issuing the PROPFIND against,
+and a server should be free to refuse to process a PROPFIND, depth infinity
+if it would result in too large a response (since this could easily be used
+to implement a denial of service attack). Both of these approaches are
+allowed by the specification.
+
+- Jim
+
+
+

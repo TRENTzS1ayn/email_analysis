@@ -1,0 +1,207 @@
+docno="lists-010-8377414"
+received="Thu Aug 22 00:45:12 1996"
+isoreceived="19960822044512"
+sent="Thu, 22 Aug 1996 00:15:50 0700"
+isosent="19960822071550"
+name="Roy T. Fielding"
+email="fielding@liege.ICS.UCI.EDU"
+subject="Re: Confusion about Age: accuracy vs. safety"
+id="9608220015.aa12925@paris.ics.uci.edu"
+inreplyto="9608210046.AA21591&#64;acetes.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+> Roy is right that, as written, the spec causes the reported Age
+> value to be larger than the actual time since the response was
+> generated at the origin server.  THIS IS GOOD.  THIS IS INTENTIONAL.
+> Moreover, because we are not relying on mandatory clock synchronization,
+> THIS IS THE ONLY SAFE APPROACH.  The alternative is a specification
+> which would increase the chances of underestimating the Age of a
+> response.  Underestimation is SERIOUSLY BAD, because it will lead
+> to a cache believing that a response is fresh when it is, in fact,
+> stale.
+> 
+> Overestimation of the Age can lead to a cache treating a fresh
+> response as stale, which can cause extra revalidation messages.
+> This is somewhat inefficient, but will never lead to a client
+> inadvertently seeing an expired cache entry.  Underestimation
+> is thus a much worse error than overestimation, and so the 
+> spec is designed to avoid underestimation as assiduously as
+> possible.
+
+First off, this just isn't an accurate comparison of "safe",
+which by definition is the potential for harm (to people or property)
+[Leveson's paper on Software Safety has the complete definition].
+It is absolutely and provably false that overestimation is safe.
+Overestimation creates the potential for cache misses where there should
+be cache hits, and cache misses result in additional network requests,
+that in turn cost some people real money and have the potential to
+completely block an already congested network at periods of peak usage
+(as witnessed with the USA-UK link last year).
+
+In contrast, there is no direct correlation between presenting a stale
+entity to a user and causing harm. Any entity that is marked as cachable
+will not be dependent on the user ALWAYS seeing it when fresh -- servers
+cannot make such critical entities cachable unless they know that there
+are no older caches in the loop, and your rationale is only applicable
+when there are older caches in the loop.
+
+> Now let's look at how badly the specified behavior can overestimate
+> Age.  The algorithm in 13.2.3 allows (implicitly) the receiving
+> cache to calculate the retrieval delay based on when the beginning
+> of the response is received; it doesn't have to wait for the entire
+> response.  Therefore, the magnitude of this delay is several RTTs
+> through each hop of the network.  (It would be just one RTT if the
+> connections are already open.)  Roy's formulas:
+> 
+>  At  C:  age=d
+>      B:  age=d+(c+d)
+>      A:  age=d+(c+d)+(b+c+d)
+>     UA:  age=d+(c+d)+(b+c+d)+(a+b+c+d)
+> 
+> generalize to
+> Age = Mean_RTT * N * (N + 1)/2
+> for N hops (N - 1 proxies)
+> 
+> The "correct" Age would be Mean_RTT * N, so the size of the overestimate
+> (the "error) is
+> Excess_age = Mean_RTT * N * (N - 1)/2
+> 
+> Here are some sample values for a Mean_RTT of 1 second (which
+> is a relatively high value):
+> 
+> Number of proxiesNExcess_age (seconds)
+> 
+> 010
+> 121
+> 233
+> 346
+> 4510
+> 5615
+> 6721
+> 
+> OK, so if the request chain includes 6 or more proxies, the overestimate
+> just might start to change the caching behavior for responses with
+> unusually short maximum ages.  (I'd be surprised if people sent
+> max-age values under 1 minute, but perhaps someone can provide a
+> counterexample).  Bottom line: this "error" is not really worth
+> getting excited about.
+
+But you are completely overlooking what happens if ANY of the intermediaries
+has a system clock which is out-of-sync with the origin.  If ANY of them
+do have a bad clock, they will pass the additional bogus age on to every
+single request that passes through the proxy.  This bogus age will then
+affect the cache algorithms on the entire network of applications beneath
+that proxy.  In other words, it completely ruins the purpose of Age which
+is to provide a reliable estimate regardless of clock synchronization.
+
+> Let's now look at what kinds of errors (underestimations of Age)
+> could arise if we followed Roy's proposal: a proxy only sends an
+> Age header if the response comes from its own cache.
+> 
+> Consider this not-very-contrived request-chain:
+> 
+>    client C => HTTP/1.1 proxy P1 => HTTP/1.0 proxy P0 => Origin server S
+> 
+> Now let us suppose that client C makes a request for resource
+> http://S/foo.html, and that proxy P0 has had a copy of this
+> resource in its cache for, say, 30 minutes.  Let's also suppose
+> that the clock on C (perhaps someone's PC) was set accidentally
+> to the wrong time zone, and it's an hour slow.
+> 
+> So when the response arrives at C, under Roy's proposal, there
+> is no Age header attached and so the client starts the Age
+> ticker running at that point.  I.e., the client will underestimate
+> the Age by the 30 minutes that the response was sitting in the
+> cache at P0.  This might well exceed the max-age value sent by
+> the origin server, but C would be ignorant of the expiration
+> of its cache entry for perhaps a significant amount of time.
+
+Yes, there is a possibility that if one or more HTTP/1.0 caches
+exist in the chain AND the response came from one of those HTTP/1.0
+caches in which it resided for some time AND the user agent's system
+clock is running behind the origin server's clock, that the user might
+view a stale (not necessarily invalid) entity and not know that it is
+stale for a period of time not exceeding the difference between the two
+clocks.  However,
+
+  1) this only affects one user
+  2) it is rarely true that viewing a stale document is "unsafe",
+     because people controlling safety-critical documents NEVER allow caching
+  3) it can be fixed by resetting the clock
+  4) it can only occur while HTTP/1.0 caches are still in the loop
+  5) large caches will be among the first to upgrade to HTTP/1.1
+
+In other words, there is a slight possibility that there may result in
+some staleness, but nothing compared to the other problems we live with
+when any old cache is present, and never occurring once people upgrade.
+
+Contrast the above with this example
+
+    client C => HTTP/1.1 proxy P1 => HTTP/1.1 proxy P0 => Origin server S
+
+and someone mistakenly sets the date on P0 incorrectly.  These are all
+HTTP/1.1 applications and C, P1, and S all have exactly synchronized
+clocks, so there is no excuse for them to fail to operate as well as
+we can design the protocol to allow them to operate in this situation.
+
+Under Jeff's interpretation of the Age calculation, any message passing
+through proxy P0 will have X added to its age, where X is the amount of
+time forward that P0 is running relative to S.  For times of a few seconds,
+the problem will be negligible (it would just be added to the other error
+seconds that Jeff's calculation already adds to any response).  However,
+if the time is significant (say 24 hours), then every message passing
+through P0 is instantly aged by 24 hours, which in turn would cause most
+HTTP/1.1 content to be considered stale as soon as it arrives.  Thus,
+with one mistake, an entire system of caches ceases to exist (they
+behave like cacheless proxies) and will likely result in catastrophic
+network failure (affecting not only HTTP traffic, but all network traffic).
+In the case where C is my Aunt Nell, P1 is the Waikato regional proxy,
+and P0 is the North Island centre, we just designed a network failure
+for the entire North Island of New Zealand.  Is that safe?  What do I tell
+my Aunt when she receives the bill for unusual network usage?
+
+Under my interpretation of the Age calculation, where the Age header
+field is only added/increased when a response is retrieved from that
+application's own cache, the only application affected by P0's clock
+failure is P0 (it becomes a cacheless proxy until somebody fixes the
+bloody clock).  The other apps will lose the benefit of P0's cache,
+but their own caches will remain unaffected. This is, after all, why
+we invented Age instead of just relying on the cache and origin clocks
+being in sync.
+
+AND, all this is in addition to having an age calculation which doesn't
+add superfluous age due to double-counting every connection round trip.
+
+> Summary: the specification, as written, does somewhat overestimate
+> the Age, but not by a tremendous amount, and is intended to reduce
+> as much as possible the probability of inadvertently delivering a
+> stale response to a user.  Roy's proposed change would give slightly
+> more accurate Age estimates, but could cause the undected delivery
+> of stale responses in the presence of clock skew.
+
+My summary is that the spec of sections 13.2.3 and 14.6 is not only
+wrong (produces the wrong Age value on every request), but also has
+the probability of causing catastrophic network failure for those
+networks which are becoming increasingly dependent on cache efficiency.
+Moreover, the overestimating algorithm is completely unnecessary if
+there are no HTTP/1.0 caches in the loop, and that is our GOAL, right?
+Why purposefully introduce a dangerous and obviously broken algorithm
+to account for a potential staleness that will cease to exist before
+anyone even begins using caching for critical applications?
+
+That's it for my discussion -- it is now clear that we will need a new
+draft that fixes this problem and the others already mentioned on and
+off the list.  I will be in Seattle (sister's wedding) til Monday, so
+please forgive me if there are any further questions.
+
+ ...Roy T. Fielding
+    Department of Information & Computer Science    (fielding@ics.uci.edu)
+    University of California, Irvine, CA 92697-3425    fax:+1(714)824-4056
+    http://www.ics.uci.edu/~fielding/
+
+
+

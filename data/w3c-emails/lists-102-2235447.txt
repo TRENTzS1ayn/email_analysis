@@ -1,0 +1,115 @@
+docno="lists-102-2235447"
+received="Fri Apr  3 06:51:24 1998"
+isoreceived="19980403115124"
+sent="Fri, 3 Apr 1998 21:50:36 +1000"
+isosent="19980403115036"
+name="David Peterson"
+email="david.peterson@iname.com"
+subject="Re: Iterators and removing"
+id="001101bd5ef6$c37c2220$0200a8c0@down"
+charset="iso-8859-1"
+inreplyto="Iterators and removing"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+This is a good point.
+
+The only consistant way I can think of is to have all of the child modifier
+methods (insert, remove, replace) automaticaly change the cursor on the
+NodeIterator to the new Node (for insert and replace), or the Node next to
+the one removed (for remove) - no matter if the NodeIterator was pointing at
+the modified Node or not.  If the Node removed was already the last node in
+the list, it simply points at the last node in the list (ie the previous
+Node).
+
+One problem with this is that there's no easy way to tell if the node remove
+was the last one with the current spec.  Perhaps removeChild could return
+the Node currently pointed to, instead of the old node.  I can't see any
+practical reason that the value returned needs to be the Node passed.
+
+For example, with this as the defined behaviour, the following code would
+remove all comments from the current node (in Java):
+
+    NodeIterator ni = node.getChildNodes();
+    Node current = ni.toFirst();
+    while (current != null)
+    {
+        if (current.getType() == Node.COMMENT)
+            current = node.removeChild(current);
+        else
+            current = nl.toNext();
+    }
+
+Easy.  The spec for insertChild and replaceChild would need something like
+the following added:
+
+"All NodeIterators retrieved using getChildNodes() for this Node will be
+pointing to newNode if successful."
+
+and on removeChild:
+
+"All NodeIterators retrieved using getChildNodes() for this Node will be
+pointing to the next child Node, or the previous Node if oldNode was the
+last Node."
+
+Also, the return value of removeChild would have to be changed to:
+
+"The next child Node, or null if oldNode was the last Node."
+
+Of course, the previous example would work with the current spec if the
+following was done:
+
+        if (current.getType() == Node.COMMENT)
+        {
+            Node temp = current;
+            current = nl.toNext();
+            node.removeChild(temp);
+            // Add the following to ensure the list's pointing at the right
+place
+            if (current != null)
+                nl.toNode(current);
+        }
+        else // etc, etc...
+
+Not quite as neat, but it should still do the same thing.  Of course, this
+may not be possible in some situations (I can't think of any off hand)...
+
+Anyway, food for thought.
+
+David
+
+>Hi,
+>
+>I've got a question on the behaviour of NodeIterators.  What is supposed to
+>happen if the current node of an iterator is removed from its parent?
+>
+>The method toNext() of NodeIterator is defined as follows:
+>
+>   This method alters the internal state of the iterator such that the node
+it
+>   references is the next in the sequence the iterator is presenting
+relative
+>   to the current position.
+>
+>But now the node is no longer part of the sequence represented by the
+iterator.
+>This case actually occurs if you want to conditionally remove the children
+of
+>some node.
+>
+>It gets even more confusing if you reinsert the node at a different
+position as
+>a child of the same parent: Does the Iterator move along with its node?  Or
+>what if you insert it as a child of an entirely different parent?
+>
+>Enlightment appreciated,
+> Axel
+>
+>----------------------------------------------------------------------
+>+ Axel Rasmus   "A man that cannot walk has to fly"     Wienberg +
+>
+
+
+

@@ -1,0 +1,92 @@
+docno="lists-039-16474156"
+received="Wed Jan 26 22:35:32 2000"
+isoreceived="20000127033532"
+sent="Wed, 26 Jan 2000 22:35:29 -0500"
+isosent="20000127033529"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: locking GULP 2"
+id="10001270335.AA29093@tantalum"
+inreplyto="85256872.007D6E9A.00&#64;d54mta03.raleigh.ibm.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+   From: jamsden@us.ibm.com
+
+   Just a couple of comments, I'm trying to catch up from a lot of travel.
+   - a lock must be an 8 tuple and include the principal (authentication id)
+   who owns the lock.
+
+Where do you find this definition in rfc2518?  The activitelock element
+is defined as a 3 to 6 tuple:
+
+   <!ELEMENT activelock (lockscope, locktype, depth, owner?, timeout?,
+   locktoken?) >
+
+I have found no occurrence of the term "authentication id" in rfc2518.
+
+   - under "A resource can be locked by multiple locks concurrently", the
+   first sentence should read A resource..., not a lock...
+
+Yup (this is fixed in GULP-3).
+
+   - under "One or more resources may be locked with a lock request", last
+   paragraph: unfortunately the owner element of a lock is not the principal
+   owning the lock but rather some arbitrary string describing the owner of
+   the lock like a phone number or email address, etc. That's why we need
+   another field for the principal. Otherwise client applications must persist
+   their lock tokens somewhere else as there's no way to retrieve them from
+   the server for a given user.
+
+If you are authenticating against the principal issuing a request,
+there is no point in maintaining or requiring a lock token.  If you
+are using a lock token to avoid merging between cooperating clients,
+then you don't need to authenticate against a principal.  In either
+case, there is no point in authenticating the use of a lock token.
+
+And even if there would be a point, it is not specified in rfc2518,
+so this would be protocol extension, not protocol compliance.
+
+   - say you have a lock on a resource which translates to a lock on its
+   segment binding in its parent collection (the one used to request the
+   lock), and the resource itself.
+
+Actually, it produces a lock on all the WebDAV collections named by
+segments of the request-URL of the LOCK.
+
+   Now you move the resource to some other
+   collection. This removes the lock from the binding in the collection, but
+   not the lock on the resource itself?
+
+When you issue a move, the locks are recomputed.  In particular,
+(in GULP-3) the rule is:
+
+R5: If a collection C has a lock with token "K" and a request adds
+or removes a member from C, all locks with token "K" are removed except for
+those that would result from re-executing the LOCK command that
+created the token "K" locks.   If any of these locks cannot be added,
+the request MUST fail.
+
+   If so, could one expect that a new
+   lock would be added to destination binding so that the overall state of the
+   system is the same?
+
+In GULP, the lock is logically on the request-URL of the LOCK
+request, not on any particular resource.  This logical lock is
+reflected in the state of the appropriate resources, so following
+a MOVE, the original LOCK request continues to be in effect on the
+specified URL.
+
+   The user started out with a protected resource and URL.
+   After the move, one would expect the same level of protection?
+
+In GULP, the user started out with a protected URL, and that is the
+URL that remains protected following the MOVE.
+
+Cheers,
+Geoff
+
+
+

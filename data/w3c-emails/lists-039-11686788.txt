@@ -1,0 +1,172 @@
+docno="lists-039-11686788"
+received="Fri Nov 19 13:37:37 1999"
+isoreceived="19991119183737"
+sent="Tue, 16 Nov 1999 16:14:46 -0500"
+isosent="19991116211446"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="WebDAV and Dynamic Content"
+id="8525682E.006649D2.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+
+Although WebDAV is silent about dynamic content, it is clear that it will
+be used to author the source of such content in web application
+development. In the spirit of incremental development, content authors will
+want to test and debug their dynamic resource in a tight edit, execute,
+debug cycle. This implies that extra publish steps required to make
+authored resources available to the server runtime, and running multiple
+servers for authoring and testing are less than optimal.
+
+Even though specific support for dynamic content is currently out of scope
+for WebDAV, we should explore the issues and options to be sure there are
+no protocol consequences or opportunities that should be addressed now.
+This note is the beginning of a thread to do that.
+
+Dynamic content presents two fundamental problems for a WebDAV server:
+1. How does the server distinguish between access to source and access to
+processed results
+2. How are resources made available to server-side extensions that access
+them through the file system
+We'll explore each of these issues from the point of view of the client,
+and both non-versioning and versioning servers.
+
+Accessing the Source of Dynamic Resources
+
+For many dynamic resources, the dynamic content and the source resources
+are different MIME types and have different URLs. For example Java source
+resources end in .java while binary executable resources end in .class.
+These resources present no problem because the client can do a GET on the
+source URL to get the source, and a GET on the separate executable URL to
+get the processed results. The DAV:src property on the executable can be
+used to get the source resource URL.
+
+For other resources, the dynamic content and the source have the SAME URL.
+For example, Java Server Pages, Active Server Pages, server-side includes,
+server-side scripting, etc. This presents a problem because there's only
+one method to get both, GET. The DAV:src property doesn't help because it
+has the same URL as the executable. And, there's no header on GET that can
+be used to distinguish source from dynamic results. We could use the Accept
+header to specify what MIME type is desired, and use that to distinguish
+source from dynamic results, but that might now work either as they could
+have the same MIME type, and the dynamic resource might support multiple
+MIME types.
+
+The FrontPage extensions resolve this conflict by either using a method
+extension to get the source, or a new header. Could someone supply the
+details? They might be a useful model for how we should extend WebDAV.
+
+The current WebDAV doesn't provide any interoperable way to resolve this
+issue. However, advanced collections and binding does. Here is a list of
+possible solutions (assuming advanced collections), and their pros and
+cons:
+
+1. Configure the WebDAV server to not process any dynamic content. Require
+the document author to publish the modified source to another server that
+is configured to process dynamic content, and not return source (might be
+another WebDAV server). The publish operation could be done with a cross
+server COPY. The web application developer uses two different URLs to two
+different servers to distinguish the source resource from the dynamic
+resource. A variant of this approach would be to use virtual hosts in a
+single server, but this is more server dependent.
++ works with existing WebDAV servers, doesn't even need advanced
+collections
++ also solves the second issue, how the runtime gets access to WebDAV
+resources through the file system
+- creates redundant resources consuming both developer and CPU time and
+disk space
+- results in the potential for stale copies of runtime resources
+introducing difficult to find bugs
+- requires an extra publish step after every update that's easy to forget
+- requires the administration of an extra Web server
+- user has to remember two URLs, one for the source and one for the dynamic
+results. However, they could differ only in the server name or port.
+
+2. For every dynamic resource, create a binding from the dynamic resource
+to its source, and configure the server so that the URL for the source
+binding does not invoke dynamic content. For example, bind HelloWorld.jsps
+to HelloWorld.jsp and configure the server so that resources ending in
+.jsps are text/plain while resources ending in .jsp are processed Java
+Server Pages.
++ only need one server running
++ no duplicate resources
++ no need to copy, and therefore no possibility of forgetting and getting
+stale dynamic resources
++ no publish step, the BIND only has to be done once.
+- have to do the BIND for each dynamic resource, but only once
+- have to administer the server to not process some URLs (the ones bound to
+the dynamic resources for the purpose of accessing their source)
+- user has to remember two URLs
+
+3. Extend WebDAV to include a Process-Source Boolean header. GET on a URL
+with Process-Source set to 'F' would return the dynamic content while 'T'
+would return the source. If the content is not dynamic, the header is
+effectively ignored as both 'T' and 'F' would have the same effect.
++ only need one server
++ no duplicate resources
++ no copy and no stale dynamic resources
++ no BIND step or publish
++ no administration required to distinguish source and dynamic content URLs
++ user only has to remember one URL
+- requires an extension/change to WebDAV
+- introduces another header
+
+4. Add a GETSOURCE method.
++ no new header required
++ user only has to remember one URL
+- another method that usually does the same thing as GET
+
+
+Allowing dynamic resource to access resources using the file system
+
+Most dynamic resources, i.e., servlets, Java Server Pages, Active Server
+Pages, server-side scripting in HTML, CGI-BIN applications, etc. that are
+invoked by a Web server assume Web resources managed by the server are
+stored in the file system, often at specific locations relative to their
+own file system path. This is very unfortunate coupling between the
+server-side extensions, and the Web server implementation, but it is
+standard practice. For many WebDAV servers, and almost certainly versioning
+WebDAV servers, the resources are not stored in the file system, but rather
+are stored in some private repository. For the authoring environment, this
+is no problem because the authoring client just does GETs and PUTs and
+isn't aware of the server's implementation. However, any dynamic content
+processed by the Web server is free to open files on the server as it
+wishes, and if those files are Web resources authored through WebDAV, they
+might not be visible to the dynamic resource and its runtime environment.
+Ideally, the dynamic resource would reference other resources through a URL
+so it could access them through WebDAV with versioning support and proper
+access controls. But in cases where they just open files, we have to have
+some other solution.
+
+1. Require the user to publish from the WebDAV store to the server runtime.
++ it works
+- introduces redundancy with associated system resource consumption and
+update anomalies.
+- requires a separate publish step for every update before it can be
+tested. Likely to cause lots of bugs
+
+2. Mirror the resources in the file system.
++ makes them accessible to dynamic resources
+- introduces redundancy with associated system resource consumption and
+update anomalies.
+- what version of a versioned resource would be mirrored? Some published
+workspace?
+- requires users to do a publish step to control when the server cache is
+updated or requires servers to keep them up to date.
+
+3. Build a file system device driver on top of WebDAV so that applications
+that access the file system will transparently access WebDAV resources.
++ eliminates the redundancy
++ eliminates the publish step
+- has performance implications
+- introduces OS dependencies, there's no standard file system access API.
+- file system APIs may not be capable of specifying enough information or
+parameters to support versioning, properties, locking, etc.
+
+
+

@@ -1,0 +1,166 @@
+docno="lists-044-13451815"
+received="Wed Aug  2 14:17:51 2000"
+isoreceived="20000802181751"
+sent="Wed, 02 Aug 2000 19:16:46 +0100"
+isosent="20000802181646"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: Fix for RE: XMLDSIG proposal: enveloped signatures, xpath and here()"
+id="200008021816.TAA10233@bobcat.baltimore.ie"
+inreplyto="3.0.5.32.20000802115541.01905998&#64;localhost"
+expires="-1"
+
+
+To:"Joseph M. Reagle Jr."<reagle@w3.org>
+Cc:"John Boyer"<jboyer@PureEdge.com>,"Kevin Regan"<kevinr@valicert.com>,"TAMURA Kent"<kent@trl.ibm.co.jp>,w3c-ietf-xmldsig@w3.org
+
+
+Hi,
+
+The problem is that we cannot perform signature-relative
+operations (e.g., enveloped signature or "I'm signing my
+previous sibling") within a Transform: The transform just
+receives an octet stream so it has no "here" relative to
+which to perform the transform.
+
+So, the suggestion is to use XPointer in a reference URI
+to represent these desired relative operations; it is only
+within this context that they have meaning. So, enveloped
+signature would no longer be a transform, but a reference.
+
+For example,
+
+<Reference URI='#xpointer((//. //@* ...')>
+
+This would be an enveloped signature of the whole
+document. Here, ... is an elision of the complete
+expression. Versioning of the XPointer spec would
+clearly be necessary. And I don't know the exact
+syntax.
+
+<Reference URI='#xpointer(../../previous-sibling...)'>
+
+Implies that I'm signing my previous sibling. This is 
+necessary if a signature and the external signed data
+should be relocatable, as required by some systems.
+
+As with the "enveloped-signature" transform, we might
+choose to define a short hand:
+
+<Reference URI='#enveloped-signature()'>
+<Reference URI='#enveloped-signature(foo)'>
+
+The former is an e-s over the whole document, the latter
+an e-s over the nodes rooted at element id(foo).
+
+This would allow conformant implementations to proceed
+without XPointer/XPath.
+
+This would require of implementations the following:
+
+* Where you now have a hand-coded enveloped signature
+  transform, you will have a hand-coded enveloped
+  signature reference. This should be a trivial change,
+  probably a simplification.
+
+* Where you have XPath transforms that do not involve
+  here(), there is no change. These are still supported.
+
+* Where you have an XPath transform involving here()
+  you must move to the appropriate XPointer reference
+  and John Boyer's points 1--4.
+
+* The "formal" definition of enveloped signature is
+  rewritten as an XPointer reference.
+
+I do not possess the understanding of XPointer and XPath
+to know the correct terminology to use with respect to 
+locations, node sets, etc.; John Boyer expressed it better.
+
+Merlin
+
+r/reagle@w3.org/2000.08.02/11:55:41
+>At 11:29 7/26/2000 -0700, John Boyer wrote:
+>  >In total, we could
+> >
+> >1) drop here() from the XPath transform
+> >2) rewrite the enveloped signature specification to use a Reference with an
+> >Xpointer URI that is equal to the current XPath for enveloped signature.
+> >3) Convert the resulting location-set to a node-set (throw error if there
+> >are any point, range or other non-node parts of the location-set)
+> >4) C14N the resulting XPath node-set.
+>
+>Point 4, do you mean canonicalizing the XPtr node-set?
+>
+> >We have assumed that people can use a URI that
+> >includes at least a barename Xpointer.  But the result of a barename
+> >XPointer is a *location-set*, not an octet stream.  To fix this, I believe
+> >we have assumed that the canonicalized result of the barename xpointer
+>would
+> >be passed to the transforms (at least I have). 
+>
+>
+>Can you point me to a definition of location-set? (Node set is at least
+>mentioned in XPath but I can't find location set in XPath, XPtr or Infoset.)
+>
+> > But c14n operates on a
+> >node-set, not a location-set.  However, certainly in the case of barename
+> >xpointer, the location-set is a node-set (there are no non-nodes), so
+> >canonicalizing it presents no real problems.
+> 
+>Do I understand the situation correctly?
+>
+>PRESENT: We defined Enveveloped-Signature transform using XPath since we are
+>already using the XPath data model and an expression to derive the Canonical
+>form. This is rather elegant. However, while we defined the
+>Enveloped-Signature transform using XPath, XPath isn't necessary for
+>implementation. This approach makes it easy for those that have an XPath
+>implementation (the definition of enveloped implements this feature!) and no
+>more harder for those that implement this feature otherwise (the XPath spec
+>plus the definition tells them what they must do in their own
+>implementation, but not how to do it.)
+>
+>However, we found that the XPath expression (and employment of here() in
+>that context) doesn't do the job well. However, we could do the job by
+>expressing it as point of XPtr, however, we've been trying to avoid reliance
+>upon XPointer. The question is:
+>
+>PROPOSAL/QUESTION: Would moving to XPtr for this feature be much more
+>difficult?
+>A. Again, an XPtr implementation isn't necessary, the relevant part of the
+>XPtr and our own expression defines the Enveloped feature. For those that
+>have an  XPath implementation, Merlin asserts, "Technologically, all
+>verifiers which support XPath transforms contain the necessary tools for
+>XPointer resolution. So adding a need for this is a minimal burden" so the
+>job should be easy. (Do others agree?) Those that were "hand-coding" the
+>enveloped signature feature before, will do the same now (and I think this
+>won't increase their job all that more either.)
+>B. In Merlin's proposal he expressed the expression as:
+>>   <Reference URI='#xpointer(../../previous-sibling)'>
+>Is this purposeful, as URI="#xpointer" is discouraged [2] and should be
+>placed in a seperate transform:
+><Reference URI=''>
+>   <Transforms>
+>   <Transform Algorithm="http://www.w3.org/TR/1999/REC-xslt-19991116"/>
+>      #xpointer(../../previous-sibling)'</Transform>
+>   </Transforms>
+>   ..
+></Reference>
+>
+>[1] 
+>[2] http://www.w3.org/TR/2000/WD-xmldsig-core-20000711/#sec-Reference
+>Otherwise, support of other fragment/MIME types (e.g., PDF) or XML
+>addressing mechanisms (e.g., [XPath, Xptr]) is OPTIONAL, though we RECOMMEND
+>support of [XPath]. Regardless, such fragment identification and addressing
+>SHOULD be given under Transforms (not as part of the URI) so that they can
+>be fully identified and specified.
+>
+>
+>_________________________________________________________
+>Joseph Reagle Jr.   
+>W3C Policy Analyst                mailto:reagle@w3.org
+>IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+>
+
+
+

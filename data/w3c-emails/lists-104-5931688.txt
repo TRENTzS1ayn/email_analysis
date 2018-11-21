@@ -1,0 +1,202 @@
+docno="lists-104-5931688"
+received="Thu May 16 12:36:52 2002"
+isoreceived="20020516163652"
+sent="16 May 2002 12:36:51 -0400"
+isosent="20020516163651"
+name="Philippe Le Hegaret"
+email="plh@w3.org"
+subject="XPath comments"
+id="1021567011.25608.143.camel@jfouffa"
+expires="-1"
+
+To: WWW DOM<www-dom@w3.org>
+
+
+[Comments from Dieter, who is not able to reach the list for unknown
+reasons]
+
+
+--------------------------------------
+Subject: XPATH: createExpression: INVALID_EXPRESSION_ERR
+
+The requirement that XPathEvaluator.createExpression should raise an
+INVALID_EXPRESSION_ERR if the expression is not legal makes it necessary
+to test
+the expression syntax immediately.  However, to optimize performance it
+would be
+fine to be able to postpone this test when an expression is in fact
+evaluated by
+the XPATHExpression.evaluate function.  So I suggest to modify
+XPathEvaluator as
+follows:
+
+- Remove the INVALID_EXPRESSION_ERR from createExpression
+- Introduce a new function prepare with boolean result.  It returns
+'true' if
+the expression is valid, and 'false' otherwise.  It may also be used to
+trigger
+the calculation of an internal XPath syntax tree (implementation
+dependant).
+- Add an INVALID_EXPRESSION_ERR to the XPATHExpression.evaluate
+function.
+
+
+--------------------------------------
+Subject: XPATH: XPathResultType and XPATHExpression.evaluate
+
+The use of XPathResultType in the XPATHExpression.evaluate function does
+not
+allow maximum optimization in many use cases.  For example if an
+applications
+wants to use the result of an XPATHExpression.evaluate call in a way
+that it is
+not interested in a particular node set, e.g. when it wants to find out
+whether
+there is any data at all, it needs only XPath results of type
+ANY_UNORDERED_NODE_TYPE, BOOLEAN_TYPE, NUMBER_TYPE and STRING_TYPE. 
+Hence, the
+ANY_TYPE constant is too rough, because the evaluation may then return
+for
+example an ORDERED_NODE_SNAPSHOT_TYPE result which is much harder to
+calculate.
+
+Fortunately, there exists a simple solution:  The ANY_TYPE constant
+should be
+removed from XPathResultType and the 'type' parameter of the
+XPATHExpression.evaluate method should be replaced by a 'requestTypes'
+property
+which is a set of XPathResultType constants.  The evaluated method may
+then
+choose to return one of the requested XPathResultTypes and raise a
+TYPE_ERR if
+the result cannot be converted to any of the specified types.
+
+
+--------------------------------------
+Subject: XPATH: XPathResult.numberValue
+
+The XPath 1.0 spec defines numbers according to IEEE 754.  I am not sure
+whether
+it is suffient to fullfil this requirement by simply stating that the
+numberValue is of type 'double'.  Would it not be necessary to use a
+special
+IEEE754Number type?
+
+
+--------------------------------------
+Subject: CR/XPATH: string-value
+
+The XPath 1.0 spec defines a 'string-value' for every node type.  It
+would be
+useful to add an XPathStringValue property to every Node which allows
+easy
+access to a Node's XPATH string-value (since 'string-value' is not
+equivalent to
+'textContent').
+
+
+--------------------------------------
+Subject: XPATH: Issue XPath-25
+
+Issue XPath-25: "Should there ne a reset method on the result in case
+someone
+wants to iterate the result multiple times?"
+
+It would at least be good to have a 'hasItems' and a 'lookAhead'
+function to
+allow simple procedure calls like:
+
+  while not myXPathResult.hasItems 
+   do myXPathResult:= RequestAnotherXPathResult;
+  SomeCalculation(myXPathResult);
+
+or
+
+  if myXPathResult.lookAhead.NodeValue = 'foo'
+    then SomeExtraCalculation(myXPathResult);
+  SomeCalculation(myXPathResult);
+
+
+--------------------------------------
+Subject: XPATH: XPathResult
+
+The architecture of the XPathResult interface is that of _simulated_
+independent
+interfaces.  This becomes obvious on the frequent use of TYPE_ERR
+exceptions
+when trying to access its properties.  Applications which want to
+further
+process XPathResults will have to use hard coded type checking by
+evaluating the
+resultType property.  This is in particular not elegant when an
+application uses
+a library of subroutines to further process a specific type of
+XPathResult.  In
+this, as I guess, not too seldom use case the subroutine must usualy
+perform the
+type checking at run-time at the beginning of the subroutine, in order
+to test
+whether it was triggert with the correct type of XPathResult. 
+Therefore, it
+would be much better for this cases to have different kinds of
+XPathResult
+interfaces.  Then type checkings could be performed on design time and
+code
+debugging would be easier, because type conflicts could instantly be
+discovered.  
+
+A hierarchy of XPathResult interfaces could look like this:
+
+A. Abstract interfaces:
+
+  interface XPathResult {
+    readonly attribute short resultType;
+  };
+
+  interface XPathSingleNodeResult: TdomXPathResult {
+    readonly attribute Node singleNodeValue;
+  };
+
+  interface XPathIteratorResult : XPathResult {
+    readonly attribute boolean invalidIteratorState;
+    readonly attribute integer iteratorLength;
+    Node iterateNext();
+  };
+  
+  interface XPathSnapshotResult : XPathResult {
+    readonly attribute integer snapshotLength;
+    Node snapshotItem(in integer index);
+  };
+
+
+B. Concrete Interfaces:
+
+  interface XPathBooleanResult : XPathResult {
+    readonly attribute boolean booleanValue;
+  };
+
+  interface XPathNumberResult : XPathResult {
+    readonly attribute double numberValue;
+  };
+
+  interface XPathStringResult : XPathResult {
+    readonly attribute DOMString stringValue;
+  };
+
+  interface XPathAnyUnorderedNodeResult : XPathSingleNodeResult;
+
+  interface XPathFirstOrderedNodeResult : XPathSingleNodeResult;
+
+  interface XPathOrderedNodeIteratorResult : XPathIteratorResult;
+
+  interface XPathUnorderedNodeIteratorResult : XPathIteratorResult;
+
+  interface XPathOrderedNodeSnapshotResult : XPathSnapshotResult;
+
+  interface XPathUnorderedNodeSnapshotResult : XPathSnapshotResult;
+ 
+
+--------------------------------------
+
+
+

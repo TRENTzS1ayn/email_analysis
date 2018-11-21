@@ -1,0 +1,129 @@
+docno="lists-040-0074858"
+received="Fri Jan 28 10:10:06 2000"
+isoreceived="20000128151006"
+sent="Fri, 28 Jan 2000 10:09:59 -0500"
+isosent="20000128150959"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: WebDAV Bindings - Issue Yaron.AtomicDelete"
+id="10001281509.AA00047@tantalum"
+inreplyto="7DE119D3D0E15543874F7561EECBDBED0282B9A6&#64;BEG.platinum.corp.microsoft.com"
+expires="-1"
+
+
+To:yarong@Exchange.Microsoft.com
+Cc:w3c-dist-auth@w3.org,danlo@Exchange.Microsoft.com,brianan@Exchange.Microsoft.com
+
+
+Like Jim, I'd like to thank Yaron allocating out some non-existent
+free time for pursuing this issue!  A few comments:
+
+   From: Yaron Goland <yarong@Exchange.Microsoft.com>
+
+   I explained to Brian and Dan that I needed to implement WebDAV over existing
+   NTFS and FAT file systems and that it was critical that our WebDAV
+   implementation allow for multiple simultaneous protocol access through
+   NFS/Win32/SMB/FTP/WebDAV/etc.
+
+I agree.  Note that this of course does not mean that a WebDAV
+DELETE is anything like the operations called "delete" in any of
+these other protocols.
+
+Furthermore, I believe it is reasonable for a particular
+protocol to provide access to only a subset of the repository.
+In particular, it is reasonable to say that you can't point
+WebDAV at the root of a file system, but only one level down.
+This leaves a place to put "hidden" administrative or implementation
+data (such as collections that have been DELETE'd but not yet
+garbage collected).
+
+   I asked them, given this requirement, if it
+   would be possible to simulate an atomic delete by just moving the tree we
+   wanted to delete and then begin the file-by-file delete.
+
+   Both Brian and Dan agreed that the move operation is atomic and that this
+   would allow one to make the entire sub-tree disappear from a particular
+   point in the namespace in a single atomic act.
+
+And as long as the place it was moved to was invisible to WebDAV access,
+the "atomic" definition of DELETE is satisfied.
+
+   However both Brian and Dan
+   pointed out that the problems really begin once you have moved the tree. The
+   both pointed out that if I insist on allowing multiple access to the files
+   in question through WebDAV as well as FTP/SMB/NFS/Win32/etc. then it would
+   be impossible to perform an atomic delete.
+   The crux of the problem is that NFS, amongst others, does not necessarily
+   refer to files using their path location. They often refer to files using
+   File IDs which are completely independent of location. This means that the
+   attempt to move the files from one part of the namespace to another in order
+   to hide them won't work with NFS. NFS and similar systems will continue to
+   be able to operate on the files, regardless of where they are moved to.
+
+As long as these files are not visible to WebDAV clients, it doesn't matter
+if other protocol operations continue to work on them.
+
+   This means that even if the move on the sub-directory succeeds it is
+   possible for a NFS client to come in and open (without the filesharedelete
+   flag) or change the ACL on a file and hence prevent us from deleting the
+   file.
+
+That's OK, since the file is in the "invisible" location on the file
+volume, it doesn't matter to WebDAV that some other protocol still has
+access to those bits.  The file may also still exist in some backup
+archive form on that host, and we don't care about that either.
+
+   Even if we attempt to change the ACL on a file to prevent others from
+   accessing the file another user with a File ID and a higher access can
+   always override us. 
+
+That's OK, as long as to a WebDAV client, it looked like the atomic delete
+happened.
+
+   The result is that the atomic move provided by the file system doesn't buy
+   us much because it doesn't "hide" the files from everyone.
+
+As indicated above, we can't guarantee that a DELETE will hide the files
+from everyone.  In the case of multiple bindings, we are explicitly saying
+that a DELETE doesn't even hide the file from WebDAV clients (i.e. they
+can still see that file from any of the remaining bindings).
+
+   This means that
+   there is no way for us to be sure, once we begin actually deleting files,
+   that we will successfully be able to delete all of this files.
+
+If DELETE means that you no longer see the specified resource at the
+specified URL, then we can successfully delete all the resources.  If
+DELETE means that the bits are permanently erased from all possible
+forms of access, then it is impossible to implement (in the presence
+of backups, etc.).
+
+   This then
+   means that we can end up with a half deleted tree. A tree we can not
+   subsequently move back after the failures because to do so would violate the
+   atomic guarantee of an all-or-nothing delete.
+
+By the "not visible at this URL" definition, a MOVE successfully performs
+the delete.  Garbage collecting the space after the DELETE is not something
+the protocol should (or could) define.
+
+   So the bottom line is that we can't implement an atomic delete and allow for
+   multiple simultaneous file system access through multiple protocols. Since
+   our users absolutely demand multiple simultaneous file system access through
+   multiple protocols we can not implement atomic delete.
+
+I think the key questions here is:
+
+Does delete mean "this resource is no longer visible at this URL" (as
+proposed in the bindings protocol), or "the bits in this resource are
+permanently removed from all possible access".
+
+If we pick the former definition (which is the only one that is
+compatible with the needs of multiple bindings and versioning), I
+believe it is clear that atomic delete is feasible.
+
+Cheers,
+Geoff
+
+
+

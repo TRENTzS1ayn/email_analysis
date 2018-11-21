@@ -1,0 +1,299 @@
+docno="lists-050-11063981"
+received="Thu Jun 27 14:28:06 2002"
+isoreceived="20020627182806"
+sent="Thu, 27 Jun 2002 13:23:27 -0500"
+isosent="20020627182327"
+name="pat hayes"
+email="phayes@ai.uwf.edu"
+subject="literals, again."
+id="p05111b1ab93eb59e47b5@[65.217.30.113]"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-rdfcore-wg@w3.org
+
+Apologies to all for reopening this business, but Ive been descending 
+into a black hole on this issue since the F2F. I really, really do 
+not like the situation we seem to be in here regarding literals, for 
+a whole lot of reasons. This message tries to enumerate them and to 
+suggest a possible solution. I know this has been done before and 
+apologize in advance for missing the obvious objections that have 
+probably already been raised.
+
+Summary: literals ought to be strings, not 3-tuples. To achieve this, 
+literals should be allowed in subject position. If we do this, a 
+number of issues are clarified and the overall design of the language 
+is rationalized and simplified, at almost no cost. Also, 
+datastructuring suddenly gets easier.
+
+--------
+
+First let me summarize my understanding of the current state of play.
+
+1. Literals are not strings.
+2. Literals are 3-tuples, consisting of a bit and two strings, the 
+second of which is an XML lang tag.
+
+There are some constraints on these three parts of a literal.
+
+3. If the bit is set (Im not sure if that is a one or a zero) then 
+the second string is required to be well-formed XML. 
+4. If the bit is set, then the lang tag is understood to be the lang 
+tag of the second string.
+5. If the bit is not set, then the lang tag is understood to indicate 
+that the second string is an expression of that language.
+
+This has some curious consequences.
+
+First, (3) has the consequence that any RDF engine must include an 
+XML parser, even if it is not expected to parse RDF/XML. The graph 
+syntax has all of XML syntax incorporated into it. This seems to me 
+to be the most serious problem. Under these circumstances it hardly 
+seems worth having the graph syntax: it would be better to just 
+identify RDF with RDF/XML and stop pretending.
+
+Second, (4) and (5) interact in odd ways. Notice that the meaning of 
+the lang tag changes according to the bit setting. Suppose that the 
+second string is, in fact, well-formed XML and the lang tag is "FR". 
+If the bit is set, then tout est bien; but if the bit is not set, 
+then this combination is a disaster, since that well-formed XML is a 
+mere string, its resemblance to XML a mere accident, and then the 
+lang tag is claiming that it is a French text, which of course (being 
+well-formed XML) it is not, in fact. I am not sure what an RDF engine 
+is supposed to do at this point: would it be expected to reject this 
+as an incoherent literal?
+
+Third, since we have decided that literals denote themselves, this 
+construction means that these ad-hoc 3-tuples must be in the semantic 
+domain of any RDF interpretation, and hence of any interpretation of 
+any language which extends RDF. This is at best an unattractive 
+consequence, and it might be disastrous if other languages expect to 
+handle literals differently (as I am sure they will). It seems 
+particularly weird to incorporate XML *syntax* into the semantic 
+domain of all web ontology languages. Notice that we do not have the 
+option of making these 3-tuples 'optional' once they are in the 
+semantic domain.
+
+Further to the previous point, datatyping simply does not work. All 
+the datatyping proposals so far considered - ALL of them - have been 
+predicated on the assumption that literals are members of the lexical 
+space of XML datatypes. But 3-tuples consisting of a bit and two 
+strings are not in the lexical space of any XML datatype. So we 
+simply cannot do datatyping in RDF at present, seems to me, with 
+literals the way they are.
+
+Finally, there is a purely aesthetic reason which one might reject, 
+but it is worth mentioning: there is an obvious analogy between the 
+lang tag and a datatype, and it would be nice if the overall RDF 
+scheme of things preserved this analogy.
+
+For all these reasons, I would suggest that the decision to make 
+literals (in the graph syntax) into things other than strings was a 
+very bad one, and should be reconsidered. (I would have said this a 
+long time ago if I had realized that this was in fact the decision 
+that had been taken, and Im sorry that I missed that in the weeks 
+following the Cannes meeting.)
+
+------
+
+I gather that the motivation for this decision was twofold: the bit 
+is there to record the parsetype being XML, to allow accurate XML 
+round-tripping; and the lang tag is needed by some RDF users. (I find 
+myself sceptical that the bit is actually needed: would it really be 
+a disaster if a string which just happened to be legal XML, but 
+hadn't been parsed from XML input, was accidentally misreported as 
+being true XML? This seems to me like worrying about the possibility 
+that monkeys might accidentally type out some Milton sonnets. But 
+never mind.)
+
+Now, it seems to me that both of these are examples of information 
+*about* a literal string which needs to be recorded in an unambiguous 
+form. Since RDF is itself a language for asserting things about 
+things, the obvious way to record information in an RDF graph is to 
+use triples to make such assertions; but the obvious problem in doing 
+that is that the literal in question would naturally be the subject 
+of the triple, and literals cannot be subjects. Damn.
+
+We have been here before. Datatyping would be more natural if 
+literals could be subjects. Tim has asked us to consider the 
+possibility that literals could be subjects, and to recommend this 
+change to the next WG if we feel unable to do it. It seems to me that 
+everyone who has ever considered this matter has agreed that the 
+restriction against literals in subject position is irrational. So, 
+lets consider what would happen if we lifted it. In what follows, 
+therefore, I will assume that literal nodes in the graph are labelled 
+with strings, and that these nodes can be in the subject position of 
+a triple.
+
+The information recorded in the literals at present as extra 
+syntactic constructs could be represented naturally by introducing 
+special properties, eg:
+
+"10"  rdf:sourceDeclaration  "xml version="1.0"" .
+"10"  rdf:xmlLang  "FR"  .
+
+(where this is supposed to be a graph with three nodes and two arcs, 
+by the way.) Obviously, the names can be changed to protect the 
+innocent. Both of these mention xml deliberately, since this stuff is 
+entirely to do with xml round-tripping and preserving xml-specific 
+data in an RDF graph.
+
+Having literal subjects also allows datatyping constructions which 
+are all based on triples of the form
+
+<literal> <datatype mapping> <bnode> .
+
+where the datatype mapping goes, as one would expect, from the 
+lexical form to the value. For example, we could write
+
+Jenny ex:age "10"  .
+"10" xsd:number _:x .
+Jim ex:age _:x .
+
+(4  nodes total) which means that Jenny's age is a string and Jims 
+age is the number ten. Depending which end of the datatype triple you 
+use as your object node, you get either the lexical thingie or the 
+value thingie. The same datatype triple asserts that the literal is 
+in the lexical space and that the value is the right value. Simple, 
+regular, conforms to the XML description, and easy to understand.
+
+Also, range datatyping now can be done using a matched pair of closure rules:
+
+PPP  rdfd:drange DDD .
+AAA PPP LLL .
+-->
+LLL DDD _:x .
+
+PPP  rdfd:drange DDD .
+AAA PPP BBB .
+BBB rdfd:lex LLL .
+-->
+LLL DDD BBB .
+
+for literals LLL and non-literals BBB., which again is easy to 
+follow, and kind of fits under a single idiom, where the datatype 
+mapping has the same relationship to the datatype class that rdf:type 
+has to a particular rdfs:class.
+
+By the way, amazingly enough, these rules work both for the current 
+'stake' datatyping AND for the alternative; the difference is in how 
+you interpret what a datatype triple asserts, exactly. The current 
+version says that the literal denotes itself and the property is the 
+datatype mapping; the alternative would say that the literal denotes 
+the value and the property is identity. (View in fixed-width font:)
+Current:
+
+literal subject ---<datatype property> --> object
+    |                                         |                   (graph syntax)
+  denotes                                 denotes     -----------------------
+    |                                         |        (semantic interpretation)
+    \/                                        \/
+lexical item ----- datatype-mapping ----> value
+
+Alternative:
+
+
+literal subject ---<datatype property> --> object
+    |                                         |                   (graph syntax)
+  denotes via datatype mapping             denotes     -----------------------
+    |                                         |        (semantic interpretation)
+    \/                                        \/
+value     -----       equality       ----> value
+
+The only difference here is that the label of the bottom arc in the 
+first square has been moved to the right-hand arc in the second one. 
+The top and right-hand sides are the same, and both squares commute, 
+ie you get to the same place by any path.
+
+-----
+
+The cost would be that we would have to allow untidy literals. But I 
+am increasingly thinking that our insistence on (syntactically) tidy 
+literals is irrational. Bear in mind that this is an issue ONLY in 
+the graph syntax. In any lexicalisation of an RDF graph (RDF/XML or 
+Ntriples, but also any other lexicalization that could be sent as a 
+character string), the graph-ids themselves cannot possibly be 
+syntactically tidy.
+
+The interesting thing is that we can have (a kind of) semantic 
+tidyness even when the graph syntax isn't tidy. The way to do this is 
+to say that what a literal node denotes is a particular *occurrence* 
+of a character string; the one on that node, in fact. That is, 
+literal *nodes* denote themselves. There can be several character 
+strings "10" going around, and one of them might be in French and 
+another of them might be labelled as being XML, and so on. But any 
+properties of them which depend only on the actual characters in them 
+apply to all of them or to none of them together. The situation is 
+just like properties in RDF: there could be two properties with the 
+same property extension (each is a subPropertyOf the other) but 
+themselves having different properties. Similarly for classes. We 
+would be putting literals into the same kind of 'intensional' 
+category: there could be two different literals with the same string. 
+Identity for literals is indicated by the actual node in the graph 
+syntax. Notice that all the examples so far have been tidy, in fact.
+
+As with any other untidy literals proposal, this would require a 
+slight extension to the N-triples notation to provide a way to 
+indicate which literals in which triples were supposed to be on the 
+same node; we could do this by the same device that we currently use 
+for bnodes, so that the above examples might look like this:
+
+_:x "10"  rdf:sourceDeclaration  "xml version="1.0"" .
+_:x "10"  rdf:xmlLang  "FR"  .
+
+Jenny ex:age _:y "10" .
+_:y "10" xsd:number _:x .
+Jim ex:age _:x .
+
+where the first one uses the additional (handy) convention that if no 
+node ID is indicated for a literal, then the literal is unique to its 
+node.
+
+What about the Cannes entailment? Well, it depends now on the details 
+of the graph. If there is only one literal *node* which is both the 
+age of Jenny and the title of some movie, then indeed you can 
+conclude that there is a single thing which is both an age and a 
+title. The inference rule can be succinctly stated as follows: given 
+any node in any graph, it is OK to erase its label. That is, you can 
+replace a uriref with a bnode, and you can rub out any literal label 
+of a node (leaving a bnode). On the other hand, if the original graph 
+has got two literal nodes, both labelled "10", and one is the title 
+and the other is the age, then no, you can't infer that there is a 
+single thing that is both. But then you couldn't do that even if the 
+nodes were bnodes, in this case, so you shouldn't *expect* to be able 
+to make this inference in this case, seems to me. (Im sure that Dan's 
+response will be that he doesn't want this to be a legal graph, for 
+just this reason.)
+
+----
+
+Anyway, I offer this idea for consideration by the WG. I think that 
+(apart from the above-mentioned change to Ntriples) allowing literal 
+subjects will only simplify the rest of the documentation. The graph 
+syntax will be easier to specify, and the MT rules will be 
+simplified. Datatyping will be easier to specify and easier to 
+understand, and various exceptions and restrictions can just be 
+forgotten about.
+
+One final rationalization is that we could have an RDFS closure rule
+
+LLL rdf:type rdfs:Literal .
+
+for any literal LLL, which obviously makes very good sense and is 
+conspicuously missing at the moment.
+
+Pat
+
+
+
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

@@ -1,0 +1,159 @@
+docno="lists-000-5222082"
+received="Tue Nov 30 21:46:41 1999"
+isoreceived="19991201024641"
+sent="Tue, 30 Nov 1999 21:44:16 -0500"
+isosent="19991201024416"
+name="Andy Quick"
+email="ac.quick@sympatico.ca"
+subject="Java HTML Tidy and Hotspot"
+id="000701bf3ba6$2ce3cdc0$7342acce@quick"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+I have done some benchmarking with Java HTML Tidy
+and Sun's Hotspot VM, and I thought I would share
+the results here.
+
+I used the program below to parse a number of
+documents by cycling through a list.  In order
+to minimize the effect of runtime library code
+(ie. mostly file and standard output) I simply
+parsed each document without pretty-printing it.
+Also, I set the Errout stream to a CharArrayWriter
+and just threw away the results each time.
+
+I compared the Sun Hotspot 1.0.1 VM running with
+default settings with the Sun Classic VM with no
+JIT.  The tests were conducted on a clunky Pentium
+Windows 95 machine.
+
+The results are very impressive, see the table below:
+
+No. of         Classic      Hotspot     Percent
+Documents      no JIT msec  msec        Improvement
+---------      -----------  ----------  -----------
+  10             2030        4880       --
+  50            12250       14390       --
+ 100            22250       20100       10
+ 500           110290       48330       56
+1000           217010       70030       68
+
+
+Regards,
+
+Andy Quick
+
+---------------------------------------------------
+Benchmark program
+---------------------------------------------------
+import java.io.*;
+import java.net.*;
+import java.util.Vector;
+import org.w3c.tidy.Tidy;
+import org.w3c.tidy.Node;
+
+public class TidyDocuments
+{
+    public TidyDocuments()
+    {
+    }
+
+    public static void main( String[] args )
+    {
+        long   startTime;
+        int    argNum = 0;
+        int    count = 0;
+        int    i, j;
+
+        String       docName;
+        Vector       docList = new Vector();
+        String       outFileName;
+        Node         root = null;
+
+        URL u;
+        BufferedInputStream in;
+        FileOutputStream out;
+        Tidy tidy = new Tidy();
+        CharArrayWriter ca = new CharArrayWriter();
+
+ BufferedReader br;
+ String line;
+
+        if (args.length == 0)
+            return;
+        try {
+            br = new BufferedReader(new FileReader( args[argNum++] ));
+            while ( true ) {
+                line = br.readLine();
+                if ( line == null ) break;
+                docList.addElement( line.trim() );
+            }
+            br.close();
+        }
+        catch ( IOException e ) {
+            System.out.println(e.toString());
+        }
+        if (docList.size() == 0)
+            return;
+        if (argNum >= args.length)
+            count = docList.size();
+        else {
+            try {
+                count = Integer.parseInt(args[argNum++]);
+            }
+            catch (NumberFormatException e) {
+                count = docList.size();
+            }
+        }
+
+        tidy.setErrout(new PrintWriter(ca));
+        startTime = System.currentTimeMillis();
+        i = 0;
+        j = 0;
+        while (i++ < count) {
+            if (j == docList.size())
+                j = 0;
+            docName = (String)docList.elementAt(j++);
+
+            if (docName.startsWith("http://")) {
+                // NOT USED IN BENCHMARK - ALL DOCUMENTS LOCAL
+                outFileName = docName.substring(7);
+                outFileName = outFileName.replace('/', '_');
+                outFileName = outFileName.replace('.', '_');
+                if (outFileName.endsWith("_html")) {
+                    outFileName =
+outFileName.substring(outFileName.length() - 5) + ".html";
+                } else {
+                    outFileName += ".html";
+                }
+                try {
+                    u = new URL(docName);
+                    in = new BufferedInputStream(u.openStream());
+                    out = new FileOutputStream(outFileName);
+                    tidy.parse(in, out);
+                }
+                catch ( IOException e ) {
+                    System.out.println(e.toString());
+                }
+            } else {
+                try {
+                    in = new BufferedInputStream(new
+FileInputStream(docName));
+                    ca.reset();
+                    root = tidy.parse(in, null);
+                }
+                catch ( IOException e ) {
+                    System.out.println(e.toString());
+                }
+            }
+        }
+        System.out.println("Elapsed time = " +
+            (long)(System.currentTimeMillis() - startTime) + " msec");
+    }
+}
+
+
+

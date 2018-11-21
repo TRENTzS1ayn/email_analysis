@@ -1,0 +1,73 @@
+docno="lists-009-1524499"
+received="Sat Dec 17 17:11:15 1994"
+isoreceived="19941217221115"
+sent="Sat, 17 Dec 1994 17:10:27 0800 (PST)"
+isosent="19941218011027"
+name="Ari Luotonen"
+email="luotonen@neon.mcom.com"
+subject="Re: Connection Header"
+id="199412180110.RAA25830@neon.mcom.com"
+charset="USASCII"
+inreplyto="199412171902.LAA18193&#64;neon.mcom.com"
+expires="1"
+
+
+To: Rob McCool<robm@neon.mcom.com>
+Cc:frystyk@www0.cern.ch,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+>  * The MGET causes an extra roundtrip time as many servers will think:
+>  *
+>  * "Gee - nobody has told me about this method. I simply refuse
+>  * to do anything about it"
+> 
+> It seems to me that this could be alleviated by having regular GET
+> methods on MGET-capable servers return
+> 
+> Allow: MGET
+
+MGET is definitely more realistic approach than the keep-connection
+proposal.  MGET is clean and fully backword compatible.
+
+If I'm not totally lost in space, keep-connection will not even work
+with all TCP implementations.  There is no way to know beforehand that
+the remote really supports keep-connection and that the connection
+really will stay up, without making an assumption that it will, and
+send the second request to try it out.  You can't even wait until the
+entire document has been transferred and see if the connection stays
+up, because with a congested network or loaded remote server we may
+see the connection staying up for a while before it actually closes.
+Same may happen also with CGI scripts that do some cleanup after the
+document has already been fully returned.  This is a fact with current
+servers out there, which are the ones *not* supporting MGET, and with
+which the problems I'll now explain, would happen.
+
+As we are parsing the HTML doc and come accross an inlined image we
+issue a new request to the socket.  If we do that while we are still
+reading the data, and if the remote doesn't support keep-connection,
+we will receive ECONNRESET (?) and all pending incoming data will be
+discarded.  The same thing sometimes happened with HTTP0/HTTP1 (which
+was supposed to be fully backword compatible, but wasn't really), NCSA
+Mosaic did another connection, other clients simply failed, or
+displayed partial data.  This was fully dynamic depending on the state
+and speed of the network, sometimes you would end up with the entire
+document, sometimes with a truncated one, and sometimes with an empty
+page or client-generated error message when no data was returned.
+This was when the HTTP1 header write was still going on while the
+remote had actually sent all the data and closed the connection.  Data
+was streaming in from the remote TCP kernel buffers, and when the
+write failed on client side all pending data was lost.
+
+I don't see any other way to do this in a backword compatible way than
+with MGET and accept the fact that we make two connections (which
+would still be a huge improvement to the current situation).
+
+Cheers,
+--
+Ari Luotonenhttp://home.mcom.com/people/ari/
+Netscape Communications Corp.
+650 Castro Street, Suite 500
+Mountain View, CA 94041, USA
+
+
+

@@ -1,0 +1,120 @@
+docno="lists-009-7996972"
+received="Wed Aug 16 23:23:27 1995"
+isoreceived="19950817032327"
+sent="Wed, 16 Aug 1995 23:23:44 0700 (PDT)"
+isosent="19950817062344"
+name="Brian Behlendorf"
+email="brian@organic.com"
+subject="Re: De Re If-ModifiedSince"
+id="Pine.SOL.3.91.950816222536.604K100000@eat.organic.com"
+charset="USASCII"
+inreplyto="3032CBF4.41C6&#64;mozilla.com"
+expires="1"
+
+To: Lou Montulli<montulli@mozilla.com>
+Cc: Simon Spero<ses@tipper.oit.unc.edu>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+On Wed, 16 Aug 1995, Lou Montulli wrote:
+> In article <Pine.SOL.3.91.950816205717.5252C-100000@chivalry> Simon Spero
+> <ses@tipper.oit.unc.edu> wrote:
+> > 
+> > 
+> >         2) The problem as described above is caused by problems at the
+> >         server side;  the cure can also be localised to the server-side
+> >         without protocol modifications- for example, the server can keep
+> >         a record of the incorrect dates that have been changed, and always
+> >         retransmit the document if it recieves a request containing one of
+> >         the bad dates.
+> > 
+> 
+> This solution is too costly to implement in existing servers,
+
+BS - the server can easily go "oh, that IMS date is past my current time. I 
+will presume it's erroneous and send the full copy".  It doesn't have to
+remember the dates that were sent out, or the files those dates were attached
+to.
+
+Here's the algorithm of IMS requests:
+
+Variables: IMS = If-Modified-Since date
+   LM = Server's last-modified
+   CURRTIME = The current time on the *server*
+
+1) if IMS < LM send document
+2) if IMS > CURRTIME send document
+   that leaves LM < IMS < CURRTIME for the 304 response.  
+
+The problem situation:
+
+RealTimeServerTimeAction
+
+12:0012:10C: GET /file
+S: 200 Ok
+   Last-modified: 12:08
+12:0212:12 -> 12:02(clock fixed)
+12:0612:06(/file modified)
+12:1012:10C: GET /file
+   IMS: 12:08
+S: 304 Not Modified
+
+so, here the file was modified but reported not modified. By the spec, 
+the server can't go "hey, 12:08 is past the LM date of /file".  So, 
+when would this happen?  Is this common enough to be a problem?  
+
+Let's rewrite this algebraically:
+
+RealTimeServerTimeAction
+AA+LagC: GET /file
+S: 200 Ok
+   Last-modified: LM   (LM < A+Lag)
+A+BA+Lag+B-> A+B(clock fixed)
+A+B+CA+B+C(/file modified)
+A+B+C+DA+B+C+DC: GET /file
+   IMS: LM
+
+if ( LM < A+B+C+D && LM > A+B+C) then a 304 is issued, and LM < A+Lag
+
+so we get 
+
+B+C < LM-A < B+C+D    with LM-A < Lag
+
+So B+C needs to be less than Lag for this race condition to occur.
+
+***
+In other words, the time between the first, incorrect access and the 
+most recent file modification needs to be less than the Lag for this to 
+occur.  
+***
+
+Let's say Lag is 30 years.  The only situation where this race condition 
+would occur is if a file is in a cache for 30 years without reload in the 
+cache and without modification on the server, and then after that 30-year 
+span a 304 request was made.  This seems vanishingly unlikely.
+
+Let's say Lag is 5 minutes.  The "window" of error is only 5 minutes 
+large - the file would have to be changed on the server within 5 minutes 
+of the erroneous access for an incorrect 304 to be issued.
+
+FInally, let's say Lag is 3 days.  If the very next 304 request isn't 
+made for more than 3 days, and the file was modified within 3 days of the 
+last time it was modified and not after that, then it's a problem.  To 
+me, this is perfectly acceptible - most caches out there don't keep 
+documents around without doing 304 requests often enough for this to be a 
+concern of mine.  What do the statisticians in the audience think?  And 
+was my 11th-hour algebra on the mark?  :)
+
+> Your "solution" also fails when the file has been modified but
+> has the same date.
+
+Can we just agree (feel like rodney king here) that this is a broken case 
+and not worth wasting time on?  Modified files can also have the same 
+size, even the same checksum if we try hard enough.  
+
+Brian
+
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--
+brian@organic.com  brian@hyperreal.com  http://www.[hyperreal,organic].com/
+
+
+

@@ -1,0 +1,224 @@
+docno="lists-005-15211868"
+received="Sat Dec 23 10:37:35 2000"
+isoreceived="20001223153735"
+sent="Sat, 23 Dec 2000 10:36:44 -0500 (EST)"
+isosent="20001223153644"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: COPY and retain history (was: Re: Subversion support)"
+id="200012231536.KAA10146@tantalum.atria.com"
+inreplyto="20001222221821.M22947&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   On Sat, Dec 23, 2000 at 12:01:15AM -0500, Geoffrey M. Clemm wrote:
+   >    From: Greg Stein <gstein@lyra.org>
+   > 
+   >    SVN can do a copy-by-reference, so they're cheap as hell. I can label
+   >    something simply by doing:
+   > 
+   >      COPY http://www.lyra.org/svn/project
+   >      Destination: http://www.lyra.org/svn/labels/1.0a1
+   > 
+   > According to the protocol, that would create a bunch of new
+   > non-version-controlled resources.  They could be automatically put
+   > under version control, but then as far as the protocol is concerned,
+   > they would be completely unrelated to the resources that they came
+   > from (i.e. changes couldn't be merged back to /svn/project).
+
+   Well, I need to figure out exactly where I want to go with this. To create a
+   true copy-by-ref, I'd want to use VERSION-CONTROL on a null resource to
+   point(*) at the appropriate version (and an existing version history). Then
+   I'd want to fork a new line of descent from that version.
+
+Actually, I believe you need to do a BASELINE-CONTROL on an empty
+collection.  While everything in that new collection is "checked-in"
+it can't be changed, which makes your "copy-by-ref" a very good
+implementation for a "baseline-controlled collection".  When you MERGE
+activities into that new collection, you have "forked a new line of
+descent".  But because you have told the server that these collections
+are based on the same "baseline history", it knows to do the
+book-keeping needed to allow you to merge from one "line of descent"
+to another (and you just use the MERGE method to do so).
+
+   The fork would probably happen in some kind of lazy fashion. Hmm... yes, in
+   SVN, the two VCRs would point at the same version resource. As soon as you
+   go to modify one or the other, a fork is created.
+
+A collection "version" doesn't give you what you need (it just says
+what version histories are its members), but you need to know what
+*versions* are its members.  That's what a baseline gives you ...
+it knows what versions are needed for all of the members of the
+collection.
+
+   Ah. Actually, the VERSION-CONTROL would be executed within a working
+   collection.
+
+A VERSION-CONTROL requests creates version-controlled resources,
+but a working collection member must be either a non-version-controlled
+resource or a version history, not a version-controlled resource.
+It doesn't do you any good to have a version-controlled resource
+in a working collection, because when you check in the working
+collection, the resulting collection version can only have version
+history members so the "selected version" information in the
+version-controlled resource would be lost.
+
+   When the working collection is checked in, a new pair of version
+   resources are created (which internally reference the same content).
+
+Note that even if we did allow version-controlled resources in
+a working collection, a VERSION-CONTROL request with an existing
+version does not create any new versions (it just uses the
+version specified in the VERSION-CONTROL request).
+
+   For  example:
+
+       CHECKOUT /repos/$svn/ver/67/somedir
+
+The CHECKOUT would need an "activity" parameter (since you're
+doing all your changes in the context of an activity), but
+you probably just omitted that for brevity.
+
+       VERSION-CONTROL /repos/$svn/wrk/activity-name-here/67/somedir/foo.c
+       (pointing at /repos/$svn/ver/67/otherdir/foo.c)
+
+I asume that "/repos/$svn/wrk/activity-name-here/67/somedir"
+is the working collection that results from the CHECKOUT?
+As indicated above, it wouldn't do any good to create a
+version-controlled resource referring to a particular version,
+in the working collection, because when you checked in the
+working collection, the collection version would just have
+a reference to the version history, and the particular version
+information (/ver/67) would be lost.
+
+       CHECKIN (activity)
+
+   Now, we'd have two new version resources(++):
+       /repos/$svn/ver/68/somedir/foo.c
+       /repos/$svn/ver/68/otherdir/foo.c
+
+Actually, the only new "version" resource you'd get is the
+one you checked out (i.e. the working collection .../somedir).
+
+Now in the new *baseline* that was created when you did the checkin
+(i.e. baseline 68), there would be a *reference* to every version but
+the only *new* version would be that new collection version for
+"somedir".
+
+   Since we have two version resources, but the same version history, we
+   effectively have the beginning of our fork.
+
+   Note: S5.10 of the 10.11 draft should be moved. I'd say Section 3 offhand,
+   but it would seem that you could do a VERSION-CONTROL on a null resource
+   even without version histories. Sure, once you bring in version histories,
+   the semantics (pre/post conditiosn) might change a bit. But S5.10 has no
+   relation to server-side workspaces. I'd say the null resource part goes into
+   core, and then behavior gets modified/refined by the options.
+
+If we allowed version-controlled resources as members of working
+collections, then I'd agree, but by the reasoning above, we don't.
+ 
+   (++) hmm. One thought. Whenever a checkin anywhere occurs, a complete set of
+   version resources are created, whether a specific version resource was
+   actually involved in the checkin or not. While allowed by the spec (it would
+   be as if some Invisible Bob was creating new version resources), there may
+   be some implication that I'm missing. Need to think on this one.
+
+Creating a new version of every resource in the repository as a side
+effect of checking in a single file would make it unlikely that an SVN
+server or client would interoperate with any other WebDAV server or
+client.
+
+On the other hand, creating a new *baseline* which refers to the new
+versions you created plus all the existing versions that you didn't
+change would work just fine.
+
+   Oh. I might have the answer already :-). I can avoid creating new version
+   resources if I simply jigger them a bit:
+
+       /repos/$svn/ver/17.3/somedir/foo.c
+       /repos/$svn/ver/17.3/otherdir/foo.c
+
+   Here, the "17.3" refers to the internal, stored content. As new repository
+   versions are creatd, the 17.3 remains stable, so we aren't implicitly
+   creating new version resources any more.
+
+   Now to think on this model some more, and see whether the repository can
+   work using this model.
+
+Yes, the stable version URL (where you only generate a new one when
+the version content changes) will be essential for interoperability.
+
+   >...
+   > In other words, you "instantiate" a baseline in a baseline-controlled
+   > collection whenever you want to expose that baseline as a namespace.
+
+   For a label... yah. This would work great.
+
+   If we do true labels, rather than just copies, then I'll probably go ahead
+   and add some formalized baseline code.
+
+   Darn... I just keep adding more and more of the DeltaV draft. What's next?
+   Workspaces?! :-)
+
+OK, well, I wasn't going to say anything, but since you brought it
+up (:-), the only important characteristic of a workspace is that:
+
+- it is a collection displaying version-controlled resources
+- it has at most one version from any given version history
+
+Your "label" collection happens to be exactly that.  So you might
+as well call it a workspace, and be able to use the
+"DAV:workspace-collection-set" to let clients know "where they
+can find/put their labels" (which answers your earlier question
+about "how will a client find where those label collections live".
+
+   > But I agree that they probably don't want to instantiate all their
+   > labels as copies in the namespace (even if subversion can do it
+   > cheaply :-),
+
+   It's an O(1) operation :-)
+
+Yes, I wasn't suggesting they don't want to do it for efficiency
+reasons, but rather to keep the namespace manageable,
+they might want to just instantiate "important" labels as
+collections in the namespace, and just use simple "string labels"
+on baselines for all the ones that aren't that important.
+
+You can then use a string label for everything, but only
+instantiate "important" labels in the namespace (and then
+clean them out of the namespace when they become no longer
+important).   That way you can remember everything without
+trashing your namespace as time goes on.
+
+   > so I guess I'll withdraw my objection to labels, as long
+   > as they are used on baselines (which I believe is the only place
+   > subversion would place them?) and not on individual file versions.
+
+   We would definitely be doing labels on baselines. I never investigated them
+   thoroughly (as you can tell, we aren't even sure what kind of label
+   functionality we want, let alone the modelling of them via DAV). But your
+   label-a-baseline idea is exactly spot on :-)
+
+   The copy functionality will always exist, so creating a new VCR from the
+   ether is important.
+
+Or creating a new baseline-controlled-collection from the ether is
+important ...
+
+   (*) if somebody says that a VCR doesn't "point", I'll kick 'em in the shins
+
+Saying that "a VCR points" is fine, but at risk of getting
+my shins kicked, I would have objected if you'd said that
+a VCR *is* a pointer (:-).
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,125 @@
+docno="lists-011-15360575"
+received="Mon Jan 19 17:21:50 1998"
+isoreceived="19980119222150"
+sent="Mon, 19 Jan 1998 10:40:22 0800"
+isosent="19980119184022"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="RE: Some comments on Digest Auth"
+id="3FF8121C9B6DD111812100805F31FC0D0113C654@red-msg59.dns.microsoft.com"
+inreplyto="Some comments on Digest Auth"
+expires="1"
+
+
+To: 'Dave Kristol'<dmk@bell-labs.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+"I don't see any particular added value in sending a list of nonces, all of
+which have independent (or simultaneous) time-out properties, instead of a
+single such nonce." - So Spoke Dave Kristol
+
+ASSUMPTION: Avoiding replay attacks is important enough to most implementers
+that either the standard will require or implementers will voluntarily
+refuse to accept the same nonce twice.
+
+GOAL OF THIS MESSAGE: To demonstrates that the current digest auth
+mechanism, from the point of view of performance in situations where we wish
+to prevent replay attacks, is unacceptably sub-optimal.
+
+Let us say, for the sake of argument, that we were willing to rewrite our
+entire browser implementation to maximize its performance with the current
+digest auth proposal. In that case, because we know a server will not accept
+the same nonce twice, we would never pipeline a request that needed auth and
+never make simultaneous requests that needed auth. Thus using auth
+essentially removes all the performance benefits of using HTTP/1.1.
+
+Now, back in the real world, we are not going to change our entire browser
+architecture just to make digest happy. When we download an HTML page with
+links in it we open two connections and start making both simultaneous and
+pipelined requests, regardless of the need for authentication. This means
+that all the requests will have the same nonce. Assuming the server wishes
+to protect itself from replay attacks it will only accept one of the
+requests and reject all the others. This means that if N requests are made
+one is accepted and the other N-1 are rejected. Assuming the server is
+itself optimal it will give each of the rejected requests a unique nonce and
+the next N-1 requests will be accepted. Thus ONLY adding somewhere between 1
+to N-1 additional round trips depending upon how you measure round trip
+costs in dual connection pipelined situations. 
+
+I have sent out a proposal which demonstrates how to implement a server such
+that it will never accept the same nonce twice and doesn't require any
+ordering. Hopefully we can use that post as the basis for further
+discussion.
+
+Yaron
+
+> -----Original Message-----
+> From:Dave Kristol [SMTP:dmk@bell-labs.com]
+> Sent:Monday, January 19, 1998 6:58 AM
+> To:Yaron Goland
+> Cc:http-wg@cuckoo.hpl.hp.com
+> Subject:Re: Some comments on Digest Auth
+> 
+> Yaron Goland wrote:
+> > 
+> > I wish someone would explain to me how having multiple outstanding
+> attacks
+> > could lead to degraded security assuming that the multiple nonces do NOT
+> > have lifetimes greater than that of the previous single nonce. That is,
+> the
+> > server sends you a nonce and starts a hypothetical count down. Once the
+> > count down is expired that nonce will not be accepted. My proposal is to
+> > allow the server, using a separate header, to return multiple nonces.
+> > However I suspect that the server should use the same count down for ALL
+> the
+> > previously returned nonces. Use 'em or lose 'em, as it were.
+> > 
+> > As for ordering of requests, I'm still not sure how big an issue this
+> is. It
+> > would be great if some server side implementers could weigh in on the
+> issue.
+> 
+> Here's my two grams' worth. :-)
+> 
+> I'm ill-qualified to address the issue of degraded security, but let me
+> try to address the server implementation issues.
+> 
+> A nonce can be self-describing.  That is, the server can choose a form
+> for a nonce that encodes its lifetime.  That's attractive, because it
+> means the server can avoid having a database of nonces.  The lifetime
+> can be made arbitrarily long or short, as the server's needs require.
+> 
+> If, instead, the server provides a *list* of nonces in a
+> WWW-Authenticate header, then it would be obliged to remember what they
+> were.  Otherwise a rogue client could return a digest for a nonce of its
+> own choosing, along with the nonce chosen, disregarding the list.  More
+> particularly, it could replay a previous nonce.  If the nonces from the
+> list are meant to be single-use, then the server must at least remember
+> the set of nonces already used, or not yet used, so it can detect
+> responses for nonces that have been used.
+> 
+> Now consider the proposal where a set of nonces must be received by a
+> server in the order it sent them.  A browser may open multiple
+> connections.  On its first connection it gets a base page, a
+> WWW-Authenticate, and a list of nonces.  It responds with an
+> Authorization header and opens multiple new connections to retrieve
+> images for the page.  Which nonce should the browser use on which
+> connection?  How can it be sure that the server will process the
+> connections and accompanying requests in the order that it sends them? 
+> If the server's receive-order is different from the browser's
+> send-order, the server must reject the out-of-order requests, even
+> though the nonces are otherwise good.  If "the server" is really a farm
+> of servers, the connections may be to multiple machines, and the
+> inter-server communication may affect the apparent sequence of nonce
+> use.
+> 
+> Conclusions:  requiring a client and server to honor a sequence of
+> nonces is hard.  Allowing them to pick from a list of nonces, as long as
+> there's no reuse is easier, but still hard.  I don't see any particular
+> added value in sending a list of nonces, all of which have independent
+> (or simultaneous) time-out properties, instead of a single such nonce.
+> 
+> Dave Kristol
+
+
+

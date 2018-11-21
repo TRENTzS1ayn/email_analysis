@@ -1,0 +1,107 @@
+docno="lists-010-12571465"
+received="Sun Dec  1 12:47:05 1996"
+isoreceived="19961201174705"
+sent="Sun, 1 Dec 1996 12:42:46 0800 (PST)"
+isosent="19961201204246"
+name="Shel Kaphan"
+email="sjk@amazon.com"
+subject="Re: Some data related to the frequency of cachebusting"
+id="199612012042.MAA05371@anaconda.amazon.com"
+inreplyto="96Dec1.095543pst.&quot;2695&quot;&#64;golden.parc.xerox.com"
+expires="1"
+
+
+To: Larry Masinter<masinter@parc.xerox.com>
+Cc:snowhare@netimages.com,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Larry Masinter writes:
+ > You said of
+ > 
+ > 
+ > 1 'This page *MUST NOT* ever be displayed from a history'
+ > 2 'This page *MAY* be redisplayed from a history but *MUST NOT* be
+ >    refetched when displayed from history'
+ > 3 'This page *MAY* be redisplayed from a history, but *MUST* be
+ >    refetched first'
+ > 4 'This page *MAY* be redisplayed from history, unconditionally.' 
+ >  
+ > that
+ > 
+ > # The last two cases can be handled by properly implementing the
+ > # existing Expires and cache control directives.
+ > 
+ > but I don't believe there are ANY http directives that place any
+ > requirements on the handling of history lists, to the point where HTTP
+ > _only_ requires 4.
+ > 
+ > In fact, there are some browsers where doing much of anything else
+ > doesn't make much sense. For example, there was a two-dimensional
+ > infinite-plane browser where the 'history' was always completely
+ > visible, albeit in perspective.
+ > 
+
+(I know I'm repeating myself here, so bear with me):
+
+We just need to define the difference between a cache, which is used
+exclusively for performance improvements and is supposed to be
+semantically transparent, and __any other client-local storage of
+fetched results__, which may be used for whatever purpose desired by the
+client (this includes "history").  This was done, to an extent, for
+1.1.  The issue is that the rules for controlling the cache should not
+be mixed up with the rules for the other local storage.  The design
+problem is that nobody wants to constrain browser design more than
+necessary to make services predictable and reliable, and that to even
+talk about this kind of thing we have to go beyond "bits on the wire".
+
+ > However, I'm a little fuzzy on why lack-of-controls of history makes
+ > 'cache-busting' more of a problem, or lessens the value of hit
+ > metering.
+ > 
+ > Larry
+ > 
+ > 
+
+Use of extra-protocol solutions like unique URLs are a problem for
+caching, especially if they can't be combined with appropriate cache
+controls for fear of making browsers act badly.  These types of
+solutions may not be a problem for hit metering, except they make
+accumulating statistics more complex, because now many different URLs
+as seen by clients are actually "the same" URL from the server
+statistics point of view.
+
+Since caches and other local storage are typically mixed up, certain
+uses of certain HTTP headers will have unintended consequences.  So,
+people resort to solutions that are outside the protocol, e.g. unique
+URLs.
+
+To repeat again the oft-repeated example, let's say a service author
+wants to send out a document that must always be refetched on "new"
+requests, but should be displayed from a locally stored copy if
+someone wants to view previous results.  You set it up to expire
+immediately, or you set it up so that it is not cachable.  That's
+fine, but what happens when someone hits the BACK button in their
+browser to go to this page?  If the history buffer and cache system
+are mixed up, hitting BACK will result in the page being re-fetched,
+when the service author's goal was to have it be redisplayed from
+local storage.  Some browsers can be a bit nasty about it, depending
+how the page was generated, and may display results like "DATA
+MISSING".  This is no good from a UI perspective, and it will really
+freak out naive users, to the point that authors such as myself will
+simply avoid using the headers that cause this, and find other ways,
+outside the protocol, to approximate the desired result of causing new
+requests to get new pages but allow local browser history functions to
+work, too.  The problem with this is that using these techniques is
+even worse than avoiding caching altogether -- it can cause pages that
+should never be cached in the first place to be cached, possibly
+displacing usefully cached pages.
+
+It's also a pain from the service design perspective, since you have
+to think about all kinds of weird interactions in browsers before
+using seemingly obvious and straightforward controls like Expires and
+Cache-control.  In the long run this may be worse than a little
+caching inefficiency.
+
+--Shel
+
+
+

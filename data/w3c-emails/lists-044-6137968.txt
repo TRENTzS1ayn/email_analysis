@@ -1,0 +1,149 @@
+docno="lists-044-6137968"
+received="Mon Jun  5 17:15:38 2000"
+isoreceived="20000605211538"
+sent="Mon, 5 Jun 2000 14:15:38 -0700"
+isosent="20000605211538"
+name="John Boyer"
+email="jboyer@PureEdge.com"
+subject="RE: Default transforms"
+id="BFEDKCINEPLBDLODCODKIEBHCDAA.jboyer@PureEdge.com"
+charset="us-ascii"
+inreplyto="3.0.5.32.20000605164034.00aaa920&#64;localhost"
+expires="-1"
+
+To:"Joseph M. Reagle Jr."<reagle@w3.org>,"Petteri Stenius"<Petteri.Stenius@remtec.fi>
+Cc:"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Joseph,
+
+The one point I'd make is that our expectations regarding URI="#E" are not
+the same as a call to the XPath id("E").  The XPath transform only renders
+nodes in the indicated node-set.  The id function returns a node-set
+containing the identified element, but all of its descendants are not in the
+node-set.  So if E has the following markup:
+
+
+<elem id="E">I am signed.</elem>
+
+We expect URI="#E" to generate the entire line above, but the XPath
+expression id("E") would only generate:
+
+<elem></elem>
+
+Under our current design, you'd have to tell the XPath to include all of the
+descendants.  This was the source of my angst earlier over the meaning of
+descendant-or-self::node() because I'd like to say:
+
+id("E")/descendant-or-self::node()
+
+but this doesn't give me the attributes and namespace declarations, so the
+result would be:
+
+<elem>I am signed.</elem>
+
+Furthermore, it appears to be syntactically invalid to put anything after
+the slash that would give me *all* of the nodes.  Therefore, URI="#E" must
+be stated as being equal to an XPath transform with the following
+expression:
+
+(//. | //@ | //namespace::*)[count(ancestor-or-self::* | id("E")) ==
+count(ancestor-or-self::*)]
+
+The beginning parenthetic means to consider all nodes in the whole tree in
+the node-set, and the square-bracketed expression determines whether E is
+the given element node or any of its ancestors.  Only the element E and its
+descendants (including namespace and attribute nodes) will pass this test.
+
+By the way, we could change the XPath transform to make this a little
+simpler by adding two expressions, <keep> and <omit>.  The idea would be
+that any node in the keep set would have itself and all of its descendants
+(including namespace and attribute nodes) rendered automatically, except
+nodes in the omit set.  A node in the omit set, and all of its descendants
+(including namespaces and attributes) would be omitted from rendering,
+except those in the keep set, and so on.  Naturally, it should be an error
+if the intersection of the two sets is non-empty (equivalently, if the size
+of the union is not equal to the sum of the sizes of the two sets).
+
+With this paradigm, URI="#E" would be equal to an Xpath transform with
+<keep>id("E")</keep> as a parameter and no <omit> parameter.
+
+Perhaps the chairs should bat this formulation around for a while and talk
+to the implementers about it because it might make sense to parameterize
+c14n in the same way.
+
+John Boyer
+Software Development Manager
+PureEdge Solutions Inc. (formerly UWI.Com)
+Creating Binding E-Commerce
+jboyer@PureEdge.com
+
+
+-----Original Message-----
+From: w3c-ietf-xmldsig-request@w3.org
+[mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of Joseph M. Reagle
+Jr.
+Sent: Monday, June 05, 2000 1:41 PM
+To: Petteri Stenius
+Cc: IETF/W3C XML-DSig WG
+Subject: Re: Default transforms
+
+
+At 11:26 AM 6/5/00 +0300, Petteri Stenius wrote:
+ >Chapter 4.3.3 of [1] reads:
+ >
+ >"[URI] permits identifiers that specify a fragment identifier via a
+ >separating number/pound symbol '#'. (The meaning of the fragment is
+defined
+ >by the resource's MIME type). XML Signature applications MUST support the
+ >XPointer 'bare name' [Xptr] shortcut after '#' so as to identify IDs
+within
+ >XML documents. The results are serialized as specified in section
+ >6.6.3:XPath Filtering. For example,"
+ >
+ >
+ >My interpretation of 2.1.1 is that there is *no* default serialization or
+ >canonicalization algorithm. But reading 4.3.3 would suggest that XPath is
+ >used by default.
+
+Hi Petteri. There was a time when I advocated "clean-URIs" such that if
+anything beyond merely dereferencing a URI via its protocol scheme was
+needed, it had to be explicitly represented in a transform. But there's no
+such thing as a 'clean-URI' so we support URIs with fragment identifiers.
+When the dereferenced object is XML, that means it's an XPtr expression. We
+REQUIRE implementations to support the 'bare name' [1], which is a short
+hand of the XPath id() function [2].
+
+So generally speaking there is no default transforms. BUT, if a fragment
+identifier is used within a <Reference URI="..."> that identifies an XML
+resource, that means XPtr processing is done and the results need to be
+serialized according to 6.6.3 [3]. Note, not all XPtr expressions that might
+fit in the URI will be supported by Signature applications.
+
+I don't find the fact that people are specifying transforms in the URI to be
+very 'clean' but at least it's consistent with the rest of the world (or so
+I'm told <smile>). That's why we recommend:
+
+        Regardless, such fragment identification and addressing
+        SHOULD be given under Transforms (not as part of the URI)
+        so that they can be fully identified and specified. For instance,
+        one could reference a fragment of a document that is encoded
+        by using the Reference URI to identify the resource, and one
+        Transform to specify decoding, and a second to specify an
+        XPath selection.
+        http://www.w3.org/TR/xmldsig-core/#sec-Reference
+
+Is this agreeable to your reading? Should we change the text to make
+something clearer?
+
+[1] http://www.w3.org/TR/xptr#synth-2.1.2
+[2] http://www.w3.org/TR/xpath#section-Node-Set-Functions
+[3] http://www.w3.org/TR/xmldsig-core/#sec-XPath
+
+_________________________________________________________
+Joseph Reagle Jr.
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

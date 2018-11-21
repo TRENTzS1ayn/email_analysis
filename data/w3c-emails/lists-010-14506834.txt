@@ -1,0 +1,103 @@
+docno="lists-010-14506834"
+received="Tue Dec 31 11:26:49 1996"
+isoreceived="19961231162649"
+sent="Tue, 31 Dec 96 11:18:28 PST"
+isosent="19961231191828"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: CacheControl directive, semantics"
+id="9612311918.AA28492@acetes.pa.dec.com"
+inreplyto="199612231230.NAA28227&#64;www43.inria.fr"
+expires="1"
+
+
+To: Anselm Baird-Smith<abaird@w3.org>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Thanks for going through the effort to put together those two
+tables.  I have to admit that I have not yet had the time to
+go through them carefully to see if our understandings mesh,
+partly because you've had to compromise between readability
+and fitting onto a standard page width.
+
+I think it might be possible to make the individual tables
+more readable by factoring them into a larger number of simpler
+tables.
+
+For example, your first table, which you call the "fresh" function,
+really combines two factors.  The first is what I would prefer
+to call the "fresh function", which determines whether a response
+is "fresh" independent of the request parameters.  This would
+take only these parameters as input:
+
+    Ap: The max age value of the reply (expressed either through the
+max-age directive, or the expires header)
+[or infinity if unspecified]
+    
+    Ae: The current entity age, computed as defined in section 13.2.3
+
+and yield a boolean as output.  This corresponds precisely to the
+definition of "fresh" in section 1.3 of the HTTP/1.1 spec, which
+is
+Ae <= Ap
+
+One could then define a "sufficiently fresh" function, which
+does depend on request parameters, by a transformation of the
+input parameters to this table.  I think this is right:
+
+    Ar: The max-age value specified in the request
+[or infinity if unspecified]
+    Sr: The max-stale value specified in the request
+[or zero if unspecified]
+    Fr: The min-fresh value specified in the request
+[or zero if unspecified]
+
+    Ap' = min(Ap, Ar)
+    Ae' = Ae + Fr - Sr
+
+So the "sufficiently fresh" function would then simply be
+
+    Ae' <= Ap'
+
+Putting it all together, the "sufficiently fresh" function
+would be
+
+    SuffFresh(Ae, Ap, Ar, Sr, Fr) := min(Ap, Ar) < (Ae + Fr - Sr)
+
+If I have done the algebra correctly.
+
+Regarding your second table, which indicates whether a cache
+entry is usable with or without revalidation, I think we first
+need to nail down the semantics of "proxy-revalidate".
+
+As you point out, this language in 14.8:
+
+  1. If the response includes the "proxy-revalidate" Cache-Control
+     directive, the cache MAY use that response in replying to a
+     subsequent request, but a proxy cache MUST first revalidate it with
+     the origin server, using the request-headers from the new request
+     to allow the origin server to authenticate the new request.
+
+either contradicts or modifies this language in 14.9.4:
+
+    When the must-revalidate directive is present in a response
+    received by a cache, that cache MUST NOT use the entry after it
+    becomes stale to respond to a subsequent request without first
+    revalidating it with the origin server. [...] The proxy-revalidate
+    directive has the same meaning as the must- revalidate directive,
+    except that it does not apply to non-shared user agent caches.
+    
+I think we've agreed that this is a bug in the specification.  That
+is, we did not intend that the meaning of this cache-control directive
+should change when another response header is present.  As you say,
+the other interpretation would require "tricky navigation between
+sections 13 and 14.8 and 14.9", and that seems like a bad idea.
+
+Both you and Koen have also recently pointed out that the
+state-management draft runs into the same confusion over
+proxy-revalidate.   Clear evidence that we need to fix this!
+
+-Jeff
+
+
+

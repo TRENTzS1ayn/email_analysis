@@ -1,0 +1,181 @@
+docno="lists-104-2154660"
+received="Thu Aug 30 19:10:47 2001"
+isoreceived="20010830231047"
+sent="Thu, 30 Aug 2001 17:07:17 -0600"
+isosent="20010830230717"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="Comments on new DOM L3 Xpath WD"
+id="70E215722F6AD511820A000103D141D40AA52E@thor.aeathtl.com"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+Section 1.2.3:
+
+This section is a little confusing since DOM Core does not provide any constructs that appear to be an list or collection of both attributes and  other node types and it is not possible to navigate
+from an Attr to a Element (for example) using nextSibling et al.  It would seem apparent that namespace nodes would probably be represented in a distinct NamedNodeMap.
+
+It might be best to just bite the bullet and get a Namespace node and supporting attributes into DOM L3 Core.  Element could have a readonly NamedNodeMap namespaces attribute, any attempt to add or
+remove a node from the namespaces map should throw a NO_MODIFICATION_ALLOWED_ERR.  The map for an element should contain all in-scope namespace nodes.  One namespace node could appear in multiple
+maps, its parentNode would be the element that introduced the mapping.
+
+Section 1.3: 
+
+Use the hasFeature() ... to determine whether or not the EVENT MODEL is supported
+
+Exception XPathException/INVALID_EXPRESSION_ERR:
+
+The text describes two distinct error conditions (illegal expression and unrecognized namespace prefix) that are bundled into one error code.  There should be a distinct error code for unrecognized
+namespace prefix.
+
+XPathEvaluator.createExpression:
+
+It typically will not be possible to determine at expression creation time whether the result can be coerced to the specified type.  I think that this is best specified at evaluation time.
+
+XPathEvaluator.createNSResolver:
+
+It should be possible to create an arbitrary (not dependent on the document being processed) namespace resolver without requiring the caller to implement a class (which may be awkward or undesirable
+in some bindings).  To support that you may want to explicitly state that nodeResolver param of createNSResolver could be null to start from scratch and add a XPathNSResolver.addNamespace method.
+
+XPathEvaluator.createResult:
+
+This would seem to be an unnecessary optimization since object pooling should adequately recycle result sets.  If really necessary, better addressed by adding a close() or similar method to the result
+set.
+
+XPathEvaluator.evaluateExpression:
+
+Why does this need to be on this interface.  XPathExpression was created by a method on XPathEvaluator and if XPathEvaluator really does the work, then all the implementation needs to do keep a
+pointer to XPathEvaluator and delegate.  This approach requires two different objects to be passed around to execute the query.
+
+Interface XPathExpression:
+
+Will address later.
+
+Interface XPathNSResolver:
+
+Would be useful to add a addNamespace(prefix,nsuri) method so that an arbitrary namespace map could be constructed without requiring implementing a class exposing the interface.
+
+Prefix param:
+
+Should explicit state that null (if supported in binding) or "" will return default namespace.
+
+Return value of lookupNamespaceURI:
+
+Null strings are problematic since some languages do not have null within the value space for the native string type.  Empty string would be more general.
+
+Interface XPathResult:
+
+This represents an intermediate stage in the execution of a query and as such weird things can happen, for example:
+
+XPathResult result = Xpatheval.evalute(....);
+//
+//   something mutates document in other thread
+//
+//   
+//   attempt to get snapshot might fail (since document was mutated)
+//       might give a result that isn't consistent with the time
+//       of evaluation or evaluatation had to preemptively get entire
+//       snapshot on every call to avoid previous scenarios
+XPathSetSnapshot snapshot = result.getSetSnapshot();
+
+Interface XPathSetIterator/XPathSetSnapshot:
+
+As mentioned in earlier postings, I think whether a result set is invalidated by mutations is a secondary consideration and both types of result sets have more in common than two independent
+interfaces would suggest.
+
+Interface XPathNamespace:
+
+As previously mentioned, it might be more appropriate to get this into DOM L3 Core, however it would be useful to define Node.nodeValue as equivalent to the XpathNamespace.namespaceURI and if
+adoptNode fails should importNode also fail.
+
+-------------------------
+
+Here is my take:
+
+exception XPathException {
+   unsigned short code;
+}
+const unsigned short INVALID_EXPRESSION_ERR = 1;
+const unsigned short INVALID_NSPREFIX_ERR = 2;
+const unsigned short TYPE_ERR = 3;
+
+interface XPathEvaluator {
+   XPathExpression createExpression(in DOMString expression,
+                                    in XPathNSResolver resolver) 
+                                    raises (XPathException);
+   XPathNSResolver createNSResolver(in Node node);
+};
+
+interface XPathExpression {
+   XPathResultSet evaluateAsNodeSet(in Node contextNode,
+in boolean ordered,
+in boolean snapshot)
+                                    raises (XPathException);
+   Node evaluateAsSingleNode(in Node context)
+                                    raises (XPathException);
+   double evaluateAsNumber(in Node context)
+                                    raises (XPathException);
+   boolean evaluateAsBoolean(in Node context)
+raises (XPathException);
+   DOMString evaluateAsString(in Node context)
+                                    raises (XPathException);
+
+   //
+   //   Result type determined by examination
+   //      of the Xpath expression, for example, "number(@temp)" would 
+   //      return number.  Xpath's without an explicit coercion
+   //      would return NODE_SET_TYPE
+   readonly attribute unsigned short resultType;
+};
+
+const unsigned short NUMBER_TYPE = 1;
+const unsigned short STRING_TYPE = 2;
+const unsigned short BOOLEAN_TYPE = 3;
+const unsigned short NODE_SET_TYPE = 4;
+//
+//   probably too much to ask for implementation to
+//       determine if expression can match at most one node.
+const unsigned short SINGLE_NODE_TYPE = 5;
+
+
+interface XPathNSResolver {  
+   DOMString lookupNamespaceURI(in DOMString prefix);
+   //
+   //   might raise NO_MODIFICATION_ALLOWED_ERR when implemented
+   //     by Node.  Should replace existing mapping if same
+   //     prefix is already in map.
+   void addNamespace(in DOMString prefix, in DOMString nsURI)
+                                    raises (XPathException) ?;
+};
+
+interface XPathResultSet {
+   //
+   //   only raises INVALID_STATE_ERR 
+   //       if snapshot = false on evaluate call
+   Node nextNode() raises(DOMException);
+   //
+   //    called to indicate no further interest in result set
+   //       any access after this call is indeterminant
+   //          (since it may have been recycled to fulfill
+   //                another query).  Calling this method is
+   //                not required.
+   void detach();  ' possibly close
+   //
+   //    might be nice to be able to get expression and 
+   //        context node for result set.  Should be worth the 8 bytes.
+   readonly attribute Node contextNode;
+   readonly attribute XPathExpression expression;
+};
+
+interface XPathSnapshotResultSet extends XPathResultSet {
+   Node item(in unsigned long index);
+   readonly attribute unsigned long length;
+};
+
+   
+ 
+
+
+

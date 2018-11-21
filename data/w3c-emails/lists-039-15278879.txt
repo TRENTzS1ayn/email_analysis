@@ -1,0 +1,141 @@
+docno="lists-039-15278879"
+received="Sun Jan 16 20:37:31 2000"
+isoreceived="20000117013731"
+sent="Sun, 16 Jan 2000 17:36:39 -0800"
+isosent="20000117013639"
+name="Yaron Goland"
+email="yarong@Exchange.Microsoft.com"
+subject="WebDAV Bindings - Issue Yaron.AtomicDelete"
+id="7DE119D3D0E15543874F7561EECBDBED02619E1B@BEG.platinum.corp.microsoft.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+The second to last paragraph in section 6 reads: "Although [WebDAV] allows a
+DELETE to be a non-atomic operation, the DELETE operation defined here is
+atomic.  In particular, a DELETE on a hierarchy of resources is simply the
+removal of a binding to the collection identified by the Request-URI, and so
+is a single (and therefore atomic) operation."
+
+Because BIND redefines how collections work the effect of this paragraph is
+to directly amend the behavior of RFC 2518 in a manner that is not compliant
+with how RFC 2518 is currently written. 
+
+Things brings up the first issue. Redefining DELETE to be atomic without
+using the mandatory mechanism to prevent confusion on the part of clients
+and servers will destroy interoperability with RFC 2518 systems. A BIND
+enhanced client issuing a DELETE against a RFC 2518 server will expect
+atomic behavior and probably won't get it. This is a failure of
+interoperability. There are too many deployed RFC 2518 systems for us to
+simply hide our heads in the sand and say "Well gee, BIND redefines RFC 2518
+so everyone should change their functionality.".
+
+There are cases where it is worth creating incompatibilities, for example,
+if you find out that their is a serious flaw in the protocol. However no one
+has demonstrated that the non-atomic behavior of DELETE is a flaw. It is a
+pain, that is true. It certainly makes it difficult to write clients. But as
+evidenced by the number of WebDAV clients it is clear that the requirement
+is one that can be met. Heck, as evidenced by the number of file system
+clients written in the last 30 years, it is clear that the requirement to
+handle non-atomic behavior can be met.
+
+Changing DELETE to atomic is especially egregious given that WebDAV does not
+prevent a server from implementing DELETE atomically. Rather it puts the
+client in the unfortunate situation of having to deal with systems that
+can't necessarily support atomic DELETE. There are, I freely admit,
+circumstances in which a client MUST be able to ensure that a DELETE is
+issued atomically. Clients in those cases will have to choose to not
+interoperate with many WebDAV servers in order to gain atomic delete. The
+proper way for them to express their requirement that a delete be atomic is
+either to issue DELETE with a MAN extension or to create a new method. But
+the behavior of the DELETE method is well defined by RFC 2518 and given that
+there is no evidence that this behavior is broken in any way. In fact, given
+that their is over whelming evidence that non-atomic DELETE works just fine
+and leads to interoperable implementations.
+
+Let me clarify that DELETE was defined to not be atomic with malice of fore
+thought. The non-atomic delete language was the result of nearly three years
+of negotiations and represented a deep and broad consensus built up amongst
+a huge community. Might I respectfully suggest to the BIND authors that they
+should not be so ready to overthrow years of careful consensus building.
+
+Do not imagine that the lack of screaming on this issue reflects consensus.
+Rather it reflects the fact that most of the WebDAV community is too busy
+implementing RFC 2518 to pay much attention to BIND. The BIND functionality,
+while I believe it will be important to WebDAV, is a bit ahead of the
+majority of implementers so they just aren't reading or reviewing it, yet.
+
+The key reason DELETE was not allowed to be atomic (which certainly would
+have been a nice thing to be able to do) has to do with the way file systems
+work. Most file systems do not support depth operations atomically. So, for
+example, when you delete a directory what actually happens is that the
+program does a depth first walk of the directory tree and deletes all the
+individual files, walking backwards up the tree until finally deleting the
+parent directory.
+
+This brings us to our second issue, the argument has been made that a file
+system could simulate an atomic DELETE by issuing a MOVE command against a
+directory and ensuring that nothing exists at the destination. This would
+make it appear that all the files have been deleted. The file system could
+then later delete the files at its convenience. In addition this sort of
+implementation would allow the type of functionality you see today in the
+Windows GUI where deleted files are first placed into the waste basket
+before actually being deleted.
+
+This theory has several problems in practice.
+
+Problem #1 - There exists a write ACL (which covers MOVE) and a delete ACL
+(which covers DELETE). It is possible, therefore, to have the right to
+delete a file but not the right to move it. As such if a user is running a
+WebDAV server under their own authentication then the server will have to
+fail the DELETE command, even if they have the right access settings for
+delete, because the server can't move the file first in order to simulate
+the atomic DELETE behavior. The prevents file system based servers from
+implementing the "MOVE is an atomic DELETE" hack.
+
+Problem #2 - The required mechanism could actually form a denial of service
+attack. Imagine a server gives a space allocation to all of their users. A
+user then shows up and knows that the server is running low on space.
+Therefore the user decides to fill up their allocation with junk, delete it,
+fill it up again, delete it, etc. Each time the server will have to move all
+the user's junk to some temp space in order to simulate the atomic delete.
+If the server can't delete the temp files fast enough then the server's disk
+space will be overrun. One could attempt to counter this attack by
+specifying that one can only DELETE something if one has enough space left
+in one's space allocation for the MOVE. Of course this means that if one has
+filled up one's allocation and wants to delete some files to get more space
+the delete will fail because there is no room to do the move. Of course, if
+there was room to do the move then one wouldn't have wanted to delete the
+files since one would still have space. Catch-22.
+
+Problem #3 - File system servers are now getting smart enough to add
+eventing support to their file systems. The idea is that you can register to
+be told when a file is deleted or moved. However the delete and move events
+are different. Forcing WebDAV file system servers to simulate a DELETE as a
+move would cause the wrong event to get triggered. This means that one can
+never be sure if that MOVE event was received because the user intended to
+MOVE a file or because it was part of a DELETE operation. This is especially
+important when one has a store that is accessible through multiple means,
+say WebDAV and FTP. The events are registered directly on the file system,
+not in the WebDAV or FTP implementation. So there is no way for the WebDAV
+implementation to say "I know I'm doing a MOVE but you really should just
+trigger the delete event."
+
+There is then the third and final issue, WebDAV begins with a "D" for a
+reason. It's goal is to be distributed. Requiring atomic DELETEs would
+essentially hinder all but the most expensive of systems from being able to
+implement distributed namespaces across multiple physical servers. The
+reason being that the atomic requirement means that these systems will have
+to establish transactioning systems between themselves in order to issue
+DELETEs if they share namespace.
+
+As such I move that the atomic DELETE language be struck from the BIND spec
+on the grounds that it destroys interoperability, requires behavior that
+would preclude file system based systems from supporting WebDAV and
+significantly increases the cost of implementing WebDAV in a distributed
+manner.
+
+
+

@@ -1,0 +1,708 @@
+docno="lists-037-14240755"
+received="Mon Jul  7 22:00:46 1997"
+isoreceived="19970708020046"
+sent="Mon, 7 Jul 1997 19:00:35 -0700"
+isosent="19970708020035"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="RE: Author's Meeting Drafts - Lock Draft"
+id="11352BDEEB92CF119F3F00805F14F48503187AD5@RED-44-MSG.dns.microsoft.com"
+inreplyto="Author's Meeting Drafts - Lock Draft"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+Cc:"Del Jensen (E-mail)"<dcjensen@novell.com>,"Asad Faizi (E-mail)"<asad@netscape.com>,"Jim Whitehead (E-mail)"<ejw@ics.uci.edu>,"Steve Carter (E-mail)"<SRCarter@gw.novell.com>
+
+This is the DAV lock spec as agreed to by the authors at the last author
+meeting.
+Yaron
+
+Locking
+7/7/97
+
+1 Problem Description - Overview
+
+Locking is used to arbitrate access to a resource amongst principals
+that have equal access rights to that resource.
+
+This draft allows locks to vary over two parameters, the number of
+principals involved and the type of access to be granted. This draft
+will only provide for the definition of locking for one access type,
+write. However, the syntax is extensible enough to allow for the
+specification of other access types. It is a goal of this proposal that
+it use the same access verbs as will be defined in the access control
+draft.
+
+1.1 Exclusive Vs. Shared Locks
+
+The most basic form of LOCK is an exclusive lock. This is a lock where
+the access right in question is only granted to a single principal. The
+need for this arbitration results from a desire to avoid having to
+constantly merge results. In fact, users so dislike having to merge that
+they would rather serialize their access to a resource rather than have
+to constantly perform merges.
+
+However, there are times when the goal of a lock is not to exclude
+others from exercising an access right but rather to provide a mechanism
+for principals to indicate that they intend to exercise their access
+right.  Shared locks are provided for this case. A shared lock allows
+multiple principals to receive a lock, hence any principal with
+appropriate access can get the lock. 
+
+With shared locks there are two trust sets that affect a resource.  The
+first trust set is created by access permissions. Principals who are
+trusted, for example, may have permission to write the resource, those
+who are not, don't.  Among those who have access permission to write the
+resource, the set of principals who have taken out a shared lock also
+must trust each other, creating a (probably) smaller trust set within
+the access permission write set.
+
+Starting with every possible principal on the Internet, in most
+situations the vast majority of these principals will not have write
+access to a given resource.  Of the small number who do have write
+access, some principals may decide to guarantee their edits are free
+from overwrite conflicts by using exclusive write locks in conjunction
+with a precondition header (If-State-Match) that checks for existence of
+the lock prior to writing the resource. Others may decide they trust
+their collaborators (the potential set of collaborators being the set of
+principals who have write permission) and use a shared lock, which
+informs their collaborators that a principal is potentially working on
+the resource.
+
+The WebDAV extensions to HTTP do not need to provide all of the
+communications paths necessary for principals to coordinate their
+activities.  When using shared locks, principals may use any out of band
+communication channel to coordinate their work (e.g., face-to-face
+interaction, written notes, post-it notes on the screen, telephone
+conversation, email).  The intent of a shared lock is to let
+collaborators know who else is potentially working on a resource..
+
+So, why not just use exclusive write locks all the time?  Experience
+from initial Web distributed authoring systems has indicated that
+exclusive write locks are often too rigid.  An exclusive write lock is
+used to enforce a particular editing process: take out exclusive write
+lock, read the resource, perform edits, write the resource, release the
+lock.  What happens if the lock isn't released?  While the time-out
+mechanism provides one solution, if you need to force the release of a
+lock immediately, it doesn't help much.  Granted, an administrator can
+release the lock for you, but this could become a significant burden for
+large sites. Further, what if the administrator can't be reached
+immediately?
+
+Despite their potential problems, exclusive write locks are extremely
+useful, since often a guarantee of freedom from overwrite conflicts is
+exactly what is needed.  The solution: provide exclusive write locks,
+but also provide a less strict mechanism in the form of shared locks
+which can be used by a set of people who trust each other, and have
+access to a communications channel external to HTTP which can be used to
+negotiate writing to the resource.
+
+1.2 Required Support
+
+A DAV compliant server is not required to support locking in any form.
+If the server does support locking it may choose to support any
+combination of exclusive and shared locks for any access types.
+
+The reason for this flexibility is that server implementers have said
+that they are willing to accept minimum requirements on all services but
+locking. Locking policy strikes to the very heart of their resource
+management and versioning systems and they require control over what
+sort of locking will be made available. For example, some systems only
+support shared write locks while others only provide support for
+exclusive write locks. As each system is sufficiently different to merit
+exclusion of certain locking features, the authors are proposing that
+locking be allowed as the sole axis of negotiation within DAV.
+
+2 LOCK Method
+
+2.1 Operation
+
+A lock method invocation creates the lock specified by the Lock-Info
+header on the request-URI. Lock method requests SHOULD NOT have a
+request body. A user-agent SHOULD submit an Owner header field with a
+lock request.
+
+A successful response to a lock invocation MUST include a Lock-Token
+header. If the server supports a time based lock removal mechanism on
+the resource, a successful lock invocation SHOULD return a Time-Out
+header.
+
+2.2 The Effect of Locks on Properties and Containers
+
+A lock, by default, affects the entire state of the resource, including
+its associated properties. As such it is currently illegal to specify a
+lock on a property. For containers, a lock also affects the ability to
+add or remove members. The nature of the effect depends upon the type of
+access control involved.  The paragraphs below describe the general
+semantics of a LOCK method request when invoked on a collection.
+Specific lock types may restrict the affect of a lock, for example
+limiting the allowable values of the Depth header.
+
+A Depth header (defined in the namespace draft) may be used on a LOCK
+method when the LOCK method is applied to a collection resource. The
+legal values for Depth on a LOCK are 0, 1, and Infinity. A Depth of 0
+instructs the resource to just lock the container. As previously
+mentioned, depending on the type of lock, the lock affects the ability
+to add or remove members of the container. 
+
+A Depth of 1 means that the container is locked and a LOCK is executed
+on the container's propagate members with a Depth of 0 and If-Range,
+If-Modified-Since, If-Unmodified-Since, If-Match and If-None-Match
+headers are dropped. However, the effects of the LOCK MUST be atomic in
+that either the container and all of its members are locked or no lock
+is granted. The result of a Depth 1 lock is a single lock token which
+represents the lock on the container and all of its members. This lock
+token may be used in an If-State-Match or If-Not-State-Match header
+against any of the resources covered by the lock. Since the lock token
+represents a lock on all the resources, an UNLOCK using that token will
+remove the lock from all included resources, not just the resource the
+UNLOCK was executed on.
+
+A Depth of infinity means that the LOCK is recursively executed, with a
+Depth of infinity, on the collection and all of its propagate members
+and all of their propagate members. As with a Depth of 1, the LOCK must
+be granted in total or not at all. Otherwise the lock operates in the
+same manner as a Depth of 1 lock.
+
+The default behavior when locking a container is to act as if a "Depth:
+0" header had been placed on the method. 
+
+2.3 Locking Replicated Resources
+
+Some servers automatically replicate resources across multiple URLs. In
+such a circumstance the server MAY only accept a lock on one of the URLs
+if the server can guarantee that the lock will be honored across all the
+URLs.
+
+2.4 Interaction with other Methods
+
+Only two methods, MOVE and DELETE, have side effects which involve
+locks. When a resource is moved, its lock SHOULD be moved with it.
+However this may not always be possible and there is currently no
+proposal to create a header which would specify that the lock request
+should fail if the resource's locks can not be maintained. Please note
+that a COPY does not copy any locks on the source resource over to the
+destination resource. Deleting a resource MUST remove all locks on the
+resource.
+
+2.5 Lock Compatibility Table
+
+The table below describes the behavior that occurs when a lock request
+is made on a resource.
+
+Current lock state/Lock requestShared LockExclusive Lock
+NoneTrue
+True
+Shared LockTrue
+False
+Exclusive LockFalseFalse*
+
+Legend: True = lock MAY be granted.  False = lock MUST NOT be granted.
+*=if the principal requesting the lock is the owner of the lock, the
+lock MAY be regranted.
+
+The current lock state of a resource is given in the leftmost column,
+and lock requests are listed in the first row.  The intersection of a
+row and column gives the result of a lock request.  For example, if a
+shared lock is held on a resource, and an exclusive lock is requested,
+the table entry is "false", indicating the lock must not be granted.
+
+If an exclusive lock is re-requested by the principal who owns the lock,
+the lock MAY be regranted. If the lock is regranted, the same lock token
+that was previously issued MUST be returned.
+
+2.6 Status Codes
+
+412 "Precondition Failed" - The included state-token was not enforceable
+on this resource.
+
+416 "Locked" - The resource is locked so the method has been rejected.
+
+2.7 Example
+
+LOCK /workspace/webdav/proposal.doc HTTP/1.1
+Host: webdav.sb.aol.com
+Lock-Info: LockType=Write LockScope=Exclusive
+Owner: <http://www.ics.uci.edu/~ejw/contact.html>
+
+HTTP/1.1 200 OK
+State-Token:
+StateToken:Type=^DAV:/LOCK/DAVLOCK^:Res=^http://www.ics.uci.edu/workspac
+e/webdav/proposal.doc^:LockType=Write:LockScope=Exclusive:ServerID=12382
+349AdfFFF
+Time-Out: ClockType=Activity TimeType=second;604800
+
+This example shows the successful creation of an exclusive write lock on
+resource http://webdav.sb.aol.com/workspace/webdav/proposal.doc. The
+resource http://www.ics.uci.edu/~ejw/contact.html contains contact
+information for the owner of the lock. The server has an activity-based
+timeout policy in place on this resource, which causes the lock to
+automatically be removed after 1 week (604800 seconds). The response has
+a Lock-Token header that gives the state token URL for the lock token
+generated by this lock request.
+
+2.8 Lock-Info Request Header
+
+The Lock-Info header specifies the scope and type of a lock for a LOCK
+method request. The syntax specification below is extensible, allowing
+new type and scope identifiers to be added.
+
+LockInfo = "Lock-Info" ":" DAVLockType SP DAVLockScope CRLF
+
+DAVLockType = "LockType" "=" DAVLockTypeValue
+
+DAVLockTypeValue = ("Write" | *(uchar | reserved))
+
+DAVLockScope = "LockScope" "=" DAVLockScopeValue
+
+DAVLockScopeValue = ("Exclusive" | *(uchar | reserved))
+
+2.9 Owner Request Header
+
+2.9.1 Problem Description
+
+When discovering the list of owners of locks on a resource, a principal
+may want to be able to contact the owner directly. For this to be
+possible the lock discovery mechanism must provide enough information
+for the lock owner to be contacted.
+
+2.9.2 Solution Requirements
+
+Not all systems have authentication procedures that provide sufficient
+information to identify a particular user in a way that is meaningful to
+a human. In addition, many systems that do have sufficient information,
+such as a name and e-mail address, do not have the ability to hook this
+information into the lock discovery mechanism. Therefore a means is
+needed to allow principals to identify themselves in a manner which will
+be meaningful to a human.
+
+The From header (defined in RFC 2068), which contains only an email
+mailbox, is not sufficient for the purposes of quick identification.
+When desperately looking for someone to remove a lock, e-mail is often
+not sufficient. A telephone number (cell number, pager number, etc.)
+would be better. Furthermore, the email address in the From field may or
+may not support including the owners name and that name is often set to
+an alias anyway. As such a header more flexible than From is required.
+
+2.9.3 Syntax
+
+Owner = "Owner" ":" (("<" URI ">")  | quoted-string)
+
+The URI SHOULD provide a means for either directly contacting the
+principal, say a telephone or e-mail URI, or for finding out who the
+principal is, say the URL of a homepage.  The quoted string SHOULD
+provide a means for directly contacting the principal, such as a name
+and telephone number.
+
+2.10 Time-Out Header
+
+2.10.1 Problem Description
+
+In a perfect world principals take out locks, use the resource as
+needed, and then remove the lock when it is no longer needed. However,
+this scenario is frequently not completed, leaving active but unused
+locks. Reasons for this include client programs crashing and loosing
+information about locks, users leaving their systems for the day and
+forgetting to remove their locks, etc. As a result of this behavior,
+servers need to establish a policy by which they can remove a lock
+without input from the lock owner. Once such a policy is instituted, the
+server also needs a mechanism to inform the principal of the policy.
+
+2.10.2 Solution Requirements
+
+There are two basic lock removal policies, administrator and time based
+remove. In the first case a principal other than the lock owner has
+sufficient access rights to order the lock removed, even though they did
+not take it out. User-agents MUST assume that such a mechanism is
+available and thus locks may arbitrarily disappear at any time. If their
+actions require confirmation of the existence of a lock then the
+If-State headers are available.
+
+The second solution, is the time based removal policy. Activity based
+systems set a timer as soon as the lock is taken out. Every time a
+method is executed on the resource, the timer is reset. If the timer
+runs out, the lock is removed.
+
+Finally, some systems only allow locks to exist for the duration of a
+session, where a session is defined as the time when the HTTP connection
+that was used to take out the lock remains connected. This mechanism is
+used to allow programs which are likely to be improperly exited, such as
+JAVA programs running in a browser, to take out locks without leaving a
+lot of ownerless locks around when they are improperly exited.
+
+2.10.3 Syntax
+
+TimeOut = "Time-Out" ":" ((TimeOutType SP Session) | TimeOutVal |
+Session) CRLF
+TimeOutType = ClockType SP TimeType
+ClockType = "ClockType" "=" ClockTypeValue
+ClockTypeValue = "Activity" 
+TimeType = "TimeType" "=" TimeTypeValue
+TimeTypeValue = "Second" ";" DAVTimeOutVal
+DAVTimeOutVal = 1*digit
+Session = "Session" "=" ("Yes" | "No")
+
+The "Second" TimeType specifies the number of seconds that may elapse
+before the lock is automatically removed. A server MUST not generate a
+time out value for "second" greater than 2^32-1.
+
+If no time based system is in use then a Time-Out header MUST NOT be
+returned. The Time-Out header MUST only be returned in a response to a
+LOCK request.When session is set to yes then whatever clocktype and
+timetype is being used, their effects are scoped within that particular
+session. So an absolute lock with a ten day expiration period will only
+remain active so long as the session remains active. A DAVTimeOutVal
+value must be greater than zero.
+
+Clients MAY include TimeOut headers in their LOCK requests. However the
+server is not required to honor or even consider the request. The
+primary purpose in allowing clients to submit a TimeOut header is to
+inform the server if the client is requesting a session based lock. If a
+timeout is associated with the lock, the server MUST return a TimeOut
+header with a valid value.
+
+2.11 State-Token Header
+
+2.11.1 Problem Definition
+
+Program A, used by User A, takes out a write lock on a resource. Program
+B, also run by User A, then proceeds to perform a PUT to the locked
+resource. The PUT will succeed because locks are associated with a
+principal, not a program, and thus program B, because it is acting with
+principal A's credential, will be allowed to perform the PUT. In reality
+program B had no knowledge of the lock and had it had such knowledge,
+would not have overwritten the resource. Hence, a mechanism is needed to
+prevent different programs from accidentally ignoring locks taken out by
+other programs with the same authorization.
+
+2.11.2 Solution Requirement
+
+The solution must not require principals to perform discovery in order
+to prevent accidental overwrites as this could cause race conditions. 
+
+The solution must not require that clients guess what sorts of locks
+might be used and use if-state-match headers with wildcards to prevent
+collisions. The problem with trying to "guess" what locks are being used
+is that new lock types might be introduced and the program would not
+know to "guess them". So, for example, a client might put in an
+if-state-match header with a wildcard specifying that if any write lock
+is outstanding then the operation should fail. However a new read/write
+lock could be introduced which the client would not know to put in the
+header.
+
+2.11.3 State-Token Header
+
+The State-Token header is returned in a successful response to the LOCK
+method or is used as a request header with the UNLOCK method.
+
+The State-Token header containing a lock token owned by the request
+principal, is used by that principal on any arbitrary method to indicate
+that the principal is aware of the specified lock's existence. If the
+State-Token header with the appropriate lock token is not included then
+even though the requesting principal has authorization to make
+modifications specified by the lock type, the request MUST be rejected.
+Clearly this injunction does not apply to methods which are not effected
+by the principal's lock.
+
+For example, Program A, used by user A, takes out a write lock on a
+resource. Program A then makes a number of PUT requests on the locked
+resource, all the requests contain a State-Token header which includes
+the write lock state token. Program B, also run by User A, then proceeds
+to perform a PUT to the locked resource. However program B was not aware
+of the existence of the lock and so does not include the appropriate
+state-token header. The method is rejected even though principal A is
+authorized to perform the PUT. Program B can, if it so chooses, now
+perform lock discovery and obtain the lock token. Note that program A
+and B can perform GETs without using the state-token header because the
+ability to perform a GET is not affected by a write lock.
+
+Please note that having a lock state token provides no special access
+rights. Anyone can find out anyone else's lock state token by performing
+lock discovery. Locks are expected to be enforced based upon whatever
+authentication mechanism is used by the server, not based on the secrecy
+of the token values.
+
+3 Write Lock
+
+A write lock prevents a principal without the lock from successfully
+executing a PUT, POST, DELETE, MKCOL, PROPPATCH or PATCH on the locked
+resource. All other methods, GET in particular, function independent of
+the lock.
+
+While those without a write lock may not alter a property on a resource
+it is still possible for the values of live properties to change, even
+while locked, due to the requirements of their schemas. Only dead
+properties and live properties defined to respect locks are guaranteed
+to not change while locked.
+
+It is possible to assert a write lock on a null resource in order to
+lock the name. Please note, however, that locking a null resource
+effectively makes the resource non-null as the resource now has lock
+related properties defined on it.
+
+Write locking a container also prevents adding or removing members of
+the container. This means that attempts to PUT/POST a resource into the
+immediate name space of the write locked container MUST fail if the
+principal requesting the action does not have the write lock on the
+container. In order to keep the behavior of locking containers
+consistent all locks on containers MUST contain a Depth header equal to
+infinity, any other value is illegal. 
+
+4 Lock Tokens
+
+4.1 Problem Description
+
+It is possible that once a lock has been granted it may be removed
+without the lock owner's knowledge. This can cause serialization
+problems if the lock owner executes methods thinking their lock is still
+in effect. Thus a mechanism is needed for a principal to predicate the
+successful execution of a message upon the continuing existence of a
+lock.
+
+4.2 Proposed Solution
+
+The proposed solution is to provide a lock token in the response of a
+lock request. The lock token is a type of state token and describes a
+particular lock. The same lock token must never be repeated on a
+particular resource. This prevents problems with long held outstanding
+lock tokens being confused with newer tokens. This uniqueness
+requirement is the same as for e-tags. This requirement also allows for
+tokens to be submitted across resources and servers without fear of
+confusion.
+
+4.3 Lock Token Definition
+
+The lock token is returned in the State-Token header in the response to
+a LOCK method. The lock token can also be discovered through lock
+discovery on a resource.
+
+Lock-Token-URL = "StateToken:" Type ":" Resources ":" State-Info
+Type = "Type" "=" "^DAV:/LOCK/DAVLOCK^"
+Resources = "Res" "=" 1*("^" Caret-Encoded-URI "^")
+Caret-Encoded-URI = <This is a URI which has all "^"s % encoded.>
+State-Info = DAVLockScope ":" DAVLockType ":" ServerID  ; DAVLockScope,
+DAVLockType defined in Lock-Info header
+ServerID = "ServerID" "=" *(uchar | reserved)
+
+The ServerID is a field for use by the server. Its most basic purpose is
+to put in a unique identifier to guarantee that a server will never
+confuse an old lock token with a newer one. However the server is free
+to use the field to record whatever information it deems fit. The field
+is opaque to clients.
+
+5 UNLOCK Method
+
+5.1 Problem Definition
+
+The UNLOCK method removes the lock identified by the lock token in the
+State-Token header from the Request-URI.
+
+5.2 Example
+
+UNLOCK /workspace/webdav/proposal.doc HTTP/1.1
+Host: webdav.sb.aol.com
+State-Token:
+StateToken:Type=^DAV:/LOCK/DAVLOCK^:Res=^http://www.ics.uci.edu/workspac
+e/webdav/proposal.doc^:LockType=Write:LockScope=Exclusive:ServerID=12382
+349AdfFFF
+
+HTTP/1.1 200 OK
+
+In this example, the lock from example of Section 2.9 is removed from
+the resource at http://webdav.sb.aol.com/workspace/webdav/proposal.doc
+
+6 Discovery Mechanisms
+
+6.1 Lock Type Discovery
+
+6.1.1 Problem Definition
+
+Since server lock support is optional, a client trying to lock a
+resource on a server can either try the lock and hope for the best or
+can perform some form of discovery to determine what lock types the
+server actually supports, then formulate a supported request.  This is
+known as lock type discovery. Lock type discovery is not the same as
+discovering what access control types are supported, as there may be
+access control types without corresponding lock types.
+
+6.1.2 SupportedLock Property
+
+Name: http://www.ietf.org/standards/dav/lock/supportedlock
+
+Purpose: To provide a listing of the lock types supported by the
+resource.
+
+Schema: http://www.ietf.org/standards/dav/
+
+Values: An XML document containing zero or more LockEntry XML elements.
+
+Description: The SupportedLock property of a resource returns a listing
+of the combinations of scope and access types which may be specified in
+a lock request on the resource. Note that the actual contents are
+themselves controlled by access controls so a server is not required to
+provide information the client is not authorized to see. If
+SupportedLock is available on "*" then it MUST define the set of locks
+allowed on all resources on that server.
+
+6.1.3 LOCKENTRY XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/lockentry
+
+Purpose: Defines a DAVLockType/LockScope pair which may be legally used
+with a LOCK on the specified resource.
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: A SupportedLock entry
+
+Values: LockType LockScope
+
+6.1.4 LOCKTYPE XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/locktype
+
+Purpose: Lists a DAVLockType
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: LOCKENTRY
+
+Values: DAVLockTypeValue
+
+6.1.5 LOCKSCOPE XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/lockscope
+
+Purpose: Lists a DAVLockScope
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: LOCKENTRY
+
+Values: DAVLockScopeValue
+
+6.2 Active Lock Discovery
+
+6.2.1 Problem Definition
+
+If another principal locks a resource that a principal wishes to access,
+it is useful for the first principal to be able to find out who the
+second principal is. 
+
+6.2.2 Solution Requirements
+
+The lock discovery mechanism should provide a list of who has the
+resource locked, what locks they have, and what their lock tokens are.
+The lock tokens are useful in shared lock situations where two
+principals in particular may want to guarantee that they do not
+overwrite each other. The lock tokens are also useful for administrative
+purposes so that an administrator can remove a lock by referring to its
+token.
+
+6.2.3 LOCKDISCOVERY Property
+
+Name: http://www.ietf.org/standards/dav/lockdiscovery
+
+Purpose: To discover what locks are active on a resource
+
+Schema: http://www.ietf.org/standards/dav/
+
+Values= An XML document containing zero or more ActiveLock XML elements.
+
+Description: The LOCKDISCOVERY property returns a listing of who has a
+lock, what type of lock they have, the time out type and the time
+remaining on the time out, and the associated lock token. The server is
+free to withhold any or all of this information if the requesting
+principal does not have sufficient access rights to see the requested
+data.
+
+6.2.4 ACTIVELOCK XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/activelock
+
+Purpose: A multivalued XML element that describes a particular active
+lock on a resource
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: A LOCKDISCOVERY entry
+
+Values= LOCKTYPE LOCKSCOPE OWNER TIMEOUT LOCKTOKEN
+
+6.2.5 OWNER XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/owner
+
+Purpose: Returns owner information
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: ACTIVELOCK
+
+Values= XML:REF | {any valid XML string}
+
+6.2.6 TIMEOUT XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/timeout
+
+Purpose: Returns information about the timeout associated with the lock
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: ACTIVELOCK
+
+Values= CLOCKTYPE TIMETYPE TIMEOUTVAL
+
+6.2.7 CLOCKTYPE XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/clocktype
+
+Purpose: Returns the clock type used with this lock
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: TIMEOUT
+
+Values=  ClockTypeValue
+
+6.2.8 TIMETYPE XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/timetype
+
+Purpose: Returns the time type used with this lock
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: TIMEOUT
+
+Values= TimeTypeValue
+
+6.2.9 TIMEOUTVAL XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/timeoutval
+
+Purpose: Returns the amount of time left on the lock
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: TIMEOUT
+
+Values= DAVTimeOutVal
+
+6.2.10 LOCKTOKEN XML Element
+
+Name: http://www.ietf.org/standards/dav/lock/locktoken
+
+Purpose: Returns the lock token
+
+Schema: http://www.ietf.org/standards/dav/
+
+Parent: ACTIVELOCK
+
+Values= XML:REF
+
+Description: The REF contains a Lock-Token-URL.
+
+
+

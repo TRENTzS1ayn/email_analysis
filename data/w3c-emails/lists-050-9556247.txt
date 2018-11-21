@@ -1,0 +1,321 @@
+docno="lists-050-9556247"
+received="Fri Jun 14 03:37:33 2002"
+isoreceived="20020614073733"
+sent="Fri, 14 Jun 2002 08:43:58 +0100"
+isosent="20020614074358"
+name="Graham Klyne"
+email="Graham.Klyne@MIMEsweeper.com"
+subject="Re: datatyping unstaked"
+id="5.1.0.14.2.20020614082714.04518240@joy.songbird.com"
+charset="us-ascii"
+inreplyto="p05111a01b92ee4914211&#64;[65.217.30.123]"
+expires="-1"
+
+
+To: patrick hayes<phayes@ai.uwf.edu>
+Cc:w3c-rdfcore-wg@w3.org
+
+
+On first pass, I find this an improvement on the current datatyping, and is 
+far better suited to the requirements of CC/PP.
+
+I need to study this more carefully, but meanwhile have a couple of small 
+comments:
+
+>Second, we could introduce a special property called something like 
+>rdfd:rigidliteral, which forces a literal to be interpreted literally, as 
+>it were. This acts like a datatype property, but what it says is that the 
+>literal really does denote itself: its a kind of pre-emptive 
+>datatype-exclusion device which produces a datatype clash with any 
+>datatype. The semantics is that it forces D to be the identity map in its 
+>object, and it denotes equality. Then we could get the current meaning by 
+>writing things like
+
+Wouldn't asserting a datatype of xsd:string (which maps literal strings to 
+themselves) on the corresponding property have the same effect?  Or, for 
+example, using xsd:string datatype mapping, as in:
+
+   <ex:Jenny> <ex:age> _:x .
+   _:x <xsd:string> "10" .
+
+I can't see what value rdfd:rigidliteral would add.
+
+>One way to rule things like this out, if someone wanted to do that, would be:
+>
+><rdfs:range> <rdfs:subPropertyOf> < rdfd:rangedatatype>  .
+
+Isn't that potentially non-monotonic?  (I think this is a general problem 
+with making additional assertions about core RDF vocabulary.)
+
+#g
+--
+
+
+At 10:04 PM 6/13/02 -0500, patrick hayes wrote:
+
+>Ive been thinking about the datatyping stuff again, and would like to put 
+>forward (again) an idea I once had, for possible discussion at the F2F, 
+>should the topic come up. If people feel that its out of scope now, or 
+>whatever, then OK, I just wanted to get it on the table for discussion 
+>should we decide to discuss it.
+>
+>I think this proposal comes closer than any other to satisfying the most 
+>people at the least cost, and also is most likely to conform to existing 
+>usage. Still, there is no free lunch, and it does require making some 
+>changes to the current RDF docs, particularly the MT, and maybe some of 
+>the test cases. Details below.
+>
+>I will use the following graph to illustrate the idea:
+>
+><ex:Jenny> <ex:age> "10" .
+>_:f <dc:title> "10" .
+>_:f <rdf:type> <ex:movie> .
+>
+>which is supposed to have four nodes and three triples, i.e. it is tidy.
+>
+>The first problem is how to arrange that this could be interpreted so that 
+>Jenny's age was ten (not '10') and _:f's title was '10', even though there 
+>is only one literal node.
+>
+>The second problem is that we want it to be possible to add datatyping 
+>information to a graph like this without changing any meanings. On the 
+>face of it, that seems impossible, since we have to say that the "10" in 
+>the undatatyped graph denotes *something*, and in the absence of any 
+>datatyping information, and given that it's in several triples, it seems 
+>like the only sensible thing to say is that it denotes itself; and once we 
+>have done that, we are stuck.
+>
+>The trick is to admit that indeed the literal alone does denote itself 
+>(just as now) but to provide some wriggle room in the meaning of a triple 
+>containing a literal object.
+>
+>Right now, all triple meanings follow the same very simple rule: 
+>I(SPO)=true iff IEXT(I(P)) contains <I(S), I(O)> . But we could say that 
+>this is the meaning of triples with bnodes or urirefs as objects, but give 
+>a slightly different meaning to urirefs with literal objects: what 
+>*they*  mean is effectively what the rdfd:lex idiom means at present, ie
+>
+>I(SPL)=true iff IEXT(I(P)) contains <I(S), D(I(O)) > for some 
+>literal-to-value mapping D.
+>
+>Everything else works as before; graphs are tidy on literal nodes.
+>
+>What follows? First, note that this allows the literal to 'indicate' a 
+>different value than it denotes (ie something other than itself), and a 
+>different one of those in each triple. So although it is indeed true that 
+>"10" denotes "10" in this graph, nevertheless the meanings of the the two 
+>triples containing that literal can refer to different things than "10". 
+>This means in turn that the entailment rules need to be modified slightly: 
+>it isn't valid to existentially generalize on literals. For example, the 
+>above graph does NOT entail
+>
+><ex:Jenny> <ex:age> _:x .
+>_:f <dc:title> _:x .
+>_:f <rdf:type> <ex:movie> .
+>
+>It does, however, entail
+>
+><ex:Jenny> <ex:age> _:x .
+>_:f <dc:title> _:y .
+>_:f <rdf:type> <ex:movie> .
+>
+>via the graph below.
+>
+>This is the only significant change to RDF entailment which arises in this 
+>version, and it does require re-stating some of the lemmas in the MT. 
+>(This change which is needed to the 'pre-datatype' RDF is the chief cost 
+>of this proposal.)
+>
+>Any literal triple is now equivalent to its rdfd:lex pair version, eg the 
+>graph both entails and is entailed by:
+>
+><ex:Jenny> <ex:age> _:x .
+>_:x <rdfd:lex> "10" .
+>_:f <dc:title> _:y .
+>_:y rdfd:lex "10" .
+>_:f <rdf:type> <ex:movie> .
+>
+>(6 nodes, 5 triples) which is the best we can do by way of existential 
+>generalization. If the object of a triple is a uriref then we can simply 
+>generalize the node:
+>
+>aaa bbb ccc .
+>ddd eee ccc .
+>--->
+>aaa bbb _:xxx .
+>ddd eee _:xxx .
+>
+>but if it is a literal then we have to generalize one triple at a time:
+>
+>aaa bbb LLL .
+>ddd eee LLL .
+>--->
+>aaa bbb _:xxx .
+>ddd eee LLL .
+>--->
+>aaa bbb _:xxx .
+>ddd eee _:yyy .
+>
+>What this is all about, of course, is tidyness; we can't assume that a 
+>tidy literal indicates the same thing in each triple.
+>
+>Now, given this change to the basic RDF MT, it's easy to make datatyping 
+>work smoothly. We just say that the datatype 'associated' with a triple 
+>(read on) provides the D mapping, ie that now instead of just being *some* 
+>D mapping, it has to be the L2V(I(ddd)) thingie of the associated datatype 
+>of that triple. Attaching a datatype to a property range says that any 
+>triple with that property has to have that datatype associated with it. A 
+>triple containing a datatype property is always associated with that 
+>datatype, obviously, and the rdfd:lex idiom is handled by the special rule 
+>that says that an rdfd:lex triple inherits its associated datatype from 
+>the datatype associated with any triple whose object is its subject. Then 
+>all the current idioms work out as they do now, except that the in-line 
+>idiom is datatype-sensitive, as Patrick wants.
+>
+>Adding all this datatyping does not change either the denotation of the 
+>literal itself or contradict the meanings of the triples in the 
+>undatatyped graph.
+>
+>This also means that if G' is a generalization from G  using rdfd:lex to 
+>keep the connections between the bnodes and the literal, then datatyping G 
+>and G' has the same effect. For example:
+>
+>aaa <ex:age> "10" .
+>bbb <ex:age> "10" .
+>--->>>
+>aaa <ex:age> _:x .
+>bbb <ex:age> -:y .
+>_:x <rdfd:lex> "10" .
+>_:y <rdfd:lex> "10" .
+>
+>are equivalent; and if you add (Ive changed the name again, just for fun)
+>
+><ex:age> <rdfd:rangedatatype> <xsd:integer> .
+>
+>to either graph, they are still equivalent: they both then say that the 
+>ages of aaa and bbb are ten. The second one has nodes that denote ten, the 
+>first one doesn't, but they express the same information. (Of course, if 
+>you had missed out the rdfd:lex links, you would be screwed.)
+>
+>Possible objections.
+>
+>The chief objection to this idea, seems to me, is that it makes a simple 
+>literal triple with no datatyping into a very weak assertion. In effect, 
+>the above graph without datatyping says almost nothing, since the D 
+>mappings could be anything. In fact, the arbitrariness of the rdfd:lex 
+>meaning illustrates that weakness very precisely. However, there are 
+>several responses to this.
+>First, its hard to see what else we could say about the meaning of a 
+>'bare' literal *if* we want to be able to then go on and later add 
+>datatyping so as to restrict its meaning in the various triples, since 
+>that datatyping can indeed make it mean virtually anything. Life is like 
+>that, tough.
+>Second, we could introduce a special property called something like 
+>rdfd:rigidliteral, which forces a literal to be interpreted literally, as 
+>it were. This acts like a datatype property, but what it says is that the 
+>literal really does denote itself: its a kind of pre-emptive 
+>datatype-exclusion device which produces a datatype clash with any 
+>datatype. The semantics is that it forces D to be the identity map in its 
+>object, and it denotes equality. Then we could get the current meaning by 
+>writing things like
+>
+><ex:Jenny> <ex:age> _:x .
+>_:x <rdfd:rigidliteral> "10" .
+>
+>This is awkward, admittedly, but thats because we can't do the obvious 
+>thing and make literals into subjects. If we could then 
+>rdfd:rigidliteral  could be a class and we could write things like
+>
+><ex:Jenny> <ex:age> "10" .
+>"10" <rdf:type> <rdfd:rigidliteral> .
+>
+>But we can't. Sigh.
+>
+>Note, this doesn't screw up the idea of checking literal identity by 
+>string-matching.  Literals still denote themselves, and you could 
+>substitute one for another if you knew they were really the same literal. 
+>The only thing you have to be slightly careful of is when you are doing 
+>existential generalization; and even then, all you have to do is make sure 
+>you are using a new bnode each time you do it, by 'detaching' the new 
+>bnode from the old literal node one triple at a time, rather than just 
+>over-writing the literal with the bnode. Once you have done this, the 
+>bnodes you have introduced are perfectly normal in all respects, and any 
+>rdfs:range assertions on the property, etc., will apply to them just as 
+>before.  For example:
+>
+><ex:age> <rdfs:range> <xsd:integer> .
+><ex:Jenny> <ex:age> "10" .
+>_:f <dc:title> "10" .
+>
+>does not say that the literal "10" denotes ten; it says that it *maps to* 
+>something which is an integer, is all. It entails:
+>
+><ex:age> <rdfs:range> <xsd:integer> .
+><ex:Jenny> <ex:age> _:x .
+>_:x <rdf:type> <xsd:integer> .
+>_:x <rdfd:lex> "10" .
+>
+>and _:x  denotes ten by the usual rules.
+>
+>Also, of course, any graph entails itself, and all the usual stuff like 
+>that still works OK.
+>
+>This all works like a dream with 'remote' datatyping on property ranges; 
+>eg, the following graph
+>
+><ex:Jenny> <ex:age> "10" .
+>_:f <dc:title> "10" .
+>_:f <rdf:type> <ex:movie> .
+><ex:age> <rdfd:rangedatatype> <xsd:integer> .
+><dc:title> <rdfd:rangedatatype> <xsd:string> .
+>
+>is consistent and has no datatype clashes in it, and says that Jenny's age 
+>is ten and that some movie is titled "10".
+>
+>However, notice that
+>
+><ex:Jenny> <ex:age> "10" .
+>_:f <dc:title> "10" .
+>_:f <xsd:string> "10" .
+><ex:age> <rdfd:rangedatatype> <xsd:integer> .
+>
+>(5 nodes, tidy) says that _:f is the string '10', which isn't right at 
+>all. In other words, datatype properties have to be handled with care. 
+>This would be OK:
+>
+><ex:Jenny> <ex:age> "10" .
+>_:f <dc:title> _:sss .
+>_:sss <xsd:string> "10" .
+><ex:age> <rdfd:rangedatatype> <xsd:integer> .
+>
+>Finally, the following, while weird:
+>
+><ex:Jenny> <ex:age> "10" .
+><ex:Joe> <ex:age> _:x .
+>_:x <xsd:string> "10" .
+><ex:age> <rdfd:rangedatatype> <xsd:integer> .
+>
+>(6 nodes)  is in fact consistent and clash-free; but just barely, and only 
+>if <ex:age> can have both numbers and strings in its rdfs:range.
+>
+>One way to rule things like this out, if someone wanted to do that, would be:
+>
+><rdfs:range> <rdfs:subPropertyOf> < rdfd:rangedatatype>  .
+>
+>Pat
+>
+>
+>
+>--
+>---------------------------------------------------------------------
+>IHMC                                    (850)434 8903   home
+>40 South Alcaniz St.                    (850)202 4416   office
+>Pensacola,  FL 32501                    (850)202 4440   fax
+>phayes@ai.uwf.edu http://www.coginst.uwf.edu/~phayes
+
+-------------------
+Graham Klyne
+<GK@NineByNine.org>
+
+
+

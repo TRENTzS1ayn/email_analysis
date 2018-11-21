@@ -1,0 +1,91 @@
+docno="lists-009-12074219"
+received="Tue Nov 14 12:39:36 1995"
+isoreceived="19951114173936"
+sent="Tue, 14 Nov 1995 11:25:47 0800"
+isosent="19951114192547"
+name="Shel Kaphan"
+email="sjk@amazon.com"
+subject="using opaque strings to determine uniqueness"
+id="199511141925.LAA25801@bert.amazon.com"
+inreplyto="Pine.SGI.3.91.951114091046.12134B100000&#64;fully.organic.com"
+expires="1"
+
+
+To: Brian Behlendorf<brian@organic.com>
+Cc: Laurent Demailly<dl@hplyot.obspm.fr>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Brian Behlendorf writes:
+ > On Tue, 14 Nov 1995, Laurent Demailly wrote:
+ > > I agree that there should be some *opaque* string used to select if the
+ > > object is the same or not (string which could be for instance a last
+ > > modified date, an MD5 digest,... whatever the server wants)
+ > 
+ > While this sounds good in theory, I believe there are situations where 
+ > this breaks down. 
+ > 
+ > Time    Action
+ > 
+ > T+0:    client A connects through proxy1.bigISP.com to a server which 
+ >         contains a document which changes hourly, and has a CID of "X".
+ > T+1h:   client B connects through proxy2.bigISP.com to the same server,
+ >         and gets the hourly-changing document which now has a CID of "Y".
+ > T+1h1m: client B "refreshes" the page by doing an IMS request, but this
+ >         time goes through proxy1.bigISP.com, either because of round-robin
+ >         DNS or some sort of client load-balancing[*].
+ >         client B says "send me the document, unless it has the CID of 'Y'"
+ > proxy1.bigISP.com sees its CID is "X", not "Y", and sends the OLD
+ > DOCUMENT.
+
+Good point, let's think it through.
+
+The rule for a proxy performing this kind of comparison must be different
+from the current rule for GET if-modified-since.
+
+In the case of GET if-modified-since, the proxy is allowed to service
+the request out of the cache if the last-modified date of its
+(non-expired) copy of the document is after the request's if-modified-since
+date, otherwise it has to pass on the request.  It can return 304 if
+it holds a non-expired document that was modified <= the request's
+if-modified-since time.
+
+In the case of an opaque string match, let's consider two versions of
+a document, served by the server at times T and T+n.  At T, the
+server provides a document with an opaque string "X".  At time T+n
+the server begins serving a new version of that document with opaque
+string "Y".
+
+A proxy can only service the request for `unless "X"' out of its cache,
+when it contains a copy of the document, under these conditions:
+
+(a) If the proxy holds no document matching "X":
+
+If the proxy has records of having received the document version "X"
+and knows that it received its version, "Y", more recently than it
+received version "X", it can return "Y".
+
+If it is unaware of version "X", it cannot serve version
+"Y" out of its cache, even if it turns out that "Y" is newer than "X".
+*** This is the condition under which this scheme differs most from
+the if-modified-since scheme ***.
+
+(b) If the proxy contains a cached copy matching "X":
+
+If the proxy has received a version of the document more recently than
+it received one with "X", it returns the more recently received one.
+
+If it hasn't received a copy more recently, the proxy can follow the
+same rules as GET if-modified-since, using the expiration date to
+decide if it must forward the request, or can return a 304.
+
+So using opaque strings results in some more cache misses when proxies
+have only a sparse history of the versions of a document.  The
+additional "hair" in proxies is that to make this work optimally, they
+have to keep a history of the versions of a document they have
+received, and when they have received them.
+
+I'm sure if I made an error in this, someone will point it out...
+
+--Shel
+
+
+

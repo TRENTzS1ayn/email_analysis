@@ -1,0 +1,156 @@
+docno="lists-097-5483576"
+received="Tue Dec 17 20:12:51 2002"
+isoreceived="20021218011251"
+sent="Tue, 17 Dec 2002 20:12:51 -0500"
+isosent="20021218011251"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="attributions, create document names and message ids"
+id="20021218011128.GC23830@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:www-annotation@w3.org
+
+
+
+INTENDED CURRENT IMPLEMENTATION
+  Statements table:
+    #  subject      predicate  object        attribution
+    3 a:Comment rdfs:subclass a:Annotation    2
+    4 annot1    rdf:type      a:Comment       7
+    5 annot1    a:annotates   www.w3.org/...  7
+    6 annot1    rdf:type      a:Annotation    8
+
+  Attributions table:
+    # type       uri(document name)       parent       authName
+    2 Source     htt...AttributionA          -         swick@w3.org
+    7 Source     htt...AttributionE          -         eric@w3.org
+    8 Rule       htt...AttributionF htt...AttributionE  -
+
+  AttributionClosures
+    child parent generation
+     2     2      0
+     7     7      0
+     8     8      0
+     8     7      1
+
+The Attributions code as a couple problems:
+  0 Attributions have multiple parents. The inference
+      annot1 rdf:type a:Annotation.
+    comes from
+      annot1 rdf:type a:Comment.            -- attribution 7
+      a:Comment rdfs:subclass a:Annotation. -- attribution 2
+    and the rule
+      this log:forAll :ob, :super, :sub.
+      {:ob rdf:type :sub.
+       :super rdfs:subclass :sub} log:implies {:ob rdf:type :super}.
+    which has no attribution, though should.
+  1 The full lineage of 8 is not represented in Attributions or
+    AttributionClosures.
+  2 The one parent expressed in Attributions is duplicated in
+    AttributionClosures.
+
+Attributions are currently thought of as documents. When you tell an
+agent with a triple store to look at a document, it looks for an
+attribution with a uri of that name. If it exists, ie, the server is
+refreshing its view of a document, it deletes all of the Statements
+with that attribution or a child attribution (as found in
+AttributionClosures) in preparation for parsing the incoming
+assertions. If it does not exist, a new attribution is created. All
+parsed RDF statements are stored with the found or created
+attribution.
+
+The annotation server is a specialized application that actually
+creates attributions. When a new annotation is stored, the server
+needs a name for that document and invents a new attribution URI. The
+server also works hard to make it so that the invented document looks
+just like any other document on the web, clients may HEAD, GET, PUT or
+DELETE the attribution URI.
+  GET - Select all the triples from the triple store with that
+        attribution and pass them to the RDF serializer.
+  DELETE - Delete all the triples from the triple store with that
+        attribution.
+  PUT - Delete all the triples from the triple store with that
+        attribution. Parse the incoming data and attribute the
+        resulting statements to the PUT attribution. This has
+        the same affect as telling the server to refresh its view
+        of a document.
+
+FUTURE DESIGN
+All the current tables exist; one new table is added:
+  History table:
+    #  subject      predicate  object        attribution
+
+When a set of statements are "deleted", they are moved to the History
+table. Deleting the statements with attribution 7 (and attribution 8
+as it is a child of 7) will result in the following statements being
+moved to the History table:
+    #  subject      predicate  object        attribution
+    4 annot1    rdf:type      a:Comment       7
+    5 annot1    a:annotates   www.w3.org/...  7
+    6 annot1    rdf:type      a:Annotation    8
+
+I have no plans for how to use algae to query history at this
+point. Since algae allows one to specify a query database on any ask,
+I will probably implement the historical access as another
+database. History is simply an added feature and represents no changes
+to groupthink (1984 reference to the common knowledge).
+
+Changing the attributions from recording document characteristics to
+recording message characteristics requires a little mindset change and
+a little code change. The main change is that the name of an
+attribution represents a message that caused data to be inserted into,
+or deleted from the Statements table. If a new annotation is POSTed, a
+new attribution will be created to store the attributes of that POST.
+If the same annotation is replaced, the statements from the first POST
+are moved to History and a new attribution is created to group all the
+new statements. The tricky part is the name of this message.
+
+REPLICATION CASE We start the mother of all annotation servers and
+want to replicate RDF data from the hundreds of annotation servers
+that have, due to uncanny popularity, sprung up all around the
+world. If we have an interface that allows an agent to query for
+statements from a particular message, we need to provide an identifier
+for that message.  Do we want the user to be able to use the same
+identifier on a server where an annotation was POSTed as on a server
+that has scooped up all that rich, creamy annotation data? If we say
+no; the message identifiers should be different on the replicated
+server. This allows the message identifier to be a function of the
+primary key for the table. If we say yes; a new field must be added to
+identify the message identifier.
+
+DOCUMENT HOSTING CASE
+IF we say that message identifiers are constant across replicated
+hosts, the appliation (for instance, the annotation server) would be
+responsible for making up the message name as well as the document
+name. I suspect it would be unfortunate to make them be the same
+identifier; it would blur the distinction between a message and the
+document it created/retrieved.
+
+UPDATE ADVISORY CASE
+I think we still want an identifier for the document for the case
+where the application gets a notification to refresh its view of a
+document with URI u1. The update request would get a message
+identifier, but we want to record the identifier u1 to tie the
+statements in the database to that resource.
+
+
+I'm leaning towards using a message identifier not based on the
+primary key of the attribution. This means marginally more work for
+the application but enables one to use the same identifier for the
+same message from one triple store to another.
+
+What do y'all think?
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

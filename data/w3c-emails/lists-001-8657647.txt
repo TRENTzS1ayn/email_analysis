@@ -1,0 +1,73 @@
+docno="lists-001-8657647"
+received="Mon Feb 26 23:11:17 2001"
+isoreceived="20010227041117"
+sent="Tue, 27 Feb 2001 17:11:06 +1300 (NZDT)"
+isosent="20010227041106"
+name="Richard A. O'Keefe"
+email="ok@atlas.otago.ac.nz"
+subject="Re:  Problem with TidyGUI 1.0"
+id="200102270411.RAA05833@atlas.otago.ac.nz"
+inreplyto=" Problem with TidyGUI 1.0"
+expires="-1"
+
+
+To:cknight@attcanada.ca,html-tidy@w3.org
+
+"Chris Knight" <cknight@attcanada.ca> wrote:
+        Whenever Tidy finds a backslash character within a quoted string
+        (of HTML code) within a JavaScript, it (Tidy) emits this message:
+            line nn column nn - Warning: '<' + '/' + letter not allowed here
+        
+Point 1.  That's not a backslash.  It's a forward slash.
+
+        For example, the following line (within a properly coded
+        JavaScript) caused 4 errors, one for each backslash:
+              shInfo = "<P><B>Folder:</B><BR>" + sFolder + "</P><P><B>File:</B><BR>"
+        + sFile + "</P>";
+        
+        I don't think Tidy should ever parse quoted strings,
+
+It didn't.
+
+        but, that aside, I am
+        not aware of a REAL problem in such cases. Am I mistaken?
+        
+Badly mistaken.  I'm assuming here that you are using a <SCRIPT> element
+to contain your Javascript code.  If you look in the DTD, you'll find
+        ...
+        <!ENTITY % Script "CDATA">
+        ...
+        <!ELEMENT SCRIPT - - %Script;>
+        ...
+I don't know what they were smoking, but the SGML designers made a MAJOR
+blunder when they designed CDATA and RCDATA elements.  These are elements
+that contain no markup (CDATA) or no markup except character and entity
+references (RCDATA), and you would expect that they would be terminated
+by their own end-tag only.  Wrong.  The blunder is that they are terminated
+by *ANY* end-tag.  So if you have
+        <SCRIPT ...>shInfo = "<P><B>Folder:</B><BR>";</SCRIPT>
+                                           ^
+the script element actually ends right here|  not over here^^.
+It then turns out to be erroneous because its own end-tag is missing.
+
+It is ***important*** to write this as
+
+              shInfo = "<P><B>Folder:<" + "/B><BR>" + sFolder + 
+                       "<" + "/P><P><B>File:<" + "/B><BR>" +
+                       sFile + "<" + "/P>";
+
+because there are HTML processors out there that ***will*** do this the
+strictly legal way and misunderstand you.
+
+Better still, write yourself some little functions
+function p(s) { return "<P>" + s + "<" + "/P">; }
+function b(s) { return "<B>" + s + "<" + "/B">; }
+function l(s,t) { return p(b(s+":")+"<BR>"+t); }
+and then write
+shInfo = l("Folder", sFolder) + l("File", sFile);
+
+It's just like the old problem that *no* programming language has nesting
+comment brackets that actually work reliably (not even Haskell or Lisp).
+
+
+

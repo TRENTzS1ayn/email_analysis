@@ -1,0 +1,179 @@
+docno="lists-094-13107882"
+received="Thu Jul  6 06:21:10 2000"
+isoreceived="20000706102110"
+sent="Thu, 6 Jul 2000 03:20:38 -0700 (PDT)"
+isosent="20000706102038"
+name="Fox One"
+email="rockman66_1999@yahoo.com"
+subject="Amaya 3.2 crashing and rendering problems"
+id="20000706102038.2622.qmail@web4304.mail.yahoo.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-amaya@w3.org
+
+The following is a long and esoteric
+discussion of a bug hunt using the
+gnu debugger. 
+
+The following bug does not allways occur. 
+It takes several tries to evoke it. 
+
+* Enter http://lists.w3.org in the url bar
+* hit enter to go the the web page
+* erase the default search string with the 
+  backspace key
+* enter "+document diff" as the new search string
+* double click the search button
+
+* select the second item in the list
+* (it might be a message with a subject
+  of Extrnals.html)
+* click on the back button
+* click the back button again
+
+* (you are now back at the page:
+  http://lists.w3.org/Archives/Public/www-lib/
+  , but the page's tables have been
+  messed up; if the tables look okay, then
+  go back to step 4 [enter a new search string])
+
+* click on the back button
+* click on the forward button
+* click on the back button
+* click on the forward button
+* (continue to do this until the crash occurs)
+
+* (if you are lucky, Amaya crashes :-)
+
+GDB says the following:
+Program received signal SIGSEGV, Segmentation fault.
+IsParentBox (pAncestor=0x8d1aa90, pChild=0x1380)
+    at ../../thotlib/view/boxmoves.c:171
+171           pAb = pChild->BxAbstractBox;
+
+(gdb) list
+166       if (pChild == NULL || pAncestor == NULL)
+167         return (FALSE);
+168       else
+169         {
+170           /* Look for pChild ancestors including
+itself */
+171           pAb = pChild->BxAbstractBox;
+172           equal = FALSE;
+173           while (!equal && pAb != NULL)
+174             {
+175               equal = pAb->AbBox == pAncestor;
+(gdb) frame 1
+#1  0x80cc83c in DifferFormatting (table=0x8bb1be8,
+cell=0x0, frame=1)
+    at ../../tablelib/tableH.c:102
+102               else if (IsParentBox (table->AbBox,
+pLockRel->LockRTable[i]->AbBox))
+(gdb) print table
+$1 = 0x8bb1be8
+(gdb) print table->AbBox
+$2 = 0x8d1aa90
+(gdb) print pLockRel            
+$3 = 0x8e7c110
+(gdb) print i         
+$4 = 0
+(gdb) print pLockRel->LockRTable
+$5 = {0x8bb8458, 0x8bb0f68, 0x0, 0x0, 0x0}
+(gdb) print pLockRel->LockRTable[0]
+$6 = 0x8bb8458
+(gdb) print pLockRel->LockRTable[0]->AbBox
+$7 = 0x1380
+(gdb) print pLockRel->LockRTable[1]->AbBox
+$8 = 0x6
+
+The values 0x1380 and 0x6 are almost certainly
+invalid pointers. 
+
+In previous debugging sessions I've found
+"pLockRel->LockRTable[0]->AbBox" to have
+values of 0x2, 0x5, and 0xd. 
+
+"pLockRel->LockRTable[1]->AbBox" had a value
+of 0x3 at one time. 
+
+I believe that some other function in Amaya
+is clobbering the data used by DifferFormatting()
+and IsParentBox(). 
+
+Furthurmore, the function that does the clobbering
+is probably one that does something to structures
+of the type `struct _AbstractBox.' 
+
+Why do I say this? Notice that the lock relations
+table's elements (the pointers to abstract boxes) are
+not clobbered, but the "AbBox" pointer elements 
+(inside of `struct _AbstractBox') are. 
+
+The following is more information useable mostly
+to gdb people:
+
+(gdb) print pLockRel->LockRTable[0]->AbElement
+$9 = 0x0
+(gdb) print pLockRel->LockRTable[0]->AbEnclosing
+$10 = 0xa
+(gdb) print pLockRel->LockRTable[0]->AbNext
+$11 = 0x0
+(gdb) print pLockRel->LockRTable[0]->AbPrevious
+$12 = 0x0
+(gdb) print pLockRel->LockRTable[0]->AbFirstEnclosed
+$13 = 0xc
+(gdb) print pLockRel->LockRTable[0]->AbNextRepeated
+$14 = 0x0
+(gdb) print
+pLockRel->LockRTable[0]->AbPreviousRepeated
+$15 = 0xa
+(gdb) print pLockRel->LockRTable[0]->AbPSchema
+$16 = 0x0
+
+(gdb) print pLockRel->LockRTable[1]->AbElement
+$17 = 0x0
+(gdb) print pLockRel->LockRTable[1]->AbEnclosing
+$18 = 0x71
+(gdb) print pLockRel->LockRTable[1]->AbNext
+$19 = 0x0
+(gdb) print pLockRel->LockRTable[1]->AbPrevious
+$20 = 0x8bb0f38
+(gdb) print pLockRel->LockRTable[1]->AbFirstEnclosed
+$21 = 0x0
+(gdb) print pLockRel->LockRTable[1]->AbNextRepeated
+$22 = 0x5
+(gdb) print
+pLockRel->LockRTable[1]->AbPreviousRepeated
+$23 = 0x2
+(gdb) print pLockRel->LockRTable[1]->AbPSchema
+$24 = 0x0
+
+Since a `struct _AbstractBox' is a rather large
+and ungainly structure, I don't want to look at
+all of the elements. But it seems that the two
+structures above are pretty well clobbered. 
+
+It could be that a pointer to a `struct _AbstractBox'
+is typecast to something else, and when that pointer
+is used, the AbstractBox is fowled up. 
+
+Also, it could be that a union is used to overlay
+an AbstractBox with some other structure, but the
+type of the resulting union's elements isn't 
+managed correctly. 
+
+When trying to find the source of this bug, the
+Amaya team should examine typecasts and unions
+involving AbstractBox. 
+
+
+
+__________________________________________________
+Do You Yahoo!?
+Send instant messages & get email alerts with Yahoo! Messenger.
+http://im.yahoo.com/
+
+
+

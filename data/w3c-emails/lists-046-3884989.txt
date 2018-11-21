@@ -1,0 +1,161 @@
+docno="lists-046-3884989"
+received="Tue Mar  5 18:22:07 2002"
+isoreceived="20020305232207"
+sent="Tue, 5 Mar 2002 18:21:56 -0500"
+isosent="20020305232156"
+name="Joseph Reagle"
+email="reagle@w3.org"
+subject="Re: Schema Centric Canonicalization algorithm"
+id="200203052321.SAA31105@tux.w3.org"
+charset="iso-8859-1"
+inreplyto="F7CB5F0CAA300344964AC7D2BE43081F0BC3E3&#64;DF-MAX.platinum.corp.microsoft.com"
+expires="-1"
+
+
+To:"Bob Atkinson"<bobatk@Exchange.Microsoft.com>,selim.aissi@intel.com,mhondo@us.ibm.com
+Cc:<uddi-security@yahoogroups.com>,w3c-ietf-xmldsig@w3.org,jboyer@PureEdge.com
+
+
+I've had a chance to quickly review of the whole of the document and these 
+comments augment/qualify those that I made earlier [1]. (And these are 
+relevant to some tweaks we could make to exc-c14n, so I welcome xmldsig 
+comments too!)
+
+[1] 
+http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0152.html
+
+
+(Editorial:) It'd be useful if there was a public list for comments where 
+one could also see the resolution of those comments for those external to 
+the UDDI groups. (I'm cc:ing uddi-security in the hopes that it doesn't 
+bounce.)
+
+
+
+On my bike ride home yesterday, I thought some more about the question of 
+"esoteric" nodesets I ask about in [1]. Consider the case where we just 
+want to c14n a single attribute: if it's NS qualified, a namespace 
+declaration will not be emitted for it. This could be addressed in exc-c14n 
+which states: "For every namespace node with a prefix that does not appear 
+in the InclusiveNamespacePrefix List, a namespace declaration is output at 
+every output element where that prefix is visibly utilized and that prefix 
+and its value does not appear in the nearest output ancestor with the same 
+prefix." Clearly, this processing presumes you are operating in the context 
+of an element. This is at odds with the esoteric nodeset scenario. This can 
+addressed by:
+
+(1) adding some text saying, "we're expecting to operate on well balanced 
+[2] XML."
+
+(2) loosen the text so as to not require the "output element". If there is 
+an output parent, that's where it appears, but if it's a sole attribute, 
+the namespace node will still be emitted. 
+
+However, option 2 still raises problems of how do you order the "naked" 
+attributes and namespace nodes, particularly if they are attributes from 
+multiple elements, *particularly* if I say "canonicalize the XPath nodeset 
+containing all attributes of name "foo" and namespace "someURI". Yuck! 
+schema-centric c14n handles this well because of the way it is written, the 
+benefits of Infoset, and because it rewrites namespace prefixes. 
+
+Given I'm ignorant of an application requirements for this esoteric 
+scenario, I'd now consider this feature a useful side-affect of 
+schema-centric c14n but not a compelling usage scenario nor critical 
+security bug in c14n and exc-c14n. (If someone *really* wanted to include 
+c14n an attribute and it's namespace declaration, they could specify their 
+transform appropriately.) Consequently, I'd opt for option 1 then, to add 
+some text to the exc-c14n spec saying we operate best over well-balanced 
+XML and otherwise people need to construct their output carefully -- which 
+is always the case.
+
+[2] http://www.w3.org/TR/xml-fragment#defn-well-balanced
+
+
+
+ 3.1.2 Conversion of a Node-set to an Infoset
+
+I like this section, very useful and comprehensible.
+
+
+
+    3.4.2 Namespace Prefix Desensitization
+
+This section is a bit hairy and makes me wonder about the alledged 
+"significant implementation burden" involved with preserving prefixes? Not 
+that I question your "right" to rewrite them, as I said, there's two types 
+of people in the world! <smile/> And I appreciate the constraint:
+   Moreover, in order to be namespace-desensitizeable, it is REQUIRED
+   that the semantics of each embedded language not be sensitive to the
+   specific namespace prefixes used, or the character-count length
+   thereof: one MUST be permitted to (consistently) rewrite any or all of
+   the prefixes used in an occurrence of a language with arbitrary other
+   (appropriately declared) prefixes, possibly of different length,
+   without affecting the semantic meaning in question.
+And (while I don't completely understand it yet) I'm intrigued with the 
+ebbed language concept to address these problems when you dealing with an 
+application that does rely upon such prefixes. But during implementation of 
+c14n I didn't see any reports of implementation problems with preserving a 
+prefix, and when I try to understand this section I can't but help what 
+implementation experiences led you to this?
+
+
+
+In the XPath to Infoset mapping there's two things you *might* need to be 
+aware of -- or they might be completely irrelevent.
+
+
+    3.5.1 The function serialize
+    ...
+    3. If info is an attribute information item, then serialize(info) is
+       the in-order concatenation of the following:
+       ...
+              f. the appropriate case of the following:
+                   1. if the property info[prefix & schema normalized
+                      value] is present, then escape(info[prefix & schema
+                      normalized value])
+                   2. if info[schema normalized value] exists, then
+                      escape(info[schema normalized value])
+    ...
+
+I remember being confused [3] about schema validation (in the pretense of 
+default values) actually changing the Infoset normalizedValue (and not just 
+the psv:schemaNormalizedValue) which would surprise folks use the XPath 
+based c14n: a schema validated XPath node set and non-schema validated 
+XPath node set could actually differ -- seems counter-intuitive and then 
+would require a schema validation transform... I expect you'll actually be 
+immune to this problem, but I'm not sure.
+
+[3] 
+http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2001JulSep/0053.html
+
+
+
+  5. Resolutions
+
+We've encountered potential difficulty when mapping between XPath, Infoset, 
+and DOM that might be relevant to CDATA [4].
+
+[4] 
+http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0132.html
+
+
+
+  5.4 No Case-Mapping of anyURI Datatype
+
+   XML Schema Datatypes does not define a canonical lexical
+   representation for data of type anyURI. In the present specification,
+   thought was given to reconsidering this position.
+
+I think this is the right decision. I believe there is a need for a 
+canonical URI, but it's best if the issue is addressed orthogonally [5].
+
+[5] http://lists.w3.org/Archives/Public/www-tag/2002Feb/0129.html
+-- 
+
+Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature/
+W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+
+
+

@@ -1,0 +1,126 @@
+docno="lists-006-5883646"
+received="Fri Feb  2 18:43:26 2001"
+isoreceived="20010202234326"
+sent="Fri, 2 Feb 2001 15:42:32 -0800"
+isosent="20010202234232"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="FW: DeltaV Passthrough issues"
+id="CNEEJCPIOLHKIOFNFJDPCEOOCCAA.lisa@xythos.com"
+charset="iso-8859-1"
+inreplyto="DeltaV Passthrough issues"
+expires="-1"
+
+To:"Ietf-Dav-Versioning@W3. Org"<ietf-dav-versioning@w3.org>
+
+
+In an earlier mail, Geoff said:
+"   From: "Lisa Dusseault" <lisa@xythos.com>
+
+   What about getting the DAV:version property for the base resource,
+which
+   if pass-through is working to the current target, should result in
+   getting the DAV:version for the current target?
+
+I'm not sure what you mean by "if pass-through is working to the
+current target",  but in any case, as Greg pointed out, if you
+want the version URL for the DAV:checked-in or DAV:checked-out
+version of a version-controlled resource, you get that from the
+DAV:checked-in and DAV:checked-out property value.  There's no
+need to have a second way of getting the same information."
+
+What I meant by "passthrough" is what has been talked about before in
+the context of redirect resources, and now seems to be a feature of
+versioning.  To recap:  When new kinds of resources that have targets,
+like "Direct Reference Resources" or "Version controlled Resources"
+(DRR/VCR), are exposed to clients that are not familiar with the new
+kinds of resources, it's often beneficial to allow some of the methods
+the client may send to "pass through" to the target of DRR/VCR.  Also,
+when RR/VCRs exist in collections along with ordinary resources,
+PROPFIND can usefully show properties of the target resources, along
+with properties of the DRR/VCR itself. So when I do a PROPFIND depth 1
+on a directory asking for the "DAV:content-length" property, it would be
+useful for me to see the content-length of ordinary resources, the
+content-length of the targets of links, and the content-length of the
+target version of each VCR.  I thought this was called "passthrough"
+when bindings were being discussed, but apparently is no longer refered
+to in this way.
+
+Anyway, the idea for bindings at one time was to allow some kind of
+reference resource to exist, which when queried, would respond "as if"
+it was the target resource.  However, sometimes the client wants to
+address the reference resource directly.  The server needs to know if
+the client is addressing the reference resource, or the target of the
+reference resource.  Thus, the "Apply-To-Redirect-Ref" header was
+defined.  If the client includes this header, e.g. with a DELETE, the
+server can understand this to mean that the client wishes to delete the
+redirect reference itself, rather than get redirected to the target
+reference.
+
+All of this applies to versioning, because with the current state of the
+draft, it's clear that a VCR is a kind of reference resource.  I quote:
+
+"A PUT or PROPPATCH to a version-controlled resource with the
+DAV:auto-version property set will automatically check out that resource
+prior to executing the PUT or PROPPATCH.  If that resource is
+write-locked, the resource remains checked-out until the resource is
+unlocked, at which time the resource is checked in and a new version is
+created in the version history of that resource."
+
+"For certain methods (e.g. GET, PROPFIND), if the request-URL identifies
+a version-controlled resource, a label can be specified in a Label
+request header to cause the method to be applied to the version selected
+by that label from the version history of that version-controlled
+resource."
+
+This means that PUT and PROPPATCH are ALWAYS parsed as applying to the
+version (passthrough), even though the URL was to the VCR.   It also
+means that GET and PROPFIND _sometimes_ apply to the version
+(passthrough).
+
+It's not as clear what other methods are applied to.  It seems MOVE
+source is defined as the VCR (no passthrough), but the COPY source is
+the defined as the default version.  The language all seems to imply
+that a COPY when the source URL is a VCR should be interpreted as
+copying the latest version from the source, to the destination.
+
+The consequence of a model that supports "pass through" to the target of
+a reference resource is that the model must specify clearly when
+passthrough occurs, and when it doesn't.  In addition:
+ - What methods the Label: header can apply to (and what it _can't_)
+ - When the label header is absent, for each method, what does it apply
+to -- the VCR or the target version?
+ - Whether there is a way of overriding the default assumption of what
+the method applies to
+
+Some of the specific questions that came up when I was reading the spec:
+ - If any PROPPATCH to a VCR actually creates a new version; how does
+one proppatch the properties actually on a VCR, such as
+DAV:auto-version, DAV:predecessor-set and DAV:precursor-set, which
+aren't protected?
+ - If a PROPFIND with a Label: header is applied to a non
+version-controlled resource, what does "no effect" mean?  What happens
+if the specified label wasn't found -- does PROPFIND then return the
+properties of the target version?  Or the VCR?
+ - Does a PROPFIND to a VCR result ever result in a merge of the
+properties of the VCR and its target version?
+ - Since COPY seems to always get its content from a single version, I
+would say that "passthrough" always seems to be on for COPY.  Is there
+any way of NOT doing passthrough with COPY?  I.e, is there any way of
+copying a VCR along with its VHR and VRs?  This would result in two
+VCRs, two VHs and 2*n VRs, which would be the same initially, but could
+diverge after.
+
+A related issue is one I brought up in a separate mail, but I'll explain
+the relationship here too:  how does one define properties which apply
+not to an individual version, but to the whole shebang -- to the VCR,
+VHR and all VRs?  An example is "owner", which in its meaning of "the
+person responsible for this resource", can be taken to mean that when
+ownership of a VCR is transferred the new owner becomes responsible for
+all old versions related to the VCR.  No?  But we can't go about
+changing properties of old versions...
+
+Lisa
+
+
+

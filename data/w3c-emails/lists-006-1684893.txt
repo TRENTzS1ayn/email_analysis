@@ -1,0 +1,134 @@
+docno="lists-006-1684893"
+received="Tue Jun 12 21:03:20 2001"
+isoreceived="20010613010320"
+sent="Tue, 12 Jun 2001 21:08:22 -0400"
+isosent="20010613010822"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Confusion: Removing a resource from version control"
+id="3906C56A7BD1F54593344C05BD1374B10350A032@SUS-MA1IT01"
+inreplyto="Confusion: Removing a resource from version control"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: John Hall [mailto:johnhall@evergo.net]
+
+   I was not planning on implementing a version-history feature.  I
+   see absolutely no problems with supporting the working resource
+   feature with anything I've said.
+
+Rick's point was that if you are also supporting the workspace
+feature, since you will have many version-controlled resources for the
+same version history, you need to decouple the lifetime of a version
+history (and version) resource from the lifetime of any of the
+version-controlled resources that might refer to it.
+
+The protocol has to be consistent in how it acts under any combination
+of features, so you cannot have a DELETE of a version-controlled
+resource do incompatible things depending on what feature set is
+supported by the server.  (Well, you could, but then writing an
+interoperable client becomes infeasible).
+
+   I wasn't planning on supporting
+   workspaces, but I don't see any problems there that aren't inherent
+   in being able to delete individual versions.
+
+If a client explicitly deletes a version resource, it knows what
+it is doing.  In the case of your client that wants to destroy
+all old versions, it can certainly do so (and in fact, if your
+server supports version history resources, it can do so by issuing
+a single delete against the version history resource).
+
+But a versioning *unaware* clients will also be issuing a DELETE
+against a version-controlled resource on a versioning server that
+supports workspaces, and reasonable behavior must result.  Blowing
+away all versions of that resources from all other workspaces is not a
+reasonable result.
+
+   Although you can keep an object around that allows you to retrieve
+   the version history of a completely deleted resource, I don't
+   understand how that can be done without eventual name collisions.
+
+Keep a counter, or any other kind of GUID generator.  According to the
+protocol, each new version MUST be given its own unique URL.  A long
+email thread about 3 months ago let to this consensus, although not
+unanimous, decision.
+
+   Say I create foo/bar.txt as a version controlled resource.  If I
+   wanted a separate version history object, I could put it in some
+   place like /vhist/foo/bar.txt Now someone wants to delete
+   foo/bar.txt -- OK, I delete it but not /vhist/foo/bar.txt
+
+   That works until someone tries to create a new foo/bar.txt that
+   they wish to be a version controlled resource.  I have a collision
+   with /vhist/foo/bar.txt and THIS foo/bar.txt is completely distinct
+   from the original.
+
+This just means you have to add some GUID to the version history
+resource (and the version resource) URL's.  So you'd keep a counter
+at /vhist, bumping it each time you create a new version history
+resource.  So the version history for foo/bar.txt would be
+something like /vhist/foo/bar.txt;3456 while the later version
+history for foo/bar.txt would be something like /vhist/foo/bar.txt;8322
+
+All the details are in the old email thread, but the basic reason
+is that the ability to have reliable URL's to old versions outweighed
+the additional implementation cost of requiring that GUID's be
+added to version history and version URL's.
+
+Cheers,
+Geoff
+
+
+   From: Rick Rupp [mailto:Rick.Rupp@merant.com] 
+
+   I disagree that version history should be deleted if you delete the
+   version controlled resource. Section 5 of the draft clearly states
+   the version history resource exists in a server defined namespace
+   and therefore is unaffected by any deletion or movement of a
+   version controlled resource.  If you require the version history to
+   be deleted you will cause serious problems for a server that
+   supports the workspace and working resource feature.
+
+
+   From: John Hall [mailto:johnhall@evergo.net] 
+
+   When you DELETE a version-controlled resource, I strongly believe
+   that all information for that VCR and all versions already created
+   should go to the great bit bucket in the sky.  As I understand your
+   formulation, I would have severe problems in modifying my DAV
+   server (with versioning support) to support DELTAV using this
+   behavior.  I would prefer this formulation / behavior:
+
+   "In order to remove a resource at a given URL from version control,
+   the client can replace the resource under version control with a
+   non-version-controlled copy of that resource.  For example, a
+   client can COPY the version-controlled resource to a temporary
+   location, DELETE the version-controlled resource, and then MOVE the
+   copy from the temporary location back to the original URL.  Note
+   that the versions already created for the version-controlled
+   resource will NO LONGER BE AVAILABLE.  If you wish to remove a
+   resource at a given URL from version control while also retaining a
+   previous revision history, then you should MOVE the resource to a
+   new save location and COPY the current version back to the original
+   URL."
+
+   ========== 
+
+   My formulation is based explicitly on the idea that some
+   implementations and some customers are not keeping track of legal
+   documents and therefore deleting old versions is highly desired if
+   not required.  A server shouldn't be forced to keep data that a
+   client is willing to specifically state that it doesn't want.  I
+   think a far better manner of achieving your goals is simply to
+   allow the VERSION-CONTROL method to turn version-control for a
+   resource at a given URL off (if supported by the server).  That
+   allows you to achieve your above objectives (no new versions, but
+   keep the old ones at the same URLs) without changing the usefulness
+   of the DELETE command.
+
+
+

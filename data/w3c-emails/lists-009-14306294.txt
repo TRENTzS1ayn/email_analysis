@@ -1,0 +1,120 @@
+docno="lists-009-14306294"
+received="Fri Dec 22 02:35:20 1995"
+isoreceived="19951222073520"
+sent="Thu, 21 Dec 95 16:59 GMT"
+isosent="19951221165900"
+name="David Robinson"
+email="drtr1@cus.cam.ac.uk"
+subject="Mirroring"
+id="m0tSoL2000DJMC@ursa.cus.cam.ac.uk"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:martin@mrrl.lut.ac.uk
+
+Some thoughts about mirroring, from a message originally in www-talk.
+
+>From: Martin Hamilton <martin@mrrl.lut.ac.uk>
+>
+>I was just wondering whether there are any HTTP servers out there
+>which let the server admin configure redirects based on the
+>client's domain name.  This seems like a neat way to make browsers
+>automatically use "nearby" mirror sites, without having to go
+>round tweaking all the clients.  Obviously it would only be useful
+>if you take the trouble to figure out the client's domain name
+>
+>e.g. to re-direct accesses to everything at http://www.apache.org/
+>to an appropriate mirror site, you would want to put something like
+>this in your server config
+>
+>  RedirectDomain / http://Bond.edu.au/External/Misc/apache/ .au .nz
+>    .jp .kr .cn
+>  RedirectDomain / http://iuinfo.tuwien.ac.at/apache/ .at .de .dk
+>  RedirectDomain / http://sunsite.mff.cuni.cz/web/apache/ .cz
+>  RedirectDomain / http://sunsite.icm.edu.pl/pub/www/apache/ .pl
+>  RedirectDomain / http://sunsite.doc.ic.ac.uk/packages/apache/ .uk
+>    .fr .be
+>
+>(etc...!)
+>
+>If nobody else is working on this sort of thing, I might have a
+>stab at hacking this into the NCSA and Apache servers
+
+I replied:
+>Rather than trying to force the client to use the server that you think
+>would be best for it, it would seem better to provide data to allow the
+>client to choose.
+
+And I mentioned the URI: {mirror "url"}, {mirror "url2"} header as providing
+this. However, I've subsequently had some thoughts on this.
+
+Firstly, some general complaints about URI:; why is it so overloaded?
+It provides two pretty distinct features. Firstly, the information required
+for client/proxy-based content negotiation. Secondly, a list of other URLs that
+identify the resource. Also, what on earth does URI: {name "url"} mean? What
+is a `location-independent name corresponding to the Request-URI'? Independent
+of whose location?
+
+Apart from these concerns, I don't think the URI: {mirror} feature provides
+what it is needed for effective mirroring.
+
+How does mirroring currently work?
+
+A site copies the web pages from a master, usually via ftp. It does not
+usually copy CGI scripts, or modify the pages. So admins arrange for the
+pages to have relative links to one another, but to have absolute links
+to any CGI scripts (e.g. bug report forms). For example, from the Apache
+web page bug_report.html:
+...
+<IMG SRC="images/apache_sub.gif" ALT="">
+<H2>Apache Bug Reporting Page</H2>
+...
+<OL>
+<LI>Made sure the bug exists in <A href="dist/">the most recent version</A> of
+Apache.
+...
+<FORM METHOD="POST" ACTION="http://www.apache.org/bugs.cgi">
+
+What protocol support is needed for automatic use of mirrors?
+
+Firstly, note that if http://xxxx/adir/ is mirrored at http://yyyy/bdir/, one
+_cannot_ assume that http://xxxx/adir/subres is similarly mirrored.
+Secondly, note that by the time you download a document, it may be
+too late to use any information about mirrors for the document.
+(Unless you do a HEAD, or the body is slow to transfer.)
+
+So I suggest the following:
+
+Mirror: primary-URI " " 1*secondary-URI
+
+the header says that any of the secondary URIs may be used instead of
+the primary URI in any context, or vice versa. The header is for informational
+purposes. (Rather like the additional information given by a DNS server.)
+Typically, one of the URIs will be the URI requested by the client.
+
+Typical use:
+Client requests http://www.apache.org/; it receives the request with
+Mirror: http://www.apache.org/ http://iuinfo.tuwien.ac.at/apache/
+        http://sunsite.mfff.cuni.cz/web/apache/
+
+If the user then presses on this anchor
+<IMG SRC="images/orange_ball.gif" alt="o">
+ <A HREF="info.html">Background Information</A><BR>
+
+Then the client may access ./info.html relative to any of the mirror URLs
+e.g. http://iuinfo.tuwien.ac.at/apache/, and so retrieve
+http://iuinfo.tuwien.ac.at/apache/info.html
+receiving the header:
+Mirror: http://www.apache.org/info.html
+        http://iuinfo.tuwien.ac.at/apache/info.html
+        http://sunsite.mfff.cuni.cz/web/apache/info.html
+
+If the server sends a Base: or Location: (or even a URI: header) then
+it may wish to add a Mirror: header for the client's information.
+Thus the Mirror: header can be applied to any URI passed in HTTP headers.
+
+ David Robinson.
+
+
+

@@ -1,0 +1,203 @@
+docno="lists-035-14565973"
+received="Mon Sep 24 10:41:00 2001"
+isoreceived="20010924144100"
+sent="Mon, 24 Sep 2001 11:29:09 +0100"
+isosent="20010924102909"
+name="Graham Klyne"
+email="GK@ninebynine.org"
+subject="Re: IURIs, URIs, CHARMOD"
+id="5.1.0.14.2.20010924112412.03ee2ac0@joy.songbird.com"
+charset="us-ascii"
+inreplyto="3BAF022B.51C90686&#64;hplb.hpl.hp.com"
+expires="-1"
+
+
+To: Jeremy Carroll<jjc@hplb.hpl.hp.com>
+Cc:uri@w3.org
+
+Two comments:
+
+>All refs to [RFC 2396] include the extension given by [RFC 2732]
+
+(a) I don't see what significance RFC 2732 has regarding this I18N 
+debate.  Or am I missing something?
+
+>IRI decoding algorithm
+[...]
+>The output MAY be a UTF-8 encoded string.
+
+(b) If specifications are going to be changed to allow IRIs, then I think 
+the opportunity should also be grasped to insist that the octet-sequence 
+encoding of an IRI MUST BE UTF-8.
+
+#g
+--
+
+At 10:51 AM 9/24/01 +0100, Jeremy Carroll wrote:
+
+>I have been reading charmod to try and understand what the RDF core
+>working
+>group should do vis-a-vis internationalization.
+>
+>I am multiply posting this to uri@w3.org and www-i18n-comments@w3.org
+>(It is unclear to me which is the more appropriate forum).
+>
+>I had some comments on the URI encoding.
+>
+>These are specifically motivated by the problem of international URIs in
+>XML Namespace declarations, and I think, give a workable proposal for
+>how
+>to resolve the need to escape the forbidden US-ASCII characters in some
+>contexts but not in others, as well as providing a backwardly compatible
+>migration path from URI to IRI.
+>
+>I first give my sense of the problem domain, than my proposal along with
+>two algorithms, then some comment.
+>
+>All refs to [RFC 2396] include the extension given by [RFC 2732]
+>
+>The CHARMOD ref is the last call working draft from early this year.
+>http://www.w3.org/TR/2001/WD-charmod-20010126
+>
+>==============
+>
+>Problem statement.
+>
+>(A) When internationalizing URIs, in some contexts it is preferred to
+>     continue to exclude the excluded charcaters of RFC 2396 section
+>2.4.3,
+>     in other contexts (e.g. XML attributes), other escaping mechanism
+>     make this unnecessary.
+>
+>(B) In many contexts there is a significant legacy problem, e.g. XML
+>     Namespace declarations. Here the defining specifications require the
+>     use of URIs from RFC 2396. In practice, applications copy strings
+>     without processing them, and hence work just as well with any other
+>     (internationalized) URI specification. But if a document contains
+>     an arbitrary string how should it be encoded. Should a URI-escaping
+>     algorithm be applied or not.
+>
+>Insight:
+>    Actually URI escaping is not problematic if we never escape '%'.
+>    In this case we can apply URI-escaping to an already escaped, or
+>    to a partially escaped, URI and get the right answer. Thus the
+>    only requirement on URI authors is that they escape literal '%'
+>    as "%25"; they may escape any other characters (although it is
+>    unwise to escape the US-ASCII unreserved characters).
+>
+>==================
+>
+>Proposal:
+>    An IRI is any string in any encoding such that:
+>    + every '%' is followed by two hexadecimal characters '0' - '9'
+>      and 'a' - 'f' and 'A' - 'F'
+>    + applying the IRI encoding algorithm below creates an RFC 2396
+>      URI.
+>
+>       NOTE: representing a literal '%' character in an IRI is
+>       usually done using the string '%25'. All other characters
+>       can usually be represented as themselves.
+>
+>
+>IRI encoding algorithm (slightly modified from
+>draft-masinter-url-i18n-05.txt)
+>
+>1) Represent the IURI characters as a sequence of ISO 10646
+>    characters.
+>2) If the original encoding was not UCS-based, normalize the character
+>    sequence according to Normalization Form C as defined in [UNI15]
+>    and [IETFNorm].
+>3) For each character that is syntactically not allowed by the
+>    generic URI syntax (all non-ASCII characters, plus the excluded
+>    characters in [RFC 2396, Section 2.4.3] except "#" and "%"
+>    (and "[" and "]"), apply the following:
+>    3.1) Convert the character to a sequence of one or more bytes
+>         using UTF-8 [RFC 2279].
+>    3.2) Escape each of the bytes in the sequence with the URI
+>         escaping mechanism [RFC 2396, Section 2.4.1] (i.e. convert
+>         each byte to %HH, where HH is the hexadecimal notation of
+>         the byte value using upper case 'A' - 'F' and not lower case
+>         'a' - 'f').
+>    3.3) Replace the original non-allowed character by the resulting
+>         character sequence.
+>4) For each '%':
+>    - if it is followed by two characters from the set:
+>      { '0' - '9', 'a' - 'f', 'A' - 'F' }
+>      replace by the upper case variants of the two characters.
+>    - otherwise flag an error.
+>
+>
+>IRI decoding algorithm (for use for human display - not machine
+>processing)
+>
+>1) Leave each sequence "%25" unchanged.
+>2) For every other '%' replace by the byte value indicated by
+>    the following two hexadecimal digits.
+>3) Leave every other character unchanged.
+>
+>The output MAY be a UTF-8 encoded string.
+>
+>=============================
+>
+>Observations
+>------------
+>
+>By clarifying the special role of '%' it is clear that the escaping
+>algorithm (which I believe is the usual one) is idempotent. That is,
+>we do not need to know that it has not been applied before, because
+>escaping an already escaped IRI has no effect.
+>
+>It is useful (but not necessary) to be able to reverse such an encoding,
+>the IRI decoding algorithm does this. Notice the special treatment of
+>"%31" the encoding of '%'.
+>
+>A server that needs to fetch a URL (for example) needs to use the normal
+>RFC2396 decoding algorithm in which '%31' is decoded as '% and the
+>character
+>encoding is defined by the server and is not in general UTF-8.
+>
+>The 2nd step in the encoding algorithm clarifies the *early*
+>normalization
+>of UCS-based strings, in accordance with CHARMOD.
+>
+>URIs that are encoded in a non-UTF-8 encoding can be used as IRI's under
+>this proposal; however the IRI decoding algorithm will work incorrectly.
+>
+>Partially encoded IRIs (e.g. such as those encoding the unwise
+>characters of
+>RFC 2396) are IRIs under this proposal. Encoding the partially encoded
+>IRI
+>has the desired effect of creating a fully encoded IRI, that is
+>identical
+>to that reached by fully encoding the completed unencoded IRI.
+>
+>Any URI (potentially with '%HH' sequences) is an IRI under this
+>proposal,
+>and IRI-encoding it leaves it unchanged (except capitilizing any "%hh"
+>pairs).
+>
+>The clarification of step 3.2 in the algorithm to use upper case hex
+>digits
+>is intended to help in contexts such as RDF in which the binary
+>comparison
+>of (encoded) URIs is intended as the test for URI equality.
+>
+>For URIs intended for servers using non-UTF8 encoding, the IRIs may
+>encode
+>% in a way other than %25, and may require encoding of many more
+>characters.
+>All such encodings will be compatible with RFC2396, and can then be
+>IRI-encoded as in this proposal without changing them.
+>
+>
+>
+>Jeremy Carroll
+>HP Labs
+>RDF Core Working Group (this message has NOT been discussed by this WG).
+
+------------
+Graham Klyne
+GK@NineByNine.org
+
+
+

@@ -1,0 +1,188 @@
+docno="lists-011-5503862"
+received="Thu Jul 24 14:03:47 1997"
+isoreceived="19970724180347"
+sent="Thu, 24 Jul 97 13:53:59 MDT"
+isosent="19970724195359"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Proposed resolution for IDEMPOTENT issue"
+id="9707242054.AA13614@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Reference:
+http://www.w3.org/pub/WWW/Protocols/HTTP/Issues/#IDEMPOTENT
+
+This section:
+
+   9.1.2 Idempotent Methods
+
+   Methods may also have the property of "idempotence" in that (aside
+   from error or expiration issues) the side-effects of  N > 0 identical
+   requests is the same as for a single request. The methods GET, HEAD,
+   PUT and DELETE share this property.
+
+is misleading.  The problem is that, in some context, what matters
+is not whether a given method is idempotent, but whether a sequence
+of operations is.
+
+Here's an example: assume that we have resources RA, RB, and RC.  Assume
+that the sequence of operations the client wants to do is to copy
+the value of RA into RC, then copy the value of RB into RA.  I.e.,
+at the end of this sequence, the client wants the final value of
+RC to be the initial value of RA.
+
+I'll use a simplified "object oriented" notation to describe this
+sequence of operations:
+
+(1)Step 1:x := RA.GET();
+Step 2:RC.PUT(x);
+Step 3: y := RB.GET();
+Step 4: RA.PUT(y);
+
+Now, if we simply carry out this sequence (1) exactly as written,
+it does what we want.  Moreover, if we repeat any step(s) in
+the sequence, it still works.  E.g., this:
+
+(2)Step 1:x := RA.GET();
+Step 2:RC.PUT(x);
+Step 3:RC.PUT(x);
+Step 4:RC.PUT(x);
+Step 5:RC.PUT(x);
+Step 6:RC.PUT(x);
+Step 7: y := RB.GET();
+Step 8: RA.PUT(y);
+
+does the same thing as sequence 1.  This is because, as stated
+in RFC2068, PUT is idempotent ... but only when viewed in isolation.
+
+However, if we repeat the entire sequence 1:
+
+(3)Step 1:x := RA.GET();
+Step 2:RC.PUT(x);
+Step 3: y := RB.GET();
+Step 4: RA.PUT(y);
+
+Step 5:x := RA.GET();
+Step 6:RC.PUT(x);
+Step 7: y := RB.GET();
+Step 8: RA.PUT(y);
+
+we now end up with RC containing the initial value of RB, not
+the initial value of RA.  I.e., the sequence is not idempotent,
+even if the individual methods are.
+
+Why does this matter to HTTP?  First, note that we cannot prevent a
+situation where the client does not know for sure if the server has
+carried out a certain request.  E.g., the server may have sent the
+response, but it might have been lost due to a communication failure.
+In particular, when the server closes a persistent connection before a
+client has received a response to a request in progress, it's
+impossible for the client to be sure that the request wasn't actually
+completed.  (This is "impossible" in a provable, theoretical sense.)
+
+This is why section 8.1.4 says that clients SHOULD automatically
+retry idempotent requests.  If you try it enough times, sooner
+or later you should get a definite response.
+
+Since we allow pipelining of requests, however, it's crucially
+important that a client not automatically retry an non-idempotent
+sequence of requests, since this could lead to the execution
+of something like sequence 3.
+
+Proposed solution:
+
+(1) Replace section 9.1.2 with:
+
+   9.1.2 Idempotent Methods and Sequences
+
+   Methods may also have the property of "idempotence" in that (aside
+   from error or expiration issues) the side effects of  N > 0
+   identical requests is the same as for a single request. The methods
+   GET, HEAD, PUT, and DELETE share this property.  Also, the methods
+   OPTIONS and TRACE should have no side effects, and so are inherently
+   idempotent.
+
+   However, it is possible that a sequence of several requests is
+   non-idempotent, even if all of the methods executed in that sequence
+   are idempotent.  (A sequence is idempotent if a single execution of
+   the entire sequence always yields a result that is not changed by a
+   reexecution of all, or part, of that sequence.)  For example, a
+   sequence is non-idempotent if its result depends on a value that is
+   later modified in the same sequence.
+   
+   A sequence that never has side effects is idempotent, by definition
+   (provided that no concurrent operations are being executed on the
+   same set of resources).
+
+(2) In section 8.1.4 (Practical Considerations), replace
+
+   This means that clients, servers, and proxies MUST be able to recover
+   from asynchronous close events. Client software SHOULD reopen the
+   transport connection and retransmit the aborted request without user
+   interaction so long as the request method is idempotent (see section
+   9.1.2); other methods MUST NOT be automatically retried, although
+   user agents MAY offer a human operator the choice of retrying the
+   request.
+
+with
+
+   This means that clients, servers, and proxies MUST be able to
+   recover from asynchronous close events. Client software SHOULD
+   reopen the transport connection and retransmit the aborted sequence
+   of requests without user interaction, so long as the request
+   sequence is idempotent (see section 9.1.2); non-idempotent methods
+   or sequences MUST NOT be automatically retried, although user agents
+   MAY offer a human operator the choice of retrying the request.
+
+(3) In the proposed resolution for the STATUS100 issue, at
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q3/0208.html
+
+replace
+
+   8.2.3 Automatic retrying of requests
+
+   If a user agent sees the transport connection close before it
+   receives a final response to its request, if the request method is
+   idempotent (see section 9.1.2), the user agent SHOULD retry the
+   request without user interaction.  If the request method is not
+   idempotent, the user agent SHOULD NOT retry the request without user
+   confirmation.  (Confirmation by user-agent software with semantic
+   understanding of the application MAY substitute for user
+   confirmation.)
+
+with
+
+   8.2.3 Automatic retrying of requests
+
+   If a user agent sees the transport connection close before it
+   receives a final response to its request, if the request sequence is
+   idempotent (see section 9.1.2), the user agent SHOULD retry the
+   request sequence without user interaction.  If the request sequence
+   is not idempotent, the user agent MUST NOT retry the request
+   sequence without user confirmation.  (Confirmation by user-agent
+   software with semantic understanding of the application MAY
+   substitute for user confirmation.)
+
+(4) Note that the proposed resolution for the STATUS100 issue, at
+        http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q3/0208.html
+includes this, to be added at the end of 8.1.2.2 (Pipelining):
+
+   Clients SHOULD NOT pipeline requests using non-idempotent methods or
+   non-idempotent sequences of methods (see section 9.1.2).  Otherwise,
+   a premature termination of the transport connection may lead to
+   indeterminate results.  A client wishing to send a non-idempotent
+   request SHOULD wait to send that request until it has received the
+   response status for the previous request.
+
+If clients obey this restriction, then they won't find themselves
+in a situation where they would be tempted to retry a non-idempotent
+sequence.  However, I think it is best to leave this as "SHOULD NOT
+pipeline a non-idempotent sequence, MUST NOT auto-retry if that fails".
+
+-Jeff
+
+
+

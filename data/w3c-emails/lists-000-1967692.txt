@@ -1,0 +1,210 @@
+docno="lists-000-1967692"
+received="Sat Jul 10 21:21:34 1999"
+isoreceived="19990711012134"
+sent="Sat, 10 Jul 1999 18:16:55 -0700"
+isosent="19990711011655"
+name="Terry Teague"
+email="teague@macbroker.com"
+subject="Tidy Porting issues"
+id="l03130300b3ad889c6f6d@[17.219.105.194]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dear Folks,
+
+As promised earlier, here is a list of issues I have run into while porting
+"tidy" to Mac OS, with the hope that maybe Dave can make changes to the
+base source code to make my (and possibly other peoples') life easier.
+
+1) Minor bugs in the "tidy" base source code :
+
+(a) attrs.c - line 18
+
+Attribute *attr_usemap;
+
+This line is a repeat of the line above it (line 17). It does no harm, but
+could be removed.
+
+2) Platform OS/Development Environment specific porting issues :
+
+(a) in platform.h, newer versions of "tidy" do :
+
+#include <malloc.h>
+
+Standard ANSI C (as per K&R) and my development environment (Metrowerks
+Standard Library) don't have a "malloc.h", but rather declare the memory
+allocation functions in "stdlib.h".
+
+I simply changed the #include to :
+
+#ifdef NEEDS_MALLOC_H
+#include <malloc.h>
+#endif
+
+(b) Because I take advantage of pre-compiled headers for the Mac OS
+Toolbox, there are a couple of conflicts between "tidy" and the Mac OS
+ToolBox ("Universal Headers"). Specifically :
+
+html.h :
+
+typedef struct _style Style;
+
+conflicts with the Mac OS ToolBox Text Style structure. I changed the line to :
+
+typedef struct _style tStyle;/* TRT */
+
+and replaced every occurence in the "tidy" base source code of "Style" with
+"tStyle".
+
+char *EntityName(uint n);
+
+conflicts with the Mac OS ToolBox AppleTalk Networking EntityName
+structure. I changed the line to :
+
+char *tEntityName(uint n);/* TRT */
+
+and replaced every occurence in the "tidy" base source code of "EntityName"
+with "tEntityName".
+
+One way to avoid this problem for all platforms would be to name all "tidy"
+types, variables, functions, etc with a prefix (e.g. HT_   for "HTMLTidy").
+
+(c) While no longer part of the standard "tidy" base source code, I
+continue to use "memory.c" for all my memory allocation functions. I have
+heavily modified this file for my needs. I have also modified "platform.h"
+and "tidy.c" to handle debug and non-debug versions of memory allocators,
+now found in "memory.c".
+
+I believe one of the first problems I ran into was an apparent non-portable
+#define in "memory.c" :
+
+#define BLKHDR   16
+
+I changed this to :
+
+#define BLKHDR   sizeof(struct _memlink) - sizeof(uint)/* TRT */
+
+(d) If I try to compile the "tidy" base source code with a C++ compiler (my
+application is written in C++, and for debugging purposes I can include the
+"tidy" base source code directly in the build of the application), I get
+various syntax errors. The "tidy" base source code could probably be
+changed so it compiles with C++, but I work around the problem, by
+including the following early in "platform.h" :
+
+/* TRT */
+#ifdef__cplusplus
+
+#pragmacplusplus off
+#undef__cplusplus
+#endif
+
+(e) Line termination :
+
+While the "tidy" base source code tries to do a good job with handling line
+termination (linefeed, carriage return), I ran into some problems with
+early versions of "tidy" that I couldn't find an easy way of addressing in
+the base source code (probably because I didn't understand the source so
+well originally).
+
+Fortunately my development environment allows me (relatively easily) to map
+the "\n" and "\r" characters to 1 of 2 possible encodings, and this helps,
+but for best results, the input HTML files should be using line termination
+specific to the Mac OS platform.
+
+I don't know if there is an easy answer to this issue.
+
+3) Application Environment specific porting issues :
+
+(a) "stdio" :
+
+Because my application is a graphical user interface (GUI) based
+application environment I don't use standard C I/O ("stdio") for providing
+the I/O. So I had to provide equivalent functionality, and change the
+"tidy" base source code in a lot of places to use my equivalents.
+
+The inclusion of "tidy_out()" was a good start in the right direction to
+make "tidy" truely portable, but I believe more could be done.
+
+What I would like to see (if possible) are macros (or typedefs and wrapper
+functions) in "platform.h" that look like "stdio", and by default use
+"stdio", but can easily be changed to a different implementation, by simply
+changing the code in one place ("html.h"), and providing the alternate
+implementation.
+
+For example, these are basically the changes I made in "platform.h" (I
+changed the names slightly for the purpose of this EMail) :
+
+FILE *fp;
+becomes
+tFile *fp;/* TRT */
+
+and "tFile" is my specific implementation of a "FILE". I added the
+following functions :
+
+/* i/o functions */
+int tgetc(tFile * file);
+int tputc(int c, tFile * file);
+/* int tfprintf(tFile * file, const char * format, ...); */
+int tfeof(tFile * file);
+tFile * tfopen(const char * name, const char * mode);
+int tfflush(tFile * file);
+int tfclose(tFile * file);
+int tunlink(const char * name);
+
+these are my specific implementations of the "stdio" functions. I also
+provided that implementation.
+
+But the biggest job was globally replacing all the references to "stdio"
+throughout the "tidy" base source code with references to my
+implementation. The changing wasn't the big problem, but trying to upgrade
+from one version of "tidy" to a newer one, made life sometimes difficult
+and error prone. When the "tidy" base source code changes between versions
+are minor (as is the case recently), I have got the "science" down to an
+"art".
+
+But it would really make my job easier, if I only had to change the I/O
+implementation in 1 or 2 places. Admittedly I haven't tried the reverse
+approach - defining macros that redefine "stdio" types and functions - not
+sure how easy that would be, considering I still need some stuff from
+"stdio" - e.g. "sprintf()".
+
+(b) Command-line interface :
+
+Since my application is a GUI based application environment, I had no need
+for the command-line interface (CLI). Originally I emulated "argc" and
+"argv" to use the existing "tidy" base source code, but in the end I
+replaced the options processing with my specific implementation.
+
+This is not really an issue, just thought I would point it out as one more
+thing I do when porting "tidy".
+
+(c) Global variables :
+
+The use of global variables throughout the "tidy" base source code has made
+my life more difficult.
+
+Particularly the private "static" globals, especially the "hash tables"
+used in "attrs.c", "config.c", "entities.c", and "tags.c".
+
+I ended up changing the word "static" to "STATIC" and defining "STATIC" in
+"platform.h" as necessary. I also added an "EXTERN" definition for similar
+purposes. I renamed the "hash table" variables to have unique names (e.g.
+"ahashtab", "chashtab", "ehashtab", and "thashtab"), so I could make them
+"extern" without having duplicate definitions.
+
+There are a lot of other things I did, which are beyond the scope of this
+EMail (unless you are really interested in the gory details).
+
+Anyway, any improvements in this area would be greatly appreciated.
+
+
+
+This will do it for the moment.
+
+Regards, Terry
+
+
+

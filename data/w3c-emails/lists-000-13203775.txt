@@ -1,0 +1,132 @@
+docno="lists-000-13203775"
+received="Tue Jul 11 00:47:47 2000"
+isoreceived="20000711044747"
+sent="Mon, 10 Jul 2000 21:46:45 -0700"
+isosent="20000711044645"
+name="Gary L Peskin"
+email="garyp@firstech.com"
+subject="Wrapping scripts in CDATA for XHTML"
+id="396AA6B5.DED0407@firstech.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dave --
+
+I noticed the following on your "Notes on Pending Work" web page:
+
+"Omri Traub would like an option to wrap the contents of style and
+script elements in CDATA marked sections when converting to XHTML."
+
+I need the same support since validating XML parsers reject the
+currently produced Tidy output when a script contains && for example.
+
+I don't have a c compiler.  However, I've changed the java and it works
+for me.  The changes in the c code would look like this:
+
+In pprint.c, function PPrintTree, I've changed the code from this:
+
+        else if (node->tag == tag_style || node->tag == tag_script)
+        {
+            PCondFlushLine(fout, indent);
+
+            indent = 0;
+            PCondFlushLine(fout, indent);
+            PPrintTag(lexer, fout, mode, indent, node);
+            PFlushLine(fout, indent);
+
+            for (content = node->content;
+                    content != null;
+                    content = content->next)
+                PPrintTree(fout, (mode | PREFORMATTED | NOWRAP |CDATA),
+indent, lexer, content);
+
+            PCondFlushLine(fout, indent);
+            PPrintEndTag(fout, mode, indent, node);
+            PFlushLine(fout, indent);
+
+            if (IndentContent == no && node->next != null)
+                PFlushLine(fout, indent);
+        }
+
+to this:
+
+        else if (node->tag == tag_style || node->tag == tag_script)
+        {
+            PCondFlushLine(fout, indent);
+
+            indent = 0;
+            /*** not sure why this is here is it is immediately
+preceeded by
+                 PCondFlushLine
+            PCondFlushLine(fout, indent);   *****/
+            PPrintTag(lexer, fout, mode, indent, node);
+            PFlushLine(fout, indent);
+
+        /** start newly inserted code **/
+
+            if (xHTML) {
+              savewraplen = wraplen;
+              wraplen = 0xFFFFFF;   /* disable wrapping */
+              AddC('<', linelen++);
+              AddC('!', linelen++);
+              AddC('[', linelen++);
+              AddC('C', linelen++);
+              AddC('D', linelen++);
+              AddC('A', linelen++);
+              AddC('T', linelen++);
+              AddC('A', linelen++);
+              AddC('[', linelen++);
+              PCondFlushLine(fout, indent);
+              wraplen = savewraplen;
+            }
+
+        /** end newly inserted code **/
+
+            for (content = node->content;
+                    content != null;
+                    content = content->next)
+                PPrintTree(fout, (mode | PREFORMATTED | NOWRAP |CDATA),
+indent, lexer, content);
+
+            PCondFlushLine(fout, indent);
+
+        /** start newly inserted code **/
+
+            if (xHTML) {
+              savewraplen = wraplen;
+              wraplen = 0xFFFFFF;   /* disable wrapping */
+              AddC(']', linelen++);
+              AddC(']', linelen++);
+              AddC('>', linelen++);
+              PCondFlushLine(fout, indent);
+              wraplen = savewraplen;
+            }
+
+        /** end newly inserted code **/
+
+            PPrintEndTag(fout, mode, indent, node);
+            PFlushLine(fout, indent);
+
+            if (IndentContent == no && node->next != null)
+                PFlushLine(fout, indent);
+        }
+
+Also, I added 
+
+uint savewraplen;
+
+up at the top of the PPrintTree function, after 
+
+Node *content, *last;
+
+I'm not sure if this is the best way to report suggested code changes to
+you but, if there is some alternative procedure, I apologize for
+cluttering up the mailing list and will resubmit.
+
+Gary
+
+
+

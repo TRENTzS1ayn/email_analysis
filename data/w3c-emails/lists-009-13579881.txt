@@ -1,0 +1,106 @@
+docno="lists-009-13579881"
+received="Sun Dec 10 15:56:57 1995"
+isoreceived="19951210205657"
+sent="Sun, 10 Dec 1995 15:50:48 0800"
+isosent="19951210235048"
+name="Roy T. Fielding"
+email="fielding@avron.ICS.UCI.EDU"
+subject="Re: twophase send concerns"
+id="9512101550.aa18614@paris.ics.uci.edu"
+inreplyto="9512072031.AA00870&#64;acetes.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc: http working group<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+> Roy has taken a pessimistic approach to the byte-deluge problem.
+> In particular, every use of every method with a two-phase requirement
+> must pay either the arbitrary timeout period OR at least one
+> round-trip time.  In other words, by taking this approach, we
+> build in "extra" delay to every POST (etc.) invocation for millions
+> of users for many years.  Hmm.
+
+Yes, this is an excellent analysis of the tradeoffs.  However, it fails
+to consider that all of the two-phase methods are not speed-dependent:
+it is far more important to get it right the first time (before data
+is sent across the wire, if possible) then it is to save one or two
+round-trips.  Given that, it is okay to be pessimistic and
+pay for that round-trip every time.
+
+> So here's an alternate suggestion (mostly as a way to start people
+> thinking about additional suggestions, although I think it would
+> work).
+> 
+> If the server doesn't want to receive the large body,
+> it immediately replies with its 4xx or 5xx response,
+> and immediately closes (not resets) the connection.
+> 
+> If the client manages to read the 4xx or 5xx response,
+> it must honor it and should reflect it to the user.
+> 
+> If the client simply sees the transport connection
+> disappear, then the language in section 1.4, "Overall
+> Operation",
+>    Both clients and servers must be capable of handling cases
+>    where either party closes the connection prematurely, due to
+>    user action, automated time-out, or program failure. In any
+>    case, the closing of the connection by either or both
+>    parties always terminates the current request, regardless of
+>    its status.
+> applies with one variation:
+>    if the aborted request is a POST, PUT, PATCH, etc. (i.e.,
+>    any request with a non-empty entity body) then if the
+>    client repeats the aborted request, it MUST include
+>    the request-header:
+> Connection: two-phase
+>    and then follow Roy's two-phase protocol: wait for
+>    a response or for an specified timeout period before
+>    proceeding.
+> 
+> A client MAY use
+> Connection: two-phase
+> at other times, on its own initiative, but MUST use it
+> when repeating a request because of a prematurely-closed
+> connection.
+
+Yes, this might work also -- it depends on whether or not we are willing
+to send a bunch of data downstream before getting the response.  Slow start
+may not apply here, since this request may be in the middle of a persistent
+connection.
+
+> We might also want to do this:
+> Servers rejecting an entity-body for reasons of size
+> must respond with 
+> 413 Request too large
+> 
+> Once a client has received a 413 response from a server,
+> it SHOULD always use
+> Connection: two-phase
+> and the two-phase protocol with that server in the future.
+> This is actually not a big cost, because we know that
+> a server which has sent us a 413 response is an HTTP 1.1
+> server, and so the client should (almost?) never need to wait
+> much longer than one RTT for the two-phase mechanism
+> to complete.
+
+Yep, we should assign 413 for that error, and use Retry-After for
+cases when it is a temporary injunction -- both good ideas.
+
+> Several people have pointed out that 5 seconds seems like a
+> poor choice for a time.  It appears to be a compromise between
+> "give the server enough time to respond" and "don't delay too
+> long waiting for HTTP 1.0 servers, which won't send a Continue
+> response."  But in the optimistic approach, we only invoke the
+> N-second wait in the (hopefully) rare case of a prematurely
+> closed connection.  So N could be somewhat larger than 5 (say,
+> 10 or 20) without impacting the normal case.
+
+I don't think "poor choice" is the word -- it is an arbitrary choice
+based on typical overall request timeouts (30 seconds) and user
+annoyability (anything less than 10 seconds is probably okay) and the
+"normal" round-trip time of poor network connections over long
+distances.
+
+
+

@@ -1,0 +1,99 @@
+docno="lists-006-13397906"
+received="Fri Sep 14 18:22:00 2001"
+isoreceived="20010914222200"
+sent="Fri, 14 Sep 2001 15:25:34 -0700"
+isosent="20010914222534"
+name="Roy Seto"
+email="Roy.Seto@oracle.com"
+subject="Clarification of DAV:update-merge-set when rerunning MERGE"
+id="3BA283DE.13FDA2AD@oracle.com"
+charset="UTF-8"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+I'm looking at the behavior of the MERGE method when it is
+rerun. I'd like clarification of the DAV:update-merge-set
+postcondition in Section 11.2 for this scenario. 
+
+Specifically, if a merge target was already checked out
+before the second or later MERGE, and its DAV:merge-set or
+DAV:auto-merge-set already includes the merge source, does
+the merge target appear in a DAV:response XML element in the
+response body? 
+
+I feel this is ambiguous in draft-18. The
+DAV:update-merge-set postcondition does apply to this merge
+target, because it was already checked out before the MERGE,
+and its DAV:checked-out version is not a descendant of the
+merge source (assuming a client has not moved the merge
+source from DAV:merge-set to DAV:predecessor-set between the
+MERGE requests). However, the state of the merge target does
+not actually change in the second MERGE request, since
+adding a source to a DAV:merge-set which already contains it
+doesn't change the DAV:merge-set property.
+
+I prefer that the DAV:update-merge-set postcondition require
+the response body to include the merge target in this case.
+I think that makes it easier to implement clients that cache
+minimal state and support users who wish to restart the
+overall merge process where they left off.  Here is a use
+case:
+
+1. A user's client issues a MERGE request, including
+   the DAV:merge-set and DAV:auto-merge-set 
+   properties in the DAV:prop element of the request 
+   body. The client remembers the resources listed
+   in the response body which have nonempty 
+   DAV:merge-set or DAV:auto-merge-set properties.
+
+2. The user iterates through the conflict targets 
+   identified in step 1, performing a logical merge of 
+   their content and dead properties and moving merge 
+   sources from DAV:merge-set or DAV:auto-merge-set to 
+   DAV:predecessor-set as he or she modifies each 
+   checked-out target resource.
+
+3. Before the user is done with step 2, the client 
+   crashes and its state is lost, or the user wishes
+   to finish step 2 from a different client instance
+   in a different physical location. At this point,
+   the new client instance does not know the set of 
+   targets which still have nonempty DAV:merge-set
+   or DAV:auto-merge-set properties. If the client
+   can rerun MERGE with the same request-URI and
+   source, and be guaranteed to be given the set of 
+   targets with nonempty DAV:merge-set or 
+   DAV:auto-merge-set properties, this would be an 
+   attractive way to let the user continue where
+   he or she left off.
+
+Alternative options I considered for supporting restart:
+
+ - The client could do a PROPFIND Depth:infinity
+   and look for resources which have nonempty 
+   DAV:merge-set or DAV:auto-merge-set properties,
+   but it seems difficult to make this efficient.
+   It also requires the client to detect the restart
+   case and implement it with a different code path.
+
+ - The client could do a DASL query to optimize
+   the PROPFIND above if DASL were standardized.
+
+--
+
+I have a similar question about the behavior of the
+DAV:merge-preview REPORT after the corresponding MERGE has
+already been done. If a merge target requires a merge, and
+its DAV:merge-set or DAV:auto-merge-set already includes the
+merge source, does the response body include it in a
+DAV:conflict-preview element? (For reasons similar to the
+DAV:update-merge-set case, I prefer that it must.)
+
+
+Thanks,
+Roy
+
+
+

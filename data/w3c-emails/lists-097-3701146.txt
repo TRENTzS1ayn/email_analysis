@@ -1,0 +1,255 @@
+docno="lists-097-3701146"
+received="Thu Apr  4 15:04:45 2002"
+isoreceived="20020404200445"
+sent="Thu, 4 Apr 2002 15:04:43 -0500"
+isosent="20020404200443"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: Installing annotation server on Windows"
+id="20020404150443.A10139@w3.org"
+charset="us-ascii"
+inreplyto="4.3.2.7.1.20020312190921.00b3dad0&#64;pop3.demon.co.uk"
+expires="-1"
+
+To: Matthew Wilson<matthew@mjwilson.demon.co.uk>
+Cc:www-annotation@w3.org
+
+
+On Tue, Mar 12, 2002 at 07:19:36PM +0000, Matthew Wilson wrote:
+> Here is patch describing the changes I made to code to get the annotation 
+> server running (compiling, not fully functioning) on Windows NT.
+> 
+> Notes:
+> 1. Both access and annotate have the first line changed to point to the 
+> directory of the Perl executable. [-- In fact I've just noticed that access 
+> replaces the parameter with a new value. I meant to delete it, as in the 
+> annotate script.]
+
+declined [windowsTempDir] - I haven't put these patches in the main
+branch as I'd rather not do heuristics if perl has a notion of a
+system temp dir. It probably doesn't, and I'll probably end up testing
+directories, but oh well.
+
+> 2. Both access and annotate have the 'storeIn' parameter removed from the 
+> Debug constructor. This leaves the W3CDebugCGI object to determine the 
+> directory.
+
+declined - see windowsTempDir
+
+> 3. Fixed a small error in the namespace exception object (I think).
+
+incorporated
+
+> 4. Changed W3CDebugCGI to use the built-in time function instead of `date` 
+> (since the output of the `date` command is OS-dependent). (The only change 
+> here is that a numerical value of the day of the week is used instead of 
+> the name of the day of the week). This change should work cross-platform. 
+> Similarly the stuff with syscall is replaced by the use of the module 
+> Time::HiRes, available from CPAN and easily installed on Windows systems. 
+> Again this change should work cross-platform.
+
+incorporated [1]
+
+> 5. Changed W3CDebugCGI to default to the directory C:/temp instead of /tmp. 
+> Probably this should be changed to do some -d tests to try and find an 
+> existing directory.
+
+declined - see windowsTempDir
+
+> The configuration also needed some changing, in particular, in the Conf 
+> directory, a file annotate.prop was needed with an entry
+> 
+> auth.database.parms: -type => 'sdbm', -file => '[path to DBM user file]'
+
+excellent - you tracked down the db type!
+
+> The path here should use forward-slashes as a directory separator, not 
+> backslashes.
+> 
+> This still does not make the server fully functional. After POSTing a 
+> couple of annotations, trying to retrieve them gave the errors
+
+hopefully these are fixed now.
+
+> Error dumping
+> [http://localhost/annotate/attribution/1015861599.94000#genid1]:
+> unknown namespace: "W3C" '((?p W3C::Rdf::Uri=HASH(0x27bfacc) ?o)
+> Error dumping
+> [http://localhost/annotate/attribution/1015862081.618000#genid1]:
+> unknown namespace: "W3C" '((?p W3C::Rdf::Uri=HASH(0x27bb138) ?o)
+> 
+> Not sure why this is the case.
+
+These may be fixed now. I had a serialization problem in the main
+branch for an good while.
+Let me know.
+
+> Matthew
+> 
+> Index: perl/modules/W3C/Annotations/CGI/access
+> ===================================================================
+> RCS file: /sources/public/perl/modules/W3C/Annotations/CGI/access,v
+> retrieving revision 1.31
+> diff -u -r1.31 access
+> --- access2001/07/23 01:43:081.31
+> +++ access2002/03/12 12:40:52
+> @@ -1,4 +1,4 @@
+> -#!/usr/bin/perl
+> +#!D:/Perl/bin/perl
+> 
+>   ## accounts: an account administrator designed for use
+>   #  with the W3C Annotations project.
+> @@ -68,7 +68,7 @@
+>       eval {
+>   $W3C::Util::W3CDebugCGI::DEBUG_SESSION = $ARGV[1]; # use a session id 
+> like 957296047.909868;
+>   $query = new W3C::Util::W3CDebugCGI($0, $ARGV[0] eq 'DEBUG',
+> -    {-storeIn => '/tmp',
+> +    {-storeIn => 'C:/temp',
+>        -dieNoOpen => 1, -logExt => '.log',
+>        -rerun => 'w3c_rerun',
+>        -reconstruct => 'reconstruct'});
+> Index: perl/modules/W3C/Annotations/CGI/annotate
+> ===================================================================
+> RCS file: /sources/public/perl/modules/W3C/Annotations/CGI/annotate,v
+> retrieving revision 1.129
+> diff -u -r1.129 annotate
+> --- annotate2002/03/08 22:37:421.129
+> +++ annotate2002/03/12 12:40:52
+> @@ -1,4 +1,4 @@
+> -#!/usr/bin/perl
+> +#!D:/Perl/bin/perl
+> 
+>   ## W3C annotate - store annotations into, and query from, a persistant RDF DB
+> 
+> @@ -199,7 +199,6 @@
+>       $query = new W3C::Util::W3CDebugCGI($0, $ARGV[0] eq 'DEBUG',
+>   {-dieNoOpen => 1,
+>    -logExt => '.log',
+> - -storeIn => '/tmp',
+>    -rerun => 'w3c_rerun',
+>    -mergeQueryAndPOST => 1});
+> 
+> @@ -805,8 +804,8 @@
+>     <hr />
+>     <h2><a name=\"byUri\">Query Annotations</a></h2>
+>     <form method=\"get\" action=\"$selfUri\">
+> -    annotation to retreive: <input name=\"w3c_annotation\" size=55 
+> value=\"$displayAnnotationId\"><br>
+> -    body to retreive: <input name=\"w3c_body\" size=55 
+> value=\"$displayBodyId\"><br>
+> +    annotation to retrieve: <input name=\"w3c_annotation\" size=55 
+> value=\"$displayAnnotationId\"><br>
+> +    body to retrieve: <input name=\"w3c_body\" size=55 
+> value=\"$displayBodyId\"><br>
+>       uris to check for annotations: <input name=\"w3c_annotates\" size=55 
+> value=\"$displayAnnotates\"><br>
+>       threads: <input name=\"w3c_replyTree\" size=55 
+> value=\"$displayThread\"><br>
+>       <textarea name=\"w3c_algaeQuery\" rows=\"13\" 
+> cols=\"100\">$displayAlgaeQuery</textarea><br>
+
+so i don't spel so gude
+
+> Index: perl/modules/W3C/SAX/HandlerBase.pm
+> ===================================================================
+> RCS file: /sources/public/perl/modules/W3C/SAX/HandlerBase.pm,v
+> retrieving revision 1.41
+> diff -u -r1.41 HandlerBase.pm
+> --- HandlerBase.pm2001/12/17 17:55:291.41
+> +++ HandlerBase.pm2002/03/12 12:40:54
+> @@ -25,7 +25,7 @@
+>       my ($proto, @parms) = @_;
+>       my $class = ref($proto) || $proto;
+>       my $self = $class->SUPER::new(@parms);
+> -    $self->missingParm('-namespace') if (!$self->{-target});
+> +    $self->missingParm('-namespace') if (!$self->{-namespace});
+>       $self->fillInStackTrace;
+>       return $self;
+>   }
+
+fixed - not recorded in bug history
+
+> Index: perl/modules/W3C/Util/W3CDebugCGI.pm
+
+incorporated the following with one change:
+
+> ===================================================================
+> RCS file: /sources/public/perl/modules/W3C/Util/W3CDebugCGI.pm,v
+> retrieving revision 1.76
+> diff -u -r1.76 W3CDebugCGI.pm
+> --- W3CDebugCGI.pm2002/02/27 09:45:581.76
+> +++ W3CDebugCGI.pm2002/03/12 12:40:55
+> @@ -44,27 +44,25 @@
+>       $self = {%$headerLineOrNameOrSibling};
+>       $self->{ENTRY_TYPE} = $entryType;
+>   } else {
+> -    require 'sys/syscall.ph';
+> -    my $timestamp=pack('LL', ());
+> -    syscall( &SYS_gettimeofday, $timestamp, 0) != -1 ||
+> -&throw(new W3C::Util::Exception(-message => "gettimeofday: $!"));
+> -    my @timestamp = unpack('LL', $timestamp);
+> +    use Time::HiRes qw/gettimeofday/;
+> +        my @timestamp = gettimeofday();
+> +    $self->{SESSION_ID} = $timestamp[0].'.'.$timestamp[1];
+> +    my $timestamp = $self->{SESSION_ID}.' '.`date`;
+> +
+>       my $sessionId = $timestamp[0].'.'.$timestamp[1];
+> -    my $dateStr = `date`;
+> -    if ($dateStr !~ m/^(\w+) (\w+)\s+(\d+) (\d+):(\d+):(\d+) (?:(\w+) 
+> )?(\d+)$/) {
+> -&throw(new W3C::Util::Exception(-message => "bad date \"$dateStr\""));
+> -    }
+> +
+> +        my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = 
+> localtime(time);
+>       $self = {NAME => $headerLineOrNameOrSibling,
+>        ENTRY_TYPE => $entryType,
+>        SESSION_ID => $sessionId,
+> -     DAY => $1,
+> -     MON => $MonStrToNum{$2},
+> -     DATE => $3,
+> -     HOUR => $4,
+> -     MIN => $5,
+> -     SEC => $6,
+> -     ZONE => $7,
+> -     YEAR => $8};
+> +     DAY => $wday,  # should be _name of_ day of week
+> +     MON => 1+$mon,
+> +     DATE => $mday,
+> +     HOUR => $hour,
+> +     MIN => $min,
+> +     SEC => $sec,
+> +     ZONE => $ENV{'TZ'},
+
+     ZONE => $ENV{'TZ'} || 'NA',
+
+defaults to 'NA'
+I'll miss this little timezone guy, but I guess we have to move on.
+
+> +     YEAR => 1900+$year};
+>   }
+>       } else {
+>   if ($headerLineOrNameOrSibling !~ m/^([^\s]+) (\w+ )?([0-9\.]+) (\w+) 
+> (\w+)\s+(\d+) (\d+):(\d+):(\d+) (?:(\w+) )?(\d+)$/) {
+> @@ -207,7 +205,7 @@
+>       $scriptName =~ m/([\w\-\.]+)/;
+>       $scriptName = $1;
+>       $reUseCGI = 0 if (!defined $reUseCGI);
+> -    $storeIn = '/tmp/' if (!defined $storeIn);
+> +    $storeIn = 'C:/temp/' if (!defined $storeIn);
+>       $storeIn .= '/' if($storeIn !~ /\/\Z/);
+>       my ($baseName, $self);
+>       #($baseName = $scriptName) =~ s/^.*\/([^\/\.]+).*$/$1/;
+> 
+
+[1] http://www.w3.org/2001/Annotea/User/Serverversions#V2_0_bugsAddressed
+-- 
+-eric
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

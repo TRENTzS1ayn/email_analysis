@@ -1,0 +1,88 @@
+docno="lists-105-1196686"
+received="Wed Dec 24 05:28:47 2003"
+isoreceived="20031224102847"
+sent="Wed, 24 Dec 2003 10:09:25 +0000"
+isosent="20031224100925"
+name="Andrew Clover"
+email="and-w3@doxdesk.com"
+subject="Re: FYI: CR DOM Level 3 Issues list updated"
+id="20031224100925.GA29311@doxdesk.com"
+charset="us-ascii"
+inreplyto="1072112737.4422.45.camel&#64;jfouffa.w3.org"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+
+Philippe Le Hegaret <plh@w3.org> wrote:
+
+> FYI, I updated the issues list
+
+Thanks. In addition to my previous comments on Core, I have further concerns
+with LS's approach to error handling in particular.
+
+Recently there has been some discussion on the DOMTS list regarding the
+correct behaviour of LSParser parsing methods in the face of an uncontinuable
+DOMError.
+
+The current position of the LS tests in TS is that null should be returned.
+This is not clearly stated in the text of the spec (where null values are
+mentioned only in relation to asynchronous parsers), and current imps don't
+actually do it, but it is consistent with the behaviour of LSSerializers,
+which simply return boolean-false when write() is confronted with an error.
+
+Having recently updated my own LS implementation to conform to this
+expectation, I am finding the results highly undesirable, and would like to
+see not only LSParser's definition clarified, but also LSSerializer's altered.
+
+The problem is mainly the (reasonable?) user expectation that any error
+condition not explicitly checked for should throw an exception back. Errors
+that are silently suppressed result in unpleasant debugging, as the root cause
+of the problem is buried and the warning signs only appear later (eg. as a
+null pointer dereference on the return value of parse(), or a file containing
+a corrupted partial XML byteStream or nothing at all).
+
+To get around the problem is not massively difficult, but non-obvious to a
+naive DOM user, and tedious to write, for example in pseudo-code:
+
+  class ErrorHandlerInnerClass
+    method handle(DOMError e)
+      outerClassInstance.storedException= e.relatedException
+      return false
+  method readDocument
+    LSParser p= implementation.createLSParser(1, null)
+    p.config.setParameter('error-handler', ErrorHandlerInnerClass instance)
+    storedException= null
+    if p.parseURI(some document)==null
+      if storedException==null
+        raise UnspecifiedDOMError
+      else
+        raise storedException
+
+All this just to get the 'normal' expected exception behaviour. Compared to
+existing DOM implementations' one-liner parsing methods, this is a big lose.
+
+I would suggest that in cases where errors in a synchronous LSParser cannot be
+recovered from (including the case when there is no error-handler set on the
+DOMConfiguration), a defined exception of some sort should be thrown.
+
+[...For example DOMError iself could be made throwable. This would have the
+advantage of being able to wrap an implementation-specific exception (in the
+relatedException property) without having to add these to the LSParser/
+LSSerializer interface. It could also wrap exceptions thrown when calling a
+LSParserFilter or LSSerializer method, solving the previously-raised issue of
+what effect that would have.]
+
+
+Finally, on a not-entirely-related note, it would be useful if the stringData
+of a DOMInput being the empty string were valid. It is conceivably useful to
+parse an empty string in a parseWithContext operation.
+
+-- 
+Andrew Clover
+mailto:and@doxdesk.com
+http://www.doxdesk.com/
+
+
+

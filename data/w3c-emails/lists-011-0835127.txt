@@ -1,0 +1,121 @@
+docno="lists-011-0835127"
+received="Thu Mar 27 18:52:38 1997"
+isoreceived="19970327235238"
+sent="Thu, 27 Mar 1997 18:40:46 0800"
+isosent="19970328024046"
+name="Roy T. Fielding"
+email="fielding@kiwi.ICS.UCI.EDU"
+subject="Re: Suggestion: Add CacheControl extensibility to Vary header"
+id="9703271840.aa09704@paris.ics.uci.edu"
+inreplyto="3.0.1.32.19970313172312.00a97eb0&#64;pop.w3.org"
+expires="1"
+
+To:http-wg@cuckoo.hpl.hp.com
+
+
+These are actually PEP-related criticisms, but they fit within the
+context of Henrik's post.
+
+>By adding the Cache-Control header extensibility mechanism (14.9.6) to the
+>Vary header, I believe that we make caches much more robust to extended
+>content (or feature) negotiation than by having the current definition of
+>Vary.
+
+Vary works well primarily because it is very simple.  PEP's use of a
+single header field name "Protocol" to represent multiple, unrelated
+control options doesn't work with this simple model.  However, I think
+the solution is also simple: fix PEP so that it works better within
+the design of HTTP, rather than the other way around.
+
+>[...] if we instead have two extensions where one is optional
+>and the other required like this:
+>
+>GET /a-document HTTP/1.1
+>Host: a.host
+>Protocol: {http://some.org/a-required-extension {str "req"}},
+>   {http://some.org/an-optional-extension {str "opt"}}
+>
+>HTTP/1.1 200 OK
+>Protocol: {http://some.org/a-required-extension {str "req"}},
+>   {http://some.org/an-optional-extension {str "opt"}}
+>Vary: Protocol
+>Content-Type: text/plain
+>
+>then the cache would only be able to serve the request if both extensions
+>are available in the request even though the one is optional.
+>
+>I believe this in many cases is too strict as it will effectively
+>disable caching of all optional extensions.
+
+Yep, no disagreement there.  However, I will note that adding all those
+bytes to a typical request is an incredibly bad idea, for the same reason
+that adding huge amounts of Accept* stuff to typical requests is a bad idea.
+But that is a separate issue.
+
+>I therefore suggest that we define the Vary header to have the same
+>extension modifiers to existing header values just like the cache-control
+>header. This means that a PEP-aware proxy cache will be able to understand
+>something like this
+>
+>HTTP/1.1 200 OK
+>Protocol: {http://some.org/a-required-extension {str "req"}},
+>   {http://some.org/an-optional-extension {str "opt"}}
+>Vary: Protocol, "http://some.org/a-required-extension"
+>Content-Type: text/plain
+>
+>and serve the cached entity in response to a request like this:
+>
+>GET /a-document HTTP/1.1
+>Host: a.host
+>Protocol: {http://some.org/a-required-extension {str "req"}
+>
+>Note that this doesn't _force_ the proxy to serve the request. This is a
+>property of the extension itself: The proxy may not be allowed to reply as
+>an intermediary depending on the contractual agreement between the proxy
+>and the origin server.
+
+That is asking a great deal from a proxy -- it would not only have to store
+all of the client's Protocol requests, but on every request it would need
+to find the Protocol field, parse it into entries, and then find the
+entry associated with {http://some.org/a-required-extension {str "req"}}.
+I suppose it would also need to check for any other end-to-end
+{str "req"} options and not serve the cached entity if found.
+
+If you want to negotiate based on the contents of individual field values,
+then you will need to exchange a negotiation algorithm in the response
+along the lines of
+
+   Use-Only-If: Protocol contains
+                {http://some.org/a-required-extension {str "req"}}
+
+though I would recommend using an established notation for describing
+the algorithm rather than an off-the-cuff example like this.
+
+Another alternative is to ditch the current definitions of Protocol and
+C-Protocol and do the following:
+
+   1) Reintroduce the Mandatory field from two years ago, consisting
+      of a list of header fields with semantics {str "req"}.
+
+   2) Define a standard value for field self-definition, such that
+      any new field whose field-value begins with
+
+          {defined "http://some.org/whatever"}
+
+      means that this field is defined according to the semantics
+      of "http://some.org/whatever" (which we'll assume to be a
+      URI with the equivalent naming power of a URN).  Any field without
+      that value would have the definition given by the HTTP-version
+      of the message.
+
+   3) Add a field-name to the beginning of each Protocol-Info entry.
+
+This would also get rid of the unclean use of a URI as the first
+part of a bag.  Originally, the bag notation was intended to follow
+the BRIO notation, which required that the first element in a list
+be a symbol (token) for ease of representation.
+
+.....Roy
+
+
+

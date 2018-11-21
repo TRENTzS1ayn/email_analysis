@@ -1,0 +1,199 @@
+docno="lists-000-14987100"
+received="Tue Aug 15 14:47:44 2000"
+isoreceived="20000815184744"
+sent="Tue, 15 Aug 2000 14:47:07 -0400 (EDT)"
+isosent="20000815184707"
+name="Larry W. Virden"
+email="lvirden@cas.org"
+subject="Re: C / Tidy core dump..."
+id="0008151447.AA25535@cas.org"
+inreplyto="0008151140.AA22197&#64;cas.org"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+Here's the problem:
+
+(dbx 1) where                                                  
+  [1] strlen(0x0, 0x0, 0x6f9b8, 0x7efefeff, 0x81010100, 0xef745b3c), at 0xef724734
+  [2] _doprnt(0x5375c, 0x0, 0x0, 0x0, 0xef7a3180, 0xef745b3c), at 0xef75a624
+  [3] vfprintf(0x6f9b8, 0x53740, 0xefffd3e4, 0xef7aaa64, 0x0, 0x0), at 0xef7638a0
+=>[4] tidy_out(fp = 0x6f9b8, msg = 0x53740 " unknown attribute value "%s"", ...), line 33 in "localize.c"
+  [5] ReportAttrError(lexer = 0x7ac10, node = 0x7ae50, attr = (nil), code = 4U), line 216 in "localize.c"
+  [6] ParseAttrs(lexer = 0x7ac10, isempty = 0xefffd518), line 2802 in "lexer.c"
+  [7] GetToken(lexer = 0x7ac10, mode = 1U), line 1808 in "lexer.c"
+  [8] ParseBody(lexer = 0x7ac10, body = 0x7ae08, mode = 1U), line 2889 in "parser.c"
+  [9] ParseTag(lexer = 0x7ac10, node = 0x7ae08, mode = 0), line 432 in "parser.c"
+  [10] ParseHTML(lexer = 0x7ac10, html = 0x7ad30, mode = 0), line 3217 in "parser.c"
+  [11] ParseDocument(lexer = 0x7ac10), line 3264 in "parser.c"
+  [12] main(argc = 1, argv = 0xefffd7f0), line 956 in "tidy.c"
+(dbx 2) list 20,33
+   20   
+   21   extern uint optionerrors;
+   22   
+   23   /*
+   24    This routine is the single point via which
+   25    all output is written and as such is a good
+   26    way to interface Tidy to other code when
+   27    embedding Tidy in a GUI application.
+   28   */
+   29   void tidy_out(FILE *fp, const char* msg, ...)
+   30   {
+   31       va_list args;
+   32       va_start(args, msg);
+   33       vfprintf(fp, msg, args);
+(dbx 3) print msg
+msg = 0x53740 " unknown attribute value "%s""
+(dbx 4) print args
+args = 0xefffd3e4
+(dbx 5) print *args
+*args = (void)
+(dbx 6) up        
+Current function is ReportAttrError
+  216               tidy_out(lexer->errout, " unknown attribute value \"%s\"", attr);
+(dbx 7) list 200,216
+  200           {
+  201               tidy_out(lexer->errout, "Warning: ");
+  202               ReportTag(lexer, node);
+  203               tidy_out(lexer->errout, " attribute \"%s\" lacks value", attr);
+  204           }
+  205           else if (code == MISSING_IMAGEMAP)
+  206           {
+  207               tidy_out(lexer->errout, "Warning: ");
+  208               ReportTag(lexer, node);
+  209               tidy_out(lexer->errout, " should use client-side image map");
+  210               lexer->badAccess |= MISSING_IMAGE_MAP;
+  211           }
+  212           else if (code == BAD_ATTRIBUTE_VALUE)
+  213           {
+  214               tidy_out(lexer->errout, "Warning: ");
+  215               ReportTag(lexer, node);
+  216               tidy_out(lexer->errout, " unknown attribute value \"%s\"", attr);
+(dbx 8) print code  
+code = 4U
+(dbx 9) print attr
+attr = (nil)
+(dbx 10) list 175,200
+  175   
+  176       /* keep quiet after 6 errors */
+  177       if (lexer->errors > 6)
+  178           return;
+  179   
+  180       if (ShowWarnings)
+  181       {
+  182           /* on end of file adjust reported position to end of input */
+  183           if (code == UNEXPECTED_END_OF_FILE)
+  184           {
+  185               lexer->lines = lexer->in->curline;
+  186               lexer->columns = lexer->in->curcol;
+  187           }
+  188   
+  189           ReportPosition(lexer);
+  190   
+  191           if (code == UNKNOWN_ATTRIBUTE)
+  192               tidy_out(lexer->errout, "Warning: unknown attribute \"%s\"", attr);
+  193           else if (code == MISSING_ATTRIBUTE)
+  194           {
+  195               tidy_out(lexer->errout, "Warning: ");
+  196               ReportTag(lexer, node);
+  197               tidy_out(lexer->errout, " lacks \"%s\" attribute", attr);
+  198           }
+  199           else if (code == MISSING_ATTR_VALUE)
+  200           {
+(dbx 11) print lexer->errors
+lexer->errors = 0
+(dbx 12) print ShowWarnings
+ShowWarnings = yes
+(dbx 13) list 150,175      
+  150   
+  151       if (ShowWarnings)
+  152       {
+  153           ReportPosition(lexer);
+  154   
+  155           if (code == MISSING_SEMICOLON)
+  156           {
+  157               tidy_out(lexer->errout, "Warning: entity \"%s\" doesn't end in ';'", entity);
+  158           }
+  159           else if (code == UNKNOWN_ENTITY)
+  160           {
+  161               tidy_out(lexer->errout, "Warning: unescaped & or unknown entity \"%s\"", entity);
+  162           }
+  163           else if (code == UNESCAPED_AMPERSAND)
+  164           {
+  165               tidy_out(lexer->errout, "Warning: unescaped & which should be written as &amp;");
+  166           }
+  167   
+  168           tidy_out(lexer->errout, "\n");
+  169       }
+  170   }
+  171   
+  172   void ReportAttrError(Lexer *lexer, Node *node, char *attr, uint code)
+  173   {
+  174       lexer->warnings++;
+  175   
+(dbx 14) where       
+  [1] strlen(0x0, 0x0, 0x6f9b8, 0x7efefeff, 0x81010100, 0xef745b3c), at 0xef724734
+  [2] _doprnt(0x5375c, 0x0, 0x0, 0x0, 0xef7a3180, 0xef745b3c), at 0xef75a624
+  [3] vfprintf(0x6f9b8, 0x53740, 0xefffd3e4, 0xef7aaa64, 0x0, 0x0), at 0xef7638a0
+  [4] tidy_out(fp = 0x6f9b8, msg = 0x53740 " unknown attribute value "%s"", ...), line 33 in "localize.c"
+=>[5] ReportAttrError(lexer = 0x7ac10, node = 0x7ae50, attr = (nil), code = 4U), line 216 in "localize.c"
+  [6] ParseAttrs(lexer = 0x7ac10, isempty = 0xefffd518), line 2802 in "lexer.c"
+  [7] GetToken(lexer = 0x7ac10, mode = 1U), line 1808 in "lexer.c"
+  [8] ParseBody(lexer = 0x7ac10, body = 0x7ae08, mode = 1U), line 2889 in "parser.c"
+  [9] ParseTag(lexer = 0x7ac10, node = 0x7ae08, mode = 0), line 432 in "parser.c"
+  [10] ParseHTML(lexer = 0x7ac10, html = 0x7ad30, mode = 0), line 3217 in "parser.c"
+  [11] ParseDocument(lexer = 0x7ac10), line 3264 in "parser.c"
+  [12] main(argc = 1, argv = 0xefffd7f0), line 956 in "tidy.c"
+(dbx 15) up  
+Current function is ParseAttrs
+ 2802               ReportAttrError(lexer, lexer->token, value, BAD_ATTRIBUTE_VALUE);
+(dbx 16) list 2790,2802
+ 2790               av->next = list; 
+ 2791               av->delim = delim;
+ 2792               av->attribute = attribute;
+ 2793               av->value = value;
+ 2794               av->dict = FindAttribute(av);
+ 2795               list = av;
+ 2796           }
+ 2797           else
+ 2798           {
+ 2799               av = NewAttribute();
+ 2800               av->attribute = attribute;
+ 2801               av->value = value;
+ 2802               ReportAttrError(lexer, lexer->token, value, BAD_ATTRIBUTE_VALUE);
+(dbx 17) print *av     
+*av = {
+    next      = (nil)
+    dict      = (nil)
+    asp       = (nil)
+    php       = (nil)
+    delim     = 0
+    attribute = 0x7cf18 "lvirden@cas.org""
+    value     = (nil)
+}
+:
+(dbx 19) print value   
+value = (nil)
+(dbx 20) print list
+list = 0x7aea0
+(dbx 21) print *list
+*list = {
+    next      = (nil)
+    dict      = 0x74048
+    asp       = (nil)
+    php       = (nil)
+    delim     = 34
+    attribute = 0x7aa30 "href"
+    value     = 0x7aa40 "mailto"
+}
+(dbx 22) 
+-- 
+Never apply a Star Trek solution to a Babylon 5 problem.
+Larry W. Virden <mailto:lvirden@cas.org> <URL: http://www.purl.org/NET/lvirden/>
+Unless explicitly stated to the contrary, nothing in this posting should 
+be construed as representing my employer's opinions.
+-><-
+
+
+

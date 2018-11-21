@@ -1,0 +1,58 @@
+docno="lists-021-5172933"
+received="Tue Jan  7 20:21:31 2003"
+isoreceived="20030108012131"
+sent="Tue, 7 Jan 2003 17:20:58 -0800"
+isosent="20030108012058"
+name="Rob McCool"
+email="robm@robm.com"
+subject="Re: unqualified name option in GetData?"
+id="20030107172058.A4277@flapjack.stanford.edu"
+charset="us-ascii"
+inreplyto="000901c2b6b1$d242e060$bd7ba8c0&#64;rhm8200"
+expires="-1"
+
+To:"Richard H. McCullough"<rhm@cdepot.net>
+Cc:public-rdf-tap@w3.org
+
+
+
+> Does your GetData program have an option to display, e.g.,
+>     Person
+> instead of 
+>     http://tap.stanford.edu/data/Person
+
+You've discovered a bug that I haven't figured out a good way to fix. Guess
+now I'll have to.
+
+The problem is this. When the parser loads a KB, it discards the URLs in 
+front of resources like http://tap.stanford.edu/data/Person to save space.
+When returning data, the toolkit will put the URL back again if it decides
+that "Person" is a resource and not just some string.
+
+The problem comes when the resource name without the namespace prefix is
+the same as one of its properties. Like:
+   <rdf:Description rdf:about="http://tap.stanford.edu/data/Person">
+    <rdfs:label xml:lang="en">Person</rdfs:label>
+   </rdf:Description>
+
+The toolkit looks at the target (the second Person), tries to decide if it's
+a resource (does it have properties? Yes, a property called "label") and then
+puts the namespace back on.
+
+So there's a hack in my programs right now that looks a lot like this in Perl:
+
+sub getLabel {
+  my ($tap, $tapns, $node) = @_;
+  my $label = $tap->GetValue($node, "label");
+  $label =~ s%^$tapns%%;
+  return $label;
+}
+
+You can imagine a similarly revolting hack in Java involving startsWith() and
+substring().
+
+Now that I've been caught in my laziness, I'll have to go fix the problem 
+for real...
+
+
+

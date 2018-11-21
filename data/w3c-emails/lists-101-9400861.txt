@@ -1,0 +1,142 @@
+docno="lists-101-9400861"
+received="Tue Jun 25 04:21:02 2002"
+isoreceived="20020625082102"
+sent="Tue, 25 Jun 2002 03:20:50 -0500"
+isosent="20020625082050"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: Demo DOM Core 1, DOM Core 2, DOM HTML 2 TS using jsUnit 1.3.0"
+id="3D1827E2.8070707@houston.rr.com"
+charset="us-ascii"
+inreplyto="3D16C2F0.9040507&#64;netscape.com"
+expires="-1"
+
+
+To:www-dom-ts@w3.org
+
+
+Just to confuse things, I've been busy the last few days too. 
+ Hopefully, Bob can reconcile these, but right now we are diverging.
+
+I wasn't satisified with the test format in Bob's previous offering 
+since it didn't look much like a JUnit test and possible involved 
+putting stuff in JSUnit that was DOM Test suite aware (not sure about 
+that).  JUnit had (but JSUnit didn't) have the concept of a TestCase 
+class.  In most cases, you just let the framework create TestCase 
+objects that invoked your "test" methods by reflection.  However, you 
+could create your own classes derived from TestCase as we do in the Java 
+tests.
+
+In my variant of Bob's previous JSUnit, I've added an equivalent to the 
+JUnit TestCase class.  The generated tests override the setUp, runTest 
+and tearDown methods of the test class.  The tweaks I added are the 
+ability for the setUp method to mark the test as ignored (for example, 
+if the test requires entity expansion and the implementation doesn't 
+support it) or not ready (for async loading).
+
+Here is a sample of a test body:
+
+   function attrname_runTest()  {
+    var doc;
+      var addressList;
+      var testNode;
+      var attributes;
+      var streetAttr;
+      var name;
+      doc = this.builder.load(this.doc, "doc", "staff");
+      addressList = doc.getElementsByTagName("address");
+      testNode = addressList.item(1);
+      attributes = testNode.attributes;
+
+      streetAttr = attributes.getNamedItem("street");
+      name = streetAttr.nodeName;
+
+      assertEquals("nodeName","street",name);
+       name = streetAttr.name;
+
+      assertEquals("name","street",name);
+      
+}
+
+function attrname_setUp() {
+    var attrs = [  ];
+    var features = [  ];
+    this.builder = getBuilder(this, null, attrs, features);
+    if (!this.ignored) {
+        this.ready = this.ready && !this.builder.async;
+        this.doc = this.builder.startLoad("doc", "staff");
+    }
+}
+
+
+function attrname_tearDown() {
+    this.builder.close(this.doc);
+    this.doc = null;
+}
+
+function suite() {
+    var test = new DOMTestCase("attrname");
+    test.runTest = attrname_runTest;
+    test.tearDown = attrname_tearDown;
+    test.setUp = attrname_setUp;
+    return test;
+}
+
+The getBuilder() will cause the test to be ignored if the attributes and 
+features are not compatible with the builder.  I've written a few 
+different builder implementations (MSXML, DOM 3 LS, Mozilla 
+document.load and an <iframe> loader).  To change builders currently you 
+have to modify DOMTestSuite.js.
+
+  function getBuilder(test, contentType, attributes, features) {
+//    return new MSXMLBuilder(test, contentType, attributes, features, 
+"MSXML2.DOMDocument.3.0");
+//      return new DOM3XMLBuilder(test, contentType, attributes, features);
+//      return new MozillaXMLBuilder(test, contentType, attributes, 
+features);
+      return new IFrameBuilder(test, "text/html", attributes, features);
+  } 
+
+
+This setting uses the IFrameBuilder to load .html documents.  Replace 
+"text/html" with contentType to load .xml documents.
+
+I was not able to get notified when I trying to add an iframe 
+dynamically with document.writeln(), however it seems simpler to just 
+generate the <iframe> elements into the test HTML files.
+
+Document loading is performed by two calls, startLoad() in setUp and 
+load() in runTests.
+
+I've also added jsUnitCore.js to the files included in testRunner.html. 
+ That allows tests that want to avoid path dependencies to access 
+jsUnitCore methods by using top.assertEquals(), etc.
+
+I've run the DOM L1 Core and L1 HTML tests with Mozilla 1.0 for both XML 
+and HTML documents.  Currently DOMTestSuite.js is hacked to suppress 
+tests that use the extended interfaces (now marked with 
+hasFeature("XML",""), since Mozilla XML doesn't attempt to parse the 
+document type declaration.  The majority of failures are due to failing 
+to throw an exception.
+
+Unfortunately, I was not able to run the tests on Microsoft Interface 
+Explorer.  When the first test failed, I would get an exception not 
+captured message even though the runTest method was clearly within the 
+scope of a try/catch block.  It is possible that I dorked something on 
+my machine settings that is causing it to act that way.
+
+Modifications to the tests fell into these categories:
+
+DOM L1 Core tests that depended on extended interfaces (CDataSection, 
+Entity, EntityReference, etc) were marked as requiring 
+hasFeature("XML","") as true.
+
+Changed ignoreCase to "auto" on L1 Core hc_* tests and L1/L2 HTML tests 
+where HTML implementations are expected to return uppercase.
+
+Changed some bad expected values on HTMLParam01 and 02.
+
+My hacked version of JSUnit is http://home.houston.rr.com/curta/jsunit.zip
+
+
+

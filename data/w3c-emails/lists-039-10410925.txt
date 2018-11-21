@@ -1,0 +1,277 @@
+docno="lists-039-10410925"
+received="Sun Oct 17 19:48:20 1999"
+isoreceived="19991017234820"
+sent="Sun, 17 Oct 1999 19:52:13 -0400"
+isosent="19991017235213"
+name="ccjason@us.ibm.com"
+email="ccjason@us.ibm.com"
+subject="Re: Simplifying RFC-2518 Locking: A proposal, lock remapping"
+id="8525680D.0082C031.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="Simplifying RFC-2518 Locking: A proposal, lock remapping"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<gclemm@tantalum.atria.com>
+cc:w3c-dist-auth@w3.org
+
+
+
+   That mapping table would need to be global (at least to the workspace).  It
+   would need an entry for every URI locked by a depth lock if we plan to
+   remap each of those independently.
+
+  Which is reasonable with static depth locks, and quite the pain with
+  dynamic depth locks, but I digress ... (:-).
+
+On the contrary... You don't digress.  I was only evaluating it based on your
+static proposal... which I will comments on when I get some time.
+
+
+    i2) This proposal breaks our model whereby all webdav
+    resources have parents at their analagous parent URI.  This would not
+    be the case here unless URI protection were added.
+
+  I believe that there is no more breakage in this regard than
+  is introduced by multiple bindings.  You have a new name for a resource
+  *other* than the name it used to have (just like adding a binding).
+
+Hmmm.  "Interesting" way of looking at it.
+
+
+  Unlike a normal binding, this new name (the <lock-token,URL> pair)
+  is stored off in some server maintained place where clients can't
+  mess with it.
+
+Ummm.  I'm not sure I follow you.  I am talking from the client's perspective
+that the URI parentage is not continuous.   I'm not concerned about servers.  I
+expect them to be more sophisticated than clients.  (I don't know what the folks
+that spent so much time defining parentage care about though.  I just know that
+they must value continuous parentage to have put so much time in on it.)
+
+  Now it's true that this new name effectively exists in a non-WebDAV
+  namespace, but WebDAV was carefully designed to ensure that these
+  non-WebDAV namespaces can co-exist with the WebDAV ones.
+  The fact that this new name is bound to the same resource that
+  exists in WebDAV space should cause no confusion.
+
+I don't think I'm following you.  (At the same time... I do follow you but I
+feel like I'm being con'ed. :-))
+
+
+    That is... a whole
+    tree of URI's could be locked, but if someone does a MOVE above the
+    root of that URI at which the lock request was originally directed,
+    then there will be a gap in the parentage tree.
+
+  The WebDAV resource space will have no gaps.  The <lock-token,URL> name
+  is still valid.  It's true that you can't treat the new name as forming
+  a tree of any interesting kind, but that's not what it is there for.
+  It's a way to guarantee that a client has a reliable handle on the
+  resource it locked (e.g. for a subsequent PUT/UNLOCK).
+
+I guess you could say it has no gaps if you say that a client is to forget the
+URI where it found/locked the resource and only be concerned about the resource
+itself now and it's special new compound name and access method.    But if a
+client is showing a tree view of the server (ala Windows Explorer for example)
+and you need to show the resource you have a lock on... you can't really show
+the tree if it's parents have gone away.  Or could you? :-)  You might be able
+to figure out a way to show it... but I suspect this will require twisting the
+mind of the user in a way that it doesn't need to be twisted. -- BTW, I don't
+care about tree views much, but there are a couple folks down the hall from me
+the worship them.  And we already know of one large software company that makes
+heavy use of them in a popular OS.
+
+    I personally don't care about this,
+    but a lot of folks went through a ton of time
+    defining and refining how webdav resources must have a parent at their
+    parent URI.  A ton.  They must feel this is a valuable feature.  --
+
+  As do I.  If I were violating it, I'd be concerned.  I believe we
+  are just "supplementing" it with some additional reliable names.
+
+You were one of those folks. :-)   I'll give this "new namespace" idea some time
+to twist my mind.  I do have the feeling that I'm being brain washed.  (Recent
+discover! The sun rises in the west.  People have just been holding their
+compasses upside down. :-))
+
+Another thought... if we're just going to couch this as a "new namespace" why
+don't we just tell folks to use (locally) locatable guid's?  (Never mind.  I
+know the answer(s).)
+
+
+
+     i4) For depth locks, we'd need to define behaivor.
+     Given /a/b/c and a depth lock placed on /a/b/.  It's pretty clear what
+     the redirection does for an access to /a/b/.  But what about /a/b/c?
+     Does it refer to the resource that was originally at that location?
+
+  If you use the Lock-Token header, it will be the resource that was at
+  /a/b/c when you applied the lock.
+
+So if you lock /a/b/ and then replace /a/b/c with another resource... one that
+isn't locked... what happens when you do a GET on /a/b/c with a lock token?
+It sounds like you get what was originally there... not what's there now.
+What happens if you do it without a lock token?  I'm guessing you get a
+failure since I guess there's nothing there in the normal URI namespace.
+How do you access the new c member of /a/b/?  Add it to the lock before
+you move it there?  Will that work?  Or perhaps use another lock on it
+and then move it there... and address it at it's old URI with that second
+lock?  It sounds like that might work... but will the MOVE really work?
+(I think this might have been what JimA was refering to about DELETE and
+MOVE.)   Will the MOVE know that you are adding it to the ***locked***
+collection... not to the URI that is now null?
+
+    Or does it refer to the current "c" member of the collection that was
+    orginally at /a/b/.
+
+  No, the Lock-Token is just there to guarantee access to the original resource.
+  If you want to play with the current members of the collection, you'd
+  just BIND that collection into some working collection, and then
+  issue your requests against that new binding without the
+  Lock-Token header.
+
+Ah... And lock that "working" collection in turn so that you could handle
+someone
+moving/deleting that collection in turn.   Or possibly do this all from the
+start so that you wouldn't have to react.
+
+  LOCK  /a/b/  at depth (since we might want to protect /a/b/c and /a/b/d, etc)
+      ; let's call the resulting token tokB
+  Check that /a/b/ is really the resource you expected there.  Possibly
+      check children too if it's important for the action.
+  MKCOL /tempthing  to the resource or collection we want to work with.
+  LOCK /tempthing depth 0   ; call the resulting token tokTemp
+  Check that /tempthing is the empty coll that you just created.  (Too bad we
+don't have
+       lock null resources)
+  BIND  /tempthing/b/   /a/b/  providing tokA for /a/b/
+
+  ; now to remove /a/b/c from /a/b/  I'm not quite sure how to do that.  I think
+  ;    it is...  It's not clear what DELETE /a/b/c will do, but I think the
+  ;    following will work.
+  DELETE /tempthing/b/c  providing the tokTemp token but definitely not the tokB
+token.
+  ; But no... that won't work if /tempthing has moved... since the remapping
+works in
+  ; a resource by resource manner.  Adding the tokTemp token won't insure that I
+get
+  ; the right c resource deleted... or even the right b parent.  Because neither
+of
+  ; those uses the tokTemp lock.  I'm stuck.  There is no way to delete c out of
+b.
+  ; Not until we discuss (i6) below.
+
+  ; but let's pretend the DELETE above works.  Let's see how many more methods
+are
+  ; needed...
+
+  work gets done here on the locked area of the namespace.
+
+  ; Now lets assume work is done.  Now to clean up...
+
+  UNLOCK tokB
+  DELETE /tempthing/
+  ; but what if it moved.  Will adding a token fix this?  We need to figure
+  ;  out how DELETE with this resolution figures out what parent we're talking
+about.
+  ;  I think this was JimA's point.  (see (i6) below)
+  UNLOCK tokTemp  /tempthing/
+  ; presumably it will use the token to figure out what resource I'm refering to
+  ;  in addition to figuring out what lock I'm removing.
+
+This is in contrast to the following with URI protection...
+
+  LOCK /a/b/ at depth
+  Check if what's at /a/b/ is really what you were planning to lock.  Also check
+       children if you like.
+  DELETE /a/b/c
+  do some other work
+  UNLOCK tokA
+
+This looks a lot easier for the client.  Sure the first one didn't need to go to
+so much trouble.  It just did so so that it had deterministic behavior.  The
+latter recipe achieves deterministic behavior at much less expense for the
+client.
+
+
+    i5) We'd have to work out when the redirection is
+    triggered.  It's probably not sufficient to say it's triggered when
+    there is no resource at a URI.  It would need to also deal with the
+    situation where a different resource is now at that location.  But
+    that does create another ambiguity rlated to (i4).  Ah... it's a bit
+    of a mess.  I'm not going to get into it here.
+
+  I think you're still thinking of it as a "<lock-token,URL> -> new-URL"
+  mapping ... it's not.  It's "<lock-token,URL> -> resource".  The server
+  stores this information in its lock table at the time of the lock request,
+  and doesn't change it until the UNLOCK request is made.  The server
+  knows when to use the lock table when it gets a Lock-Token header.
+  Otherwise it just ignores the lock table.
+
+I see what you're saying.  The remapping is not triggered on finding a
+null resource at a URI.  It's triggered by the existance of the
+special header in the request.  If the header is there, remapping is
+enabled.  If it is not, then it isn't.
+
+Now let's add another issue that was revealed as I was going through the
+scenario in (i4)...
+
+(i6) So what does it mean to DELETE /a/b/c with a token for /a/b/c?  How does
+it know what parent to act on?  In this case is the client expected to provide
+a token for the parent instead?  I take it this would apply to BIND and MOVE
+also.
+What if the parent doesn't have a token.  In the example above... I didn't
+lock the / URI because that would have caused problems for other clients
+pulling the same trick.  So what would the DELETE operator be for /tempthing/?
+
+
+   and there is no special case URL mapping that would somehow add lock
+   tokens to namespace resolution calculations, some of which happen
+   outside my server's domain.
+
+  As long as the same server handles the same segment of the URL space
+  (e.g. nobody messes with the Apache config file), all requests for
+  Lock-Token based URL's will go to the same server.  Sure, if the
+  client holds onto the lock token long enough for that to no longer
+  apply, then it won't find the resource.  The server just handles that
+  like a timeout, (probably it would have timed out anyway by then :-).
+
+I think you may have misunderstood his question.  I think he was refering
+to the situation I had in (i4) above where I really didn't have a reliable
+way to denote a new resource at /a/b/c since the token only refers to the
+destination, not to specific subsegments of the URI.  Of course we
+can refine things to handle this, but it's getting more complicated.
+
+I think you two were hinting at cross server bindings.  The thought of that
+on top of what we've already said sure is boggling.
+
+    <ja> It seems like if we have to do this, we're still missing something. I
+    think the solution is that if the user is conserned about someone
+    moving his locked resource, then he should lock the parent
+    collection. That's what locking collections is for, to control the
+    namespace. </ja>
+
+   Lacking URI protection, he'd also lock all the collections to the
+   root.
+
+  No, just the subtree being worked on.  If you ever "lose" the sub-tree
+  you were working on, you can use your "lock-token" and the original
+  subtree root URL to find your sub-tree, bind it somewhere so you can
+  keep working on it.  If somebody moves *that* away, heck, you've still
+  got your lock token, and you can rebind to it as often as you need to.
+
+Whoops on both of us.  I think JimA was way ahead of us.  I think he was
+thinking about also needing to lock the parent to unambiguously deal with
+BIND, DELETE and MOVE.  See (i6) above.
+
+You are correct that they wouldn't need to lock to the root.  Just to
+and including the parent.  (I assumed Jim was thinking of an alternative
+to the remapping scheme... that's why I said what I said.)
+
+My hat goes off to JimA... it was pretty sharp of him to realize we have
+a problem with the parent being ambiguous for some operations.
+
+J.
+
+
+

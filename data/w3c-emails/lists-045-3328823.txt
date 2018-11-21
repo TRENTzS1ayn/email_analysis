@@ -1,0 +1,130 @@
+docno="lists-045-3328823"
+received="Mon Dec 18 16:15:04 2000"
+isoreceived="20001218211504"
+sent="Mon, 18 Dec 2000 16:14:47 -0500"
+isosent="20001218211447"
+name="Joseph M. Reagle Jr."
+email="reagle@w3.org"
+subject="Re: Comments on &quot;XML-Signature Syntax and Processing&quot;"
+id="4.3.2.7.2.20001218143123.02a85198@rpcp.mit.edu"
+charset="us-ascii"
+inreplyto="20001216215817Q.muraw3c&#64;attglobal.net"
+expires="-1"
+
+
+To:muraw3c@attglobal.net
+Cc:<w3c-ietf-xmldsig@w3.org>,"Karl Scheibelhofer"<Karl.Scheibelhofer@iaik.at>
+
+[ Results of this discussion are in the editors' copy (in the schema/dtd and 
+in the spec):
+[1] http://www.w3.org/Signature/Drafts/xmldsig-core/Overview.html
+[2] http://www.w3.org/Signature/Drafts/xmldsig-core/xmldsig-core-schema.dtd
+[3] http://www.w3.org/Signature/Drafts/xmldsig-core/xmldsig-core-schema.xsd
+]
+
+At 21:58 12/16/2000 +0900, muraw3c@attglobal.net wrote:
+>I am comparing the XML Schema version and your latest DTD version.
+>I have some more questions and comments.
+>
+>1) The schema version allows KeyInfo to contain SPKIData, but the DTD
+>does not.
+
+Ok, now included:
+
+<!ELEMENT KeyInfo       (#PCDATA|KeyName|KeyValue|RetrievalMethod|
+             X509Data|PGPData|SPKIData|MgmtData %KeyInfo.ANY;)* >
+<!ATTLIST KeyInfo
+         Id      ID       #IMPLIED >
+
+<!ELEMENT SPKIData (#PCDATA) >
+
+
+>2) What is SPKIData?  This exists only in the XML Schema version.
+
+http://www.w3.org/TR/2000/CR-xmldsig-core-20001031/#sec-SPKIData
+
+>3) The DTD version does not allow customization of contents of PGPData.
+
+You are right (schema *does* permit ANY in PGPData). However, X509Data and 
+SPKIData do not presume that you will add external elements to those element 
+types; instead should someone ever define an authoratitive structure, that 
+structure will be the child of KeyInfo, not our placeholder. So I will 
+remove the ANY from PGPData:
+
+    <complexType name="PGPDataType">
+        <sequence>
+          <element name="PGPKeyID" type="string"/>
+          <element name="PGPKeyPacket" type="ds:CryptoBinary"/>
+        </sequence>
+    </complexType>
+
+>4) In the XML Schema version, KeyValue can have only one DSAKeyValue,
+>but can have more than two external key values.  Is this really
+>intended?
+
+I think not. As the text says, "The KeyValue element contains a single 
+public key" I will change its declaration to (which by default means 1):
+
+    <complexType name="KeyValueType" mixed="true">
+      <choice>
+        <any namespace="##other" processContents="lax"/>
+
+
+>5) When <any> is used in the XML Schema version, mixed="true" is
+>sometimes specified and sometimes not.  Again, is this really
+>intended?
+>
+>- Not Specified
+>    - CanonicalizationMethod
+>    - SignatureMethod
+>    - Transform
+>    - DigestMethod
+
+DigestMethod's DTD entry wasn't mixed: (#PCDATA %Method.ANY;) and it now is.
+
+>    - Keyinfo
+>- Specified
+>    - KeyValue
+>    - Object
+>    - SignatureProperty
+
+Good point. In the three instances, I'm sure we had examples in mind where 
+we wanted to enable string or element, but I don't see any reason why the 
+others shouldn't. I've made them all mixed as you did in your RELAX 
+instance. (BTW: I'm wondering if there a simple way to say element is simple 
+type="xsd:string" OR an element. mixed="ture" serves but is actually broader 
+than it need be...)
+
+>By the way, my motivation is to make sure that RELAX can handle XML
+>Digistal Signature without any problems.
+
+Fortunately, we' have a simple schema, and I'm glad to see it's easily done 
+(and it helped flush out bugs! <smile>).
+
+As an aside, Karl identified a structure (SignatureProperty) where the 
+<choice> and <any> were both unbounded (more than one element from more than 
+one namespace); in the instance he pointed out I think that made sense , but 
+I went through the schema and documented when this happens. So for 
+SignatureProperty, KeyInfo, Transform they permit multiple elements from 
+multiple namespaces, but SignatureMethod (as there is only one 
+SignatureMethod for any signature) should be like CanonicalizationMethod, so 
+I changed it to reflect:
+
+<complexType name="SignatureMethodType" mixed="true">
+   <!-- (0,unbounded) elements from (1) external namespaces -->
+   <sequence minOccurs="0" maxOccurs="1">
+     <element name="HMACOutputLength"  minOccurs="0"
+       type="ds:HMACOutputLengthType"/>
+     <any namespace="##any" minOccurs="0" maxOccurs="unbounded"/>
+   </sequence>
+   <attribute name="Algorithm" type="uriReference" use="required"/>
+</complexType>
+
+
+__
+Joseph Reagle Jr.
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

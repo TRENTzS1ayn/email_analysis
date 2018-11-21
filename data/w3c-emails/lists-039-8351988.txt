@@ -1,0 +1,311 @@
+docno="lists-039-8351988"
+received="Tue Sep 14 19:20:15 1999"
+isoreceived="19990914232015"
+sent="Tue, 14 Sep 1999 19:26:51 -0400"
+isosent="19990914232651"
+name="ccjason@us.ibm.com"
+email="ccjason@us.ibm.com"
+subject="RE: Bindings, Locks, and MOVE"
+id="852567EC.00802B81.00@D51MTA07.pok.ibm.com"
+charset="us-ascii"
+inreplyto="Bindings, Locks, and MOVE"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+  <kw>
+  2)  I am fine with the lock-token being MOVED with a resource.  If we can
+  get away with saying cross-server MOVE is not supported, then the individual
+  servers simply need to make a way of keeping locks on their own server.  I
+  believe this is how we should proceed.  It sounds like we are cutting out a
+  bunch of functionality, but I think it will take a whole set of working
+  groups to get cross-server MOVE to work correctly in all cases anyway, so we
+  might as well punt now.
+  </kw>
+
+Just to be clear.  It is the *implementations* that can chose not to support
+x-server MOVE's.  In the spec this would presumably be a "CAN".  I just want to
+distinguish between implementations and the spec.  -- So... it would be the
+server writers that would be (understandably) "cutting out a bunch of
+functionality"... not the spec writers.
+
+Also to clarify, I think we (as spec writers) are free to specify x-server
+behavior in WebDAV and to keep x-server issues in mind as we design WebDAV...
+but I think the philosophy is that we won't try to define the protocol that the
+two servers use to cooperate.  I think this final thing is our only agreed
+restriction.  As far as how far we go on the former... I think that's up to us
+to decide.   A case in point might be... for servers to move locks across
+servers, they almost certainly would have to do proxy authentication.  That is,
+both servers would need to agree on the authenticity credentials for a given
+principal (AKA client).   We could enhance webdav operations that are
+potentially cross server to specify the credentials to use when interacting with
+the second server.  Whether we chose to do that in WebDAV right now is up to us.
+
+
+  <kw>
+  3)  I believe (with I think most other people), that the language
+  surrounding the use of write-lock, should remain a MUST.
+  </kw>
+
+I take it you are refering to "protection of the URI".  That's where
+the MUST vs. SHOULD debate was.
+
+
+
+  <kw/>I now assume that locks are locking the resource not the URI.
+
+<jlc>
+Yes... with one exception: the issue of URI protection.
+Right now... protection
+is based on a hybrid of URI and resource.  It's essentially a mapping
+that is protected... but that can be (in Judith's proposal) caused
+to migrate if we hold the appropriate locks.  We haven't actually
+clearly delineated when it moves and when it does not.
+</jlc>
+
+
+  <kw>
+  A resource is being MOVEd.  The locks are on that resource and / or its
+  destination, not the collections that contain them.
+  </kw>
+
+<jlc>
+Yes if I understand you.  It is kind of an anti-null-lock view.
+That's why I thought it was
+odd that GC is starting to waver in his resistance to null locks, when
+he was strong in his resistance to them in the former proposal
+where null-locks actually filled a larger void and worked a bit
+better.
+</jlc>
+
+
+
+  1. The source resource is locked, but the destination is not.
+  MOVE /a/b to /x/y, where /a/b is locked  but /a/ is not and /x/y is not.
+
+  <KW> /a/b moves to /x/y and remains locked with the same lock-token it had
+  before.  The only Lock Token mentioned still exists and remains on the
+  resource it was locking.</KW>
+
+<jlc>
+And since you liked it when we mentioned lock tokens last time, I'll mention
+here again...
+The lock token must be provided to pass the protected URI test.  (I assume that
+the
+/a/b mapping is protected... rather than some unmentioned mapping.)
+</jlc>
+
+
+
+  2. The source resource is not locked, but the destination is.
+  MOVE /a/b to /x/y, where /a/b is not locked and /x/ is not locked, but /x/y
+  is locked
+
+  <KW> This one gets a little weird.  I assume that we can delete /x/y since
+  we have the lock on it.  This delete removes the lock from the system.  When
+  /a/b is moved to /x/y, it still is not locked.
+
+  As a user, I might expect that /a/b (which is now /x/y) has the /x/y lock,
+  but I have always thought (from a user's perspective) that a merge would
+  happen and not a delete followed by a write.  But the fact that the lock is
+  removed from the system, does make the rest of the scenarios work
+  nicely</KW>
+
+<jlc>
+Sounds reasonable. Except for one caveat.  What if the resource that was
+at the destination also has other bindings to it.  Does the
+lock go away... or does it drift to the other URI on that resource?  Is
+this dependent on which URI was used when it was locked?  We need to
+discuss this.  -- BTW, there's also the academic case of the lock
+not being *rooted* at the destination... but inherited through another
+binding.  I think we all agree what happens then, so it's academic.
+
+Lock token must be provided to destroy a lock.  And probably to cause the
+lock to drift.
+</jlc>
+
+
+  3. Both are locked, but with separate locks.
+  MOVE /a/b to /x/y, where /a/b has lock L1 and /x/y has lock L2, but neither
+  /a/ nor /x/ is locked.
+
+  <KW> This will remove L2 from the system, and the new /x/y is still locked
+  by L1.</KW>
+
+<jlc>Sounds good.  Both tokens provided.  if URI's are protected.</jlc>
+
+
+
+  A resource is being MOVEd.  The locks are Depth: infinity locks on the
+  collections that contain either the source or the destination location.
+
+  4. The source collection is locked, but the destination collection is not
+  MOVE /a/b to /x/y, where /a/ is locked, but /x/ is not and /x/y is not.
+
+  <KW> Since the lock on /a/b comes from /a, the lock is not kept on its move.
+  /a remains locked, but the new resource /x/y loses the lock it had on it.
+  </KW>
+
+<jlc>lock token needed for the *write* lock because the
+state of the locked collection is changing.
+
+I just wanted to note that only one URI is "protected", but because
+the parent collection of all the other resources in the tree are also
+*write locked*, all of the URI's in that tree here are essentially
+"protected" despite only one being officially protected.  This is
+specific to write locks I believe.  If anyone doesn't think so, we
+should discuss it.
+<jlc>
+
+
+  5. The source collection is not locked, but the destination collection is.
+  MOVE /a/b to /x/y, where /a/ is not locked and /a/b is not locked, but /x/
+  is locked.
+
+  <KW> The original /x/y is removed, and the lock on that resource is removed.
+  /a/b is then moved there, and picks up the lock from its new parent /x/</KW>
+
+<jlc>Lock must be provided because the destination collection is write
+locked and is changing state.
+</jlc>
+
+
+
+  6. Both are locked, but with separate locks.
+  MOVE /a/b to /x/y, where /a/ has lock L1 and /b/ has lock L2.
+
+  <KW> /x/y is removed and its resource is no longer locked by L2.  /a/b is
+  removed from /a's lock, and the resource is added to the L2 lock space.</KW>
+
+<jlc/>both tokens provided as per above.
+
+
+
+  One lock is at the collection level, the other at the resource level.
+
+  7. The source resource is locked, and the destination collection is locked
+  with a different token
+  MOVE /a/b to /x/y, where /a/b has lock L1, /a/ is not locked, and /x/ has
+  lock L2.
+
+  <KW> I believe this must FAIL.  A user cannot have 2 locks on the same
+  resource, and therefore needs to remove one of them before the MOVE can
+  happen.</KW>
+
+<jlc>
+Can't have two *exclusive* locks of the same type on the same resource.
+Otherwise I agree.
+
+Both tokens needed.  Source, if protected URI; Dest, because changing
+state.
+</jlc>
+
+
+  8. The source collection is locked, the destination resource (not its
+  collection) is locked with a different token
+  MOVE /a/b to /x/y, where /a/ has lock L1, /x/ is not locked, and /x/y has
+  lock L2.
+
+  <KW> Strangely enough (to the user), this succeeds.  The lock L2 is removed
+  from the system during the DELETE phase of the move, /a/b is then moved.  It
+  is removed from /a's L1 and no lock now exists on the new /x/y </KW>
+
+<jlc> Which part of this do you think is surprising to the user?
+
+Both tokens provided.  Source, because state changes; dest, because
+presumed protected URI.  Once again we can talk about drifting locks
+on DELETE/UNBIND's.
+</jlc>
+
+
+
+
+  For the following cases, should the MOVE succeed or fail? If it succeeds,
+  what should the lock state be afterwards?
+
+  9. The source resource was locked through one mapping, and a MOVE is
+  attempted through a different mapping.
+  9a. /a/b and /c/d map to R. /a/ is locked. MOVE /c/d to /x/y.
+
+  <KW> Since locks are on resources, if the correct lock-token is passed, I
+  say this succeeds.  The new /x/y is still locked via /a's lock because the
+  binding for /a/b still exists.  In order to do something to the new /x/y you
+  need to pass the correct lock-token.</KW>
+
+<jlc> If the lock is not a depth lock, then I don't think a lock token is
+needed because the state of /a/ is not at risk.
+
+BTW, I think when we said locks are on resources, what we really meant was
+that locks are *rooted* on resources.  Of course we're free to evaluate
+any proposal.
+
+So... if it's a depth lock...  I'd say that a lock token still isn't
+needed to carry out the MOVE.  The state of no locked resource isn't at
+risk of changing.  And I don't think the only URI that is protected
+is /a/, so that isn't an issue either.
+</jlc>
+
+
+  9b. /a/b and /c/d map to R. /a/ is not locked, but /a/b is. MOVE /c/d to
+  /x/y.
+
+  <KW> Again the MOVE succeeds if the token for R is given, the resource is
+  still locked and bound to /a/b and the new /x/y </KW>
+
+<jlc>I think we disagree about providing a lock token.  The state of R
+is not changed here, so the *write* lock on R isn't relevent.  The
+protection on /a/b isn't relevent because the mapping from /a/b to R isn't
+at risk.  I suggest that no token is needed.
+</jlc>
+
+
+
+  10. The destination resource was locked through one mapping, and a MOVE is
+  attempted through a different mapping.
+  10a. /w/x and /y/z map to R. /w/ is locked. MOVE /a/b to /y/z.
+
+  <KW> If correct lock token for R is given (If header with a tagged list of
+  /y/z and the correct token) the move completes.  Since /w is locking the
+  resource R, it continues to do so, but /y/z no longer maps to R so it is not
+  locked anymore </KW>
+
+<jlc>
+Once again, I don't think a lock token is needed.  Depth lock or singleton.
+The only resources whose state changes are /a/ and /y/.  Neither is locked.
+The only protected URI/mapping is /w/.  It's not at risk.
+</jlc>
+
+
+
+  10b. /w/x and /y/z map to R. /w/ is not locked, but /w/x is. MOVE /a/b to
+  /y/z.
+
+  <KW> If the correct lock-token for R is passed (through the correct IF
+  header and tagged list), the MOVE succeeds.  When it is done, /w/x is still
+  locking R, and the new /y/z is no longer locked as it now points to a new
+  resource R2. </KW>
+
+<jlc>We probably need to work out exactly what is protected.  A previous
+note by my indicates that it's a single URI to resource mapping that is
+protected.  Even in today's advanced collection meeting, folks spoke of
+a chain of bindings being protected... rather than a mapping.  (This is
+admittedly usually equivalent.)
+
+I say here that no token is necessary.  The only resources changing states
+are /a/ and /y/.  Neither is locked.  The only URI protected is /w/x
+and it's mapping remains unchanged after the move.  So no lock tokens
+are needed to pull this off.
+
+BTW, I should add... Disclaimer:  What I'm suggesting in all my comments
+above is what I think we're proposing. It doesn't mean I've actually
+thought about whether what I've suggested above provides what a client
+would want in all of these situations.   I'm only commenting on what
+behavior we'd expect based on our object model.
+
+Oh... Good note Kevin.
+</jlc>
+
+
+

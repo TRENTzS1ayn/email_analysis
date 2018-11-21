@@ -1,0 +1,79 @@
+docno="lists-010-2857483"
+received="Wed Apr 24 08:53:30 1996"
+isoreceived="19960424125330"
+sent="Wed, 24 Apr 1996 10:47:41 0500 (CDT)"
+isosent="19960424154741"
+name="John Franks"
+email="john@math.nwu.edu"
+subject="Re: NULLRequest (Sect. 4.1)"
+id="Pine.SUN.3.91.960424101137.4090A100000@hopf.math.nwu.edu"
+charset="USASCII"
+inreplyto="9604241359.AA26360&#64;zp.tempo.att.com.tempo.att.com"
+expires="1"
+
+To: Dave Kristol<dmk@allegra.att.com>
+Cc:fielding@avron.ICS.UCI.EDU,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+On Wed, 24 Apr 1996, Dave Kristol wrote:
+
+> The NULL-Request idea seems attractive at first glance,
+> but it makes me nervous that a server should silently eat and discard
+> an arbitrary number of blank lines (assuming the persistent connection
+> issue gets side-stepped).  That opens the gate for a malicious client
+> to mount a denial of service attack by pumping a stream of CRLF's at a
+> server.  I'm more inclined to deal with it as a special-case hack:
+> 
+> - if there is a POST, and
+> - if the connection is held open,
+> - (and if the request is HTTP/1.0?),
+> the server should look for, and silently discard, a CRLF that follows
+> the entity body.
+>
+
+I went back to look at my implementation of this to see how I had
+handled it for Connection keep-alive.
+
+What I did was 
+ - if the connection is a continuation (i.e. has been held open), and
+ - if the request line is just "CRLF"
+discard the request and keep open the connection
+
+ - if the connection is a new one, and
+ - if the request line is "CRLF"
+discard the request and close connection
+
+This is essentially the NULL-request idea with the provision that 
+previous keep-alive + NULL-request => continue keep-alive
+
+I wasn't worried for my implementation about the attack you mention
+because I have a max number of requests per connection after which the
+connection is closed.  But even without this I don't see the attack
+you mention as any worse than a stream of requests for persistent
+connection and a non-existent file.  Wouldn't that have essentially
+the same effect?
+
+I think the simplest behavior when receiving a request line consisting
+of only CRLF is
+
+if (previous request was persistent)
+discard request and continue persistent connection
+else
+discard and close connection
+
+I have no real objection to also requiring that the previous
+connection be a POST, but then we have to say what happens if it
+wasn't a POST.  Similarly if it is not HTTP/1.0 or not following a
+persistent connection we have to deal with an error.
+
+Does anyone have a sense whether or not it is realistic to get people
+to stop the POST + CRLF hack in HTTP/1.1?  As I understand it, the
+point was to work around broken servers which would not read POST data
+if it did not end with a LF.  Is this still a problem?
+
+
+John Franks Dept of Math. Northwestern University
+john@math.nwu.edu
+
+
+

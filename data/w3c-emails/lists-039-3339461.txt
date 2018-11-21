@@ -1,0 +1,200 @@
+docno="lists-039-3339461"
+received="Tue Feb  9 10:26:04 1999"
+isoreceived="19990209152604"
+sent="Tue, 9 Feb 1999 10:25:58 -0500"
+isosent="19990209152558"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: [long] Re: I-D ACTION:draft-ietf-webdav-versioning-01.txt"
+id="9902091525.AA28444@tantalum"
+inreplyto="4FD6422BE942D111908D00805F3158DF0A757D19&#64;RED-MSG-52"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+I think I may see one possible source of disconnect between the two
+protocol proposals.  I assume there are two key use cases:
+
+- All persistent state is maintained on the web server.
+The client can GET some data via some WebDAV client and manipulate it
+in memory.  Whenever there is any new state to be preserved it is PUT
+back to the web server.  This would be the case if you start some activity
+at work, and then need to continue it from home, and all you've got at
+home is an internet connection and a computer with a WebDAV client.
+
+- Persistent state is shared between the client and the web server.
+The client can GET some data via some WebDAV client, manipulate it in
+memory, *and* store it locally.  This client doesn't need to
+communicate as frequently with the web server, since it can cache
+server state, and can make things persistent in its private persistent
+store, but users need to effectively carry this client state around
+with them.  This would be the case if you carried a laptop around with
+you, or always dialed up directly to the same client machine to do remote
+work.
+
+I believe our protocol MUST handle both these use cases.  I suspect
+that Chris has focused only on the second case.
+
+In particular, my comments about the scalability of the WebDAV lock
+mechanism is specifically directed at the first use case.  If there is
+some lock token that must be remembered, then either users have to
+check-in everything before they can go home (an unacceptable
+requirement, in my opinion), remember all the lock tokens for what
+they have checked out (now that will be a really popular option :-),
+or store them all on the server somewhere, and have some mechanism for
+downloading all the lock tokens all as a clump, once they have passed
+some user authentication check.  I believe the last option, involving
+user authentication, is the only viable long-term answer, and I expect
+many clients will be willing to use the existing web-based user
+authentication mechanisms, until WebDAV choses one as a "standard".
+But WebDAV must define how information is stored into and retrieved
+from the "clump" or we've blown any chance of client interoperability.
+
+My rejection of server-defined temporaries as the location for checked
+out resources is based on the same reasoning.
+
+To support the first use case, my proposal asserts that a server is
+responsible for maintaining working resources as human understandable
+URL's, and parallel work is supported by having a single additional
+identifier (the Workspace-ID) that the user must remember, to
+distinguish his work from other users' work.
+
+This proposal is based both on a logical analysis of this use case,
+as well as the pragmatic observation that this is how virtually all
+CM systems work: they provide a workspace with human understandable
+"pathnames" (URL's) for the checked-out working resources.  It would
+be hard to make current CM systems *not* work this way, and I think
+producing a protocol that reflects how current systems do versioning
+is an important criterion for evaluating a protocol proposal.
+
+Soooo, with this lengthy preface in mind, let's get back to the
+current thread of discussion ... 
+
+   From: Chris Kaler <ckaler@microsoft.com>
+
+   > From:Geoffrey M. Clemm [mailto:gclemm@tantalum.atria.com]
+   > ...  I believe the argument to CHECKOUT, CHECKIN, and UNCHECKOUT
+   > should always be a consistent human-comprehensible URL.
+
+   [CK] This requires then that a checkout token be passed as part of
+   the request.  We can do this, but how then is a CHECKOUT different
+   from a LOCK?
+
+A CHECKOUT makes a readonly URL writeable.  A LOCK restricts who can
+write to a writeable URL.
+
+   >    There is a certain utility to having the magic files in a magic
+   >    directory for ease of implementation-- you know you only have to
+   >    treat a file in a special way if it's in a special location.  In
+   >    my opinion, if you've already done the necessary work to make MKREF function,
+   >    the additional amount needed to support checked-out files and
+   >    configurations going anyplace should be small.
+
+   > I agree.
+
+   [CK] How then does one quickly discover the defined configurations?
+
+Ooops.  I was agreeing with the comment wrt checked-out files.  I
+agree with Chris that versioning meta-data (such as workspaces,
+configurations and activities) should be stored in standard places, so
+that they can be easily discovered/browsed.
+
+   > Also, I would want the "lock" to be optional (I don't think the "lock"
+   > mechanism scales well, and want it to be an optional part of the
+   > versioning protocol).  Again, I believe this is not an essential part
+   > of your point.
+
+   [CK] The lock portion is option in -01.  I'm curious as to why you
+   don't think the lock mechanism will scale?
+
+See comments above.
+
+   >    (i.e.  
+   >    CHECKOUT /foo/bar.html HTTP/1.1
+   >    Host: www.foobar.com
+   >    ...
+
+   >    returns
+
+   >    HTTP/1.1 201 Created
+   >    Location: /foo/bar.html
+   >    Revision-Id: <opaquelocktocken:rejrei-43343-rereffre>
+   >    Lock-Token: <opaquelocktocken:rejrei-43343-rereffre>
+
+   > I'd omit the Location header (it's always created at the place
+   > specified by the CHECKOUT).
+   > The Revision-Id is no longer necessary, since you either are
+   > checking out into the default workspace, or you are checking
+   > out into a specific workspace.  In any case, your workspace
+   > determines which version you see, so no Revision-Id's need
+   > to be passed in requests or reponses.
+
+   [CK] Very confusing.  How did you identify the checkout?
+
+Every workspace has at most one checkout at a given URL.  If you
+tried to check it out again, it would say "already checked out".
+So if you have a URL (and optionally, a workspace ID), you have all you need.
+
+   You don't have a lock-token and you used the same URL?
+
+Sure.  Before the CHECKOUT, the URL referred to an immutable revision.
+After the CHECKOUT, it referred to a working resource.  Where is a
+lock-token required to identify what has been checked-out?
+
+   If you return a
+   reivision-id then it is part of the revision graph by definition. This
+   doesn't make sense.
+
+I don't follow what you are saying here ... (but I do agree that
+this doesn't make sense, for an appropriate value of "this" :-).
+
+   > And I'd just use the LOCK command following the CHECKOUT if I want a
+   > LOCK, rather than bundling LOCK with CHECKOUT (I don't believe the
+   > frequency of CHECKOUT warrants worrying about an extra LOCK method call in
+   > this case).
+
+   [CK] In order for a lock to make sense, it must be atomic with the
+   checkout.
+
+Why?  You check something out to make it writeable.  If somebody jumps
+in ahead of you to get a LOCK, so be it.  That just means that they
+also wanted to work on it, and they beat you to it.  No different from
+them beating you to a combined CHECKOUT/LOCK command.
+
+   As well, there must be interaction between lock and
+   checkout.  That is, Non-versioning-aware clients that use LOCK must be
+   able to block Versioning-aware clients otherwise they will clash and
+   non-versioning Clients will not be able to react.
+
+I'd have to see a description of the particular clash you have in mind.
+Some clashes in locking are inavoidable, as we have discovered in
+work out the details of locking and advanced collections interact.
+
+   [CK] I also disagree with your premise about locks.  I find that
+   people frequently want exclusive locks when they checkout a resource
+   even if they have merge facilities.  It is a process issue.
+
+And some people don't want exclusive locks.
+And some people don't want to use WebDAV locks to specify access control.
+Which is why I resist any proposal to inextricably link WebDAV locks
+with the orthogonal notion of CHECKOUT.
+
+   [CK] I think the Workspace-Id concept is confusing and adds an extra
+   layer of burden on clients.  Maybe I just don't get it.
+
+In VSS, it's a "sandbox".  In ClearCase it's a "view".  In many/most other
+CM systems, it's called a "workspace".  They've all got the concept, and
+any client that doesn't understand it won't be able to interoperate in a
+simple with any of the existing CM systems.
+
+This may just be confusion over terminology ... if we get a common set
+of definitions for "configuration" and "workspace" this week in Utah,
+this confusion may just disappear (well, it's at least a possibility :-).
+
+Cheers,
+Geoff
+
+
+

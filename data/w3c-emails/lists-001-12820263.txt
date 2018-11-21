@@ -1,0 +1,76 @@
+docno="lists-001-12820263"
+received="Wed Oct 31 18:13:11 2001"
+isoreceived="20011031231311"
+sent="Wed, 31 Oct 2001 16:05:12 -0700"
+isosent="20011031230512"
+name="Lee Passey"
+email="lee@dysfunctionals.org"
+subject="Re: Trimming spaces and dropping empty paragraphs."
+id="3BE083A8.E57D8667@dysfunctionals.org"
+charset="us-ascii"
+inreplyto="hnvrsto5ec55am1p6cl332nr84f6asntes&#64;4ax.com"
+expires="-1"
+
+
+To: Bjoern Hoehrmann<derhoermi@gmx.net>
+CC:tidy-develop@lists.sourceforge.net, html-tidy<html-tidy@w3.org>
+
+Bjoern Hoehrmann wrote:
+
+> This might be considered a bug, Tidy should produce a canonical version
+> of the document (equal settings => equal result, no matter how often you
+> apply these rules) and here it doesn't. I vote for fixing it, your
+> example and the result after cleaning it two times render the same in
+> current browsers.
+
+After pursuing several false paths, I think I have come up with a very small
+change which will solve most, if not all, of these problems.  The apparent
+theory of operation is that if spaces in a text node are trimmed to the point
+where the node no longer contains any text, the node should be removed from
+the tree.  This removal occurs in the parser.c in the function
+TrimTrailingSpace().  However, the test of whether to remove the node is
+inside the conditional (last->end > last->start), so if the node enters the
+function already empty it will not be removed.  This situation can occur, for
+example, when you have an empty space, bracketed by inline tags such as <em>,
+inside a block, such as paragraphs, e.g:
+
+<p><em> </em></p>
+
+In this case TrimInitialSpace() has incremented node->start before
+TrimTrailingSpace is called, so the node is now empty, but has not been
+removed.  When the resulting text is printed it appears as:
+
+<p><em></em></p>
+
+the space has been removed, but the tags are intact.  Running this through
+tidy a second time causes the (now) empty paragraph to be removed.
+
+The simple fix to this is to split the conditional statement into a test for
+a text node and a test for content, and then placing the test for removing
+the node inside the first block but outside the second.  Here are the diffs
+to implement the fix:
+
+312c312
+<     if (last != null && last->type == TextNode && last->end > last->start)
+---
+>     if (last != null && last->type == TextNode)
+313a314,315
+>         if (last->end > last->start)
+>         {
+331c333,335
+<
+---
+>                 }
+>             }
+>         }
+335,336d338
+<             }
+<         }
+
+I have added this fix to my C++ implementation of Tidy.  Let me know ASAP if
+I need to back it out.
+
+Cheers.
+
+
+

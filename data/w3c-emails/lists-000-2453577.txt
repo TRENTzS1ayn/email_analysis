@@ -1,0 +1,84 @@
+docno="lists-000-2453577"
+received="Sun Aug  1 14:48:06 1999"
+isoreceived="19990801184806"
+sent="Sun, 1 Aug 1999 13:42:35 -0500"
+isosent="19990801184235"
+name="Advocate"
+email="wotw@inebraska.com"
+subject="InsertNodeAfterElement(): missing &quot;node-&gt;next-&gt;prev = node;&quot;"
+id="v04205500b3ca3c3332d5@[209.50.4.88]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Apparently InsertNodeAfterElement is failing to create the 
+"node->next->prev" link to itself when "node" is inserted after a 
+node "element" which is not the last node of the "parent".  I'll 
+label that node "(next)".
+
+element
+^ ^ |
+| | |
+| | v
+| node
+|   |
+|   |
+|   v
+(next)
+
+The "element->next" points to "node" and "node->prev" points to 
+"element", but "(next)->prev" does not point to "node" but instead it 
+still points back to "element".
+
+This was only encountered when dealing with PRE tags containing 
+content illegal for PRE.  (Called twice by ParsePre to move illegal 
+PRE content to be a later sibling of PRE, then open PRE again 
+afterward).  The patch is below.
+
+*** tidy26jul99/parser.cMon Jul 26 16:03:05 1999
+--- tidy26jul99-InsertNodeAfterElement/parser.cThu Jul 29 12:25:56 1999
+***************
+*** 43,57 ****
+   void InsertNodeAfterElement(Node *element, Node *node)
+   {
+       Node *parent;
+ 
+       parent = element->parent;
+       node->parent = parent;
+ 
+       if (parent->last == element)
+           parent->last = node;
+!     else
+           node->next = element->next;
+ 
+       element->next = node;
+       node->prev = element;
+   }
+--- 43,59 ----
+   void InsertNodeAfterElement(Node *element, Node *node)
+   {
+       Node *parent;
+ 
+       parent = element->parent;
+       node->parent = parent;
+ 
+       if (parent->last == element)
+           parent->last = node;
+!     else {
+           node->next = element->next;
++         node->next->prev = node;
++     }
+ 
+       element->next = node;
+       node->prev = element;
+   }
+-- 
+          ,=<#)-=#  <http://www.war-of-the-worlds.org/>
+     ,_--//--_,
+  _-~_-(####)-_~-_  "Did you see that Parkins boy's body in the tunnels?" "Just
+(#>_--'~--~`--_<#)  the photos.  Worst thing I've ever seen; kid had no face."
+
+
+

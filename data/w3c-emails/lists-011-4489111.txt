@@ -1,0 +1,214 @@
+docno="lists-011-4489111"
+received="Fri Jul 18 06:57:29 1997"
+isoreceived="19970718105729"
+sent="Fri, 18 Jul 1997 15:40:27 +0200 (MET DST)"
+isosent="19970718134027"
+name="Martin J. Duerst"
+email="mduerst@ifi.unizh.ch"
+subject="ISSUE: LANGUAGETAG"
+id="Pine.SUN.3.96.970717115711.245O100000@enoshima"
+charset="USASCII"
+inreplyto="199701091459.PAA23947&#64;beatles.cselt.stet.it"
+expires="1"
+
+To: Maurizio Codogno<mau@beatles.cselt.stet.it>
+Cc: Larry Masinter<masinter@parc.xerox.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+I have been one of those originally discussing this issue,
+and I think I should take it up again after it has appeared
+on Larry's list.
+
+The question is how the Accept-Language field is matched with
+the language information of the documents on the server. In
+particular, the question is what should be done in terms of
+prefix matching.
+
+Language tags, as to RFC 1766, are strings separated into
+components with "-". RFC 1766 does not look at the individual
+components, but it is in general very convenient to consider
+the components and to do prefix matching.
+
+To give an examlpe, the current situation is:
+
+% Accept-Language      Document        Match?
+% 
+% en                   en              YES
+% en-us                en-us           YES
+% en                   en-us           YES
+% en-us                en              NO????
+% en-us                en-uk           NO!!!!
+
+The NO!!!! in the last case is there because even though it
+would make sense to return an en-uk (GB English) document
+in request for en-us (US English) [of course if en-uk as
+such is not available], this never applies in general.
+For example, there could be x-klingon and x-martian, without
+any mutual intellegibility. There is zh-cn and zh-tw (mainland
+Chinese Chinese and Taiwanese Chinese, usually standing for
+simplified and traditional style Chinese), where some people
+wouldn't care getting either of these, but others would have
+difficulties understanding one or the other. Even for "en",
+we could have something like en-ebonics, not easily intellegible
+for an average "en" reader.
+
+Once it is understood that we cannot match aa-bb with aa-cc,
+the question is whether we can do anything to improve the
+situation for getting a match between en-us and en, as marked
+with NO???? above. In an earlier mail, I proposed to solve
+this by just changing the spec to saying that this case
+matches. I found out in the meantime that this has some
+subtle undesired consequences. The story goes as follows:
+
+We want to have a way to get en-uk back to an en-us reader
+(for this and similar cases, not for the general case).
+With the current spec, we know that it's the user side's
+responsibility to do something about it, i.e. to have
+Accept-Language: en-us, en
+maybe with the necessary q values.
+
+Now if we add to the spec that en-us matches an en document,
+it could as well be the responsibility of the server side
+to tag the document both as en-uk and en, in order to get
+it send back on an en-us request. We don't know anymore
+who is responsible, which means that either both will do
+it (to make sure it works) or nobody will do it (because
+they hope for the other side). This is rather undesired :-(.
+
+The current solution is better in that even if it doesn't
+do as much as possible automatically, it assigns clear
+responsibilities.
+
+The question is whether the responsibilities are on the
+right side. In one respect, they are, because it's the
+reader who ultimately knows what she can (or wants to)
+read and what not. However, in another respect, it's on
+the wrong side, because the end user is not aware that
+she is responsible, or how she should take up her
+responsibility. As a consequence, she might have set up
+language preferences as en-us only, and then be very
+annoyed when she gets back a variant list saying:
+
+The document is not available in US English
+as you requested, but it is available in the
+following languages:
+
+English
+
+Please click on the language in which you prefer
+to receive the document.
+
+To change the spec and put the responsibility on the server
+side might have some advantages (server side generally has
+a little more expertise than user side), but also has
+disadvantages (because it assumes the server side knows what
+users with various prefeneces do understand and what they
+don't, which is difficult e.g. in the zh (Chinese) case).
+Its biggest disadvantage is of course that we would have
+to turn the spec upside down.
+
+To avoid the annoying case above, the best thing that can
+be done is that browser implementors help users to get
+their choices right. For example, after a user selects
+en-us and fr-ca and hits OK, a little dialog could come
+up and ask:
+
+You selected US English, but not general English.
+In order for the browser to obtain all documents
+readable to you, we suggest to add general English.
+Should we do that for you?[YES] [NO] [CANCEL]
+
+Another question that remains to me is that currently, the
+spec assumes that each document has assigned exactly one
+language-tag, and that there either is a match or there
+is none. On sophisticated servers with database background
+and so on, this could look vastly different. How is the
+spec supposed to be applied in such a case?
+
+
+I therefore propose the following:
+
+- Leave the matching mechanism in the spec as is.
+- Add some comments to help avoid situations that are
+really annoying to end users.
+
+
+The current text is:
+
+> 14.4 Accept-Language
+> 
+>    The Accept-Language request-header field is similar to Accept, but
+>    restricts the set of natural languages that are preferred as a
+>    response to the request.
+> 
+>           Accept-Language = "Accept-Language" ":"
+>                             1#( language-range [ ";" "q" "=" qvalue ] )
+> 
+>           language-range  = ( ( 1*8ALPHA *( "-" 1*8ALPHA ) ) | "*" )
+> 
+>    Each language-range MAY be given an associated quality value which
+>    represents an estimate of the user's preference for the languages
+>    specified by that range. The quality value defaults to "q=1". For
+>    example,
+> 
+>           Accept-Language: da, en-gb;q=0.8, en;q=0.7
+> 
+>    would mean: "I prefer Danish, but will accept British English and
+>    other types of English." A language-range matches a language-tag if
+>    it exactly equals the tag, or if it exactly equals a prefix of the
+>    tag such that the first tag character following the prefix is "-".
+>    The special range "*", if present in the Accept-Language field,
+>    matches every tag not matched by any other range present in the
+>    Accept-Language field.
+> 
+>      Note: This use of a prefix matching rule does not imply that
+>      language tags are assigned to languages in such a way that it is
+>      always true that if a user understands a language with a certain
+>      tag, then this user will also understand all languages with tags
+>      for which this tag is a prefix. The prefix rule simply allows the
+>      use of prefix tags if this is the case.
+> 
+>    The language quality factor assigned to a language-tag by the
+>    Accept-Language field is the quality value of the longest language-
+>    range in the field that matches the language-tag. If no language-
+>    range in the field matches the tag, the language quality factor
+>    assigned is 0. If no Accept-Language header is present in the
+>    request, the server SHOULD assume that all languages are equally
+>    acceptable. If an Accept-Language header is present, then all
+>    languages which are assigned a quality factor greater than 0 are
+>    acceptable.
+> 
+>    It may be contrary to the privacy expectations of the user to send an
+>    Accept-Language header with the complete linguistic preferences of
+>    the user in every request. For a discussion of this issue, see
+>    section 15.7.
+> 
+>      Note: As intelligibility is highly dependent on the individual
+>      user, it is recommended that client applications make the choice of
+>      linguistic preference available to the user. If the choice is not
+>      made available, then the Accept-Language header field must not be
+>      given in the request.
+
+I propose to add another note at the end of Section 14.4:
+
+>>>> START OF PROPOSED ADDITION
+Note: When making the choice of linguistic preference available to
+the user, implementors should take into account the fact that users
+are not familliar with the details of language matching as described
+above, and should provide appropriate guidance. As an examlpe, users
+may assume that on selecting "en-gb", they will be served any kind
+of English document if British English is not available. A user
+agent may suggest in such a case to add "en" to get the best
+matching behaviour.
+<<<< END OF PROPOSED ADDITION
+
+
+I hope that giving the proposed addition in the form above is
+sufficient. Please inform me of whatever other action that
+might be necessary to move this ISSUE forward.
+
+
+Regards,Martin.
+
+
+

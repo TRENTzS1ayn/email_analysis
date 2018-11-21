@@ -1,0 +1,142 @@
+docno="lists-007-14261880"
+received="Thu Dec  6 08:13:58 2001"
+isoreceived="20011206131358"
+sent="Wed, 05 Dec 2001 08:20:06 +0000"
+isosent="20011205082006"
+name="Graham Klyne"
+email="GK@Ninebynine.org"
+subject="Re: Requirements for reliable message delivery"
+id="5.1.0.14.2.20011205080333.03215a10@joy.songbird.com"
+charset="us-ascii"
+inreplyto="OF92D04574.6EE6CC94-ON80256B18.002DB91F&#64;portsmouth.uk.ibm. com"
+expires="-1"
+
+
+To:"John Ibbotson"<john_ibbotson@uk.ibm.com>
+Cc:discuss@apps.ietf.org
+
+At 08:19 AM 12/4/01 +0000, John Ibbotson wrote:
+>John,
+>
+>Thanks for your clarifications, though I must confess I am still struggling
+>to understand the rationale for what you seem to be describing:
+>
+>(1) Complexity of distributed commit:  it seems to me that the simplest
+>option would be if the "reliable message transfer" were just a single
+>end-to-end hop, without the issues of cascading.  This suggests that
+>intermediate hops may be best effort if the message-passing endpoint has
+>the recovery logic.
+>
+><JBI> Sure, If life was so simple :-) Most B2B types of transfer assume an
+>application generating a message <JBI> sits within some firewall and is
+>communicating with another application within some other business <JBI>
+><JBI> firewall. That immediately gives three hops App1 -> gateway1 ->
+>gateway2 -> App2 (I'm assuming the App <JBI> talks to some messaging
+>middleware maybe via JMS). The internal messaging middleware in each
+>business <JBI> infrastructure may be different so that adds the complexity
+>of different transports to the equation.
+
+Ah, are we talking about requirements for a reliable messaging *protocol* 
+standard, or something else?  I think I'm beginning to see what you're 
+after, and need think about this some more.
+
+Meanwhile...
+
+>(2) Achieving reliability:  it is my view that reliability is mostly
+>achieved by strong implementation and operational deployment, not protocol
+>design.  But however good a system is, there is still a possibility of
+>failure.  I think the challenge for protocol design is to make the
+>behaviour deterministic, in the sense that the sender of a message has a
+>reliable indication of the eventual outcome of message transfer (or, in a
+>transactional context, I suppose it would be better to say that the two
+>endpoints have a reliable way to synchronize their record of state).
+>
+><JBI> No matter how robust the implementation and deployment is, there will
+>still be failures. A reliable <JBI> protocol design will provide
+>deterministic behaviour as seen by an application that uses the reliable
+><JBI> delivery service defined by the protocol.
+
+Good.  We agree on that much.
+
+>I see a problem with this scenario, which I must assume you've considered,
+>so I hope it will flush out any misunderstandings:
+>
+>       +------+     +------------+     +--------+
+>       |Sender|-->--|Intermediary|-->--|Receiver|
+>       +------+     +------------+     +--------+
+>
+>    (a) First hop:  sender hands off to intermediate.
+>        On completion, assumes that delivery is (or will be) done.
+><JBI> No - it is known that delivery is done since the protocol tells him
+>that it has been done. Suppose
+><JBI> message M1 is to be sent. There is a stored copy of M1 at the sender.
+>The sender sends M1 to the
+><JBI> Intermediary which stores it persistently. Persistently means that
+>the copy will survive a recycling of <JBI> the intermediary so the message
+>has to be stored on disk (database, filesystem etc). The intermediary <JBI>
+>then responds to the Sender telling it that M1 has been stored. The Sender
+>can then delete its local <JBI> copy of M1. In the case of the intermediary
+>failing before M1 is stored, the sender will not be told <JBI> that the
+>intermediary copy of M1 is stored. Therefore the transaction of sending M1
+>is in doubt. It can <JBI> then resynchronise with the intermediary and
+>resend M1.
+
+My fundamental problem here is that simply having the intermediary store 
+the message before indicating acceptance is not, of itself, a guarantee of 
+final delivery.  SMTP semantics effectively require this much.  Suppose a 
+relay hosting centre suffers a disk failure after a message has been 
+accepted.  Or a flood.  Or...
+
+Also, I note that the intermediary->sender confirmation you describe is a 
+confirmation of *storage*, not confirmation of delivery.  Now, that is 
+fine, but I don't think it's sufficient.  I think the message 
+infrastructure should also be able to supply the sender a confirmation of 
+final delivery, OR an indication that final delivery was not achieved, OR 
+for there to be a presumption that if such confirmation is not achieved 
+within a defined interval then the final delivery was not achieved.
+
+Meanwhile, the sender may be free to delete its copy of the message when 
+the intermediary has accepted it, but should not assume that any associated 
+transaction has been completed/committed by its ultimate recipient.  This 
+is (part of) what I meant by suggesting that hop-by-hop reliability may be 
+a useful performance enhancement but not of itself sufficient for 
+end-to-end reliability.
+
+>    (b) Intermediary falls over.  Message (or record of state) held at
+>intermediary is lost.
+><JBI> The Intermediary MUST make a local copy of the message. If it then
+>falls over, it can recover.
+
+Assuming the copy survives the "falling over" ... see above.
+
+>    (c) Sender and Receiver are now out of sync, with no outstanding
+>unresolved state
+><JBI> First hop actions are repeated between the intermediary and reveiver
+>for reliable delivery.
+>
+>(3) You talk about transferring state information with the message;  it
+>seems to me that such state information can only ever be partial with
+>respect to whatever function it is that the endpoint applications are
+>trying to perform.  So the need for some kind of end-to-end synchronization
+>doesn't go away.
+><JBI> Hopefully, what I've described above shows how the end-to-end
+>synchronisation can be implemented using
+><JBI> cascaded single hops. There are still end-to-end issues such as
+>authentication, non-repudiation etc that <JBI> are the responsibility of
+>the business process using the  reliable delivery. I believe those kinds of
+><JBI> issues are strictly the responsibility of the business applications
+>and not the messaging layer.
+
+I guess I'm arguing that ultimate responsibility for reliability also needs 
+to be responsibility of the business application (or some layer at the 
+endpoint closely tied to the business application).
+
+#g
+
+
+------------
+Graham Klyne
+GK@NineByNine.org
+
+
+

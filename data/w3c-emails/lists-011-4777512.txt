@@ -1,0 +1,102 @@
+docno="lists-011-4777512"
+received="Mon Jul 21 16:05:49 1997"
+isoreceived="19970721200549"
+sent="Mon, 21 Jul 97 15:59:25 MDT"
+isosent="19970721215925"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Any objections to &quot;Acceptencoding: gzip, *;q=0&quot;?"
+id="9707212259.AA28854@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+The CONTENT-ENCODING issue:
+http://www.w3.org/pub/WWW/Protocols/HTTP/Issues/#CONTENT-ENCODING
+
+has been assigned to myself and Henrik for resolution.  We're pretty
+close to solving most of it, except for a seemingly minor concern:
+How does a client say "don't send me the 'identity' encoding"?
+I.e., "please send me a compressed form or send me nothing."
+
+(Why would a client want to say "don't send 'identity'"?  Well,
+perhaps the bandwidth costs or latency costs are too high.)
+
+A month or two ago, I proposed adding an "identity" content-coding
+so that we could define a way for the client to say that
+it does NOT want the identity encoding.  I had originally
+thought "if the client sends a list of explicitly acceptable
+encodings, but 'identity' isn't on this list, then this
+means that it doesn't want 'identity'".  But that is obviously
+not going to work.  For example, existing clients (apparently
+including Lynx) send
+Accept-encodings: gzip, compress
+even though they are presumably willing to take "identity."  If
+we were to adopt the rule that I had originally proposed, Lynx
+clients would suddenly get error returns for most resources!
+
+Since we certainly do not want break existing clients, the
+other alternative that I thought of seems simpler, if somewhat
+odd at first glance: define an explicit way for the client to say
+"I would rather have 406 than the identity-encoding".  Here are
+some ways to do this:
+
+  (a)Accept-Encoding: gzip, compress, no-identity
+/* an explicit "no identity-encoding wanted" token */
+
+  (b)Accept-Encoding: gzip, compress, strict
+/* "strict" means "this set, or nothing" */
+
+  (c)Accept-Encoding: gzip, compress, identity;q=0.0
+/* allow qvalues here */
+
+  (d)Accept-Encoding-Strict: gzip, compress
+/* define new header to avoid compatibility questions */
+
+Which one to choose?  (d) is least likely to cause trouble, but
+it also means that the client has to guess the origin-server version.
+We have no reliable way to do this, so in practice (d) would not
+really encourage the use of compression.
+
+(c) seems closest to existing practice, although it's possible
+that some existing servers might choke on the qvalue.
+
+(a) and (b) mean roughly the same thing, and are certainly not
+going to cause compatibility problems, but they are a little kludgey.
+
+We're already likely to propose that Accept-Encoding allow
+the use of "*" to mean "whatever you want to send."  So a slight
+variation on (c) would be
+
+  (e)Accept-Encoding: gzip, compress, *;q=0
+
+I.e., the "coding"
+*;q=0
+is semantically equivalent to the "strict" token in (b) above,
+but somewhat closer to the form of the other Accept-* headers.
+
+My own preference is for one of these two approaches:
+
+  (c)Accept-Encoding: gzip, compress, identity;q=0.0
+  (e)Accept-Encoding: gzip, compress, *;q=0
+
+However, neither of these will work if any existing servers
+or proxies would choke on a qvalue in an Accept-Encoding header.
+Also, while (e) is cleaner in some ways, it also is infeasible
+if any existing servers or proxies would choke on a "*" here.
+
+Comments?  As soon as possible, please!
+
+-Jeff
+
+P.S.: We may have to include a Note to client implementors that
+sending a qvalue for a content-coding from the set {"compress",
+"gzip", "x-compress", "x-gzip"} might be misinterpreted by older
+servers, and so is not recommended.  At least, the one older server
+source that I looked at (Apache_1.1b3) looks like it will treat
+Accept-encoding: gzip;q=1.0
+as a request for a content-coding that it doesn't know about.
+
+
+

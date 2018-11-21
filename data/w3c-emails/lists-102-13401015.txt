@@ -1,0 +1,116 @@
+docno="lists-102-13401015"
+received="Thu Jun 24 07:28:28 1999"
+isoreceived="19990624112828"
+sent="Tue, 22 Jun 1999 17:00:53 -0400 (EDT)"
+isosent="19990622210053"
+name="Raph Levien"
+email="raph@acm.org"
+subject="DOM2 Event gripes"
+id="199906222100.OAA00733@callisto.hip.berkeley.edu"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+   I'm trying to implement an SVG editor (Gill) as much as possible
+based on the relevant W3C standards, and I'm running into some
+problems with DOM2 events. I'm trying to use DOM as the document
+model, and use the Event/Listener mechanism to implement _all_ views,
+including the primary window of the application.
+
+   First, is there any source available for DOM2 events? Mozilla seems
+to implement a subset (no mutation events, very limited capture
+semantics). My usual reaction when confronted with vague docs is to
+RTFS, but in this case I'm having trouble finding FS to R.
+
+   Here are some points that are not clear to me:
+
+1) subtreeModified "can be used instead of the more specific events
+   listed below." I assume "used" refers to the listener side. Also,
+   regarding the batching, this assumes that there is a mechanism for
+   making modifications to the DOM in a batch, currently not defined
+   in any W3C DOM standard.
+
+2) what is the difference between nodeInsertedIntoSubtree and
+   nodeInsertedOntoParent? I assume a DOM implementation would
+   generally have to serve both events when a node is inserted.
+
+3) what events get generated when you do a splitText()?
+   characterDataModified on the original node and nodeInserted* on the
+   new node? Implementation-defined?
+
+
+   The exact algorithm for event processing is not clear to me. Below
+is pseudocode that I _think_ follows the spec. If not, I'd love to
+hear about it!
+
+processEvent (Event event, Node node,
+   boolean postProcess, boolean bubbles, boolean cancellable) {
+   /* Find potential capturers */
+   List chainDown = [];
+   Node n;
+
+   event.returnValue = true;
+
+   for (n = node; n != null; n = n.parentNode) {
+      chainDown = [n] + chainDown;
+      /* or, chainDown = cons (n, ChainDown); for Lisp'ers */
+   }
+
+   /* chainDown contains a list of all nodes from the document root
+      down to node, inclusive */
+
+   event.cancelCapture = false;
+   for n in chainDown {
+      for listener in n.listeners {
+         if (listener.postProcess == postProcess &&
+             listener.useCapture &&
+     listener.type == event.type) {
+            listener.handleEvent (event);
+         }
+      }
+      if (event.cancelCapture) goto captureCancelled;
+   }
+captureCancelled:
+
+   event.cancelBubble = false;
+   /* now bubble event up */
+   for (n = node; n != null; n = n.parentNode) {
+      for listener in n.listeners {
+         if (listener.postProcess == postProcess &&
+             !listener.useCapture &&
+     listener.type == event.type) {
+         listener.handleEvent (event);
+      }
+      if (!bubbles || event.cancelBubble) goto bubbleCancelled;
+   }
+bubbleCancelled:
+
+   if (!cancellable || event.returnValue) {
+      "execute DOM implementation's default actions"
+   }
+}
+
+   Lastly, I see the bubbling mechanism and multiple listeners as
+having infelicitous interactions. Suppose for a minute that I have a
+single view implemented through the Event/Listener mechanism. Now I
+have a good, generic way of doing incremental changes to the view, or,
+when the view of a node does not support incremental rendering,
+allowing the change to bubble up to a container that does. In this
+case, the container can delete the view that's changed, and re-render
+a new one. As soon as an event reaches a node that knows how to handle
+it, the bubbling is cancelled.
+
+   However, this obviously fails when there are multiple views. The
+cancellation of the bubbling in one view also causes the other views
+to be cancelled. It looks like what I really want to do here is
+implement my own event propagation in each view. Other ideas are
+welcome, or perhaps the draft should be changed to support this
+architecture more directly.
+
+Raph
+
+P.S. http://www.levien.com/svg/ for more information about Gill.
+
+
+

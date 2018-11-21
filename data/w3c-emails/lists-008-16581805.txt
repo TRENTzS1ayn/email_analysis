@@ -1,0 +1,158 @@
+docno="lists-008-16581805"
+received="Wed Nov 30 05:46:57 1994"
+isoreceived="19941130104657"
+sent="Wed, 30 Nov 1994 07:47:27 0600"
+isosent="19941130134727"
+name="Chuck Shotton"
+email="cshotton@oac.hsc.uth.tmc.edu"
+subject="Re: Comments on HTTP draft [of 23 Nov 1994]"
+id="ab02299901021004f616@[129.106.201.2]"
+charset="usascii"
+inreplyto="Comments on HTTP draft [of 23 Nov 1994]"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+>>     It would seem to be appropriate that the HTTP protocol specify that
+>>     Content-Length, in bytes, be Required--at least for Requests.
+>
+>I'd rather not go that far, but we may have to for HTTP/1.0.
+
+There are certain cases where it ranges from impractical to impossible to
+know the actual content-length of data being returned in an object-body. In
+particular, some CGIs that generate their own HTTP response headers may
+have trouble determining the length of their generated replies, especially
+if the replies are generated on the fly and returned piece by piece (to
+stdout, for example.) By the time the content-length is known, the header
+portion of the response is long gone.
+
+For responses from the server, it seems to be sufficient for the connection
+close to indicate the end of the object-body, and everyone seems to support
+this now. The real problem is with object-bodies being sent as part of a
+client request, since it is inappropriate to signal the end by closing the
+connection. In THIS case, it may be appropriate to make the content-length
+header field mandatory.
+
+So, the mandate for content-length may not be symmetrical, since servers
+have a much harder time determining this value than clients. (Of course,
+new clients with plug-in components a la CGI could present the same
+problems that currently afflict servers with regard to calculating
+content-length.)
+
+>>     (b) Does the server have to read the headers (and data, if any) on a
+>>     request?  For example, if the customizing filter/script doesn't need
+>>     the information in order to determine the response, is the server
+>>     permitted to leave the data unread, or could this embarrass some
+>>     client(s) or TCP/IP stack(s)?
+>
+>The Request-Headers must be read, though implementations may want to optimize
+>and assume that if the Request-Headers have not completed within the first
+>read buffer, then the rest are not important.  Since that is only a problem
+>for SOME BROKEN CLIENTS, most servers could successfully pretend to be
+>conformant while implementing the optimization.  Obviously, if there is
+>any data in the request, the server had better read it (unless the request
+>line has already errored-out).
+
+I agree with this approach. It is difficult to determine when
+request-headers end if you don't assume that the first read buffer contains
+the "meat" of the request. The only reason to continue beyond the first
+read is if the method indicates additional data is on the way (POST, PUT,
+etc.) Unfortunately, there isn't an easy way to codify this in a standard
+that describes primarily syntax.
+
+>>     (b) Since this is a new standard/document, surely it should specify
+>>     a single Date/Time format, and only mention the others for
+>>     compatibility/historical information?
+>
+>The document has a bit of history associated with it, but perhaps a stronger
+>statement should be made.  I didn't want to be too forceful, however, since
+>I am biased about the date format and wanted to test the water first.
+
+I'd like to throw in my $.02 here, too. I agree that a single date/time
+format is much easier to deal with. The last thing I want to waste my time
+on is implementing a bunch of code to parse 3 different formats.
+
+>> 4.3.3 Message-ID: [suggestion] Although the example shows a unique ID,
+>>     it might be nice to encourage via the example a form of ID that
+>>     includes the port number (if not 80), and even follows URL format.
+>>     Perhaps:
+>>
+>>       Message-ID: <http://info.cern.ch:8080/9411251630.4256>
+>
+>The above is not a valid syntax for Message-IDs (no "@").  Even with it,
+>the primary purpose of the Message-ID is to enable messages (particularly
+>POSTs) via gateways.  Using the same format as many (most?) E-mail and
+>USENET postal services can be very handy.
+
+Given the purpose of the Message-ID, its structure and semantic
+interpretation should be transparent to both clients and servers. The only
+important point for the software is that the ID be unique. It's
+interpretation is only for the benefit of humans. As with UseNet, it
+matters little what the actual format is the Message-ID is as long as the
+generator of the ID could work backwards from the value to find the
+original message. Since it's a unique ID, a simple hash would always work.
+Hence, there is no need for "smart numbers."
+
+In short, as an implementor, if you'd like to return URL info as part of
+your Message-ID, there doesn't appear to be anything in the standard that
+precludes it and existing software certainly doesn't care. Requiring a
+specific format is inappropriate, because not all hosts can guarantee
+uniqueness using the same techniques. For example, on non-Unix hosts,
+things like process IDs may not even exist. So requiring them as part of
+any unique ID generated would be inappropriate. Examples in the standard
+are fine for this header. A required format is unnecessary and
+undesireable.
+
+>> 4.3.4 MIME version: It is not at all clear why this is useful and
+>>     strongly recommended if it is not an indication of full compliance
+>>     with MIME.  One might argue that it should *not* be included unless
+>>     MIME-compliance of the remainder of the header and data is
+>>     guaranteed?
+>
+>I share that opinion, but then we run into legacy issues.
+
+It does provide some indication that the headers aren't MIME version 2 or 3 or 4
+headers. :) Seriously, I see that as the major value and not an indication
+that the entire message conforms to the MIME standard.
+
+>> 5.4 URI Note 1: What's 'default escaping'?  What characters may be
+>>     'considered unsafe'?  The "should" (probably meant to be "shall"?)
+>>     implies that a server must comply with these conditions, but they do
+>>     not seem to be well defined.
+>
+>This section needs work, and may end up as separate sections for
+>describing HTTP URLs, relative URLs, and URI's.
+
+And www-url-encoded-form format?
+
+>> 5.5.2 If-Modified-Since: This section implies that servers *must*
+>>     implement this feature.  However, the last-modified-date might be
+>>     unavailable, unreliable, or not applicable for some URIs.  In these
+>>     cases (or indeed in any case), is the server permitted to return the
+>>     object, despite the presence of the I-M-S header?
+>
+>Yes, but proper implementation (where appropriate) of the conditional
+>GET protocol will be strongly recommended and required for all new servers.
+
+Why required? There is no way to validate that this feature exists or is
+supported by a server by exercising a server remotely. I could write a
+server that modifies a document before every transmission or generates all
+documents on the fly. The effect would be the same as if the server
+completely ignored the if-modified-since header, since the document is
+always modified. From a client's perspective, you have no way to determine
+why the document is always returned.
+
+I think this is one case where "required" is too strong a word (I also have
+qualms about HEAD being "required", but that one can be validated remotely.
+I only question HEAD's usefulness for most implementations.) Strongly
+recommended is fine.
+
+
+-----------------------------------------------------------------------
+Chuck Shotton
+cshotton@oac.hsc.uth.tmc.edu                           "I am NOT here."
+
+
+

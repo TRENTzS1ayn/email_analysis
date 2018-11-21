@@ -1,0 +1,145 @@
+docno="lists-104-1558828"
+received="Sat Aug 18 23:45:04 2001"
+isoreceived="20010819034504"
+sent="Sat, 18 Aug 2001 23:51:25 -0400"
+isosent="20010819035125"
+name="Michael B. Allen"
+email="mballen@erols.com"
+subject="Re: [Events] removeEventListener on EventListeners currently being processed"
+id="20010818235125.A8135@nano.foo.net"
+charset="us-ascii"
+inreplyto="002e01c1284a$c3a90710$a800a8c0&#64;CurtMicron"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+On Sat, Aug 18, 2001 at 08:03:26PM -0500, Curt Arnold wrote:
+> > listener after it has been removed. I suspect I must collect the pointers
+> > to the actull functions to be called for each listener and store that
+> > in an array (i.e. pre-dereference the listener functions).
+> 
+> Actually, you should already have to collect the listeners since event
+> listeners added while processing a dispatch to the same target should not
+> see the event.
+
+And it is so. Not too bad actually.
+
+int
+DOM_EventTarget_dispatchEvent(DOM_EventTarget *target, DOM_Event *evt)
+{
+   DOM_EventTarget **targets, *t;
+   ListenerEntry *e;
+   unsigned int tcount, i, j, lcount;
+
+   if (target == NULL || evt == NULL) {
+      DOM_Exception = DOM_NULL_POINTER_ERR;
+      return 1;
+   }
+
+   if (evt->type == NULL || *evt->type == '\0') {
+      DOM_EventException = DOM_UNSPECIFIED_EVENT_TYPE_ERR;
+      return 1;
+   }
+
+   evt->target = target;                     /* post-initialization */
+   evt->timeStamp = time(NULL);
+   if (evt->timeStamp == (time_t)-1) {
+      DOM_Exception = DOM_SYSTEM_ERR;
+      return 1;
+   }
+   evt->sp = 0;
+   evt->pd = 0;
+
+   tcount = 0;                           /* count targets/ancestors */
+   for (t = target->parentNode; t; t = t->parentNode) {
+      tcount++;
+   }
+   if (tcount) {
+      targets = malloc(sizeof *targets * tcount);
+      if (targets == NULL) {
+         DOM_Exception = DOM_NO_MEMORY_ERR;
+         return 1;
+      }
+   }
+
+   i = tcount;               /* save state of tree in targets array */
+   for (t = target->parentNode; t; t = t->parentNode) {
+      targets[--i] = t;
+   }
+
+   /* Trigger capturers
+    */
+   evt->eventPhase = DOM_EVENT_CAPTURING_PHASE;
+   for (i = 0; i < tcount && evt->sp == 0; i++) {
+      DOM_EventListener listeners[targets[i]->num_listeners];
+                                                   /* use stack ok? */
+      t = targets[i];
+      lcount = 0;               /* copy relevant listener functions */
+      for (j = 0; j < t->num_listeners; j++) {
+         e = t->listeners[j];
+         if (e->useCapture &&
+                        DOM_String_cmp(e->type, evt->type) == 0) {
+            listeners[lcount++] = e->listener;
+         }
+      }
+
+      evt->currentTarget = t;
+      while (lcount) {
+         listeners[--lcount](evt);
+      }
+   }
+
+   /* Trigger regular listeners
+     */
+   evt->eventPhase = DOM_EVENT_AT_TARGET;
+   if (target->num_listeners && evt->sp == 0) {
+      DOM_EventListener listeners[target->num_listeners];
+
+      lcount = 0;
+      for (j = 0; j < target->num_listeners; j++) {
+         e = target->listeners[j];
+         if (e->useCapture == 0 &&
+                        DOM_String_cmp(e->type, evt->type) == 0) {
+            listeners[lcount++] = e->listener;
+         }
+      }
+
+      evt->currentTarget = target;
+      while (lcount) {
+         listeners[--lcount](evt);
+      }
+   }
+
+   /* Trigger bubblers
+     */
+   evt->eventPhase = DOM_EVENT_BUBBLING_PHASE;
+   i = tcount;
+   while (i-- && evt->sp == 0) {
+      DOM_EventListener listeners[targets[i]->num_listeners];
+
+      t = targets[i];
+      lcount = 0;
+      for (j = 0; j < t->num_listeners; j++) {
+         e = t->listeners[j];
+         if (e->useCapture == 0 &&
+                        DOM_String_cmp(e->type, evt->type) == 0) {
+            listeners[lcount++] = e->listener;
+         }
+      }
+
+      evt->currentTarget = t;
+      while (lcount) {
+         listeners[--lcount](evt);
+      }
+   }
+
+   free(targets);
+   return evt->pd;
+}
+
+-- 
+Wow a memory-mapped fork bomb! Now what on earth did you expect? - lkml
+
+
+

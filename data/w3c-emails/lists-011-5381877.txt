@@ -1,0 +1,234 @@
+docno="lists-011-5381877"
+received="Wed Jul 23 19:39:40 1997"
+isoreceived="19970723233940"
+sent="Wed, 23 Jul 97 19:28:35 MDT"
+isosent="19970724012835"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Another try at OPTIONS"
+id="9707240228.AA10403@acetes.pa.dec.com"
+inreplyto="199707231359.JAA26128&#64;devnix.agranat.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Scott Lawrence writes:
+
+  On the question of proxies modifying the responses, perhaps it would
+  be better for a proxy that does not implement a particular feature
+  to add a non-compliance indication without removing the original
+  assertion; this might enable a client to detect the true situation.
+
+On the face of it, this is a reasonable proposal.  It certainly seems
+preferable to have the proxy add information about its non-compliance
+(using a header) than to have the proxy try to edit a response,
+especially if it might not understand the semantics of the response.
+
+But I started to think about this, and after struggling with it for a
+while (this is actually my third attempt to compose a response to your
+message), I'm convinced that we should not be giving proxies too much
+room to be non-compliant.  I.e., the proper thing for a proxy to do is
+not say "I don't comply", but (if it doesn't support some feature) to
+either forward the request and the response verbatim, as a tunnel
+would, or to reject the request as being unacceptable (e.g., because it
+violates a security policy).
+
+We've tried fairly hard so far to define the protocol in such a way
+that a naive proxy won't screw things up.  E.g., we have a "Connection"
+header to prevent the forwarding of a header that should only be
+forwarded by a proxy that understands it.  And we have a variety of
+cache-control mechanisms that disable caching in circumstances where a
+naive proxy cache cannot be expected to do the right thing.
+
+Here's a list of the things that a proxy implementation could be
+non-compliant with:
+
+Methods
+If a proxy doesn't support a method, it should
+reject a request with that method, using
+405 (Method Not Allowed).
+
+Request headers, not listed in Connection
+Normally, a non-compliant proxy would simply forward;
+it could also reject the request.
+
+Request headers, listed in Connection
+Normally, a non-compliant proxy would simply delete;
+it could also reject the request.
+
+    Note that one could use the proposed OPTIONS redesign, plus the
+    Max-Forwards + Allow/Public headers, to discover which server on a
+    chain is rejecting a request with a 405 (Method Not Allowed).
+    Also, the Via header should provide the same information, no
+    matter what reason causes a proxy to reject a request.
+
+Status codes
+Normally, a non-compliant proxy would simply forward
+(and would not cache the response; see 13.4)
+
+Response headers, not listed in Connection
+Normally, a non-compliant proxy would simply forward
+
+Response headers, listed in Connection
+Normally, a non-compliant proxy would simply delete
+
+Behavioral rules
+For example, "if you see both X and Y, then you
+must do Z"
+
+As far as I can tell, it's only the last category (behavioral rules)
+which could cause problems, given the basic rule that a proxy should
+become transparent when it doesn't know what it's supposed to do.  In
+this case, I think the right approach is to design the protocol so that
+errors of omission (i.e., the proxy sees both X and Y, but fails to do
+Z) are not fatal.
+
+I could still see supporting the inclusion of Non-Compliance header,
+but if so, I think it should be significantly simplified, and should
+basically serve an advisory function (kind of like Warning, but with a
+more specifically defined syntax).  So I would suggest omitting the
+"passed"/"dropped" distinction; if a proxy doesn't comply, it should
+always forward messages, except that it can always reject a message
+outright (e.g., for security reasons).  [If a proxy rejects a response
+message, I guess it has to construct some sort of error status to send
+to the client in place of the original response.]
+
+Also, your BNF
+
+  Non-Compliance =
+        "Non-Compliance" ":" proxy-host 1#non-compliance-option
+
+has a small problem, because section 4.2 of RFC2068 (Message Headers)
+says:
+
+   Multiple message-header fields with the same field-name may be
+   present in a message if and only if the entire field-value for that
+   header field is defined as a comma-separated list [i.e., #(values)].
+   It MUST be possible to combine the multiple header fields into one
+   "field-name: field-value" pair, without changing the semantics of the
+   message, by appending each subsequent field-value to the first, each
+   separated by a comma.
+
+This means that there is no legal way to use your proposed BNF
+if two proxies need to add a Non-Compliance header.
+
+How about this syntax:
+
+  Non-Compliance =  "Non-Compliance" ":" 1#non-compliance-option
+
+        proxy-host = host [ ":" port ]
+
+non-compliance-option = compliance-option "@" proxy-host
+
+This just adds the hostname to each unsupported option listed in the
+received Compliance header, so we can use a simple comma-separated list
+of items.  The downside is that the hostname may be repeated several
+times (if it fails to comply with several options), but my hope is that
+this is likely to be a short list!
+
+Anyway, my full revision of your proposal is:
+
+(1) add this new section:
+
+14.QQQ Non-Compliance
+
+   A proxy server SHOULD add this response-header to a response
+   containing a Compliance header if the proxy does not implement one
+   or more of the options described in the Compliance header.
+
+  Non-Compliance =  "Non-Compliance" ":" 1#non-compliance-option
+
+        proxy-host = host [ ":" port ]
+
+non-compliance-option = compliance-option "@" proxy-host
+
+   A non-compliance-option listed in a Non-Compliance response-header
+   field indicates that the proxy server named by the proxy-host value
+   does not support the listed compliance-option.  The set of
+   non-compliance options SHOULD be a subset of the compliance-options
+   listed in a Compliance header field of the forwarded message.
+
+      Note: because the proxy-host value is not authenticated,
+      this is only for advisory purposes (e.g., for debugging).
+
+   A proxy MUST NOT delete a Non-Compliance header that it has
+   received from another server.
+
+(2) In section 9.2 (OPTIONS), replace this:
+
+If the OPTIONS request passes through a
+   proxy, the proxy MUST edit the response to exclude those options
+   which apply to a proxy's capabilities and which are known to be
+   unavailable through that proxy.
+
+with
+If the OPTIONS request passes through a
+   proxy, the proxy SHOULD add a Non-Compliance header field (see
+   section 14.QQQ) to the response, to list those options that apply to
+   a proxy's capabilities and that are known to be unavailable through
+   that proxy.
+
+(3a) section 14.7 (Allow) says 
+
+   A proxy MUST NOT modify the Allow header field even if it does not
+   understand all the methods specified, since the user agent MAY have
+   other means of communicating with the origin server.
+
+[Note: that MAY should be a "might"; it's not normative.]
+
+However, section 14.35 (Public), which is otherwise analogous to Allow, says:
+
+   This header field applies only to the server directly connected to
+   the client (i.e., the nearest neighbor in a chain of connections). If
+   the response passes through a proxy, the proxy MUST either remove the
+   Public header field or replace it with one applicable to its own
+   capabilities.
+
+This discrepancy seems unnecessary; the text also conflicts with
+the new proposal for OPTIONS,
+    http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q3/0256.html
+which says "If an OPTIONS request includes a Host header, this is the
+intended destination of the OPTIONS method" ... so I don't think
+we need to restrict Public to the directly-connected server, especially
+if we aren't so restricting Allow.
+
+I suggest replacing that paragraph with:
+
+   A proxy MUST NOT modify the Public header field even if it does not
+   understand all the methods specified, since the user agent might have
+   other means of communicating with the origin server.
+
+(3b) If you don't like the proposal in 3a, try the reverse:
+
+Change this paragraph in 14.7 from
+
+   A proxy MUST NOT modify the Allow header field even if it does not
+   understand all the methods specified, since the user agent MAY have
+   other means of communicating with the origin server.
+
+to
+
+   A proxy MUST remove methods from an Allow header field if it
+   does not support the use of those methods for the resource
+   identified by the Request-URI.
+
+Change this paragraph in 14.35 from
+
+   This header field applies only to the server directly connected to
+   the client (i.e., the nearest neighbor in a chain of connections). If
+   the response passes through a proxy, the proxy MUST either remove the
+   Public header field or replace it with one applicable to its own
+   capabilities.
+
+To
+
+   A proxy MUST remove methods from a Public header field if it
+   does not support the use of those methods.
+
+Comments?  Anyone have strong feelings about 3a vs. 3b?
+
+-Jeff
+
+
+

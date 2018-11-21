@@ -1,0 +1,210 @@
+docno="lists-009-4085697"
+received="Wed Mar 22 11:35:14 1995"
+isoreceived="19950322163514"
+sent="Wed, 22 Mar 95 19:20:07 GMT"
+isosent="19950322192007"
+name="Dave Raggett"
+email="dsr@hplb.hpl.hp.com"
+subject="3rd party Digest Access Authentication"
+id="199503221920.AA176450007@dragget.hpl.hp.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:vishnu%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+I would like to see the Internet Draft modified in a very simple
+way to allow its use with 3rd party authentication. Let me explain
+the idea:
+
+    a) Client sends request to HTTP server
+
+    b) Server responds with 401 Unauthorized
+
+    c) Client sends authentication request to 3rd party
+       server
+
+    d) 3rd party authentication server replies
+       with authentication ticket
+
+    e) Client resends request to HTTP server, attaching
+       the authentication ticket from 3rd party server
+
+    f) Server authorizes the request based on the ticket
+       and sends the requested document.
+
+Optionally, the server in step (f) can attach a keyed message digest
+so that the client can verify that the message hasn't changed en route.
+
+The value of this approach is that users don't have to keep track of
+passwords for each merchant they have an account with. Instead, users
+have a single password shared with the 3rd party authentication server.
+Likewise, merchants don't need separate passwords for each user, instead
+the merchant needs a single password it shares with the 3rd party server.
+
+It seems reasonable to use UDP to communicate with the 3rd party
+authentication server as this will reduce latency and allow the
+server to handle higher loads. I won't explain the details of how the
+client communicates with the 3rd party server in this posting, though.
+
+I expect you are wondering by now, how the client can check the message
+digest sent by the server in step (f). The client doesn't share a key
+with the server, so it can't verify the message digest itself. Instead,
+it displays the document as it comes off the wire, and when all the data has
+arrived involves the help of the trusted 3rd party server, which does know
+the server's password. To do this the client generates the MD5 hash value
+for the message body and then sends this to the 3rd party server along
+with the message digest sent by the HTTP server in step (f).
+
+The use of 3rd party authentication reduces book keeping to a minimum as
+compared with using separate keys. It also makes the 3rd party server a
+target for hackers!  This can be easily defended by isolating the server
+from the net and only responding to UDP packets on the port dedicated to
+the authentication service. Denial of service attacks are still possible
+but the Internet as a whole suffers from that problem.
+
+An obvious question is how does this proposal differ from Kerberos?
+The answer is that it is simpler, and only uses the public domain
+MD5 algorithm. There are no licensing issues and no export controls!
+
+The only changes required to the Internet Draft for the Digest
+Access Authentication scheme are:
+
+    1)  add a new optional field  called "TRUSTED" to the
+        401 Unauthorized message from the HTTP server
+
+This identifies a mutually trusted 3rd party using a URI.
+
+    2)  add a new optional field  called "TRUSTED" to the
+        Authorization header sent by the client to the HTTP server
+
+This identifies the 3rd party used by the client to generate H(A1).
+When the Authorization header includes the TRUSTED field, the HTTP
+server uses the password P which it shares with the trusted 3rd
+party. This password is looked up by the server on the basis of the
+the value supplied with the trusted field (T) and the realm (R).
+If the TRUSTED field is omitted, the server looks up P on the
+basis of the user name (U) and the realm (R).
+
+I have modified the relevant section of the Internet Draft and
+include this below. The Digest Access Authentication Internet Draft
+shouldn't specify details of the message exchanges with the 3rd party
+authentication server, as these will be covered in a separate Internet
+Draft.
+
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Digest realm="<realm>",
+                            trusted="trusted",
+                            domain="<domain>",
+                            nonce="<nonce>",
+                            opaque="<opaque>",
+                            stale="<TRUE | FALSE>"
+
+The meanings of the identifers used above are as follows:
+
+    <realm>
+        A name given to users so they know which username and password
+        to send.
+
+    <trusted> OPTIONAL
+        A string of data, identifying a trusted 3rd party authentication
+        server, using the URI notation. 
+
+    <domain>  OPTIONAL
+        A comma separated list of URIs, as specified for HTTP/1.0.  The
+        intent is that the client could use this information to know the
+        set of URIs for which the same authentication information should be
+        sent.  The URIs in this list may exist on different servers.  If
+        this keyword is omitted or empty, the client should assume that
+        the domain consists of all URIs on the responding server.
+
+    <nonce>
+        A server-specified integer value which may be uniquely generated
+        each time a 401 response is made.  Servers may defend themselves
+        against replay attacks by refusing to reuse nonce values. The nonce
+        should be considered opqaue by the client.
+
+    <opaque>  OPTIONAL
+        A string of data, specified by the server, which should returned by
+        the client unchanged.  It is recommended that this string be
+        base64 or hexadecimal data.  Specifically, since the string is
+        passed in the header lines as a quoted string, the double-quote
+        character is not allowed.
+
+    <stale>   OPTIONAL
+        A flag, indicating that the previous request from the client
+        was rejected because the nonce value was stale.  If stale
+        is TRUE, the client may wish to simply retry the request with
+        a new encrypted response, without reprompting the user for a
+        new username and password.
+
+The client is expected to retry the request, passing an Authorization header
+line as follows:
+
+  Authorization: Digest
+        username="<username>",             -- required
+        realm="<realm>",                   -- required
+        trusted="<trusted>",               -- OPTIONAL
+        nonce="<nonce>",                   -- required
+        uri="<requested-uri>",             -- required
+        response="<digest>",               -- required
+        message="<message-digest>",        -- OPTIONAL
+        opaque="<opaque>"                  -- required if provided by server
+
+    where <digest> := H( H(A1) + ":" + N + ":" + H(A2) )
+    and <message-digest> := H( H(A1) + ":" + N + ":" + H(<message-body>) )
+
+    where:
+
+        A1 := U + ':' + R + ':' + P
+        A2 := <Method> + ':' + <requested-uri>
+
+    with:
+
+        N -- nonce value
+        U -- username
+        T -- trusted 3rd party server name
+        R -- realm
+        P -- password
+        <Method> -- from header line 0
+        <requested-uri> -- uri sans proxy/routing
+
+Note: if T is given is present, then the HTTP server looks
+      up password P on the basis of T and R, otherwise it
+      is looked up on the basis of U and R
+
+When authorization succeeds, the Server may optionally provide the
+following:
+
+HTTP/1.1 200 OK
+Digest-MessageDigest:
+              username="<username>",
+              realm="<realm>",
+              trusted="<trusted>",    -- OPTIONAL
+              nonce="<nonce>",
+              message="<message-digest>"
+
+The Digest-MessageDigest header indicates that the server wants to
+communicate some info regarding the successful authentication (such as
+a message digest or a receipt of some kind).
+
+        <message-digest> is computed as given above for
+        the client.  this allows the client to verify that
+        the message body has not been changed en-route.
+
+If the header includes the name of a trusted 3rd party server, the client
+will need its help to verify the message-digest.
+
+etc.
+
+p.s. why does the Digest-MessageDigest header need the username?
+Surely this can be derived by the client based on only the realm
+as took place when the 401 unauthorized message was received.
+
+-- Dave Raggett <dsr@w3.org> url = http://www.hpl.hp.co.uk/people/dsr
+   Hewlett Packard Laboratories, Filton Road, | tel: +44 117 922 8046
+   Bristol BS12 6QZ, United Kingdom           | fax: +44 117 922 8924
+
+
+

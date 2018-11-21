@@ -1,0 +1,192 @@
+docno="lists-048-8011598"
+received="Mon Oct 15 17:40:25 2001"
+isoreceived="20011015214025"
+sent="Mon, 15 Oct 2001 16:40:18 -0500"
+isosent="20011015214018"
+name="Pat Hayes"
+email="phayes@ai.uwf.edu"
+subject="Ntriples++ (was Re: Banishing &quot;bNode&quot;)"
+id="p05101008b7f0ffad3c8a@[205.160.76.193]"
+charset="us-ascii"
+inreplyto="8301.1003145887&#64;tatooine.ilrt.bris.ac.uk"
+expires="-1"
+
+
+To: Dave Beckett<dave.beckett@bristol.ac.uk>
+Cc:w3c-rdfcore-wg@w3.org
+
+.......
+>This really deserves a thread on its own, with a new subject,
+>not just Re: Banishing "bNode"
+
+OK, done. To reiterate, I'm NOT here requesting that these changes be 
+made now. If we decide to only use very simple datatyping in RDF then 
+there is no need to make these changes. (I would argue, on a 
+different thread, that we in fact not decide to stick with very 
+simple datatyping, for upward compatibility reasons; but that is 
+another discussion.)
+
+>However, assuming this happens, you therefore require a change in the
+>N-Triples to handle it.
+>
+>>  (Here's a crude BNF for Ntriples++ (this allows literals as subjects,
+>>  but its easy to fix that):
+>>
+>>  <triple> ::=  <obj> <uriref> <obj> .
+>>  <obj> ::= <label>|<nodeID>|nodeID>:<label>
+>>  <label> ::= <uriref>|<literal>
+>
+>giving examples, you are talking about something like using terms
+>   _id1:"blah"
+>   _id2:"blah"
+>to distinguish two ocurrences of the same literal "blah".
+
+Right, on two different nodes; and also to provide an ID to allow 
+other triples to refer to one of them..
+
+>Your 'small' change also allows:
+>   _id1:<uri>
+
+True, which is useless. (I *said* the BNF was crude.)
+
+>So unless that is a requirement of the MT, we should stay with just
+>   <uri>
+>which works just fine.
+
+Yes, I agree.
+
+>So if this literal labelled nodes, literal subject stuff is a
+>requirement, I propose to make the following changes to the last
+>public WD http://www.w3.org/TR/2001/WD-rdf-testcases-20010912/#ntriples
+>
+>   amending:
+>     subject ::= uriref | nodeID | nodeID":"literal
+>     object  ::= uriref | nodeID | nodeID":"literal | literal
+
+I think this is too drastic for now, lets just leave Ntriple 
+extensions, I'd suggest, but have it in reserve in case we decide to 
+allow subtle datatyping.
+
+BTW, there really are two options.
+
+1. add nodeIds as an option to literal objects (only), ie just your 
+second change above. This would be required if we were to allow 
+complex datatyping (ie where the same literal can have more than one 
+datatype, and where the datatype of a particular literal occurrence 
+can be deduced from its context of use.)
+
+2. (also) allow literals as subjects, ie first line above (though why 
+did you make it non-optional?) This isn't required, but it would add 
+useful expressivity and (I now think) cause no real harm to anyone.
+
+But I'd suggest leaving all this open for discussion and just doing 
+the following for now, which is really all I was asking for :-). 
+Thanks.
+
+>   deleting;
+>     bNode
+>
+>   adding:
+>     nodeID  ::=  '_:' name
+>
+>Where the bare literal object is used when the same literal is never
+>used as a statement subject.
+
+Even if not, we might need to use the nodeID: form. There might, for 
+example, be some other assertion about that particular literal that 
+entailed that it was typed as an integer, even if it only occurred as 
+an object. For example
+
+aaa integerpropertyeg "05" .
+integerpropertyeg rdfs:range xsd:integer .
+bbb stringpropertyeg "05" .
+stringpropertyeg rdfs:range xsd:string .
+ccc foodle "05" .
+
+Is that third 05 the integer, the string, or neither of them? If we 
+don't have literal-tidy graphs, there's no way to settle the 
+question. I'd like to be able to write
+
+aaa integerpropertyeg _:node1:"05" .
+integerpropertyeg rdfs:range xsd:integer .
+bbb stringpropertyeg "05" .
+stringpropertyeg rdfs:range xsd:string .
+ccc foodle  _:node1:"05" .
+
+which insists that the first and last triples have the same object node
+
+>The above changes also mean all
+>existing N-Triples files remain legal.
+
+Good point. That ought to be true, obviously.
+
+The obvious convention, it occurs to me, is that an Ntriples document 
+describes a graph which is as UNtidy as possible, given that nodes 
+with the same uriref or nodeID *must* be identified in the graph. So 
+one Ntriples-to-graph algorithm would be: treat everything except 
+urirefs as being on a separate node, then use the nodeIDs to identify 
+nodes with the same ID. The only point of adding nodeIDs is then to 
+force two nodes to be identified in the graph: it's a kind of 
+node-stitching indicator. (That's why they aren't needed for urirefs, 
+since you could just use the uriref itself to do the job.) That would 
+make the first example above have three distinct nodes with the same 
+literal label, but the second example would only have two. (If you 
+were to also add _:node1: to the middle literal, it would be only 
+one, but that graph would be datatype-inconsistent.)
+
+BTW, you would get the same RDF graph if you had said
+
+aaa integerpropertyeg _:node1:"05" .
+integerpropertyeg rdfs:range xsd:integer .
+bbb stringpropertyeg "05" .
+stringpropertyeg rdfs:range xsd:string .
+ccc foodle  _:node1  .
+
+which illustrates why 'bNode' would be particularly unfortunate in this case.
+
+>  > This forces every node to have *some* kind of name in the Ntriples
+>>  doc, even if they are blank.  Blank nodes are then nodes which are
+>>  only referred to by a nodeID, ie have no label.  But you can refer to
+>>  other nodes as well, if you want to weave a different graph. It's
+>>  RDF-harmless to allow extra nodeIDs since they don't appear in the
+>>  graph itself. The only real processing difference would be that a
+>>  parser for this would have to check that no node was assigned two
+>>  labels, and barf if it found that. )
+>  >
+>>  The point being that I think this will be needed in RDF2 if not in
+>>  RDF1 (depends on how sexy literal typing is going to be allowed to
+>>  get) , and once it is needed, the "bNode" terminology is going to be
+>>  particularly confusing and unfortunate. We could fix this now pretty
+>>  easily, since Ntriples is still kind of in-house., Once we make it
+>>  normative it will be much harder to change.
+>
+>Sure; I just want a clear and good reason for allowing literals as
+>subjects, labelling nodes with literals so that once this is done, we
+>can change the N-Triples software to deal with them.  This means
+>additional complexity in comparing graphs, as far as I can tell.
+
+Yes, some. But I think that this kind of labelling, or something like 
+it, will be inevitable if we have complex datatyping. If two 
+different occurrences of the same literal are going to have different 
+meanings, then they can't be at the same node. We have to have *some* 
+way to distinguish things said about one meaning from things said 
+about the other. And this gives us fewer nodes to compare than doing 
+it Ron Daniel's way :-)
+
+Pat
+
+PS. BTW, if anyone feels that this particular style of labelling is 
+ugly or has some bad properties, then I have no objection to doing it 
+some other way. We could maybe write the label after the literal , 
+for example, then we wouldn't need the extra semicolon (?)
+
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

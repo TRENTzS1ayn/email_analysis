@@ -1,0 +1,219 @@
+docno="lists-001-3105873"
+received="Sat Dec 23 12:23:34 2000"
+isoreceived="20001223172334"
+sent="Sat, 23 Dec 2000 15:13:03 +0100"
+isosent="20001223141303"
+name="Matej Vela"
+email="vela@debian.org"
+subject="Re: Patch to add rudimentary custom entity capability"
+id="20001223151303.A7291@om"
+charset="us-ascii"
+inreplyto="3A241277.554038EF&#64;focusresearch.com"
+expires="-1"
+
+To:html-tidy@w3.org
+Cc:"Gregor N. Purdy"<gregor@focusresearch.com>, Joey Hess<joey@kitenet.net>,67685-forwarded@bugs.debian.org
+
+
+On Tue, Nov 28, 2000 at 03:23:51PM -0500, Gregor N. Purdy wrote:
+> I was using tidy to process an XML file that used some custom entities.
+> Since tidy wasn't aware of those entities, it refused to generate a
+> tidied file. I did a little rooting around and modified the code just
+> enough to produce the desired effect. There are some TODO comments in
+> the code to point out where it is suboptimal. Nonetheless, I'm posting
+> it here in case anyone else wants to make use of it or in case someone
+> wants to tidy (ahem) it up for inclusion in the next release.
+
+Here's a cleaned up version.  (It doesn't expand custom entities
+because I feel that's beyond Tidy's scope.)
+
+--- tidy4aug00.orig/Overview.htmlFri Aug  4 18:21:05 2000
++++ tidy4aug00/Overview.htmlSat Dec 23 15:07:13 2000
+@@ -422,6 +422,13 @@
+ this feature is to allow Tidy to be applied to Cold Fusion
+ files.</p>
+ 
++<p>You can also teach Tidy about new entities by declaring them
++in the configuration file, the syntax is:</p>
++
++<pre>
++  new-entities: <em>entity1, entity2, entity3</em>
++</pre>
++
+ <p class="c7">I am working on ways to make it easy to customize
+ the permitted document syntax using <a
+ href="http://www.w3.org/People/Raggett/dtdgen/Docs/">assertion
+@@ -1088,6 +1095,14 @@
+ CDATA elements (similar to script).</dd>
+ </dl>
+ 
++<dt>new-entities: <em>entity1, entity2, entity3</em></dt>
++
++<dd>Use this to declare new entities. The option takes a space
++or comma separated list of entity names. There is no mechanism
++for specifying the values of the entities. Note that tidy still
++does not read custom entities from any internal document subset.
++</dd>
++
+ <h4>Sample Config File</h4>
+ 
+ <p>This is just an example to get you started.</p>
+@@ -1115,6 +1130,7 @@
+   mprescripts, mtable, mtr, mtd, mth
+ new-blocklevel-tags: cfoutput, cfquery
+ new-empty-tags: cfelse
++new-entities: disclaimer
+ </pre>
+ 
+ <h3><a id="scripts" name="scripts">Using Tidy from
+--- tidy4aug00.orig/config.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/config.cSat Dec 23 15:07:13 2000
+@@ -105,6 +105,7 @@
+ static char *block_tags;
+ static char *empty_tags;
+ static char *pre_tags;
++static char *entities;
+ 
+ 
+ typedef struct _plist PList;
+@@ -182,6 +183,7 @@
+     {"new-blocklevel-tags", {(int *)&block_tags},   ParseTagNames},
+     {"new-empty-tags",  {(int *)&empty_tags},       ParseTagNames},
+     {"new-pre-tags",    {(int *)&pre_tags},         ParseTagNames},
++    {"new-entities",    {(int *)&entities},         ParseTagNames},
+     {"char-encoding",   {(int *)&CharEncoding},     ParseCharEncoding},
+     {"doctype",         {(int *)&doctype_str},      ParseDocType},
+     {"fix-backslash",   {(int *)&FixBackslash},     ParseBool},
+@@ -665,6 +667,8 @@
+             DefineEmptyTag(buf);
+         else if (location.string == &pre_tags)
+             DefinePreTag(buf);
++        else if (location.string == &entities)
++            DefineEntity(buf);
+ 
+         i = 0;
+     }
+--- tidy4aug00.orig/entities.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/entities.cSat Dec 23 15:07:13 2000
+@@ -349,6 +349,11 @@
+     return 0;   /* zero signifies unknown entity name */
+ }
+ 
++void DefineEntity(char *name)
++{
++    install(name, '&');
++}
++
+ void InitEntities(void)
+ {
+     struct entity *ep;
+--- tidy4aug00.orig/html.hFri Aug  4 18:21:05 2000
++++ tidy4aug00/html.hSat Dec 23 15:07:13 2000
+@@ -501,6 +501,8 @@
+ Bool IsWord2000(Node *root);
+ 
+ /* entities.c */
++void DefineEntity(char *name);
++
+ void InitEntities(void);
+ void FreeEntities(void);
+ uint EntityCode(char *name);
+--- tidy4aug00.orig/lexer.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/lexer.cSat Dec 23 15:07:13 2000
+@@ -296,7 +296,7 @@
+ {
+     uint start, map;
+     Bool first = yes, semicolon = no;
+-    int c, ch, startcol;
++    int c, ch, startcol, i;
+ 
+     start = lexer->lexsize - 1;  /* to start at "&" */
+     startcol = lexer->in->curcol - 1;
+@@ -352,6 +352,15 @@
+         }
+         else /* naked & */
+             ReportEntityError(lexer, UNESCAPED_AMPERSAND, lexer->lexbuf+start, ch);
++
++        if (QuoteAmpersand)
++        {
++            for (i = 0; i < 4; ++i)
++        AddCharToLexer(lexer, '\0');
++            for (i = lexer->lexsize - 1; i > start + 4; --i)
++                lexer->lexbuf[i] = lexer->lexbuf[i - 4];
++            wstrncpy (lexer->lexbuf + start + 1, "amp;", 4);
++        }
+     }
+     else
+     {
+@@ -363,19 +372,16 @@
+             ReportEntityError(lexer, MISSING_SEMICOLON, lexer->lexbuf+start, c);
+         }
+ 
+-        lexer->lexsize = start;
+-
+-        if (ch == 160 && (mode & Preformatted))
+-            ch = ' ';
++        if (ch == '&')
++            AddCharToLexer(lexer, ';');
++        else
++        {
++            lexer->lexsize = start;
+ 
+-        AddCharToLexer(lexer, ch);
++            if (ch == 160 && (mode & Preformatted))
++                ch = ' ';
+ 
+-        if (ch == '&' && !QuoteAmpersand)
+-        {
+-            AddCharToLexer(lexer, 'a');
+-            AddCharToLexer(lexer, 'm');
+-            AddCharToLexer(lexer, 'p');
+-            AddCharToLexer(lexer, ';');
++            AddCharToLexer(lexer, ch);
+         }
+     }
+ }
+--- tidy4aug00.orig/pprint.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/pprint.cSat Dec 23 15:07:13 2000
+@@ -362,21 +362,6 @@
+             return;
+         }
+ 
+-        /*
+-          naked '&' chars can be left alone or
+-          quoted as &amp; The latter is required
+-          for XML where naked '&' are illegal.
+-        */
+-        if (c == '&' && QuoteAmpersand)
+-        {
+-            AddC('&', linelen++);
+-            AddC('a', linelen++);
+-            AddC('m', linelen++);
+-            AddC('p', linelen++);
+-            AddC(';', linelen++);
+-            return;
+-        }
+-
+         if (c == '"' && QuoteMarks)
+         {
+             AddC('&', linelen++);
+--- tidy4aug00.orig/release-notes.htmlFri Aug  4 18:21:05 2000
++++ tidy4aug00/release-notes.htmlSat Dec 23 15:07:13 2000
+@@ -73,6 +73,14 @@
+ current workload means that I don't get much time left to work on
+ HTML Tidy.</p>
+ 
++<h2>December 2000</h2>
++
++<p>Gregor N. Purdy &lt;gregor@focusresearch.com&gt made a quick
++hack to permit the definition of custom entities in the config
++file via the new-entities option, and Matej Vela
++&lt;vela@debian.org&gt; cleaned it up. This is handy for tidying
++XML files.</p>
++
+ <h2>August 2000</h2>
+ 
+ <p>Ann Navarro comments that the "appears to" message is
+
+
+

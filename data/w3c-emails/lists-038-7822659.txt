@@ -1,0 +1,95 @@
+docno="lists-038-7822659"
+received="Sun Jul 12 20:30:15 1998"
+isoreceived="19980713003015"
+sent="Sun, 12 Jul 1998 20:34:14 -0400"
+isosent="19980713003414"
+name="Jim Amsden"
+email="jamsden@us.ibm.com"
+subject="Semantics of COPY and MOVE"
+id="5040100020283096000002L062*@MHS"
+expires="-1"
+
+To:<w3c-dist-auth@w3.org>
+
+
+A few days ago, I submitted the following questions:
+
+<question>
+Section 6.5 says "... a lock token MUST be submitted by an authorized principal
+in the If header for all locked resources that a method may interact with or
+the method MUST fail." Should this have been "... all locked resources that a
+method may modify or the method MUST fail"? The example follows this rule as
+the lock token destination is the only one required for the COPY method. If
+this is the case, what about resource that are indirectly modified by a method?
+Do their lock tokens have to be provided too? For example, consider a
+collection that is not depth locked, but contains a resource that has an
+exclusive lock. Deleting the collection causes the locked resource contained in
+it to be modified. Does the DELETE method have to have an If header containing
+the locked resource as well as the collection?
+</question>
+<question>
+Section 6.6 says "A MOVE MUST NOT move the write lock with the resource...".
+But it doesn't say what happens if this is attempted. Does the move fail on
+this resource, or does the move occur and the lock is removed? I assume the
+move fails on this resource but continues to move as many resources as
+possible. So for example, if a user attempts to move a collection that is
+unlocked, but contains a resource locked by another user, the collection is
+moved, but not the locked resource. What if the resource is locked by the user
+doing the move? Is the resource moved in this case? If so, is the lock
+retained? It would be surprising if a user lost his locks when moving a
+collection.
+</question>
+
+After re-reading the spec and giving this some more thought, I think the WebDAV
+spec does describe consistent and complete semantics for COPY and MOVE with
+respect to locking. In case anyone else experienced the same confusion I did,
+here is an explaination that might help.
+
+A COPY method is semantically equivalent to a GET followed by a PUT (or MKCOL
+for collections), including recursively members of a collection if the source
+is a collection. Locks on the source have no effect and need not be included in
+the If precondition for COPY as GET is not effected by locks. Since PUT is
+effected by locks, the application requesting a COPY must include lock tokens
+for all locked resources in the destination of the COPY. If the destination is
+a collection, the precondition must include the destination collection, if it
+is locked, and recursively all of its locked children. Of course the requesting
+principal must also own the locks, have sufficient access privileges to modify
+the destination targets, and the COPY must have overwrite header equal to "T"
+to copy over existing destination targets if any. Locks are not copied as the
+copied resource is a different resource, and the lock token could not be the
+same as that for the source resource. COPY is executed best effort meaning that
+all resources that can be copied are copied, and in such a way that a
+consistent collection namespace is maintained. Resources that cannot be copied
+either because of locks not owned by the requesting principal, insufficient
+access privileges, or missing overwrite header do not cause the COPY method to
+fail for all resources. The COPY method returns either a 201 status code
+indicating the COPY succeeded, or a multistatus indicating which resources
+could not be copied.
+
+A MOVE method is semantically equivalent to a COPY followed by a DELETE. In
+this case, locks tokens for both the source and destination are required. The
+locks for the destination are the same as for COPY while locks for the source
+are required in order to delete the source after the copy. Move is also
+executed best effort meaning that as many resources are copied to the
+destination as possible, and as many, potentially different, resources are
+deleted from the sources as possible, again subject to maintaining valid
+namespaces. Move cannot move locks for the same reason COPY doesn't copy them.
+After a move, the resources are different, they have a different URI
+identifier, and the original locked resources have been deleted.
+
+So the answer to the above question is that a MOVE request submitted by a pr
+incipal who does not own the locks on some of the source and/or destination
+resources both fails on resources that are not locked by the requesting
+principal, and succeeds, removing the locks, on other resources. If a user
+attempts to move a collection that is unlocked, but contains a resource locked
+by another user, the collection is moved, including the locked resource, but
+not locked source resource is not deleted. If the resource is locked by the
+user doing the move, the resource is moved and the lock is deleted. Finally, it
+is not possible to subvert locking by moving a resource causing the lock to be
+deleted, modifying the resource, and then moving it back. This is because the
+MOVE would partially succeed in that the resource would be copied, but the s
+ource would not be deleted due to the lock. This would make it impossible to
+move the edited resource back to its original location.
+
+
+

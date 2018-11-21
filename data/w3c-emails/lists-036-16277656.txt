@@ -1,0 +1,119 @@
+docno="lists-036-16277656"
+received="Sun Mar 28 22:03:17 2004"
+isoreceived="20040329030317"
+sent="Mon, 29 Mar 2004 03:03:09 +0000"
+isosent="20040329030309"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: Are IDNs allowed in http IRIs?"
+id="20040329030309.GB651~@nicemice.net"
+charset="iso-8859-1"
+inreplyto="0HUU00EHY2UIRK&#64;mailsj-v1.corp.adobe.com"
+expires="-1"
+
+To:uri@w3.org,public-iri@w3.org
+
+
+
+Larry Masinter <LMM@acm.org> wrote:
+
+> It seems like a pretty big change to the IRI concept to have IRI ->
+> URI transformations use scheme-specific knowledge.  Formerly, IRI ->
+> URI transformation was specified as scheme independent.
+
+I think it may help conceptually to distinguish between generic URIs and
+URIs of a particular scheme.  For example, foo:bar is a valid generic
+URI, but it might not be a valid foo: URI.
+
+Given a foo: IRI, there are two kinds of IRI -> URI conversion we might
+be interested in.  We might merely want to convert to a valid generic
+URI in order to tunnel it through some ASCII infrastructure before being
+ultimately resolved by an IRI resolver, in which case we don't actually
+need a valid foo: URI.  Or we might want to convert to a valid foo: URI
+so that a foo: URI resolver can resolve it.
+
+The former of those two tasks can obviously be done without
+scheme-specific knowledge.  But if you want the URI to be
+resolvable, you can't get the job done without scheme-specific
+knowledge.  Many (most?) browsers today will not resolve
+http://%E7%8C%AB%E3%81%AB%E5%B0%8F%E5%88%A4.nicemice.net/ because
+they don't handle percent-encoding in the host component, because
+it's not valid according to the current http: URI spec.  (Even
+Firefox, which fetches the page when I type the Japanese domain
+label directly in Japanese, cannot resolve the percent-encoded
+UTF-8 form.)  Many (most?) browsers today will not resolve
+mailto:webmaster@%E7%8C%AB%E3%81%AB%E5%B0%8F%E5%88%A4.nicemice.net even
+though they percent-decode the domain, because they (or the MUA they
+invoke) are not expecting UTF-8 in the mail address, because it's not
+valid according to the current mail address spec.  If you want URIs that
+are meaningful according to current specs and can be resolved by current
+URI resolvers, you need http://xn--r9j282hvzgc6x.nicemice.net/ and
+mailto:webmaster@xn--r9j282hvzgc6x.nicemice.net.
+
+> Do we need a separate spec for "http:", "mailto:", "ftp:" IRIs, where
+> each specifies the punycode vs. hex-encoding of the various parts?
+
+I don't think so; I think it is sufficient to have separate specs for
+http, mailto, and ftp URIs, which we already have.  The conversion of
+IRIs to URIs can then be defined by general rules in the IRI spec.  For
+example, see the latter part of
+
+http://lists.w3.org/Archives/Public/uri/2004Mar/0049.html
+
+after "redefine the validity of IRIs".
+
+Martin Duerst <duerst@w3.org> wrote:
+
+> At most, there should be a single bit per scheme that says whether
+> punycode should be applied to the 'host' part.
+
+This middle-ground approach is both too much (every IRI-to-URI convertor
+needs to recognize all schemes) and too little (mailto: is not handled).
+What do you think of recognizing two kinds of IRI-to-URI conversion, a
+scheme-agnostic kind for tunneling through URI infrastructure to IRI
+resolvers, and a fully scheme-aware kind for interoperating with URI
+resolvers (and for defining the meaning of the IRI)?
+
+In other words, there are three data types:  IRIs are non-ASCII and
+can be resolved by IRI resolvers.  URIs are ASCII and can be resolved
+by legacy URI resolvers.  HRIs (hybrid resource identifiers) are both
+IRIs and generic URIs; they can be resolved by IRI resolvers but not
+by legacy URI resolvers; they can traverse infrastructure that accepts
+generic URIs without needing to resolve them; and they survive relative
+URI processing.  Conversion between IRIs and HRIs (in either direction)
+needs no scheme-specific knowledge, but conversion to URIs does.
+
+This model recognizes the inescapable fact that in order for something
+like mailto:postmaster@jos?.example.net to be useful, two pieces of
+knowledge need to come together:  IDNA (which is internationalization
+knowledge), and the fact that the thing after the at-sign is a domain
+name (which is mailto knowledge).  The three-type model makes it clear
+that you can either smarten up the IRI layer with scheme knowledge or
+smarten up the URI resolution layer with IRI knowledge, but one or
+the other is required, and therefore the meaning of something like
+mailto:postmaster@jos?.example.net can be well-defined.  I think the
+two-type model lets this requirement slip through the cracks; both
+layers try to limit their knowledge at the same time, but that just
+doesn't work.
+
+> But to a large extent, this is actually an implementation issue.
+
+Before I can begin to plan or assess an implementation, I need to know
+what it intends to implement.  What is http://jos%e9.example.net/ supposed
+to mean?  The IRI spec says it is supposed to mean the same thing as
+ToURI(http://jos%e9.example.net/), but that is not deterministic; it is
+both http://jos%C3%A9.example.net/ and http://xn--jos-dma.example.net/,
+and while the latter has a meaning, the former doesn't (at least, not
+with rfc2396bis as it stands, see my previous message).
+
+In order for the IRI http://jos%e9.example.net/ to have a well-defined
+meaning, so that we know what our implementation is aiming for, we need
+to tweak either the HTTP spec, the URI spec, the IDNA spec, or the IRI
+spec.  Since the URI and IRI specs are the ones in flux at the moment,
+they seem like the prime candidates.
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

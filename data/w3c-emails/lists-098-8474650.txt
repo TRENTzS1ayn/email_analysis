@@ -1,0 +1,234 @@
+docno="lists-098-8474650"
+received="Thu Jan 31 06:10:00 2002"
+isoreceived="20020131111000"
+sent="Thu, 31 Jan 2002 11:06:48 +0000"
+isosent="20020131110648"
+name="Graham Klyne"
+email="GK@NineByNine.org"
+subject="Yet another approach to literals (off-list)"
+id="5.1.0.14.2.20020131092940.00a0b4c0@joy.songbird.com"
+charset="us-ascii"
+expires="-1"
+
+
+To: Jeremy Carroll<jjc@hplb.hpl.hp.com>, Sergey Melnik<melnik@db.stanford.edu>, Dan Connolly<connolly@w3.org>, Pat Hayes<phayes@ai.uwf.edu>, Brian McBride<bwm@hplb.hpl.hp.com>
+Cc: www-archive<www-archive@w3.org>
+
+I think I may have a datyping approach that satisfies all objections...
+
+I've been thinking about S and TDL, and think there may be a way of dealing 
+with literals that (a) doesn't depend on tidiness in the RDF graph (or 
+meets TDL goals while allowing tidiness on literals), and (b) satisfies 
+Dan's concerns about entailment, etc.  I'm sending this off-list simply to 
+keep the list-noise level down if the idea turns out to be worse than 
+half-baked.  Feel free to forward this (or the WWW-archive reference) to 
+any interested party.
+
+Basically, it's my attempt to fit a model theory to TDL, but it is not TDL 
+because the denotation of a literal is a simple value, not a pair...
+
+
+1. Sketch of model theory
+-------------------------
+
+Starting from RDFS-interpretation per Pat's 28-Jan model theory [1].
+
+1.  We have an interpretation consisting of IR, IEXT, IS, ICEXT.  I propose 
+to drop the global mapping LX from literals to LV.
+
+2. A datatype interpretation (DT-interpretation) is specified with respect 
+to a specified set of datatypes, DT.  DT is a subset of IC, having an 
+additional, externally fixed mapping DTEXT from literals to members of 
+ICEXT(DT):
+   DEXT = { <literal,value> | value in ICEXT(DT) }
+
+3. [Big change from current MT] An interpretation does not assign a 
+specific denotation to literals.  Instead, literals are treated like blank 
+nodes with some additional constraints.
+
+4. The interpretation of a statement of the form:
+      aaa bbb "foo" .
+is defined thus:
+    if there exists v such that <"foo",v> in DTEXT(d) for some d in DT, AND
+    <i(aaa),v> in IEXT(I(bbb)) THEN True, otherwise False.
+
+This gives us a way of evaluating the truth of a graph that contains 
+literals, without actually saying what the literals denote.  I think this 
+resolves the various entailment issues, but still leaves some work to do 
+for queries.  Let's try it out on some idioms and examples:
+
+
+2. Apply model theory to idioms
+-------------------------------
+
+For the purposes of these examples, dtdate is the member of DT 
+corresponding to date values, and 15-Jun-2001 is a date value corresponding 
+to Jenny's birthDate, so we have <15-Jul-2001,"2001-07-15"> in 
+DTEXT(dtdate).  I shall assume below these values all exist in IR for a 
+satisfying interpretation.
+
+
+2.1 Idiom A (per [2]):
+
+   person:Jenny exA:birthDate _:a .
+   _:a exA:date "2001-07-15" .
+
+This is satisfied if the node _:a denotes 15-Jul-2001,
+and IEXT(I(exA:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and IEXT(I(exA:date)) contains <15-Jul-2001,"2001-07-15">.
+
+This is consistent with I(exA:date) == dtdate  (described above),
+where IEXT(dtdate) == DTEXT(dtdate).
+
+
+2.2 Idiom B (per [2])
+
+   person:Jenny exB:birthDate "2001-07-15" .
+   exB:birthDate rdfs:range exB:date .
+
+This is satisfied if the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(exB:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and ICEXT(I(exB:date)) contains 15-Jul-2001.
+
+This is consistent with I(exB:date) == dtdate.
+
+
+2.3 Idiom D (per [2]) (also P per [3])
+
+   person:Jenny exD:birthDate _:d .
+   _:d rdf:value "2001-07-15" .
+   _:d rdf:type exD:Date .
+
+This is satisfied if the node _:d denotes 15-Jul-2001,
+and IEXT(I(exD:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(rdf:value)) contains <15-Jul-2001,15-Jul-2001>
+and ICEXT(I(exD:date)) contains 15-Jul-2001.
+
+This is consistent with I(exD:date) == dtdate,
+and IEXT(I(rdf:value)) = <v,v> forall v in IR ?
+
+
+2.4 Idiom E (per [2])
+
+   person:Jenny exE:birthDate _:e .
+   _:d rdf:type exE:Date .
+   _:d exE:ISO8601 "2001-07-15" .
+
+This is satisfied if the node _:e denotes 15-Jul-2001,
+and IEXT(I(exE:birthDate)) contains <I(person:Jenny),15-Jul-2001>,
+and ICEXT(I(exE:date)) contains 15-Jul-2001,
+and the node "2001-07-15" denotes 15-Jul-2001,
+and IEXT(I(exE:ISO8601)) contains <15-Jul-2001,15-Jul-2001>
+
+This is consistent with I(exE:date) == dtdate.
+
+On the surface, this is no different from idiom D, but a range constraint 
+on the definition of exE:ISO8601 could be used to restrict the satisfying 
+literals.  Suppose the range is dtISO8601, a member of DT.  The value space 
+of dtISO8601 would be the same as that of dtdate, but the mapping may be 
+more restricted;  DTEXT(dtIS8601) a subset of DTEXT(dtdate); e.g.
+
+DTEXT(dtdate) might contain
+    { <15-Jul-2001,"15/07/2001">
+      <15-Jul-2001,"07/15/2001">
+      <15-Jul-2001,"2001-07-15">
+      <15-Jul-2001,"20010715">
+       : }
+
+but DTEXT(dtISO8601) might contain just
+    { <15-Jul-2001,"2001-07-15">
+      <15-Jul-2001,"20010715">
+       : }
+
+(By suggesting US and non-US date literals, I've just slipped in the idea 
+that DTEXT may not be functional from literals to values -- nothing I've 
+done so far depends on that, I think.)
+
+
+2.5 Conclusion from fitting idioms
+
+All of the above idioms are consistent with a single interpretation of 
+ex?:birthDate and ex?:Date (the main argument against proposal S):
+
+IEXT(I(ex:birthDate)) contains <I(person:Jenny),15-Jul-2001>, i.e. relates 
+Jenny to the date value in ICEXT(dtdate) that is her birth date, and
+
+I(ex:date) == dtdate
+
+
+3. Entailments
+--------------
+
+I think it's intuitively clear from section 1 this that any graph entails 
+itself, without depending on literals being tidy.  There's no way to say 
+that a literal means one thing in one instance of a graph, and something 
+different in another instance.
+
+Roughly, a literal means any "conforming" value in any graph in which it 
+appears, where "conforming" is defined in terms of the set DT with respect 
+to which an interpretation is defined, which does not change between 
+instances of a graph under the same interpretation.
+
+[I'm not sure I know how to prove this formally.]
+
+
+4. Other issues
+---------------
+
+Values without literal representations.  One of my (lesser) objections to 
+DTL was that it didn't account well for values with no literal 
+representation.  By having literals denote values, not pairs, I think that 
+objection disappears.
+
+This whole approach leaves open the matter of query semantics, other than 
+allowing that (adapted from [4]):
+
+     _:f <dc:Title> "10" .
+     <mary> <age> "10" .
+
+entails:
+
+     _:x <dc:Title> _:y .
+     _:z <age> _:y .
+
+in the absence of further type constraints, and assuming that there exists 
+a member of DT which relates "10" to some value.  What is less clear is 
+what answers one might such a query to actually return, because there is no 
+defined denotation for the literals.  One (reasonable) answer would be to 
+simply return the literal (string) and say nothing about its denotation:  I 
+think that would correspond to the query semantics that Dan is assuming.  I 
+think other answers are possible and reasonable (and out of scope for this 
+group).
+
+
+5. References
+-------------
+
+[1] Pat Hayes, RDF Model Theory, Jan-2002
+http://www.coginst.uwf.edu/users/phayes/w3-rdf-mt-current-draft.html
+
+[2] Graham Klyne, RDF Datatyping Desiderata, 25-Jan-2002
+http://lists.w3.org/Archives/Public/www-archive/2002Jan/0139.html
+
+[3] Sergey Melnik, RDF Datatyping, 18-Jan-2002
+http://www-db.stanford.edu/~melnik/rdf/datatyping-20020118/
+
+[4] Dan Connolly, note on datatyping and query-as-entailment, 30-Jan-2002
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2002Jan/0440.html
+
+
+
+
+--------------------------
+        __
+       /\ \    Graham Klyne
+      /  \ \   (GK@ACM.ORG)
+     / /\ \ \
+    / / /\ \ \
+   / / /__\_\ \
+  / / /________\
+  \/___________/
+
+
+

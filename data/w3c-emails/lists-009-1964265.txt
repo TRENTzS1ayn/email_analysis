@@ -1,0 +1,203 @@
+docno="lists-009-1964265"
+received="Wed Dec 21 15:41:37 1994"
+isoreceived="19941221204137"
+sent="Wed, 21 Dec 1994 15:39:32 0800 (PST)"
+isosent="19941221233932"
+name="Brian Behlendorf"
+email="brian@wired.com"
+subject="Re: Draft 01 of HTTP/1.0"
+id="Pine.BSD.3.91.941221141455.15224O100000@get.wired.com"
+charset="USASCII"
+inreplyto="ab1dcc140602100400e6&#64;[129.106.201.2]"
+expires="1"
+
+To: Chuck Shotton<cshotton@oac.hsc.uth.tmc.edu>
+Cc:"Eric W. Sink"<eric@spyglass.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+
+On Wed, 21 Dec 1994, Chuck Shotton wrote:
+> At 1:09 AM 12/21/94, Brian Behlendorf wrote:
+> >If, instead of a string, we specified exactly where (both by hostname and
+> >by path) the password authentication is valid, there's be no ambiguity as
+> >to when the browser automatically resends the authentication information.
+> 
+> This is predicated on the assumption that all data being served is coming
+> from a traditional file system and that's what the path represents. It
+> would be very tedious to have to specify authentication rules for every
+> record in a database, for example. A specific server (or client)
+> implementation of HOW authentication realms are defined doesn't seem
+> germain to the HTTP/1.0 discussion. What a particular string in a httpd
+> config file means is up to a specific server implementation to determine,
+> not the HTTP/1.0 standard.
+
+HTTP/1.0 is documenting current practice, and I outlined what current 
+practice is and how it was so badly broken and what needs to be fixed.  I 
+totally agree that we shouldn't tie the definition to a server to the way 
+a normal filesystem works by looking at a path - do we have a definition 
+yet for wildcard characters in URI's?
+
+> The current standard is clear about when to send an authentication header.
+> It's sent in response to an authentication request from a server. In an
+> entirely separate transaction, the server receives the second request and
+> validates whether or not the authentication info is valid. This allows the
+> client to send authentication info whenever the CLIENT feels it is
+> required. 
+
+If browsers actually did this, almost every file reteival on our site 
+would require two separate connections.  If this negotiation were to go 
+on within one session, as hopefully HTTP/1.1 will allow it to, then there 
+would be no problem.  However it is very useful, at least in the current 
+setup, for a browser to know ahead of time that an access to a particular 
+URL will require an authentication header, thus elimanating the 401 error 
+code and retry step.  
+
+> I'm not sure I understand why you care if a client sends improper
+> authentication info for a realm it has wandered into. It is equivalent to
+> sending no information at all, which is acceptable.
+
+But then what happens?  Does the browser 1) retry a previous password, or 
+2) prompt the user for another password?  If it's 1), then we need some 
+heuristic for determining which previous password to use, and sending the 
+wrong password would be a security risk.  A simple string as the realm 
+key is dangerous - the only secure way is "okay, you've connected to me, 
+now you may use this same password here, here, and here".  2) is 
+unacceptible for those who want to create a seamless authentication space.
+
+> How the server is mapping configuration info for security (a "string") to
+> the actual authentication of data it serves is completely transparent to
+> the client. 
+
+But it's not, in current practice.  Try this.  Telnet to www.hotwired.com 
+port 80, and issue the command "GET /Login/ HTTP/1.0\n\n".  You'll see:
+
+WWW-Authenticate: Basic realm="HotWired!"
+
+When clients get that the first time, they usually ask the user "enter 
+your name and password for "HotWired!"".  So, I don't see how you can say 
+it's transparent.
+
+> Whether a server interprets a "AuthName" command as a string to match, an
+> exact path, a complete URL, or something entirely different is something
+> for a NCSA httpd server to decide. All the client needs to know is that the
+> authentication info it supplied is invalid. Don't forget that httpd is only
+> one of MANY server implementations, and they don't all define
+> authentication realms the same way, or with the same definition of what
+> constitutes a realm.
+
+That's not current practice.  I can set up two different realms on my 
+server here, set up links between them, and users should only ever have 
+to type their passwords twice to bounce between them.  The client 
+distinguishes between them by the realm string.  That just happens to be 
+the way things are defined now.
+
+> Your assumption that "realms" have some meaning in the context of the
+> HTTP/1.0 protocol is probably forcing the standard to do something that is
+> properly the domain of client and server implementations of security and
+> not their HTTP implementation. Namely, define what constitutes a security
+> realm for all client and server implementations. Given the infinite variety
+> and structure of data that can be served via HTTP, it seems inappropriate
+> to try to accomodate a specific interpretation of what constitutes a
+> "realm" into the standard.
+
+If you're saying turn it over to the HTTP-security working group, fine.  
+If you're saying it doesn't belong in HTTP, I disagree.  
+
+...
+> As far as the client is
+> concerned, the realm info present in the server's authentication reply
+> serves two purposes. The first is as a prompt for the client user. The
+> second is as a way to easily look up authentication already entered that
+> may be maintained internally to the client at runtime.
+
+And for HTTP/1.1 we're trying to make the process more intelligent, since
+the heuristic for that "look up" and retry step is too vague right now. If
+we can get beyond the simple request-response-closeconnection mode to
+request-needmoreinfo-newrequest-response-closeconnection then the need for
+a realm is *almost* abrogated, since the client doesn't have to guess
+which areas need authentication to save a transaction.  There's still a
+need for the client to know when a realm is the same as a previously
+authenticated area, and when it needs to ask the user for another
+password.  This is very important - giving the same password over and over
+for the same logical area, whether it's a collection of directories on the
+same machine or a particular collection of directories on remote machines,
+is considered a *bug* by the user. 
+
+> To sum up. Clients cannot know the authentication info they send (or fail
+> to send) is inappropriate for the realm they are accessing until they try.
+> So, clients make some smart assumptions about when to send authentication
+> info to avoid hassling users with password requests for every URL. What
+> constitutes a "realm" is an implementation-specific detail of the SERVER
+> and the client cannot know how the server has partitioned its data with
+> respect to security. This is just good practice when trying to develop
+> secure systems. Clients are only told that their access attempt failed. Not
+> why, or what the actual structure on the server looks like. Just that they
+> failed. Given this, it seems impossible to define ahead of time WHEN a
+> client should send authentication info. I think the current practice, and
+> current HTTP/1.0 standard accomodates these requirements just fine.
+
+We're defining current practice, which is clearly different from what 
+Chuck thinks is the best way to do this.  Current practice is what allows 
+our server to only require the user to enter their password once for 
+almost all actions, and whether Chuck believes it or not clients do use 
+the realm string to differentiate between authentication areas.  Future 
+versions of the spec should expand upon this instead of deprecating it - 
+I think we all agree that requiring the user to type the same name and 
+password for every access to the same authentication space is a bad idea, 
+yet being "promiscuous" in throwing names and passwords about is also 
+undesireable.
+
+So, here's my attempt at rewriting that part of the HTTP/1.0 spec to meet 
+current practice (my edited lines marked with a *):
+
+--------------------------------------------------------------------------
+
+6.4.2 WWW-Authenticate
+
+   The WWW-Authenticate header field must be included as part of the 
+   response if the server sends back a "401 Unauthorized" Status-Code 
+   on a request from the client as part of the Basic Authentication 
+   Scheme described in Section 9. This header field indicates the 
+   authentication scheme in use and the realm in which the requested 
+   URI belongs.
+
+       WWW-Authenticate        = "WWW-Authenticate" ":" (
+                                   ( "Basic" realm )
+                                 | ( extension-scheme realm ) )
+
+*      realm                   = "Realm" "=" *text
+
+*   The first word of the field value identifies the authorization 
+*   scheme in use and is followed by the name of the authorization 
+*   realm, which in combination with the hostname of the machine
+*   being accessed defines the authorization space. If a request is 
+*   authenticated and a realm specified, the User-ID and password 
+*   can be assumed to be valid for all other requests within this 
+*   authentication space - thus, any 401 error response to a 
+*   non-authenticated request that specifies this realm 
+*   should be immediately retried with the name and password for
+*   that realm.  
+
+*       Note: The realm may not span more than one hostname.
+
+-------------------------------------------------------------------------
+
+Okay, I think that defines current practice better than what was there. 
+It doesn't make any suggestions about when clients should try and guess
+that a given URL will need authentication ahead of time, but it also
+preserves the enter-password-just-once mechanism.  Browser writers should
+write their code carefully to avoid a retry loop like the one Netscape had
+in one of their early betas. 
+
+Does this solve it?
+
+Brian
+
+
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+Your slick hype/tripe/wipedisk/zipped/zippy/whine/online/sign.on.the.ish/oil
+pill/roadkill/grease.slick/neat.trick is great for what it is. -- Wired Fan #3
+ brian@hotwired.com  brian@hyperreal.com  http://www.hotwired.com/Staff/brian/
+
+
+

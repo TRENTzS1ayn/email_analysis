@@ -1,0 +1,139 @@
+docno="lists-039-6650551"
+received="Mon Aug 16 16:45:45 1999"
+isoreceived="19990816204545"
+sent="Mon, 16 Aug 1999 16:45:47 -0400"
+isosent="19990816204547"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="Re: Using PROPPATCH to create a resource with no body"
+id="852567CF.007205C4.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+inreplyto="Using PROPPATCH to create a resource with no body"
+expires="-1"
+
+To:w3c-dist-auth@w3.org,ietf-dav-versioning@w3.org
+
+
+
+
+I am generally in favor of using PROPPATCH to create and initialize the
+properties of a resource. This would allow PROPPATCH to have the same semantics
+as PUT. I am a little less comfortable with the overwrite header semantics. It
+seems that overwrite is somewhat redundant with the propertyupdate element in
+the body of the PROPPATCH request. Perhaps the semantics being handled by the
+overwrite header could be included in the propertyupdate element. This would
+allow more flexibility by indicating for each property how it should be handled,
+and would not introduce a third state for overwrite which is currently a boolean
+header.
+
+There are a number of proposed extensions to PROPPATCH which I will summarize
+here. Jim Whitehead, what needs to be done to get these extensions considered by
+the WebDAV working group?
+
+1. Allow PROPPATCH on a null resource to create a resource and initialize its
+properties.
+
+The spec is currently quiet about PROPPATCH on a null resource (a resource that
+does not exist). It does say that PROPPATCH on a lock null resource (a resource
+created by the LOCK method) will fail, but this is inconsistent with PUT which
+is allowed, and changes the state of the resource from lock null to resource.
+
+2. Extend the DAV:set and DAV:remove elements to include information describing
+how the client wishes to handle errors. The DTD additions would be:
+
+<!ELEMENT propertyupdate (remove | set)+>
+
+<ELEMENT set (prop, updatebehavior?)>
+<ELEMENT remove (prop, updatebehavior?)>
+
+<!ELEMENT updatebehavior (ignore | mustsucceed)>
+<!ELEMENT ignore EMPTY>
+<!ELEMENT mustsucceed (#PCDATA | href+)>
+
+If an updatebehavior is not included, it is equivalent to specifying
+<mustsucceed>*</mustsucceed> meaning that all the updates must be successful or
+none of them are performed. If a list of URIs is included as the value of
+mustsucceed, then the named properties must be updated successfully. The #PCDATA
+in element mustsucceed can only be "*" indicating all updates must be
+successful. If ignore is specified, then the server must use best effort to
+update the properties returning a multistatus indicating which properties were
+not updated.
+
+Currently, the spec says that all property updates must be successful, or none
+are applied. In many instances, this is too restrictive requiring clients to
+submit PROPPATCH requests, examine the multistatus returned to figure out which
+updates failed, and re-submit a new PROPPATCH with the failures removed. This
+situation arrises when different servers support different live properties. The
+above extension to PROPPATCH allows client applications to have more control on
+setting properties.
+
+3. Add an add element to propertyupdate to distinguish between setting an
+existing property and adding a new property.
+
+Currently, propertyupdate includes set and remove. A client can either set the
+value of an existing property, or add a new property with the set element. There
+are some cases where the client does not want to set an element that already
+exists, but there is currently no way to distinguish these operations in the
+propertyupdate element. The extension provides an add element that would add a
+new property to the resource. The add update would fail if the property already
+has a value. This extension will be more important if we add extension 1 because
+there will be many cases where a property should not be updated after it has
+been set. For example, resourcetype, creationdate, etc.
+
+
+
+
+"Geoffrey M. Clemm" <gclemm@tantalum.atria.com> on 08/16/99 01:53:54 PM
+
+To:   w3c-dist-auth@w3.org, ietf-dav-versioning@w3.org
+cc:
+
+Subject:  Using PROPPATCH to create a resource with no body
+
+
+
+
+
+The DeltaV versioning extensions to WebDAV propose four new
+types of resources: workspace, activity, configuration, and history.
+
+All these new resource types share the characteristic that their
+state is represented as a set of properties, rather than in a body.
+In this way, they are like the collection resource type from the
+core WebDAV protocol, and the redirect-reference resource type from
+the advanced collection WebDAV extensions.
+
+A common issue for each of these new resource types is how one creates
+an instance.  The approach started by the core WebDAV spec is
+to introduce a new method for creating each new resource type
+(e.g. MKCOL). This becomes rather burdensome when
+the list starts growing (MKWORKSPACE, MKACTIVITY, MKCONFIGURATION,
+MKHISTORY, ...), and is rather redundant since they all take the
+form of initializing a set of properties of a new resource.
+
+An alternative approach is to just allow PROPPATCH to create a new
+resource when it is applied to a null resource.  I would propose
+also adding a new value for the Overwrite header, e.g. Update,
+which would say that the destination of operation should be updated,
+rather than deleted (Overwrite=T) or have the operation fail (Overwrite=F).
+Then the Overwrite header could be used to control the effect of a
+PROPPATCH.
+
+This is very consistent with the functionality of PUT, which can be
+used either to update an existing resource or create a new resource.
+
+Another alternative is to introduce a MKRESOURCE method, which would
+be equivalent to a PROPATCH with Overwrite=F.
+
+I personally favor extending PROPPATCH since it is both more consistent
+with PUT, and a more powerful/flexible approach.  As a note, MKCOL would
+then just become an alias for a PROPATCH, with the resourcetype
+property set to be <D:collection/>
+
+Comments?
+
+Cheers,
+Geoff
+
+
+

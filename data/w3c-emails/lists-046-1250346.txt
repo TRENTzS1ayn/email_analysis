@@ -1,0 +1,277 @@
+docno="lists-046-1250346"
+received="Thu Jun  6 05:04:59 2002"
+isoreceived="20020606090459"
+sent="Thu, 06 Jun 2002 11:10:43 +0200"
+isosent="20020606091043"
+name="Christian Geuer-Pollmann"
+email="geuer-pollmann@nue.et-inf.uni-siegen.de"
+subject="Re: Provokant proposal on Exclusive C14n"
+id="8972581.1023361843@localhost"
+charset="iso-8859-1"
+inreplyto="20020605131010.14F664432D&#64;yog-sothoth.ie.baltimore.com"
+expires="-1"
+
+To: merlin<merlin@baltimore.ie>
+cc:w3c-ietf-xmldsig@w3.org
+
+
+
+Hi Merlin,
+
+the main reason why I propose this is re-parsing. For my understanding, 
+it's absolutely necessary to be able to re-parse signed contents. I agree 
+that the signed (digested) octets are not necessarily well-formed, but the 
+should be balanced. If the digested octets are wrapped by
+
+<wrap>put digested octets here</wrap>
+
+, it should be able to parse that. Now I learned that the c14nization of a 
+single namespace node like
+
+ xmlns:foo="http://foo"
+
+doesn't really help, because using the above, that would result in
+
+<wrap> xmlns:foo="http://foo"</wrap>
+
+instead of
+
+<wrap xmlns:foo="http://foo"></wrap>
+
+. OK. But the real question is WHY I think that re-parsing is important: We 
+talk about digital signatures. A digital signature means that the signer 
+makes a statement about something and this statement is signed. The 
+transforms allow to select what exactly the statement is, e.g. a single 
+paragraph in a contract or the serialization of an object, which is to be 
+turned back to life on the verifier side. If the signer can construct a 
+transform which destroys the real context (e.g. by omitting relevant 
+namespace nodes), this looks very bad.
+
+Let's take the example of a serialized object: How can the verifier bring 
+this object back to life and check it's integrity? The verifier receives an 
+XML instance, e.g. via SOAP. This instance contains some kind of envelope, 
+a digital signature and the object. The envelope (the namespaces therein) 
+bleed into the signature and the object. Maybe an adversary on the wire 
+even added some attributes to the object. This means that the envelope 
+changed the object, maybe some additional processing changed the object, 
+etc. If the receiver parses the XML instance, he searches for the signature 
+and the signature is valid.
+
+But how does he get an XML representation to construct his object from? He 
+can't simply say //my:object[1] and take that Element as input for his 
+constructor, because he doesn't know what exactly has been signed. So he 
+has three options:
+
+ 1.) Inspect the signature: Take the reference, check that
+     the @URI and all <ds:Transform>s are exactly like the
+     ones which have been pre-defined by some security
+     architects. If the signature has the specified form,
+     then probably the constructor can use the (untrusted
+     and maybe modified) my:object element, because he only
+     uses nodes from that subtree which he knows are signed
+     because of the checked form of the signature.
+
+     -> Sounds really complicated. For each object, it must
+        be exactly defined how a signature MUST look like,
+        which Transforms, which XPathes etc.
+
+ 2.) Inspect the node set prior c14n:
+     To know which nodes from the input document can be trusted
+     because they are signed, query the signature object about
+     the finally node set which has been c14nized. Using this
+     Node set, construct a form which can be read by the
+     constructor for the object.
+
+     -> Sounds also complicated.
+
+ 3.) Re-parse the digested octets:
+     The verifier simply asks the Reference "which octets were
+     the input for the digest", i.e. what has been signed. Now
+     simply parse these octets (maybe after a wrap), and feed
+     the new DOM tree or SAX sequence into the constructor for
+     your object.
+
+     -> Safe and easy. But -- it only works if the digested
+        octets can be parsed.
+
+But given the example between these both instances:
+
+<foo:Contract  xmlns:foo="http://companyA.com">
+  <foo:Detail xmlns:foo="http://companyB.com" />
+</foo:Contract>
+
+and
+
+<foo:Contract  xmlns:foo="http://companyA.com">
+  <foo:Detail />
+</foo:Contract>
+
+Imagine you are questioned by a lawyer on legal issues what has been the 
+intent of the signer in the second form, if the first one was the input 
+document.
+
+   Automagically including ALL namespaces into the document
+   subset prior exclusive c14n makes all this fuzz obsolete.
+   Prefixes are automagically in-scope with the correct
+   namespaces, digested octet sequences are parseable
+   in some way (well-formed or balanced), and so on.....
+
+That's why I think c14n is (or should be) more than only a unique 
+representation.
+
+Regards,
+Christian
+
+
+--On Mittwoch, 5. Juni 2002 14:10 +0100 merlin <merlin@baltimore.ie> wrote:
+
+>
+>
+> Hi Christian,
+>
+> I see what you are proposing but I don't really see why.
+>
+> Is the justification solely to satisfy what you suggest is the
+> second purpose of canonicalization (allowing re-parsing)? I
+> don't think this is a purpose of c14n; the spec says
+> "The canonical form of an XML document subset may not be
+> well-formed XML." If the intention of c14n and exc-c14n
+> had been to guarantee reparsable results, they would have
+> had express limitations placed on their input. Knowing what
+> canonicalization is employed, applications can meaningfully
+> use the input node set without having to reprase.
+>
+> I agree that unwitting interference with the node set is not
+> advisable; *however*, I do not think it is without merit. As
+> such, arbitrarily restricting applications from employing
+> exc-c14n when they choose to do this does not seem, to me,
+> defensible.
+>
+> Worse, silently ignoring the contents of the namespace axis
+> would seem like a terrible approach because applications,
+> being familiar with c14n, might not expect this. Were we to
+> go down this route, I think we should instead state that
+> an input node set that either excludes an element but includes
+> part of its namespace axis, or that includes an element but
+> excludes part of its namespace axis, MUST raise an error.
+> We would do this because we think it is an error to produce
+> such node sets.
+>
+> However; I don't think it is an error and I would be strongly
+> opposed to any such proposition. C14n and exc-c14n are,
+> with few exceptions, almost identical, which allows me to
+> use a single codebase to implement both. Any unnecessary
+> divergence is just a headache.
+>
+> As an aside, and returning to what you said a while ago about
+> multiple application of c14n being idempotent, the spec does
+> state, in ?2.4:
+>   Whether from a full document or a document subset, if the canonical
+>   form is well-formed XML, then subsequent applications of the same XML
+>   canonicalization method to the canonical form make no changes.
+>
+> This is, of course, not true!
+>
+> Merlin
+>
+> r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.06.05/09:46:50
+>>
+>> Hi all,
+>>
+>> first a big thank you to Merlin who made the very cool edge-cases for
+>> c14n  and exclC14n to understand how these standards handle the
+>> namespace stuff.  Till a few weeks ago, I did not understood that a
+>> properly choosen document  subset (in c14n) can exclude namespaces from
+>> the documents subset. For me,  namespaces were not 'regular' nodes but
+>> they were inseparable twisted with  the document.
+>>
+>> For "Canonical XML", I see that the possibility to include only
+>> particular  namespaces to a document subset is really cool if a
+>> transfroms author wants  to create context-independent document subsets.
+>>
+>> For "Exclusive Canonical XML", I don't see why we have to inherit the
+>> (complicated) namespace handling from "Canonical XML".
+>>
+>> Provokant proposal: If the PR-Status of exclC14n allows this
+>> (substantial)  change, I want to propagate to canonicalize document
+>> subsets as follows:
+>>
+>>  "If a document subset is to be canonicalized using 'Exclusive C14n',
+>>   all namespace nodes in the original document are included in the
+>>   document subset prior the serialization process; this inclusion is
+>>   done regardless whether a namespace node is already in the subset
+>>   or if it's excluded from the subset."
+>>
+>> After that 'pre-processing', the exclusive c14n process is started with
+>> the  following change: All passages in the text which refer to namespace
+>> nodes  which are not in the document subset can be omitted.
+>>
+>> Why do I suggest that: For standard c14n, it was necessary to be able to
+>> omit namespace nodes from the document subset. For exclusive c14n, we
+>> have  (1) the mechanism of the "InclusiveNamespaces PrefixList" and (2)
+>> the  visibly-utilizes mechanism. I think that such a change will make
+>> exclusive  c14n reliable and consistent (not consistent to the c14n REC
+>> but consistent  to what c14n should really do).
+>>
+>> I think canonicalization should serve two purposes:
+>>
+>> (1) create a bit-accurate representation of a document
+>>     or document subset for use in cryptographic algorithms
+>>     like a message digest
+>>
+>> (2) allow the verifier of a signature to take these signed
+>>     octets and re-parse the octets to get back a
+>>     "trusted" XML structure which can be reliably used in
+>>     the application. This goes to "process-what-is-signed".
+>>     But with the current processing model where namespaces
+>>     can be excluded from the document subset, it's possible
+>>     that a "reparse signed contents" step does encounter
+>>     'illegal' XML.
+>>
+>> I had no better word as 'illegal'. I know that it's possible that the
+>> signed contents are not well-formed, e.g. like this:
+>>
+>>      <A /><B />
+>>
+>> or like this
+>>
+>>      foo text <A />
+>>
+>> but these are problems which can be handled easily by "wrapping" the
+>> octets  into a dummy root element. But if a namespace is used e.g. by an
+>> element  but the namespace decl does not appear, this can't be handled
+>> in any way,  and from the semantics point, it's even completely
+>> meaningless:
+>>
+>> <foo:A>
+>>   <foo:B xmlns:foo="http://foo" />
+>> </foo:A>
+>>
+>> In this case, the namespace is (maybe accidently?) omitted from the
+>> foo:A  element, but what happens if we have such an input document:
+>>
+>> <foo:Contract  xmlns:foo="http://companyA.com">
+>>   <foo:Detail xmlns:foo="http://companyB.com" />
+>> </foo:Contract>
+>>
+>> and I choose a rogue document subset which results in
+>>
+>> <foo:Contract  xmlns:foo="http://companyA.com">
+>>   <foo:Detail />
+>> </foo:Contract>
+>>
+>> That's so bad; I think that the above proposal will stop that kind of
+>> cheating: foo:Detail visibly utilizes foo and so
+>> xmlns:foo="http://companyB.com" is output in the exclusive canonical
+>> form,  regardless whether the XPath transform author did include it or
+>> not.
+>>
+>>
+>>
+>> Kind regards,
+>> hope that you all don't eat me alive for this ;-)
+>>
+>> Christian
+
+
+

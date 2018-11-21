@@ -1,0 +1,73 @@
+docno="lists-097-2397735"
+received="Fri Jan  4 11:18:36 2002"
+isoreceived="20020104161836"
+sent="Fri, 4 Jan 2002 11:18:35 -0500"
+isosent="20020104161835"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: Unknown Exception"
+id="20020104111835.A20076@w3.org"
+charset="us-ascii"
+inreplyto="3C343E15.1010506&#64;gmx.ch"
+expires="-1"
+
+To: quaxi<maho@gmx.ch>
+Cc:www-annotation@w3.org
+
+
+On Thu, Jan 03, 2002 at 12:18:45PM +0100, quaxi wrote:
+>   I have still a problem. I set up the annotea server exactly as it is 
+> described in the tutorial.
+> I use a maschine with red hat linux and an apache webserver.
+> I can watch the annotea-site with a normal browser but every time i post 
+> a new Annotation i get this error message:
+> 
+> -----
+> : Unknown Exception
+> 
+> blew its mind.
+> 
+> perl error: Can't call method "setRdfPrefix" on an undefined value at 
+> ../../../W3C/Rdf/CGIApp.pm line 227.
+
+Looks to me like it's not making a connection to the database.
+I'll add some code to make it look for this problem and give a
+more usefull error message.
+
+In the mean time, have a look at the code and see if the problem
+is as i diagnosed. W3C/Rdf/CGIApp connects to the database:
+    eval {
+die $W3C::Rdf::CGIApp::USE_EPHEMORAL_DB if ($self->{EPHEMORAL_DB});
+my $conf= new W3C::Util::Properties('../../../Conf/rdf.prop');
+$self->{RDF_DB} = $self->{RDF_DB} = new W3C::Rdf::ObjectDB(-errorHandler => $self->{ERROR_HANDLER}, 
+   -lazyReification => 1, 
+   -properties => '../../../Conf/rdf.prop', 
+   -atomDictionary => $self->{-atomDictionary});
+    }; if ($@) {
+if (my $ex = &catch('W3C::Util::Exception')) {
+    push (@{$self->{PRE_MESSAGES}}, $ex->getMessage);
+    push (@{$self->{PRE_MESSAGES}}, 'switching to ephemoral DB');
+} elsif ($@ ne $W3C::Rdf::CGIApp::USE_EPHEMORAL_DB) {
+    push (@{$self->{PRE_MESSAGES}}, "got die($@)");
+    push (@{$self->{PRE_MESSAGES}}, 'switching to ephemoral DB');
+}
+$self->{RDF_DB} = $self->{RDF_DB} = new W3C::Rdf::RdfDB(-errorHandler => $self->{ERROR_HANDLER}, 
+-lazyReification => 1, 
+-atomDictionary => $self->{-atomDictionary});
+    }
+
+If it can't connect to the persistent database, it's supposed
+to connect to an in-memory data store (not good for storing
+data, but good for diagnostics). This should show the message
+"switching to ephemoral DB" when you GET the annotations page
+with an HTML browser (like Netscape).
+
+-- 
+-eric
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

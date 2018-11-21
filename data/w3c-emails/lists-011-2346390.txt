@@ -1,0 +1,92 @@
+docno="lists-011-2346390"
+received="Mon Apr 21 11:41:32 1997"
+isoreceived="19970421154132"
+sent="Mon, 21 Apr 97 11:28:45 MDT"
+isosent="19970421172845"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 1xx Clarification"
+id="9704211828.AA07470@acetes.pa.dec.com"
+inreplyto="Pine.SUN.3.95.970421112036.10420A100000&#64;hopf.math.nwu.edu"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+John Franks <john@math.nwu.edu> writes:
+    I haven't been following the "100 Continue" discussion, but today I
+    read all the relevant sections of the spec and I must say I am 
+    confused.
+You might also want to read 
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q2/0134.html
+which is my attempt to explain the motivation behind the design.
+    
+    Here are a few of my questions:
+    
+    All questions apply to a transaction between a 1.1 origin server
+    and a 1.1 client.
+    
+    1) Is it legal for the server to never send "100 Continue" and instead
+    just close the connection for requests it does not wish to grant?
+    Since the server can always close the connection whenever it wants,
+    the question is will the client hang indefinitely waiting for a "100
+    continue" or error message?  An old version of the spec had a 5 second
+    pause, but now that is gone.
+    
+It's always legal for the server to close the connection at any
+time (in the persistent-connection model).  The problem is that it
+is equally legal for the client, when it sees a premature close
+without any indication of error, to simply retry the connection
+and the request.
+
+This can lead to an infinite loop, if the client really wants to
+make the request, and the server really wants to reject it.  A
+human user would probably get bored and hit "stop" after a while,
+but we have to consider the possibility of an automated client
+sucking down all of the server CPU cycles.
+
+We got rid of the 5 second pause, as I recall, because it was clear
+that an arbitrary (but fixed) timeout here would be wrong in at least
+some cases.
+    
+    2) Is it the intent that *every* client request with a body should
+    send headers and then wait for a "100 coninue" or error?  The spec
+    does not explicitly say which transactions use this "two-phase"
+    procedure.  It only says, 
+    
+      "Upon receiving a method subject to these requirements from an
+      HTTP/1.1 (or later) client, an HTTP/1.1 (or later) server MUST either
+      respond with 100 (Continue) status and continue to read from the input
+      stream, or respond with an error status."
+    
+    Which transactions are "subject to these requirements"?  Is it any
+    request with a body?  If so, the spec should say this.
+
+I think it does say it, but badly.  Clearly this part needs a rewrite
+(if we don't get rid of it entirely).
+    
+    3)  Does a client only wait for a "100 continue" on a retry?  If so
+    does the server always send the "100 continue" or just on retries?
+    If the latter how does the server know it is a retry?
+    
+My understanding is that the client initially (i.e., the first
+time it sends a request-with-body to a given server) does not wait.
+But once it has seen the server close the connection "prematurely"
+and it retries the request, it MUST wait, at least for that request.
+
+The spec is silent on whether it is then mandatory for the client
+to use the two-phase approach for a subsequent request-with-body.
+I believe that this is not mandatory from a logical standpoint
+(i.e., the protocol won't deadlock) but it might be necessary
+from an efficiency standpoint (i.e., there could be a lot of
+retrying otherwise).  But, again, I think the whole two-phase
+approach is of dubious merit, given its complexity.
+
+-Jeff
+
+P.S.: One note on terminology: this is NOT a "two-phase commit"
+(a term that has a very specific meaning).  This is a "two-phase
+method invocation".  Maybe I should have used the term "two-step".
+
+
+

@@ -1,0 +1,52 @@
+docno="lists-104-14350510"
+received="Tue Feb  4 14:35:14 2003"
+isoreceived="20030204193514"
+sent="Tue, 4 Feb 2003 12:35:10 -0700"
+isosent="20030204193510"
+name="dbowen@es.com"
+email="dbowen@es.com"
+subject="Re: DOM L3 LS - DocumentLS::unload"
+id="B47A89AEC4538744B9D94BAD7E78EFC77141B6@torino.corp.es.com"
+charset="iso-8859-1"
+inreplyto="DOM L3 LS - DocumentLS::unload"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+Cc:<jst@netscape.com>
+
+
+jst@netscape.com wrote:
+> I fail to see in what cases a method like this would be used, could you 
+> please present a usecase where this method would be needed?
+> 
+> dbowen@es.com wrote:
+> > Would it be possible to add "unload" as a method on the interface "DocumentLS" in DOM Level 3 Load and Save?
+> > The return value could either be a boolean, returning true if a document was already loaded and false if not,
+> > or it could just be void.
+> 
+> > I believe the impact would be minimal to implementers, and this symmetry would be useful in many circumstances.
+> > The symantics of "load" shouldn't have to change at all (such as the behavior of a load call on a Document that has
+> > already completed another successful load call).
+
+It came up for me recently with an object model where I'm trying to follow the DOM specification, and where I needed to be able to gracefully shutdown some dependant things.  It also came up when trying to reuse an XML DOM, without having to destroy one instance and create another instance, where there were intermediate times where the DOM didn't need a document loaded (but destroying and creating a new DOM was relatively expensive).
+
+I use a DOM based object model for a plugin architecture of a GUI type of application.  The main application knows about the base level object model on an interface basis, but not about the specific implementation.  The application also provides a "shell" interface (not DOM based), with some generic type of methods.  The application knows nothing special about the plugin, except its DOM style interface, but the plugin can know about the specific shell interface (not though the DOM interface, but another interface on the object implementing the DOM interface).
+
+The plugin can call methods on the shell interface to add various windows (docked windows), such as a console.  The addition of an "unload" method let's the plugin override this unload method, and gracefully shut-down these other windows (of which it is not directly the parent from a windows hierarchy point of view) without having to be destructed completely.
+
+For this particular plugin that has this DOM interface, I have a generic "TreeDOM" view, that various implementations of a "Workspace" can be displayed in.  This lets you see a tree view of the workspace.  However, at the document level, this workspace might bring with it other windows, such as a palette, output window, console, and so on (communicating with the shell about where to place these).  So you can have various implementations of different Workspaces, and they can be brought into the application in a generic way.  The TreeDOM view is a window that actually lives at the application level.  When a new workspace is opened, it uses the DOM interface to load the workspace, and then uses the DOM interface to populate the tree view.  The workspace is also given a pointer to the shell interface in a generic way.  So when the workspace loads, it can also create windows that it tells the shell to add somewhere.  There is the ability to do "Close Workspace", where the workspace is unloaded, but the TreeDOM vew doesn't get destroyed.  The TreeDOM view also gets shutdown when the application exits.  Having an "unload" method on the DOM interface is desirable, because in order to cleanly shut down these other windows that were created, it needs to do it pre-emptively before everything get destroyed in destructors.
+
+To me, its like being able to say "open" and "close" when dealing with a file system API.  If there were an object dealing with that file, imagine if you only had "open", and "close" could only ever be implied by either destructing the object or doing another "load".  You certainly want a "close" to be implied in those cases, but you might also want to be able to explicitly call "close".
+
+It is also like using a C++ object to implement a window in Microsoft Windows.  The C++ object has a constructor and destructor.  The window also gets WM_CLOSE and WM_DESTROY messages.  Its nice to have the symmetry, so that things done in WM_CLOSE can be undone in WM_DESTROY (where the destructor would be too late).
+
+My guess is that most DOM implementations already have essentially an "unload" method that gets called as the DOM is either destroyed, or another load call is made on a DOM that has already done a load once.  "unload" would just leave the DOM in the same state that it was just prior to any "load" calls (there are other document level properties that wouldn't be changed).  It would allow you to reuse a DOM object without having to just do another load (which could be handy if creating the DOM were relatively expensive).  This could be handy if you had a DOM object to service some type of request(s), where you load in the DOM, do what you need to, then unload the DOM to save on resources until the next request(s) came in.
+
+And finally, I just like the symmetry :-)
+
+Thanks,
+-Daniel
+
+
+

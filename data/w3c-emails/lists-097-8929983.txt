@@ -1,0 +1,177 @@
+docno="lists-097-8929983"
+received="Fri Aug 24 13:44:32 2001"
+isoreceived="20010824174432"
+sent="Fri, 24 Aug 2001 12:44:28 -0500"
+isosent="20010824174428"
+name="Aaron Swartz"
+email="aswartz@upclink.com"
+subject="scribe bot diffs"
+id="200108241747.f7OHlec02983@theinfo.org"
+charset="us-ascii"
+expires="-1"
+
+
+Cc: www-archive+scribe@w3.org
+To: Dan Connolly<connolly@w3.org>
+
+Whoops...
+
+$ cvs diff  -u
+? httpAsync.pyc
+? ircAsync.pyc
+cvs server: Diffing .
+Index: ircAsync.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/ircAsync.py,v
+retrieving revision 1.8
+diff -u -r1.8 ircAsync.py
+--- ircAsync.py 2001/08/24 05:50:52     1.8
++++ ircAsync.py 2001/08/24 17:43:59
+@@ -24,10 +24,8 @@
+  import string, re
+  import socket
+  import asyncore, asynchat
++import threading
+
+-
+-
+-
+  #RFC 2811: Internet Relay Chat: Client Protocol
+  #2.3 Messages
+  # http://www.valinor.sorcery.net/docs/rfc2812/2.3-messages.html
+@@ -72,6 +70,7 @@
+          self._startChannels = ['#test']
+          self._dispatch = []
+          self._doc = []
++        threading.Thread(target=doStuff).start()
+
+      def makeConn(self, host, port):
+          self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+@@ -122,7 +121,7 @@
+
+          self.rxdMsg(args, text, origin)
+
+-    def bind(self, thunk, command, textPat=None, doc=None):
++    def bind(self, thunk, command, textPat=None, doc=None, 
+threadSafe=0):
+          """
+          thunk is the routine to bind; it's called ala
+            thunk(matchObj or None, origin, args, text)
+@@ -134,7 +133,7 @@
+
+          if type(textPat) is type(""): textPat = re.compile(textPat)
+
+-        self._dispatch.append((command, textPat, thunk))
++        self._dispatch.append((command, textPat, thunk, threadSafe))
+
+          if doc: self._doc = self._doc + doc
+
+@@ -142,15 +141,23 @@
+          if args[0] == PING:
+              self.todo([PONG, text])
+
+-        for cmd, pat, thunk in self._dispatch:
++        for cmd, pat, thunk, threadSafe in self._dispatch:
+              if args[0] == cmd:
+                  if pat:
+                      #debug('dispatching on...', pat)
+                      m = pat.search(text)
+                      if m:
+-                        thunk(m, origin, args, text)
++                        if threadSafe:
++                               thunk(m, origin, args, text)
++                        else:
++                               self.tell(replyTo(self.nick, 
+origin, args), "Hold on a sec...")
++                               stuffToDo.append([thunk, m, 
+origin, args, text])
+                  else:
+-                    thunk(None, origin, args, text)
++                       if threadSafe:
++                               thunk(None, origin, args, text)
++                       else:
++                           self.tell(replyTo(self.nick, origin, 
+args), "Hold on a sec...")
++                           stuffToDo.append([thunk, None, 
+origin, args, text])
+
+      def startChannels(self, chans):
+          self._startChannels = chans
+@@ -167,6 +174,14 @@
+      def notice(self, dest, text):
+          """send a NOTICE to dest, a channel or user"""
+          self.todo([NOTICE, dest], text)
++
++stuffToDo = []
++def doStuff():
++       while 1:
++               if len(stuffToDo):
++                       d = stuffToDo.pop()
++                       apply(d[0], d[1:])
++
+
+  def actionFmt(str):
+      return "\001ACTION" + str + "\001"
+Index: rdfn3chat.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/rdfn3chat.py,v
+retrieving revision 1.11
+diff -u -r1.11 rdfn3chat.py
+--- rdfn3chat.py        2001/08/24 06:28:02     1.11
++++ rdfn3chat.py        2001/08/24 17:44:00
+@@ -43,13 +43,12 @@
+  # Semantic Web Application Platform (swap) stuff
+  # http://www.w3.org/2000/10/swap/
+  # http://dev.w3.org/cvsweb/2000/10/swap/
+-sys.path.append("/home/connolly/w3ccvs/WWW/2000/10/swap") #@@
++sys.path.append("/Users/aaronsw/Projects/cwm/swap") #@@
+  import cwm, notation3, sax2rdf
+
+  import ircAsync, httpAsync
+  from ircAsync import debug
+
+-
+  class T(ircAsync.T):
+      def __init__(self):
+          ircAsync.T.__init__(self)
+@@ -66,9 +65,9 @@
+          self._userid = None
+          self._password = None
+
+-        self.bind(self.doHelp, ircAsync.PRIVMSG, "help")
++        self.bind(self.doHelp, ircAsync.PRIVMSG, "help", threadSafe=1)
+
+-        self.bind(self.doInvite, ircAsync.INVITE)
++        self.bind(self.doInvite, ircAsync.INVITE, threadSafe=1)
+
+
+      def start(self,
+@@ -97,7 +96,7 @@
+          self.bind(self.doPart, ircAsync.PRIVMSG,
+                    r"^%s, *part *([^ ]+)? *!$" % self.nick,
+                    ["%s, part _address_ !" % self.nick,
+-                   "to dismiss me from a channel"])
++                   "to dismiss me from a channel"], threadSafe=1)
+
+
+          self.bind(self.doLoad, ircAsync.PRIVMSG,
+@@ -254,7 +253,7 @@
+          if not addr:
+              self.tell(replyTo, "huh? load _what_?")
+              return
+-
++
+          p = sax2rdf.RDFXMLParser(self._kb, addr)
+          try:
+              p.load(addr)
+@@ -336,6 +335,7 @@
+
+          self.notice(replyTo, "%i new statements in %i iterations." %
+                      (grandtotal, iterations))
++
+
+  def main(argv):
+      if len(argv) < 7:
+
+
+

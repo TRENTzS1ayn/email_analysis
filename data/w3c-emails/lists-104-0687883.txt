@@ -1,0 +1,221 @@
+docno="lists-104-0687883"
+received="Sun Jul 22 02:53:52 2001"
+isoreceived="20010722065352"
+sent="Sun, 22 Jul 2001 02:59:14 -0400"
+isosent="20010722065914"
+name="Michael B. Allen"
+email="mballen@erols.com"
+subject="domc&ndash;0.3 released &ndash;&ndash; W3C's DOM in c"
+id="20010722025914.A11361@nano.foo.net"
+charset="us-ascii"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+DOMC is a light weight implementation of the Document Object
+Model (DOM) in ANSI c as specified in the W3C DOM Core Level
+1 recommendation. When coupled with the Expat XML Parser
+Toolkit, DOMC can load, store, build, and directly manipulate
+XML documents represented as a tree in memory.
+
+Enjoy,
+Mike
+
+Sun Jul 22 00:34:30 EDT 2001
+
+                         DOMC
+          The Document Object Model (DOM) in c
+
+             http://auditorymodels.org/domc/
+
+In the spirit of Expat and the community process I have
+written a light weight implementation of the Document Object
+Model (DOM) in ANSI c as specified in the W3C DOM Core Level1
+recommendation:
+
+  http://www.w3.org/TR/1998/REC-DOM-Level-1-19981001/level-one-core.html
+
+under the MIT License. The package is available for immediate
+download here:
+
+  http://auditorymodels.org/domc/src/
+
+The Document Object Model is the W3C recommended way to
+manipulate XML and HTML documements as a tree of nodes. It is
+the more sophisticated but more memory constraining alternative
+to the SAX api.
+
+Some functionality with respect to EntityReferences, Notations,
+character encoding, and other peripherals are missing however
+the package should be immediately useable in many contexts. The
+goal is full compliance although HTML is not supported and I
+have no plans to support it in the future. It is small (~1800
+lines of code) and should prove to be highly extensible. I
+strongly encourage you to contribute changes but as cited in
+the MIT License you are not obligated to do so.
+
+BUILDING:
+
+UNIX - The package has not been prepared as a library but
+the Makefile should build any of the examples and serve as a
+model for how to integrate this code into your own. I suspect
+in the simplest case this would be to export the appropriate
+LD_LIBRARY_PATH or equivalent such as perhaps
+
+  export LD_LIBRARY_PATH=domc_0.3/lib/
+
+and compile with the equivalent of:
+
+  gcc -Wall -I domc_0.3/lib -L domc_0.3/lib -lexpat \
+        lib/stack.c lib/node.c lib/dom.c lib/expatls.c \
+        -o my_program my_program.c
+
+If expatls.c is left out the DOM_DocumentLS functions will
+not be available but Expat will not be required to compile
+(however, you will not be able to load or save to XML format
+without your own serialization routines).
+
+WINDOWS - I have never built this package on the Windows
+platform but theres no reason why it shouldn't with a little
+help. Some defines like DOM_String_dup will need to be replaced
+with their equivalent windows functions. If you successfully
+build DOMC on Windows I'm sure others would appreciate
+your sending me a patch (preferably with your best guess at
+conditional compilation that doesn't break the UNIX build).
+
+THE API:
+
+The popular C++ in c technique was NOT used. This means all
+methods are expressed as functions that follow the pattern:
+
+  DOM_Object_methodName(DOM_Object *obj, <parameters>)
+
+where the first parameter is always the object the method is
+being invoked on. Simple typedefs are used to compensate for
+the lack of OO constructs in the c language. For example the
+following IDL samples from the W3C specification:
+
+  DOM_Element *DOM_Document_createElement( \
+              in DOMString tagName raises(DOMException);
+  NodeList getElementsByTagName(in DOMString name);
+  Node appendChild(in Node newChild) raises(DOMException);
+
+have been implemented in DOMC with the following prototypes:
+
+  DOM_Element *DOM_Document_createElement( \
+              DOM_Document *doc, const DOM_String *tagName);
+  DOM_NodeList *DOM_Element_getElementsByTagName( \
+              DOM_Element *element, const DOM_String *name);
+  DOM_Node *DOM_Node_appendChild( \
+              DOM_Node *node, DOM_Node *newChild);
+
+I believe the only definitions in DOMC that are not specified
+in the W3C documentation are the <code>DOM_Exception</code>
+constants:
+
+  #define DOM_NO_MEMORY_ERR               11
+  #define DOM_NULL_POINTER_ERR            12
+  #define DOM_SYSTEM_ERR                  13
+  #define DOM_XML_PARSER_ERR              14
+
+the memory management functions:
+
+  void DOM_Document_destroyNode( \
+              DOM_Document *doc, DOM_Node *node); 
+  void DOM_Document_destroyNodeList(DOM_Document *doc, \
+              DOM_NodeList *nl, int free_nodes);
+  void DOM_Document_destroyNamedNodeMap(DOM_Document *doc, \
+              DOM_NamedNodeMap *nnm, int free_nodes);
+
+and load/save convenience operations:
+
+  int DOM_DocumentLS_load(DOM_Document *doc, DOM_String *uri);
+  int DOM_DocumentLS_save(DOM_Document *doc, \
+              DOM_String *uri, DOM_Node *node);
+
+The above load/save implementation is dependant on the Expat
+XML Parser Toolkit which can be obtained from:
+
+  http://expat.sourceforge.net/
+
+however the source file can be left out of the compliation or
+replaced with another implementation of the above methods.
+
+All functions specified in Core Level 1 and two from Level 2
+(e.g. DOM_Implementation_createDocument) have been completely
+implemented minus the functionality previously mentioned.
+
+The code should be highly portable however it has not been
+compiled on any platform other than Linux. The only non-ANSI
+code I can think of at the moment is the use of strdup however
+this will need to be replaced with a function that checks for
+invalid characters anyway.
+
+Finally, below is an example program (something I always
+look for when evaluating a new package) that was used to test
+DOMC. There are several more example programs packaged with
+the distribution.
+
+--8<--
+
+/* d4.c
+ *
+ * Load the XML file specified on the command line and build
+ * a DOM tree returned as a DOM_Document object. Get the root
+ * (yes, that union is a little strange -- doesn't happen a
+ * lot) and add some new elements using a DOM_DocumentFragment
+ * object. Then save the result as XML to stdout.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include "dom.h"
+
+int
+main(int argc, char *argv[])
+{
+    DOM_Document *doc;
+    DOM_DocumentFragment *dfrag;
+    DOM_Element *root, *e0, *e1;
+    DOM_Text *t0;
+
+    if (argc < 2) {
+        return EXIT_FAILURE;
+    }
+
+    doc = DOM_Implementation_createDocument(NULL, NULL, NULL);
+    if (DOM_DocumentLS_load(doc, argv[1]) == 0) {
+        return EXIT_FAILURE;
+    }
+
+    root = doc->u.Document.documentElement;
+
+    dfrag = DOM_Document_createDocumentFragment(doc);
+    e0 = DOM_Document_createElement(doc, "foo");
+    e1 = DOM_Document_createElement(doc, "bar");
+    t0 = DOM_Document_createTextNode(doc,
+            "This tests the DocumentFragment operations such \
+            as properly moving nodes from the DocumentFragment \
+            into the children of another.");
+
+    DOM_Node_appendChild(dfrag, e0);
+    DOM_Node_appendChild(dfrag, e1);
+    DOM_Node_appendChild(dfrag, t0);
+
+    if (DOM_Node_appendChild(root->lastChild, dfrag) == NULL) {
+        return EXIT_FAILURE;
+    }
+
+    if (DOM_DocumentLS_save(doc, "/dev/stdout", NULL) == 0) {
+        return EXIT_FAILURE;
+    }
+
+    DOM_Document_destroyNode(doc, dfrag);
+    DOM_Document_destroyNode(doc, doc);
+
+    return EXIT_SUCCESS;
+}
+
+
+

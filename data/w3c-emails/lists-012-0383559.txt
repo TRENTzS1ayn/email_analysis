@@ -1,0 +1,214 @@
+docno="lists-012-0383559"
+received="Wed Feb 25 14:07:52 1998"
+isoreceived="19980225190752"
+sent="Wed, 25 Feb 98 14:04:30 PST"
+isosent="19980225220430"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Rev02: seek clarification on conditional headers"
+id="9802252204.AA11347@acetes.pa.dec.com"
+inreplyto="9802251951.AA02758&#64;aleatory.tempo.belllabs.com"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+[Warning: lengthy analysis follows.]
+
+Dave Kristol writes:
+
+    14.25 If-Match
+    
+If the request would, without the If-Match header field, result in
+anything other than a 2xx status, then the If-Match header MUST be
+ignored.
+    
+    This paragraph implies to me that I should test I-M-S before I-M,
+    because it's possible that I-M-S could produce a 304.  (Note that
+    Apache 1.2.5 does the I-M test first, on the theory that I-M is a more
+    accurate test.  I'm using Apache as a reference because I'm assuming
+    that Roy had a strong hand in the code.  So I would expect it to reflect
+    the desired behavior.)
+    
+First of all, I think it's a mistake to refer to the Apache
+implementation to try to figure out what your implementation should
+do.  It's quite possible that Apache does the right thing; however,
+the IESG expects us to document multiple "independent" implementations
+based on the specification, and it seems to me that basing your
+decision on how Apache did it subverts this goal.
+
+If the spec is wrong or ambiguous, we need to fix it, but not
+on the basis that any particular existing implementation has already
+chosen one option.
+
+I should also point out that this specific topic was discussed
+on the HTTP-WG mailing list in mid-November (1997), resulting in
+some changes that might not have appeared in a release of Apache
+that came out in early January.  So that version of Apache wouldn't
+necessarily agree with the specification anyway (although the Apache
+people know better than I do what kind of schedule they followed).
+
+Anyway, the specific "issue" to look at is IMS_INM_MISMATCH,
+which cites as a "fix" my message:
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q4/0117.html
+and a follow-up:
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1997q4/0160.html
+
+Let me start by addressing your questions regarding If-None-Match,
+since that is what we have already discussed and resolved (?):
+
+    14.26 If-None-Match
+    
+If any of the entity tags match the entity tag of the entity
+that would have been returned in the response to a similar GET
+request (without the If-None-Match header) on that resource, or
+if "*" is given and any current entity exists for that
+resource, then the server MUST NOT perform the requested
+method, unless required to do so because the resource's
+modification date fails to match that supplied in an If-
+Modified-Since header field in the request. Instead, if the
+request method was GET or HEAD, the server SHOULD respond with
+a 304 (Not Modified) response, including the cache-related
+entity-header fields (particularly ETag) of one of the entities
+that matched. For all other request methods, the server MUST
+respond with a status of 412 (Precondition Failed).
+    
+    The problem is, if I test I-M-S first, then I-N-M, I can run afoul of this
+    part of 14.26:
+    
+If none of the entity tags match, then the server MAY perform
+the requested method as if the If-None-Match header field did
+not exist, but MUST also ignore any If-Modified-Since header
+field(s) in the request.  That is, if no entity tags match,
+then the server MUST not return a 304 (Not Modified) response.
+    
+I'm not sure there is a contradiction.  The first paragraph you cite
+from 14.26 says (if I'm not confused by my own words!)
+
+if (any entity tags match) {
+    if (IMS-date != last-modified) {
+MUST perform method
+    }
+    else {
+MUST NOT perform method
+if (method == GET or HEAD)
+    return 304
+else
+    return 412
+    }
+}
+else {
+    unspecified behavior
+}
+
+The second paragraph says, in effect
+
+if (no entity tags match) {
+    process request, ignoring any IMS header
+}
+else {
+    unspecified behavior
+    MUST NOT return 304
+}
+
+The composition of these two conditionals should be obvious ...
+
+Dave asks:
+    Also, I'm uncertain what the proper behavior is for I-N-M if an Etag
+    match succeeds and there's no I-M-S, or if there's an I-M-S and the
+    file has been modified since the I-M-S date.  Return 412 (Precondition
+    Failed)?  The response isn't well specified.
+
+It is possible to edit the first quoted paragraph, by deleting
+inapplicable clauses, to answer these two questions:
+
+    for I-N-M if an Etag match succeeds and there's no I-M-S, 
+
+"If any of the entity tags match ... the server MUST NOT perform
+the requested method" (since the "unless" clause in that sentence
+isn't triggered).  "[If] the request method was GET or HEAD, the
+server SHOULD respond with a 304 ... [for] all other methods,
+... respond with a status of 412."
+
+    if there's an I-M-S and the file has been modified since the I-M-S date.
+
+"the server ... is required to do so [i.e., perform the method]
+because the resource's modification date fails to match that supplied
+in an If-Modified-Since header field in the request."
+
+I suspect the english here could be a bit clearer, but I don't
+think it's actually ambiguous or contradictory.
+
+Now, back to If-Match.   You're basically asking what to do
+if you see this request:
+
+GET /foo.html HTTP/1.1
+Host: research.bell-labs.com
+If-Match: "xyzzy"
+If-Modified-Since: Wed, 25 Feb 98 14:51:40 GMT
+
+To me, this looks like a meaningless (or at best, highly unlikely)
+request.  What it appears to mean is that the client only wants the
+entity-body of /foo.html if the resource HAS been changed since the
+last-modified date of the client's current cache entry for /foo.html,
+AND if the (strong) entity tag HAS NOT changed.
+
+In other words, I can't see much of a reason for combining
+If-Match and IMS.
+
+It might make more sense to combine If-Match and If-Unmodified-Since,
+e.g.:
+
+GET /foo.html HTTP/1.1
+Host: research.bell-labs.com
+If-Match: "xyzzy"
+If-Unmodified-Since: Wed, 25 Feb 98 14:51:40 GMT
+
+but then I think the only question is whether this means that
+the request is performed if all of the "If-*" conditions are
+met, or if at least one of them is met.  The language in the
+spec for If-Match is:
+
+    If none of the entity tags match ..., the server MUST NOT perform
+    the requested method, and MUST return a 412 (Precondition Failed)
+    response. [...]
+
+    If the request would, without the If-Match header field, result in
+    anything other than a 2xx status, then the If-Match header MUST be
+    ignored.
+
+and the language for If-Unmodified-Since is:
+
+    If the requested variant has been modified since the specified
+    time, the server MUST NOT perform the requested operation, and MUST
+    return a 412 (Precondition Failed).
+
+    If the request normally (i.e., without the If-Unmodified-Since
+    header) would result in anything other than a 2xx status, the
+    If-Unmodified- Since header should be ignored.
+
+It turns out that there *is* a contradition here: if none of
+the entity tags match AND if the variant has been modified, then
+each header "wants" to cause us to return 412, but the rules
+for each header individually says "ignore me because my buddy
+wants us to return 412".  So I think the phrase "2xx status"
+in both quotes above should be "2xx or 412 status".
+
+With that fix applied (I'll submit this as an "issue"), I think the
+meaning of a request with both IM and IUS is straightforward:
+
+if ((no entity tags match the If-Match value)
+or
+    (last-modified date not same as IUS value)) {
+    return 412
+}
+else {
+    process request, ignoring If-Match and If-Unmodified-Since hdrs
+}
+
+Clear?
+
+-Jeff
+
+
+

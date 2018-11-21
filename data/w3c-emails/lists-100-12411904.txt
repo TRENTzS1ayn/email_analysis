@@ -1,0 +1,69 @@
+docno="lists-100-12411904"
+received="Wed Apr 11 01:30:07 2001"
+isoreceived="20010411053007"
+sent="Wed, 11 Apr 2001 00:34:16 -0500"
+isosent="20010411053416"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Experiments with JUnit, JSUnit and CppUnit"
+id="000f01c0c249$0d205dc0$1f44a018@houston.rr.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+Cc:<xmlconf-developer@lists.sourceforge.net>,<xerces-c-dev@xml.apache.org>
+
+I spent a few hours over the last few days experimenting with recasting the NIST Java DOM test suite using Junit (http://www.junit.org) and then porting the Junit code the JSUnit (http://www.jsunit.net) and to CppUnit (if anyone wants to experiment with any of the other parallel frameworks at http://www.xprogramming.com/software like the C# one, I'd be interested in hearing your observations).  
+
+I've been very encouraged and think that it looks like a very favorable mechanism for testing multiple language implementations without having to do extensive modifications to the tests.
+
+A snapshot of my current experiment can be downloaded from http://home.houston.rr.com/curta/DOMUNIT.ZIP, but I plan to put it in the http://xmlconf.sourceforge.net CVS in the not distant future. 
+
+I've basically gotten the attr and characterdata test classes to run under JUnit and JSUnit with only simple regex replacements needed to convert the JUnit test code to JSUnit.  The conversions for CppUnit are more complex but also seem to be doable with easily automatible changes.  
+
+Using a diff utility that shows intraline changes will probably give you the best idea of the changes involved between the files, but I'll try to outline the major changes necessary.
+
+The first step was to convert the original NIST Java tests to JUnit (with some specific patterns used to simplify the further ports to other platforms).
+
+In JUnit, any public method starting with test and taking no parameters is considered a test method.  private or protected functions (such as getStaffDocument()) are used to support the tests.  Each test class (such as attr) extends DOM1TestCase which provides common utility routines and DOM1TestCase extends junit.framework.TestCase
+
+Instead of building and returning a TestResults object, the test status will be based any calls to assert...() or fail...() methods (such as assertNull, assertEquals, assertNotEquals...) in the test code.
+
+It is not necessary or desirable to catch unexpected Exceptions, so all unexpected exceptions fall through to the calling code that will give the case an error status (as opposed to a fail or success status).
+
+Expected exceptions are handled with code that looks something like:
+
+public void testSomeExceptionShouldBeRaised() {
+    //  test set up
+    try {
+        //   do something
+    }
+    catch(DOMException ex) {
+        if(expectedException(ex,SOME_DOM_CODE)) {
+            return;
+        }
+    }
+    fail(desc);
+}
+
+To ease porting to JavaScript, helper functions are used to access things that are properties in the ECMAScript binding.  For example, accessing the attribute name would be done as "attr.name" in JavaScript and "attr.getName()" in Java.  To move out of the test code, a "getName(node)" method is used in the test body which is implemented in the DOM1TestCase.java or DOM1TestCase.js file.
+
+Cast operations are done using a "toCharacterData(node)" (for example) helper function as are the inspection of Exceptions.
+
+The JUnit tests can be run (testing any JAXP complient parser) by something like:
+
+java -classpath domjunit.jar;junit.jar;xerces.jar net.sourceforge.xmlconf.domjunit.DOM1TestCase
+
+- or -
+
+java -classpath domjunit.jar;junit.jar;jaxp.jar;crimson.jar net.sourceforge.xmlconf.domjunit.DOM1TestCase
+
+which will run the attr, characterdata and cdatasection tests using staff.xml et al stored within the zip file.
+
+The JSUnit tests can be run (testing MSXML3) by placing the tests in a directory that is a sibling to the jsunit/app directory, loading jsunit/testRunner.html in Internet Explorer 5 and then selecting the attr.html or characterdata.html file.  JSUnit claims Netscape support, but requires an explicit enumeration of the test methods which I haven't done for these tests.
+
+The CppUnit tests compile for Xerces-C (current DOM), but the method bodies have not been written for the support routines.
+
+
+

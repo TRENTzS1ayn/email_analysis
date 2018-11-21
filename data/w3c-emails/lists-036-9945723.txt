@@ -1,0 +1,110 @@
+docno="lists-036-9945723"
+received="Sat May 24 15:00:34 2003"
+isoreceived="20030524190034"
+sent="Sat, 24 May 2003 12:00:25 -0700 (PDT)"
+isosent="20030524190025"
+name="Rob Cameron"
+email="cameron@cs.sfu.ca"
+subject="Re: draft-fielding-uri-rfc2396bis-02"
+id="200305241900.h4OJ0P612980@orpheus.cs.sfu.ca"
+inreplyto="draft-fielding-uri-rfc2396bis-02"
+expires="-1"
+
+
+To:fielding@apache.org,uri@w3.org
+
+
+
+Here are some comments on my first experience with rfc2396bis-02
+this morning as well as some comments on further work.
+
+1.  abnf2re had no problems with the grammar; it took only a few
+    minutes to update my parser to work with this grammar.
+
+2.  Overall, the restructuring of the grammar seems much
+    easier to follow, particularly with respect to empty
+    components.
+
+3.  I wonder whether net_path should be named something
+    else, just so people don't get the idea that it is
+    a path for the purpose of 5.2.
+
+4.  I have been working on the  inverse of the algorithm
+    of section 5.2 for resolving relative references.
+    I thought an algorithm for that might appear in this draft.
+
+Anyway, here's what I have in Python, close enough to the
+pseudcode of section 5.2 to be understood, I think.
+
+def compute_relative_URI(base, abs):
+    Base_scheme, Base_authority, Base_path, Base_query, Base_fragment = parseURI(base)
+    A_scheme, A_authority, A_path, A_query, A_fragment = parseURI(abs)
+    if Base_scheme != A_scheme: return abs
+    elif Base_authority != A_authority:
+        return buildURI(None, A_authority, A_path, A_query, A_fragment)
+    elif Base_path == A_path: return buildURI(None, None, '', A_query, A_fragment)
+    else:
+        Base_segments = string.split(Base_path, '/')
+        A_segments = string.split(A_path, '/')
+        common = common_prefix_length(Base_segments, A_segments)
+        Base_extra = len(Base_segments) - common
+        if Base_extra == 0:   # must include final common component
+            rel_segments = A_segments[common-1:]
+        else:
+            rel_segments = (Base_extra - 1) * ['..'] + A_segments[common:]
+        if re.search(':', rel_segments[0]) or rel_segments[0] == '':
+            rel_segments = ['.'] + rel_segments
+        return buildURI(None, None, string.join(rel_segments, '/'), A_query, A_fragment)
+
+I have been comparing my algorithms with the uripath.py implementation
+and do find some discrepancies.  Comments on the following examples
+would be welcome.  (Also, there was a note about two interoperable
+implementations for standardization - is what I'm doing helpful?)
+
+a.  relative reference .//x
+
+My resolve_relative_reference and join of uripath.py agree:
+
+>>> join('http://a/b/c/', './/x')
+'http://a/b/c//x'
+
+>>> resolve_relative_URI('http://a/b/c/', './/x')
+'http://a/b/c//x'
+
+But refTo of uripath.py does not invert.
+
+>>> refTo('http://a/b/c/', 'http://a/b/c//x')
+'http://a/b/c//x'
+
+>>> compute_relative_URI('http://a/b/c/', 'http://a/b/c//x')
+'.//x'
+
+b.  relative reference ./f:g
+
+I think refTo of uripath.py is incorrect here.
+
+>>> join('http://a/b/c/', './f:g')
+'http://a/b/c/f:g'
+>>> resolve_relative_URI('http://a/b/c/', './f:g')
+'http://a/b/c/f:g'
+
+>>> refTo('http://a/b/c/', 'http://a/b/c/f:g')
+'f:g'
+>>> compute_relative_URI('http://a/b/c/', 'http://a/b/c/f:g')
+'./f:g'
+join('http://a/b/c?y', '?z')
+
+c.  relative reference ?y
+
+>>> resolve_relative_URI('http://a/b/c/d;p?q', '?y')
+'http://a/b/c/d;p?y'
+>>> compute_relative_URI('http://a/b/c/d;p?q', 'http://a/b/c/d;p?y')
+'?y'
+
+uripath.py does not seem to agree with the spec:
+
+>>> join('http://a/b/c/d;p?q', '?y')
+'http://a/b/c/?y'
+
+
+

@@ -1,0 +1,176 @@
+docno="lists-015-3443292"
+received="Mon Jan 20 05:18:30 2003"
+isoreceived="20030120101830"
+sent="Mon, 20 Jan 2003 05:18:26 0500"
+isosent="20030120101826"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="RDF query for SQL data"
+id="20030120101826.GD31829@tux.w3.org"
+charset="usascii"
+expires="1"
+
+To:jan.grant@bristol.ac.uk
+Cc:public-esw@w3.org
+
+
+Jan,
+
+Did you see Eric's post? http://lists.w3.org/Archives/Public/www-rdf-interest/2003Jan/0102.html
+
+How does this compare to http://www.w3.org/2001/sw/Europe/reports/scalable_rdbms_mapping_report/ ?
+
+Dan
+
+
+attached mail follows:
+
+algae [1] and cwm [2] now both have the ability to query a relational
+database with an application-specific schema. An example OrderTracking
+database is queryable via MySQL at swada.w3.org with the username
+rdftest and no password. The n3 (see example [3])
+
+ :o Orders:customer :c .
+ :o Orders:product :p .
+ :o Orders:orderDate :d .
+
+ :p Products:name :productName .
+
+ :c Customers:familyName :first .
+ :c Customers:givenName :last .
+ :c Customers:billingAddress :billAddr .
+
+ :billAddr Addresses:street :billStreet .
+ :billAddr Addresses:city :billCity .
+ :billAddr Addresses:state :billState .
+
+is translated into an SQL query
+ SELECT Products_0.id AS p_id,
+          Products_0.name AS productName_name,
+        Addresses_0.id AS billAddr_id,
+          Addresses_0.city AS billCity_city,
+          Addresses_0.state AS billState_state,
+          Addresses_0.street AS billStreet_street,
+        Customers_0.id AS c_id,
+          Customers_0.familyName AS first_familyName,
+          Customers_0.givenName AS last_givenName,
+        Orders_0.id AS o_id,
+          Orders_0.orderDate AS d_orderDate
+ FROM Products AS Products_0, Addresses AS Addresses_0, Customers AS Customers_0, Orders AS Orders_0
+ WHERE Customers_0.billingAddress=Addresses_0.id
+   AND Orders_0.customer=Customers_0.id
+   AND Orders_0.product=Products_0.id
+
+and executed. The results are mapped back into RDF statements,
+available for report or furthur inferencing. The algae equivilent (see
+example [4]) is
+       (OT::Orders.customer?o?c)
+       (OT::Orders.product?o?p)
+       (OT::Orders.orderDate?o?d)
+       (OT::Products.name?p?productName)
+       (OT::Customers.givenName?c?first)
+       (OT::Customers.familyName?c?last)
+       (OT::Customers.billingAddress?c?billAddr)
+       (OT::Addresses.street?billAddr ?billStreet)
+       (OT::Addresses.city?billAddr ?billCity)
+       (OT::Addresses.state?billAddr ?billState)
+
+One implications of this is that an awful lot of rdb data could be
+easily made available to RDF tools. Another is that mapping such data
+to RDF can be a way to join disparate rdbs. And a third is that RDF
+data can be made to scale on the same order as rdbs, which is
+generally acknowledged as very well.
+
+Anyways, it would be fun to get some feedback if folks want to try out
+either the cwm or algae implementations. If you experiment with cwm,
+you will need to install mysql drivers for python (debian package
+python2.2-mysqldb) and for algae you will need mysql drivers for perl
+(debian package libdbd-mysql-perl). The perl version has the ability
+to do ORs [5] NOTs, [5] and outer joins [6]. I haven't worked out the
+notation for that in n3 but it should be feasible to port to cwm as
+well. As an example, the algae query
+       (OT::Orders.customer?o?c)
+       (OT::Orders.product?o?p)
+       (OT::Orders.orderDate?o?d)
+       (OT::Products.name?p?productName)
+       (OT::Customers.givenName?c?first)
+       (OT::Customers.familyName?c?last)
+       (OT::Customers.billingAddress ?c?billAddr)
+       (OT::Addresses.contact?billAddr ?biller)
+       (OT::Customers.givenName?biller?bFirst)
+       (OT::Customers.familyName?biller?bLast)
+       ~(OT::Orders.shippingAddress?o?shipAddr)
+       ~(OT::Addresses.contact?shipAddr ?signer)
+       (OT::Customers.givenName?signer?sFirst)
+       (OT::Customers.familyName?signer?sLast)
+
+results in the SQL query
+ SELECT Orders_0.id AS o_id,
+ Orders_0.orderDate AS d_orderDate,
+        Products_0.id AS p_id,
+ Products_0.name AS productName_name,
+        Customers_0.id AS c_id,
+ Customers_0.givenName AS first_givenName,
+ Customers_0.familyName AS last_familyName,
+        Addresses_0.id AS billAddr_id,
+ Addresses_0.street AS billStreet_street,
+ Addresses_0.city AS billCity_city,
+ Addresses_0.state AS billState_state,
+        Addresses_1.id AS shipAddr_id,
+ Addresses_1.street AS shipStreet_street,
+ Addresses_1.city AS shipCity_city,
+ Addresses_1.state AS shipState_state
+ FROM Orders AS Orders_0
+      INNER JOIN Customers AS Customers_0 ON Orders_0.customer=Customers_0.id
+      INNER JOIN Products AS Products_0 ON Orders_0.product=Products_0.id
+      INNER JOIN Addresses AS Addresses_0 ON Customers_0.billingAddress=Addresses_0.id
+      LEFT OUTER JOIN Addresses AS Addresses_1 ON (Orders_0.shippingAddress=Addresses_1.id)
+
+and the data
++------+----------+------------+------+----------+--------+--------+
+| first|      last| productName|bFirst|     bLast|  sFirst|   sLast|
+|------|----------|------------|------|----------|--------|--------|
+|"Chip"|"Thompson"| "nose ring"|"Biff"|"Thompson"|    NULL|    NULL|
+|"Chip"|"Thompson"|"other ring"|"Biff"|"Thompson"|"Eustis"|"Walker"|
+|"Biff"|"Thompson"|      "pool"|"Biff"|"Thompson"|    NULL|    NULL|
+|"Chip"|"Thompson"|"skateboard"|"Biff"|"Thompson"|    NULL|    NULL|
++------+----------+------------+------+----------+--------+--------+
+
+Another interesting feature is that both can trap under-constrained
+queries and throw an exception before executing such potentially
+expensive (and likely useless) queries. They can also do an
+overconstraint check and warn the certain tables are linked to others
+in more than one way, even if it is via some number of intermediate
+tables.
+
+Clearly the largest contribution this technology has to offer,
+however, is the cool formatting of the SQL queries.
+
+Next on the plate are some compelling example queries joining data
+from the OrderTracking database with some other database. I considered
+a product review database, but such services are more likely to be
+available over HTTP and SQL. (cwm and algae can join against data
+obtained from HTTP, but that was not so much the point of this
+exercise.) I would be interested in suggestion, particularly ones that
+would be interesting to the web services crowd.
+
+Let me know what you think of this. Thanks.
+
+[1] http://www.w3.org/2000/10/swap/doc/cwm.html
+[2] http://www.w3.org/1999/02/26-modules/
+[3] http://dev.w3.org/cvsweb/2000/10/swap/test/dbork/OrderTracking1.n3
+[4] http://dev.w3.org/cvsweb/perl/modules/W3C/Rdf/test/OrderTracking1-alg.sh 
+[5] http://dev.w3.org/cvsweb/perl/modules/W3C/Rdf/test/SqlDBtest7-alg.sh
+[6] http://dev.w3.org/cvsweb/perl/modules/W3C/Rdf/test/OrderTracking5-alg.sh 
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

@@ -1,0 +1,89 @@
+docno="lists-105-1736424"
+received="Mon Jan  5 14:14:27 2004"
+isoreceived="20040105191427"
+sent="Mon, 05 Jan 2004 14:14:21 -0500"
+isosent="20040105191421"
+name="Philippe Le Hegaret"
+email="plh@w3.org"
+subject="Re: Hesitation on setAttributeNS"
+id="1073330060.28167.29.camel@jfouffa.w3.org"
+inreplyto="3FD5E2D0.8080208&#64;expway.fr"
+expires="-1"
+
+To: Robin Berjon<robin.berjon@expway.fr>
+Cc: WWW DOM<www-dom@w3.org>
+
+
+
+On Tue, 2003-12-09 at 09:57, Robin Berjon wrote:
+> Hi,
+> 
+> setAttributeNS() and friends with similar parameters has text to stricly 
+> forbid a qName with a prefix for a null nsURI, but nothing on whether it 
+> is legal to use it with a defined nsURI, and a qName that doesn't 
+> contain a prefix part.
+
+The definition of qualified name, according the DOM glossary:
+[[
+A qualified name is the name of an element or attribute defined as the
+concatenation of a local name (as defined in this specification),
+optionally preceded by a namespace prefix and colon character.
+]]
+http://www.w3.org/TR/2003/CR-DOM-Level-3-Core-20031107/glossary.html#dt-qualifiedname
+
+A qName may therefore contain a prefix when used with setAttributeNS().
+
+> Most implementations seem to accept it, and then fail to serialise it 
+> properly. Some rightfully complain that you can't have a namespace URI 
+> on an attribute that doesn't have a prefix. This is a sorry state of 
+> affairs :)
+> 
+> So it would be nice to see it resolved either way: either it is clearly 
+> flagged as an error, or it is clearly allowed, with indication of how 
+> the implementation may produce the prefix (not overwriting the one of 
+> that attribute if it exists, using a prefix in scope if there's one, 
+> generating one).
+
+Your case is a serialization issue. DOM Level 3 Core doesn't say
+anything about the serialization of a DOM tree but it does have an
+algorithm to do namespace fix-up, which is also used by the LSSerializer
+of DOM Level 3 Load and Save, to deal with your case:
+[[
+if ( Attr[i] has a namespace URI )
+     {
+        if ( attribute has no prefix (default namespace decl does not apply to attributes) 
+             OR [...])
+        {              
+           if (namespaceURI matches an in scope declaration of one or more prefixes) 
+           {
+               // pick the most local binding available; 
+               // if there is more than one pick one arbitrarily
+
+               ==> change attribute's prefix.
+           }
+           else 
+           {
+               if (the current prefix is not null and it has no in scope declaration) 
+               {
+                   ==> declare this prefix
+               } 
+               else 
+               {
+                   // find a prefix following the pattern "NS" +index (starting at 1)
+                   // make sure this prefix is not declared in the current scope.
+                   // create a local namespace declaration attribute
+
+                   ==> change attribute's prefix.
+               }
+           }           
+        }
+]]
+http://www.w3.org/TR/2003/CR-DOM-Level-3-Core-20031107/namespaces-algorithms.html
+
+In other words, it is not an error, and a new prefix will be generated
+and declared by the implementation if necessary.
+
+Philippe
+
+
+

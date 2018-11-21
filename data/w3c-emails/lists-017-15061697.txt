@@ -1,0 +1,127 @@
+docno="lists-017-15061697"
+received="Thu Aug  1 17:57:09 2002"
+isoreceived="20020801215709"
+sent="Thu, 1 Aug 2002 16:39:38 0400 (EDT)"
+isosent="20020801203938"
+name="Jeni Tennison"
+email="jeni@jenitennison.com"
+subject="Re: Grouping"
+id="158100975775.20020801213935@jenitennison.com"
+charset="usascii"
+inreplyto="CIEJJKHALIHDFKICNIACGEFLCAAA.jeffx&#64;thinkshare.com"
+expires="1"
+
+
+To:"Jeff Yemin"<jeffx@thinkshare.com>
+CC:public-qt-comments@w3.org
+
+
+
+
+
+Hi Jeff,
+
+> The best solution we could come up with:
+> <table xsl:version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+>    <xsl:for-each-group select="os/o" group-by="concat(@a, ',', @b">
+>       <tr>
+>          <td>
+>             <xsl:value-of select="current-group()/@id" separator=", "/>
+>          </td>
+>       </tr>   </xsl:for-each-group>
+> </table>
+> I'm not too happy with having to use concat to generate a group, as
+> it's difficult to optimize and somewhat unintuitive. I'd like to see
+> something more like this:
+
+I agree. It also doesn't deal well with mixing data types -- if the a
+attribute was a string and the b attribute was a number, for example.
+
+> <xsl:sort-key name="o-sort">  <xsl:sort select="@a"/>  <xsl:sort
+> select="@b"/></xsl:sort-key>
+> <table xsl:version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+>    <xsl:for-each-group select="os/o" group-by-sort-key="o-sort">
+>       <tr>
+>          <td>
+>             <xsl:value-of select="current-group()/@id" separator=", "/>
+>          </td>
+>       </tr>   </xsl:for-each-group>
+> </table>
+
+I think that could get a little confusing, given that xsl:sort is used
+for sorting things elsewhere, and in particular since xsl:sort is also
+used within the xsl:for-each-group instruction. I've previously
+suggested using an xsl:group element inside xsl:for-each to do the
+grouping:
+
+  <table xsl:version="2.0"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+    <xsl:for-each select="os/o">
+      <xsl:group select="@a" />
+      <xsl:group select="@b" />
+      <tr>
+        <td>
+          <xsl:value-of select="current-group()/@id" separator=", " />
+        </td>
+      </tr>
+    </xsl:for-each>
+  </table>
+
+See
+http://lists.w3.org/Archives/Public/xsl-editors/2001OctDec/0052.html
+for the proposal I made. Mike replied at
+http://lists.w3.org/Archives/Public/xsl-editors/2002JanMar/0036.html
+that the grouping key could be a sequence and that this would enable
+you to have compound grouping keys, but this doesn't seem to have
+filtered through into the WD yet...
+  
+> Perhaps this is what the committee was thinking of with Issue 54 in
+> the 2.0 working draft? It wasn't clear to me what exactly was being
+> addressed there.
+
+As I understand Issue 54, it's about specifying a collation to
+determine whether two strings are the same in order to determine
+whether two things should be grouped together or not. For example, if
+you had:
+
+  <os>
+     <o id= 'Bif' a='a' b='1' />
+     <o id= 'Bay' a='A' b='1' />
+     <o id= 'Bob' a='a' b='2' />
+     <o id= 'May' a='b' b='1' />
+     <o id= 'Moe' a='b' b='1' />
+     <o id= 'Mel' a='B' b='2' />
+     <o id= 'Joe' a='C' b='2' />
+     <o id= 'Sue' a='d' b='1' />
+  <os>
+
+and a collation called "my:case-insensitive" then you should be able
+to do:
+
+  <table xsl:version="2.0"
+         xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+    <xsl:for-each-group select="os/o"
+                        group-by="concat(@a, ',', @b)"
+                        collation="my:case-insensitive">
+      <tr>
+        <td>
+          <xsl:value-of select="current-group()/@id" separator=", " />
+        </td>
+      </tr>
+    </xsl:for-each>
+  </table>
+
+to get the output that you were after before -- Bif and Bay would be
+grouped together because 'a' is equal to 'A' under a case-insensitive
+collation.
+  
+Cheers,
+
+Jeni
+
+---
+Jeni Tennison
+http://www.jenitennison.com/
+
+
+

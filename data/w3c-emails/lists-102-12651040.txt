@@ -1,0 +1,122 @@
+docno="lists-102-12651040"
+received="Fri Apr 23 12:35:16 1999"
+isoreceived="19990423163516"
+sent="Fri, 23 Apr 1999 12:35:04 -0400 (EDT)"
+isosent="19990423163504"
+name="Andrew M. Kuchling"
+email="akuchlin@cnri.reston.va.us"
+subject="Re: Replacing the root element"
+id="14112.40590.429997.960649@amarok.cnri.reston.va.us"
+charset="us-ascii"
+inreplyto="01BE8DB0.5EA4C610&#64;grappa.ito.tu-darmstadt.de"
+expires="-1"
+
+To:"'DOM List'"<www-dom@w3.org>
+
+
+Ronald Bourret writes:
+>I just tried replacing the root element with:
+>
+>a) another element
+>b) a fragment containing one element
+>c) a fragment containing two elements
+
+The PyDOM code seems to pass this test; the test program below 
+produces the output:
+
+amarok /tmp>python t.py
+Adding element
+<?xml version="1.0"?>
+<root />
+
+Adding 1-element fragment
+<?xml version="1.0"?>
+<elem1 />
+
+Adding 2-element fragment
+Traceback (innermost last):
+  File "t.py", line 27, in ?
+    doc.replaceChild( frag2, doc.documentElement)
+  File "/usr/local/lib/python1.5/site-packages/xml/dom/core.py", line 1314, in replaceChild
+    raise HierarchyRequestException, \
+xml.dom.core.HierarchyRequestException: replaceChild() would result in more than one root document element
+
+The Document class overrides the basic Node implementation of
+replaceChild(), and counts the number of unique Elements in both the
+children of the Document element and the list of nodes that will be
+inserted; this number must be equal to 1 or 0.  If the total is OK,
+the original Node.replaceChild() can be called.  (Similar logic works
+for insertBefore().)  Here's what the code looks like:
+
+    def replaceChild(self, newChild, oldChild):
+        """Replaces the child node oldChild with newChild in the list of
+        children, and returns the oldChild node. If the newChild is
+        already in the tree, it is first removed."""
+
+# Check that this operation wouldn't result in the Document node
+# having more than one children that are Element nodes.
+# This is as in insertBefore, with one change; if the old node being
+# replaced is an element, it shouldn't be counted.
+if newChild._node.type == DOCUMENT_FRAGMENT_NODE:
+    nodelist = newChild._node.children
+else:
+    nodelist = [newChild._node]
+
+d = {}                         # Dictionary for counting
+for c in nodelist:
+            if c.type == ELEMENT_NODE: d[ id(c) ] = None
+        for c in self._node.children:
+            if c.type == ELEMENT_NODE: d[ id(c) ] = None
+
+# For a correct count, we should not count the oldChild node, in case
+# it's an Element.
+ocn = oldChild._node
+        if ocn.type == ELEMENT_NODE and d.has_key( id(ocn) ):
+    del d[ id(ocn) ]
+
+if len(d) > 1:
+    raise HierarchyRequestException, \
+              "replaceChild() would result in more than one root document element" 
+
+# Call original version of replaceChild()
+Node.replaceChild(self, newChild, oldChild)
+
+
+-- 
+A.M. Kuchlinghttp://starship.python.net/crew/amk/
+This of course is nothing like the comic book Enigma. This is real life, or as
+real as your life gets, anyway.
+    -- Violence, in ENIGMA #5: "Lizards and Ghosts"
+
+
+# Test program for adding DocFragments to the root element
+from xml.dom import core
+
+doc = core.createDocument()
+
+# Make single element, 1-element fragment, 2-element fragment
+elem = doc.createElement("root")
+
+frag1 = doc.createDocumentFragment()
+frag1.appendChild( doc.createElement("elem1") )
+
+frag2 = doc.createDocumentFragment()
+frag2.appendChild( doc.createElement("elem1") )
+frag2.appendChild( doc.createElement("elem2") )
+
+print 'Adding element'
+doc.appendChild( elem )  # Should succeed
+print doc.toxml()
+
+# Replace the root element with the 1-element fragment
+print '\nAdding 1-element fragment'
+doc.replaceChild( frag1, doc.documentElement)
+print doc.toxml()
+
+# Replace the root element with the 2-element fragment
+print '\nAdding 2-element fragment'
+doc.replaceChild( frag2, doc.documentElement)
+print doc.toxml()
+
+
+

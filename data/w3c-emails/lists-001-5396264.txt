@@ -1,0 +1,154 @@
+docno="lists-001-5396264"
+received="Fri May 25 15:43:35 2001"
+isoreceived="20010525194335"
+sent="Fri, 25 May 2001 15:43:16 -0400"
+isosent="20010525194316"
+name="Reitzel, Charlie"
+email="CReitzel@arrakisplanet.com"
+subject="RE: Exceptions in C (was SourceForge Project Approved)"
+id="B5C79DDBC655D311B6BD0008C7E64D76013C156A@exchange.arrakisplanet.com"
+charset="ISO-8859-1"
+inreplyto="Exceptions in C (was SourceForge Project Approved)"
+expires="-1"
+
+
+To:"'Valeri.Atamaniouk@nokia.com'"<Valeri.Atamaniouk@nokia.com>
+Cc:"'html-tidy@w3.org'"<html-tidy@w3.org>,"'ok@atlas.otago.ac.nz'"<ok@atlas.otago.ac.nz>
+
+Hi Valeri,
+
+I know this sounds boring, but I think that, for the first couple releases,
+the focus will have to be on stability, HTML processing functionality and
+the external library interface - in that order.  At least that's what I'm
+hearing from the group.  
+
+From a style point of view, I agree w/ Richard.  I think using exceptions
+for non-critical errors is more work than help.  Better, imo, to put some
+careful thought into how the library will detect, track and report errors.
+Given the diagnostic uses of Tidy, error reporting will be an important area
+of the design.  Currently, there are 3 places in Tidy where critical errors
+are detected (grep exit *.c).  We'll have to do something for these items as
+libs shouldn't call exit().
+
+From a purely mechanical point of view, I'm not certain that longjmp is
+fine.  I don't think it is portable to _all_ platforms and may interfere w/
+thread safety.  Certainly, it will impose a burden on project developers not
+familiar w/ these techniques (like me).  
+
+As for memory allocators, this is a tuning issue.  Once we have a stable
+library, we may find that memory allocation is a bottleneck.  If it is, a
+custom memory allocator may be just the ticket.  For automatic reclamation,
+I prefer the stack.  Either local vars or alloca().  Yes, we will need to
+analyze the code for leaks and do some testing.
+
+We'll need to do a good job on the external interface so we don't restrict
+future development.  For example, thread safety will be important for
+server-side applications. I wouldn't want to expose any custom exception
+handling in the public interface of the library.
+
+take it easy,
+Charles Reitzel
+
+
+-----Original Message-----
+From: Valeri.Atamaniouk@nokia.com [mailto:Valeri.Atamaniouk@nokia.com]
+Sent: Friday, May 25, 2001 2:34 AM
+To: ok@atlas.otago.ac.nz; html-tidy@w3.org
+Subject: RE: SourceForge Project Approved
+
+
+Hello Richard
+
+> -----Original Message-----
+> From: ext Richard A. O'Keefe [mailto:ok@atlas.otago.ac.nz]
+> Sent: 24 May 2001 02:25
+> To: Valeri.Atamaniouk@nokia.com; html-tidy@w3.org
+> Subject: RE: SourceForge Project Approved
+ 
+> and it is possible to implement strings, storage reclamation &
+> exceptions.  As far as I understand the last two would be really
+> usefull as definitevely improve performance (exit(2) is not an
+> appropriate solution for library function :)).
+> 
+> Strings?  Yes, but the DOM explicitly requires immutable 
+> *UNICODE* strings. Even if using UTF-8 internally would 
+> save you nearly a factor of two in
+> space, the DOM does not allow you to do that.  (Note that the 
+> wchar_t type
+> and wcs* strings in standard C don't help, because they are 
+> commonly 32-bit
+> characters, not 16-bit characters, which is what the DOM 
+> absolutely demands.)
+
+Tidy operates with 32-bit characters :). And it actually consumes more
+memory but I believe this is the fastest solution (ANSI C requires int to be
+the fastest integral type of at least 16bit length). Unfortunately I think
+it is better not to use standard library functions: they may have support
+for Unicode (UTF-32/UCS4) but Tidy operates in an enviroment with
+"something" on ASCII subset. It is better because allow to process a lot of
+encodings with a minimal effort.
+
+> 
+> Why should someone implement a 16-bit string library that 
+> Tidy doesn't need and wouldn't particularly benefit from, 
+> just because a data structure that was designed for 
+> Javascript demands them?
+> 
+> The Boehm conservative garbage collector for C exists, is 
+> freely available, has seen a lot of use, and is generally a 
+> Fine Thing.  However, it is a *conservative* garbage 
+> collector, that being pretty much the best that is
+> possible in C (where you can take a pointer, convert it to 
+> an integer, mangle the integer, and then days later demangle 
+> the integer, convert it back to a pointer, and expect to be 
+> able to use the pointer as if nothing had happened), and will 
+> on occasion leak space that could have been reclaimed.
+>
+> It was a *major* piece of work. Tidy-as-a-program doesn't 
+> *need* garbage collection.
+
+I do not talk about garbage collector :). See below.
+
+> Tidy-as-a-library *will* need careful storage management 
+> design, which is one reason why I'd like to see 
+> tidy-as-a-library wait until known bug-fixes
+> are installed and tested.  But if Tidy-as-a-library is 
+> to be usable in other people's C code, it had better not 
+> demand that *they* write for garbage collection too.
+> 
+> Exceptions:  there are a couple of versions around for C, one 
+> of them comes as an example with FunnelWeb.  I've done ny own, 
+> too.  However, no-one in their right mind would say that 
+> library-level exception-handling in C could be expected to 
+> improve performance.
+> 
+> Once again, requiring Tidy-as-a-library to use some sort of 
+> library-level exception handling interface would make it of 
+> very little use to C programmers trying to use it.  It would 
+> make life *more* complicated for them, not less.  (It's 
+> different in a language with language-level exceptions.)
+> To do this just so one could conform to a deeply flawed 
+> interface designed for other purposes entirely strikes me 
+> as, um, perverse.
+> 
+
+Just an example: is you process something and in some_very_deep_function you
+encounter a problem, you'll have to return a error code, check it in the
+higher-level function, return error code etc. At the end you'll have to
+release all the memory allocated (supposing that structure's integrity is
+not destroyed).
+
+Another approach: you create a memory allocator and start processing. All
+functions get their memory from this allocator. If there is a error, an
+exception is emulated (longjmp would be fine) to the starting point. Having
+it we just release allocator (and all the memory wich was allocated from it
+in one operation). This makes unnessesary numerous error checks. Besides
+mechanism with preallocation of a chunk of a memory and then distributing it
+as needed works faster, than standard malloc/realloc/free. You will be
+suprised how much faster.
+
+BR
+VA
+
+
+

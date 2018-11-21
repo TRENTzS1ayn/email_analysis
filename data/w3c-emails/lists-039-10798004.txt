@@ -1,0 +1,242 @@
+docno="lists-039-10798004"
+received="Sun Oct 24 21:14:29 1999"
+isoreceived="19991025011429"
+sent="Sun, 24 Oct 1999 21:16:56 -0400"
+isosent="19991025011656"
+name="ccjason@us.ibm.com"
+email="ccjason@us.ibm.com"
+subject="Re: DELETE leaving a lock-null resource; was LOCK Scenarios"
+id="85256815.0006BEA7.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="DELETE leaving a lock-null resource; was LOCK Scenarios"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>
+cc:w3c-dist-auth@w3.org
+
+
+
+   <gmc/>
+   ....  The server is responsible for
+   retrieving the same resource whenever the client gives it a URL
+   and a lock token (think of it as a private binding that the server
+   keeps around).
+
+   <jc/> Geoff, I think Jim's point was that the same lock could have been
+   rooted at many places over the course of time as it has moved.  In
+   fact due to multiple bindings and such... we've added even one more
+   multiplier to the size of the list that needs to be maintained.  His
+   question though was how long does the server need to maintain it.  I
+   guess the server/lock would need to remember all of it's URI's until
+   the resource is eventually UNLOCK'd.
+
+   <gmc/> The server has to remember the association of a lock token with a
+   particular resource.  Since this is the server, it doesn't need to
+   use some URL ... it just keeps a handle on the resource that
+   is independent of the http URL space.
+
+Geoff, you're "forgetting" about depth locks again.  :-)  Multiple
+resource can have the same lock token.  So providing a lock token
+doesn't uniquely define what resource you're acting on.   The server
+needs a mapping for  URI + token ->  resource.
+
+My posting above predates your most recent proposal.   I believe
+it's the case in the recent proposal that the server only needs to
+remember one URI for a single resource/lock pairing.  Even if the
+resource moves, it's only
+the URI used when the lock was first created that needs to be
+remembered by the server.  But no... it's not that easy.
+
+(1) If we say that, then it's up to the client to remember that
+   original URI even if redirected... just in case it gets moved again.  If
+   the server is unable to redirect after a second move, then I
+   assume the
+   client can detect (via etag-uri combination) that there's
+   been a second movement, and will reinvoke a method based on
+   the original  URI and lock token... just to determine where
+   it has moved to again.  Anyway, the point is that if the
+   server doesn't remember a second URI, then the client must
+   remember the first URI.
+
+(2) If the server remembers all URI's, then the client is relieved of
+   this burden.
+
+   (1&2) BTW, in either case, the client has to use etags because
+   in the presence of depth locks where multiple resources can
+   have the same locktoken, and if namespace manipulation has
+   occured, a URI+token to resource mapping may not be unique...
+   and I don't think a client can trust a server to somehow
+   detect a collision and somehow do "the right thing".  This
+   is an admittedly rare thing... but if the client cares,
+   they have to use uri-tagged etags.
+
+whoops! I don't mean etags... I mean guid tags... but we
+don't have that yet.  It would need to be added to the spec.
+
+
+BTW, after the URI+token->resource mapping is done within the
+server, it also needs to do a resource->URI mapping so that it
+knows what to return.  And of course if all bindings to the
+resource have been removed, the server will need to generate
+a binding/URI for that resource so that there is a URI to which
+to redirect the request.
+
+   <gmc/>
+   The server could do this by just refusing to MOVE
+   or DELETE the resource (as is required by the current 2518 draft),
+   or by just remembering what resource is associated with that
+   <URL, lock-token> pair.  All we are doing here is giving the server
+   some additional flexibility in implementation that was constrained
+   by the current language in 2518.
+
+   <jc/> I see.  So the proposal is that a server either to protect the
+   URI... or to maintain a way for a client to follow where it moved
+   to... and you're proposing the mechanism to do the latter.
+   Interesting.  It could be a market differentiator.  It would mean a
+   bit more complexity for the client to support either type of server
+   though.  Not much though.  I think if the client supported what you're
+   proposing, they'd also work with a system that does URI protection.
+   They'd just wouldn't execute the code that deals with what happens
+   after a remapping.
+
+   <gmc/>Right.
+
+Given the exchange that I've heard between Yaron and company, I'd
+like to propose that the client also have some say over this.  If
+the client wants the URI protected, he can request it.  I suppose
+that would have to be a FLAG on the lock request.  If the server
+can't respect the request, it has to fail the lock.  I suppose
+we'd need an error code or something to express this so that a
+client could deal with that particular failure programaticly.
+
+
+
+     <jc/> Also note: in the presence of depth locks... zillions of
+     resources can be locked.  I don't think this necessarily increases the
+     size of the list of lock URI's maintained since I believe only the
+     URI's of the root of the lock need to be maintained... but it does
+     mean that the resolution algorithm has to be more sophisticated since
+     it would also need to remap the URI of child resources also.
+
+  And if we do not support depth locks, the issue goes away completely (:-).
+
+I think you've mentioned that before.  :-)
+
+
+   <jc/> This means that a client must submit lock tokens with GETs and
+   PROPFIND's just to insure it gets redirected when necessary.  No
+   biggie I suppose.
+
+ <gmc/> Right.  The client uses the lock token for all requests on a
+ locked resource, rather than only using them for requests that might
+ update the locked resource.
+
+guid tags too I guess... as soon as we invent them.  It doesn't seem
+like a huge burden but it could be.  If a client cares enough about
+all this to do the guid tag stuff... then they also have to collect
+guids for all resource that it locked.  That's a bunch of state for
+the client to remember rather than just a single URI that is the
+root of his lock.  Especially in some of Yaron's scenarios.
+
+   <jc/> I'm not sure this would work well with clients that seperate the lock
+   action from subsequent actions on the locked resources.  That is, a
+   human is running the client code.  The human requests the locks.  Then
+   a human requests various actions on resources that "just happen to be
+   locked".  I guess that whenever the human requests an action on a
+   resource, the client application would just need to make a point of
+   finding all locks that apply to a resource... even if inherited... and
+   submit them with the request.  I guess this sort of client app often
+   would have to do this anyway, but now they must also do it for
+   PROPFIND and GET also.  Okay, no biggie.
+
+<gmc/> Also note that a human would always need a client doing the real
+work in a locking context, since it is unlikely that a human ever would
+or could remember the lock token strings that are needed to work with a
+locked resource.
+
+    <jc/> It also means that I believe for the first time in WebDAV,
+    it actually becomes functionally important to specify the URI at
+    which we think a
+    lock is rooted when we submit the lock token.
+
+  <gmc/> Without depth locking, the lock token is all that is needed.
+
+Yup.
+
+
+
+   <jc/> If someone does a MOVE... and all the tokens
+   of all the would-be protected URI's are submitted, the server doesn't
+   need to maintain a remapping list because the client already knows
+   which locks have lost those mappings.  It's only the URI's for locks
+   for which no tokens were submitted that the server needs to remember
+   the remapping.  This might provide for more efficient operation.
+
+   <gmc/> If the server just keeps track of what resource is locked by
+   a particular lock token, then remapping just consists of returning
+   a valid URL to that resource in a 302.
+
+Also correct.
+
+
+
+    <jc/> A lock can have many mappings and a single operation can delete
+    multiple mappings of a lock. Previously we said that each lock had a
+    particular URI that was protected... and only when that URI was moved,
+    did feel compelled to do any kind of lock remapping.  Although we
+    could probably guess, t now claim to know what lock mapping(s) the
+    client really cares about.  None are more privledged.  I think the
+    previous paragraph has to be modified to state that if any of these
+    locks have other mappings than the mappings submitted with the token,
+    then all of those others that are broken by an operation need to go
+    onto the remapping list for that lock.  Is this really *required*?  I
+    think technically yes... but probably not in practice.  The client
+    probably only knows a lock by one mapping... and it will be the one
+    that the client will submit.
+    Protecting a URI is sounding easier.  :-)
+
+  <gmc/> Associating a lock token with a single resource until
+  it is unlocked is probably even easier (:-).
+
+I think you missed my point.  It single resource can have multiple
+URI's so we need to do what I mentioned above, which
+is a pain, or we need to say that simply finding a resource (perhaps at
+a different URI) and doing lock discovery to get a token won't work because
+the person doing the lock discovery doesn't know the URI that the server
+is protecting (via remapping in this case).  No
+biggie.  We don't get this with protected URI's either.  I think we just
+need to remind clients of this.  -- BTW, this could be done if lock
+discovery also provides a URI that supports the remapping.  But then a
+client that tries this lock discovery approach
+would be at the mercy the lock owner who could
+MOVE the resource and unlock it before the second entity finds out.  Anyway,
+this seems like another use of lock discovery that should be deprecated.
+
+BTW, do we require that one be the lock owner to use the token for this
+purpose?  So if one application wants to pass the URI of a resource to
+another application... it also needs to pass a lock (and perhaps a guid).
+But if the second application isn't logged on as the first person, then?
+
+One other thing, the proposal would also have to clarify the target selector
+header.  Well, maybe not HAVE TO.  The problem I'm refering to is that for
+binding related requests like DELETE, BIND, MOVE, it isn't just the target
+that is important to be specified, but also the parent.  It's the binding
+between the two that we want to specify.   I had a target selector based
+solution to this in mind, but I think the real solution is to have guid
+tags for both parent and the resource in the request.  If the guid check
+fails on either the parent or target, the client can try to figure out what
+to do.  -- Another
+approach is to lock both the parent and the child... but if the redirected
+URI for the DELETE isn't the one that uses the parent, then you'd not get
+the right affect, so you'd still want the guid check anyway.  That really
+seems to be the best approach in a server that lacks lock URI protection.
+
+Anyway, I propose that the **client** be able to specify if it needs the server
+to protect the LOCK URI.  If the client specifies this and the server can't
+support it, it must reject the request with a new unique response code
+and the client figures out how to deal with that.
+
+J.
+
+
+

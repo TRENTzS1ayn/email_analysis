@@ -1,0 +1,316 @@
+docno="lists-011-5066665"
+received="Tue Jul 22 16:55:26 1997"
+isoreceived="19970722205526"
+sent="Tue, 22 Jul 97 16:47:46 MDT"
+isosent="19970722224746"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Another try at OPTIONS"
+id="9707222347.AA04407@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+This is the result of discussions during the editorial-group
+teleconference this morning.  As it happens, Scott Lawrence
+raised an overlapping set of issues in his message "Re: OPTIONS Spec"
+today (which has not yet shown up in the archive, so I can't
+cite the URL).  Josh and I redrafted his proposal to use HTTP
+headers, rather than the entity body, to convey OPTIONS information.
+This should be more compatible with RFC2068, although it's not
+clear than any deployed implementation is actually using OPTIONS
+to discover anything except the HTTP version number.
+
+We also addressed the issue of managing the name space for
+describing options.  We believe that it is especially valuable
+to be able to use RFC numbers, rather than protocol version
+numbers, to define compliance with a set of features, because
+of the many different interpretations of "HTTP/1.1" already
+in use.  That is, if an implementation says "HTTP/1.1 200 OK",
+then you don't really know if this means:
+(1) compliance with RFC2068
+(2) compliance with the RFC defining the next edition of
+the HTTP/1.1 spec
+(3) something else
+but if the implementation says "Compliance: rfc=2068;uncond", then
+you know what this means, because we have an immutable document
+that is controlled by the IETF.
+
+Of course, RFC numbers are not the only way to define options,
+so there are other namespaces allowed, and we intend to register
+the set of namespaces with IANA.
+
+-Jeff
+
+Reference:
+http://www.w3.org/pub/WWW/Protocols/HTTP/Issues/#OPTIONS
+
+Problem statement:
+RFC2068 doesn't really say how to use OPTIONS to discover
+what an implementation supports.
+
+It's essential to have a simple and reliable mechanism for
+detecting support for extensions as a part of the core HTTP/1.1
+protocol.
+
+Outline of proposed solution:
+ 
+    the URI '*' refers to the server, independent of any specific URI.
+   
+    The Host: header may be used to specify a named proxy or origin 
+    server in a chained environment
+   
+    The Max-forwards: header may be used to specify a maximum number
+    of hops the request may be forwarded in a chained environment
+   
+    The Compliance: header may be used on requests to ask about
+    compliance, and on responses to assert compliance.  (This
+    is a change from Josh's previous proposal, in which the
+    message bodies are used to convey COMPLIANCE information.)
+
+    We define a new IANA-registered namespace for compliance
+    assertions.
+
+Proposed Solution:
+
+(1) In section 5.1.2, remove this:
+
+   If a proxy receives a request without any path in the Request-URI and
+   the method specified is capable of supporting the asterisk form of
+   request, then the last proxy on the request chain MUST forward the
+   request with "*" as the final Request-URI. For example, the request
+
+          OPTIONS http://www.ics.uci.edu:8001 HTTP/1.1
+
+   would be forwarded by the proxy as
+
+          OPTIONS * HTTP/1.1
+          Host: www.ics.uci.edu:8001
+
+   after connecting to port 8001 of host "www.ics.uci.edu".
+
+(2) In section 9.2 (OPTIONS), replace:
+
+   Unless the server's response is an error, the response MUST NOT
+   include entity information other than what can be considered as
+   communication options (e.g., Allow is appropriate, but Content-Type
+   is not). Responses to this method are not cachable.
+
+with
+
+   An OPTIONS request MAY include Compliance headers (see section 14.ZZZ)
+   that indicate the set of options the sender wants information
+   about.
+
+   Responses to OPTIONS are not cachable, unless caching is explicitly
+   allowed by the originating sender (see section 13.4).
+
+(3) In section 9.2 (OPTIONS), replace:
+
+   If the Request-URI is an asterisk ("*"), the OPTIONS request is
+   intended to apply to the server as a whole. A 200 response SHOULD
+   include any header fields which indicate optional features
+   implemented by the server (e.g., Public), including any extensions
+   not defined by this specification, in addition to any applicable
+   general or response-header fields. As described in section 5.1.2, an
+   "OPTIONS *" request can be applied through a proxy by specifying the
+   destination server in the Request-URI without any path information.
+
+with
+
+   If the Request-URI is an asterisk ("*"), the OPTIONS request is
+   intended to apply to the server as a whole.  A 200 response SHOULD
+   include a Public header field (see section 14.35).  If the request
+   includes a Compliance header field, a 200 response SHOULD include a
+   Compliance header field, indicating the subset of the requested
+   Compliance options supported by the server as a whole.  The response
+   SHOULD include any other applicable general or response-header
+   fields.
+
+   If an OPTIONS request includes a Host header (see section 14.23),
+   this is the intended destination of the OPTIONS method.
+   Proxy servers MUST forward such a message until it reaches
+   the specified host.  If the specified host has more than
+   one `virtual server', the OPTIONS request applies to the
+   specified virtual server.
+   
+       Note: An OPTIONS request may also include a Max-Forwards header,
+       as described in section 14.31.  This allows the sender to select
+       the Nth proxy on a path, without knowing its hostname.
+
+(4) In section 9.2 (OPTIONS), replace:
+
+   If the Request-URI is not an asterisk, the OPTIONS request applies
+   only to the options that are available when communicating with that
+   resource.  A 200 response SHOULD include any header fields which
+   indicate optional features implemented by the server and applicable
+   to that resource (e.g., Allow), including any extensions not defined
+   by this specification, in addition to any applicable general or
+   response-header fields. If the OPTIONS request passes through a
+   proxy, the proxy MUST edit the response to exclude those options
+   which apply to a proxy's capabilities and which are known to be
+   unavailable through that proxy.
+
+with
+
+   If the Request-URI is not an asterisk, the OPTIONS request applies
+   only to the options that are available when communicating with that
+   resource.  A 200 response SHOULD include an Allow header field (see
+   section 14.7).  If the request includes a Compliance header field, a
+   200 response SHOULD include a Compliance header field, indicating
+   the subset of the requested Compliance options supported by the
+   server as a whole.  If the subset is empty, the response SHOULD
+   include a Compliance header with an empty field-value.  The response
+   SHOULD include any other applicable general or response-header
+   fields.
+
+      Note: if an OPTION request contains a Compliance header, and the
+      response does not, the response may have been generated by
+      RFC2068-compliant implementation, which would not support
+      Compliance.  In this case, it is not possible to infer that the
+      sender fails to support all of the options listed in the
+      Compliance header of the request.
+
+   If an OPTIONS response passes through a proxy, the proxy MUST edit
+   the response to exclude those options that apply to a proxy's
+   capabilities and that are known to be unavailable through that
+   proxy.
+
+(5) unresolved issue: that last paragraph, essentially the same thing
+that RFC2068 says about OPTIONS, directly contradicts this statement
+in 14.7 of RFC2068:
+
+   A proxy MUST NOT modify the Allow header field even if it does not
+   understand all the methods specified, since the user agent MAY have
+   other means of communicating with the origin server.
+
+However, the restriction does not apply to Public.  We need
+to resolve this inconsistency.
+
+(6) New section
+
+14.ZZZ Compliance
+
+    The Compliance general header field lists a set of options
+    that may or may not be supported by a server.  In a request
+    message, this header lists the set of options that a client
+    wishes to know about.  In a response message, this header
+    lists the set of options that the server complies with.
+    
+    A compliance header MAY appear on any message, but is
+    normally used with the OPTIONS request (see section 9.2).
+    
+    Compliance = "Compliance" ":" ("*" | *(compliance-option))
+
+compliance-option = compliance-namespace "="
+option-item [ option-params ]
+
+compliance-namespace = token
+
+option-item = token | quoted-string
+
+option-params = 1#( ";" option-param)
+
+option-param = "cond" | "uncond" | token | quoted-string
+
+    A Compliance header field with the field-value of "*" MAY
+    be used in a request, to ask about all options complied
+    with by the recipient.  This field-value MUST NOT be used
+    in a response.
+
+    The compliance-namespace is used to select from one of several
+    namespaces for compliance options.  The option-item is used
+    to specify one or more options within a namespace.  
+
+    The Internet Assigned Numbers Authority (IANA) acts as a registry
+    for compliance-namespace tokens. Initially, the registry contains
+    the following tokens:
+
+"RFC"Compliance is with an RFC, specified by an RFC number.
+For example, "rfc=1945".
+
+"HDR"Compliance is with a named HTTP header.  For example,
+"HDR=Authorization".  There is no IANA registry for
+HTTP header names, but to avoid potential namespace
+confusion, only those HTTP headers listed in an
+IETF standards-track document should be used in
+this namespace.
+
+"PEP"Compliance is with a PEP-specified extension, identified
+using a quoted-string containing the PEP extension
+declaration.
+
+    The option-param is used to provide additional parameters.
+    Unconditional compliance with a compliance-option is indicated
+    using the "uncond" option-param; for example, "rfc=1945;uncond".
+    Conditional compliance is indicated using the "cond" option-param;
+    for example, "HDR=Authorization;uncond".  Additional option-param
+    values might be defined as part of another specification.
+
+    Examples:
+
+Compliance: rfc=2068;uncond
+Compliance: rfc=1945;uncond, rfc=2068;cond
+Compliance: rfc=2068, hdr=PEP, hdr=SetCookie2
+Compliance: rfc=9999999;uncond;"onlyOn=Tuesdays"
+
+
+(7) Examples (put this in 9.2.1?):
+
+  To list all extensions supported by proxy "proxy4.microscape.com"
+
+    Client sends:
+OPTIONS * HTTP/1.1
+Host: proxy4.microscape.com
+Compliance: *
+
+    proxy4.microscape.com responds:
+HTTP/1.1 200 OK
+Date: Tue, 22 Jul 1997 20:21:51 GMT
+Server: SuperProxy/1.0
+Public: OPTIONS, GET, HEAD, PUT, POST, TRACE
+Compliance: rfc=1543, rfc=2068, hdr=set-proxy
+Compliance: hdr=wonder-bar-http-widget-set
+Compliance: PEP="http://foobar.pep.org/pepmeister/"
+Content-Length: 0
+
+[Editorial note: check syntax of PEP extensions]
+       
+  Probing for a feature which is not supported by "proxy4.microscape.com"
+
+    Client sends:
+OPTIONS * HTTP/1.1
+Host: proxy4.microscape.com
+Compliance: PEP="http://foobar.pep.org/evil-not-implemented"
+
+    proxy4.microscape.com responds:
+HTTP/1.1 200 OK
+Date: Tue, 22 Jul 1997 20:21:52 GMT
+Server: SuperProxy/1.0
+Public: OPTIONS, GET, HEAD, PUT, POST, TRACE
+Compliance:
+Content-Length: 0
+
+  Piggybacking an options probe on a regular method:
+
+    Client sends:
+GET / HTTP/1.1
+Host: www.w3.org
+Compliance: rfc=9999,rfc=2068
+
+    www.w3.org replies
+HTTP/1.1 200 OK
+Date: Tue, 22 Jul 1997 20:21:53 GMT
+Last-Modified: Wed, 22 Jul 1997 18:44:58 GMT
+Server: SuperServer/1.0
+Allow: OPTIONS, GET, HEAD, TRACE
+Compliance: rfc=2068;cond
+Content-Length: 7365
+
+<HTML> ... </HTML>
+
+[End of proposed changes]
+
+
+

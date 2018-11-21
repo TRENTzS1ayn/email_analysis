@@ -1,0 +1,249 @@
+docno="lists-093-6808369"
+received="Wed Dec 10 16:44:32 1997"
+isoreceived="19971210214432"
+sent="Wed, 10 Dec 1997 22:34:41 +0100 (MET)"
+isosent="19971210213441"
+name="Hans-Martin Keller"
+email="hkeller@gwdg.de"
+subject="core dump on Digital Unix"
+id="9712102134.AA01628@msfp37.gwdg.de"
+expires="-1"
+
+
+To:www-amaya@w3.org
+
+Hallo everybody,
+
+while installing the binary distribution of Amaya 1.1b I noticed that the 
+Digital Unix (osf1) version still core dumps while editing links. I once
+send in a patch against amaya 1.0b for this problem, but maybe it never 
+reached the right person, because the problem is more related to Thot than 
+to amaya.
+
+The basic problem is a pointer to integer conversion in GiveClickedAbsBox()
+routine of 'thotlib' in the file thotlib/dialogue/appli.c(l1931):
+
+      *pave = (int) GetClickedAbsBox (ClickFrame, ClickX, ClickY);
+              =====
+which truncates half of the bits on an DEC ALPHA machine ...
+
+I updated my patch for Amaya 1.1c + Thot 2.1e (see below). The type of the
+parameter list should be changed from
+
+  void GiveClickedAbsBox (int *frame, int *pave)
+                                      ===
+to
+
+  void GiveClickedAbsBox (int *frame, PtrAbstractBox *pave)
+                                      ==============
+
+where 'PtrAbstractBox' is indeed a pointer type '(struct_AbstractBox *)',
+and all references to this routine must be updated properly in Thot and Amaya  
+(but maybe this is not really necessary).
+
+I also changed some null-pointers from '0' to 'NULL' and the time value from
+'long' to 'time_t' to be conform with ANSI-C.     
+
+Can any kind soule check the development version of Thot, if this problem
+is still there, and forward my patch to some developer-list, in case ?
+
+Maybe it is also a good idea to fix the problem in the binary amaya-
+distribution for Digital Unix.
+
+Does anybody feel responsible for this ?
+(I have a binary for Digital Unix 4.0b)
+
+It is a nice program, anyway.
+
+Hans-Martin
+
+
+============================================================================
+*** ./thotlib/dialogue/appli.c_origWed Dec 10 17:46:09 1997
+--- ./thotlib/dialogue/appli.cWed Dec 10 17:57:50 1997
+***************
+*** 1865,1876 ****
+     designe.                                                
+    ----------------------------------------------------------------------*/
+  #ifdef __STDC__
+! void                GiveClickedAbsBox (int *frame, int *pave)
+  
+  #else  /* __STDC__ */
+  void                GiveClickedAbsBox (frame, pave)
+  int                *frame;
+! int                *pave;
+  
+  #endif /* __STDC__ */
+  
+--- 1865,1876 ----
+     designe.                                                
+    ----------------------------------------------------------------------*/
+  #ifdef __STDC__
+! void                GiveClickedAbsBox (int *frame, PtrAbstractBox *pave)
+  
+  #else  /* __STDC__ */
+  void                GiveClickedAbsBox (frame, pave)
+  int                *frame;
+! PtrAbstractBox     *pave;
+  
+  #endif /* __STDC__ */
+  
+***************
+*** 1885,1891 ****
+  
+     if (ClickIsDone == 1) {
+         *frame = 0;
+!        *pave = 0;
+     }
+  
+     /* Changement du curseur */
+--- 1885,1891 ----
+  
+     if (ClickIsDone == 1) {
+         *frame = 0;
+!        *pave = NULL;
+     }
+  
+     /* Changement du curseur */
+***************
+*** 1928,1936 ****
+  
+     *frame = ClickFrame;
+     if (ClickFrame > 0 && ClickFrame <= MAX_FRAME)
+!       *pave = (int) GetClickedAbsBox (ClickFrame, ClickX, ClickY);
+     else
+!       *pave = 0;
+  }/*GiveClickedAbsBox */
+  
+  
+--- 1928,1936 ----
+  
+     *frame = ClickFrame;
+     if (ClickFrame > 0 && ClickFrame <= MAX_FRAME)
+!       *pave = GetClickedAbsBox (ClickFrame, ClickX, ClickY);
+     else
+!       *pave = NULL;
+  }/*GiveClickedAbsBox */
+  
+  
+*** ./thotlib/dialogue/interface.c_origWed Dec 10 17:46:25 1997
+--- ./thotlib/dialogue/interface.cWed Dec 10 17:59:20 1997
+***************
+*** 1388,1394 ****
+  *element = (Element) None;
+  *document = (Document) None;
+  
+! GiveClickedAbsBox (&frame, (int *) &absBox);
+  if (frame == 0 || absBox == 0)
+     return;
+  else
+--- 1388,1394 ----
+  *element = (Element) None;
+  *document = (Document) None;
+  
+! GiveClickedAbsBox (&frame, &absBox);
+  if (frame == 0 || absBox == 0)
+     return;
+  else
+*** ./thotlib/editing/structcreation.c_origWed Dec 10 17:46:41 1997
+--- ./thotlib/editing/structcreation.cWed Dec 10 18:00:20 1997
+***************
+*** 1626,1632 ****
+       /* pre'alablement). Il faut donc annuler FirstCreation */
+       FirstCreation = FALSE;
+       /* demande la selection d'un pave de la cible */
+!      GiveClickedAbsBox (&frame, (int *) &pAb);
+       if (pAb != NULL)
+  /* une selection de pave a bien ete faite */
+         {
+--- 1626,1632 ----
+       /* pre'alablement). Il faut donc annuler FirstCreation */
+       FirstCreation = FALSE;
+       /* demande la selection d'un pave de la cible */
+!      GiveClickedAbsBox (&frame, &pAb);
+       if (pAb != NULL)
+  /* une selection de pave a bien ete faite */
+         {
+*** ./thotlib/internals/f/appli_f.h_origWed Dec 10 17:46:53 1997
+--- ./thotlib/internals/f/appli_f.hWed Dec 10 17:55:50 1997
+***************
+*** 57,63 ****
+  extern void TtaResetCursor ( Document document,
+                               View view );
+  extern void GiveClickedAbsBox ( int *frame,
+!                                 int *pave );
+  extern void ChangeFrameTitle ( int frame,
+                                 char *text );
+  extern void ChangeSelFrame ( int frame );
+--- 57,63 ----
+  extern void TtaResetCursor ( Document document,
+                               View view );
+  extern void GiveClickedAbsBox ( int *frame,
+!                                PtrAbstractBox *pave );
+  extern void ChangeFrameTitle ( int frame,
+                                 char *text );
+  extern void ChangeSelFrame ( int frame );
+***************
+*** 129,135 ****
+  extern void TtaResetCursor (/* Document document,
+                                 View view */);
+  extern void GiveClickedAbsBox (/* int *frame,
+!                                   int *pave */);
+  extern void ChangeFrameTitle (/* int frame,
+                                   char *text */);
+  extern void ChangeSelFrame (/* int frame */);
+--- 129,135 ----
+  extern void TtaResetCursor (/* Document document,
+                                 View view */);
+  extern void GiveClickedAbsBox (/* int *frame,
+!                                   PtrAbstractBox *pave */);
+  extern void ChangeFrameTitle (/* int frame,
+                                   char *text */);
+  extern void ChangeSelFrame (/* int frame */);
+*** ./thotlib/presentation/presvariables.c_origWed Dec 10 22:00:14 1997
+--- ./thotlib/presentation/presvariables.cWed Dec 10 18:41:19 1997
+***************
+*** 1022,1029 ****
+  {
+     int                 f, l;
+     int                 i;
+!    long                tod;
+!    long               *pt;
+     struct tm          *ptm;
+     PtrTextBuffer       isOld, isNew;
+     PtrAttribute        pAttr;
+--- 1022,1029 ----
+  {
+     int                 f, l;
+     int                 i;
+!    time_t              tod;
+!    time_t             *pt;
+     struct tm          *ptm;
+     PtrTextBuffer       isOld, isNew;
+     PtrAttribute        pAttr;
+*** ./tools/cextract-1.7/io.c_origWed Dec 10 18:16:13 1997
+--- ./tools/cextract-1.7/io.cWed Dec 10 18:24:22 1997
+***************
+*** 2221,2229 ****
+  char *
+  mach_time ()
+  {
+!   long timeval;
+  
+!   timeval = time(0);
+    return(ctime(&timeval));
+  }
+  
+--- 2221,2229 ----
+  char *
+  mach_time ()
+  {
+!   time_t timeval;
+  
+!   timeval = time(NULL);
+    return(ctime(&timeval));
+  }
+  
+
+
+

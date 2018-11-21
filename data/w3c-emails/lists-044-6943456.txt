@@ -1,0 +1,143 @@
+docno="lists-044-6943456"
+received="Thu Jun 15 02:48:24 2000"
+isoreceived="20000615064824"
+sent="Wed, 14 Jun 2000 23:46:28 -0700"
+isosent="20000615064628"
+name="Brian LaMacchia"
+email="bal@microsoft.com"
+subject="RE: Schemas and DTD for X509Data"
+id="39ADCF833E74D111A2D700805F1951EF255DE194@RED-MSG-06"
+inreplyto="Schemas and DTD for X509Data"
+expires="-1"
+
+
+To:"'Joseph M. Reagle Jr.'"<reagle@w3.org>,gregor.karlinger@iaik.at
+Cc: XML<w3c-ietf-xmldsig@w3.org>, Barb Fox<bfox@exchange.microsoft.com>
+
+Gregor is correct, the X509Data schema is incorrect as it currently stands
+(Joseph, looks like you swapped the upper bounds on the first choice w/ the
+sequence).  I believe this is the correct schema:
+
+   <element name='X509Data'> 
+     <complexType content='elementOnly'> 
+       <choice minOccurs='1' maxOccurs='1'>***
+changed
+         <sequence minOccurs='1' maxOccurs='unbounded'> ***
+changed
+           <choice minOccurs='1' maxOccurs='1'> 
+             <element ref='ds:X509IssuerSerial'/>
+             <element name='X509SKI' type='string'/> <!-- should this be
+binary? -->
+             <element name='X509SubjectName' type='string'/> 
+           </choice>  
+         </sequence>
+         <element name='X509Certificate' type='ds:CryptoBinary'
+minOccurs='1' maxOccurs='1'/> **changed
+         <element name='X509CRL' type='ds:CryptoBinary' minOccurs='1'
+maxOccurs='1'/>     **changed
+       </choice>
+     </complexType>
+   </element>
+
+The maxOccurs of the first choice should be 1, not unbounded, and the
+maxOccurs of the sequence should be unbounded, not 1.  Also, the "zero or
+more" qualifiers for X509Certificate and X509CRL became "exactly one".  This
+change means that an individual X509Data clause may be one of:
+a) a collection of X509IssuerSerial, X509SKI and X509SubjectName elements,
+b) exactly one X509Certificate element, or
+c) exactly one X509CRL
+
+Given this schema, I believe the declaration in the immediately preceeding
+paragraph in the draft is now correct:
+
+Multiple declarations about a single certificate (e.g., a X509SubjectName
+and X509IssuerSerial element) MUST be grouped inside a single X509Data
+element; 
+[this is covered by the sequence of choice of... --bal]
+multiple declarations about the same key but different certificates (related
+to that single key) MUST be grouped within a single KeyInfo element but
+multiple X509Data elements. 
+[this is covered by the outer choice --bal]
+For example, the following block contains two pointers to certificate-A
+(issuer/serial number & SKI) and a single reference to certificate-B
+(Subject Name):
+
+I believe this paragraph and the scheme correctly capture the desire of the
+working group as expressed in Victoria.  I would point out that there's one
+unfortuate side-effect of this syntax, which is that expressing a cert chain
+gets a little more verbose than it needs to be.  A three-cert chain will
+look like this:
+
+<KeyInfo>
+  <X509Data>
+    <X509Certificate>
+Base64 data for cert 1
+    </X509Certificate>
+  </X509Data>
+  <X509Data>
+    <X509Certificate>
+Base64 data for cert 2
+    </X509Certificate>
+  </X509Data>
+  <X509Data>
+    <X509Certificate>
+Base64 data for cert 3
+    </X509Certificate>
+  </X509Data>
+</KeyInfo>
+
+So you end up with two levels of tags for each cert.
+
+I agree with making SKI a ds:CryptoBinary; it's just a OCTET STRING.
+
+   --bal
+
+-----Original Message-----
+From: Joseph M. Reagle Jr. [mailto:reagle@w3.org]
+Sent: Tuesday, June 13, 2000 11:10 AM
+To: gregor.karlinger@iaik.at
+Cc: XML; Barb Fox; Brian LaMacchia
+Subject: Re: Schemas and DTD for X509Data
+
+
+
+Ah... this is the tricky bit that I might've goofed up from Brian when I
+translated that section's clarifications into the new schema syntax.
+
+At 07:57 PM 6/13/00 +0200, Gregor Karlinger wrote:
+ >I think there is a contradiction between the textual description of
+ >section 4.4.4 and the corresponding Schema and DTD definitions:
+ >
+ >The text (and the provided example) permit multiple declarations inside
+ >a single X509Data Element, such as X509IssuerSerial and X509SKI. But as
+ >you can see in the following Schema and DTD definitions, such multiple
+ >declarations are not possible:
+
+Doesn't the <choice/> above it permit it?
+
+ >   <element name='X509Data'>
+ >     <complexType content='elementOnly'>
+ >       <choice minOccurs='1' maxOccurs='unbounded'>
+ >         <sequence minOccurs='1' maxOccurs='1'>
+ >                                            ^
+ >                                            I
+ >--------------------------------------------I
+
+Oh, and below you quoted some text that included a comment from me. Was
+X509SKI supposed to be string or binary?
+
+ >           <choice minOccurs='1' maxOccurs='1'>
+ >             <element ref='ds:X509IssuerSerial'/>
+ >             <element name='X509SKI' type='string'/> <!-- should this be
+ >binary? -->
+ >             <element name='X509SubjectName' type='string'/>
+ >           </choice>
+
+
+_________________________________________________________
+Joseph Reagle Jr.   
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

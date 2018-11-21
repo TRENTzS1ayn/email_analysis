@@ -1,0 +1,167 @@
+docno="lists-007-9516619"
+received="Sat Feb 13 07:22:19 1999"
+isoreceived="19990213122219"
+sent="Sat, 13 Feb 1999 13:20:36 +0100 (MET)"
+isosent="19990213122036"
+name="Koen Holtman"
+email="Koen.Holtman@cern.ch"
+subject="Re: Last Call: HTTP Extension Framework to Proposed Standard"
+id="Pine.GSO.3.95a.990213131508.15293B-100000@suncms33.cern.ch"
+charset="US-ASCII"
+inreplyto="3.0.5.32.19990211142409.00ca5470&#64;localhost"
+expires="-1"
+
+To: Henrik Frystyk Nielsen<frystyk@w3.org>
+cc: Koen Holtman<Koen.Holtman@cern.ch>,iesg@ietf.org,ietf-http-ext@w3.org,discuss@apps.ietf.org
+
+
+
+
+To the IESG:
+
+This is to notify you of the current status of the situation around
+draft-frystyk-http-extensions-02.  My main problems with it have not
+been resolved by Henrik's recent reply to my last call comments.  We
+are trying to resolve things in private e-mail, but I can't tell yet
+whether we will actually converge.  It is quite possible that, when
+Henrik releases the next draft, it will not resolve all my comments.
+
+I won't post a detailed reply to Henrik's comments on my comments
+here, at least not right now.  Replies to some parts are below.
+
+
+Henrik Frystyk Nielsen:
+>Koen Holtman:
+[....]
+>>By allowing for cachable extended responses, the spec opens up a
+>>rather large can of worms.  Below I have identified several places
+>>where the spec does not handle these worms with sufficient care, but
+>>my list is probably not complete.  In my opinion this stuff should be
+>>fixed by avoiding the problem all-together, i.e. by simply making all
+>>extended responses uncachable, and making sure that extended requests
+>>can never be responded to by a plain HTTP/1.x cache.
+>
+>That would certainly be one solution, however, I think it would be
+>unfortunate to propose an extension mechanism to a protocol that short
+>circuits the several years of detailed caching design that has been going
+>on in HTTP/1.1.
+
+As you know I was heavily involved in these `several years of detailed
+caching design' in HTTP/1.1.  I can tell you that correctness was a
+major goal and that you are breaking it in several places.  You have a
+choice between two options: either you specify a correct and simple
+caching discipline, or you do a lot of more work and specify a correct
+and subtle one with slightly better performance.  The discipline you
+specify now is incorrect: it does not contain the necessary elements
+needed if independently developed extensions are to reconcile their
+caching needs without error, and it specifies some other necessary
+elements a wrong or overly simplistic way (like the 'include a
+Cache-Control' in section 9).  This incorrect discipline will lead to
+all kinds of breakage and is therefore simply unacceptable.  
+
+If you don't believe things will break then try some implementation
+experiments with multiple mandatory extensions in several cascaded
+proxies, with all these extensions attaching some dynamic information
+to the response which will become stale at different rates.  Oh yes,
+the exact nature of the information added depends of course on the
+parameter headers sent with the extension requests, and the origin
+server which you are contacting contains resources which require
+different caching disciplines, with some of the resources being
+accessible only if a payment extension is used.  Your user agent sends
+a request with an if-none-match header whenever it revalidates a stale
+response.  The proxy chain contains some plain 1.1 proxies too, and
+you try adding some 1.0 ones if you feel lucky.
+
+You can look at protocol extensions like RFC2227 and RFC2295 to find
+some of the things which are needed to safely extend HTTP if caching
+gets involved.  Your job is even bigger because you are writing a
+meta-protocol to co-ordinate unspecified extensions!
+
+
+[...]
+>>- Sec 5 point 3:
+>>
+>>          3.  If 2) did not result in a 510 (Not Extended) status code, then
+>>              strip the "M-" prefix from the method name and process the
+>>              remainder of the request according to the semantics of the
+>>              extensions and of the existing HTTP method name as defined in
+>>              HTTP/1.1 [5] or later versions of HTTP.
+>>
+>>This implies that a proxy which has processed an end-to-end mandatory
+>>extension should _not_ strip the existing Man header in the request
+>>when forwarding the request towards the origin server (when
+>>'processing the remainder according to the semantics of the existing
+>>HTTP method name as defined in HTTP/1.1').  Not stripping the header
+>>is of course wrong.  If the proxy adds its own M- extension to the
+>>outgoing request without stripping the processed Man header first,
+>>this will cause the ultimate recipient of that extension to process
+>>the old Man extension again.  This will have fun effects especially if
+>>the extension is for a payment protocol.
+>
+>The algorithm that you refer to says nothing about how to *forward* a
+>mandatory request [...]
+
+It talk about 'processing the remainder', and this can mean forwarding
+in a proxy, so yes, it does talk about forwarding, and tells us that
+the M- should be stripped in this case.
+
+[...]  Therefore, I think the text is exactly correct in that
+>it doesn't make the assumption you infer, namely that the only right way 
+>is to strip the extension.
+
+Yes, the text does not say that you should strip the extension.  My
+point is that *the text is wrong in not saying this*.  Above I
+describe a scenario where the lack of this stripping requirement leads
+to trouble because the extension is invoked two times.  You should
+either
+
+ a) explain why this scenario cannot happen, or
+ b) explain why I am incorrect in my assesment that the protocol is broken
+    if this scenario can happen.
+
+
+[...]
+>>- Sec 5 point 4:
+>>
+>>              A server MUST NOT fulfill a request without
+>>              understanding and obeying all mandatory extension
+>>              declaration(s) in a request.
+>>
+>>This implies that a request cannot contain two mandatory extensions
+>>which are to be executed by different upstream servers.  For example,
+>>if I want my browser to send a mandatory extension to my firewall
+>>proxy to enable some privacy processing, I cannot at the same time use
+>>a browser plugin which sends a mandatory extension to trigger some
+>>plugin-related functionality in the origin server.  Not being able to
+>>combine two extensions in this way is a rather severe restriction
+>>which kills the whole protocol for me.  It means that plugin vendors
+>>cannot use the protocol for fear of proxies getting in the way, and
+>>that proxy vendors cannot use the protocol for fear of plugin vendors
+>>getting in the way.  Result: nobody can use it.
+>
+>This has in fact little to do with the extension framework. What you are
+>questioning is the basic notion of scope in HTTP/1.1.
+
+No, this has nothing to do with scope in HTTP/1.1, I am perfectly
+happy with the basic notion of scope in HTTP.  To address my concern
+above you should either
+
+ a) explain that I am wrong in saying that 
+ 
+     For example,
+     if I want my browser to send a mandatory extension to my firewall
+     proxy to enable some privacy processing, I cannot at the same time
+     use a browser plugin which sends a mandatory extension to trigger
+     some plugin-related functionality in the origin server.
+
+ or b) explain why I am wrong in my reasoning that this
+
+      means that plugin vendors
+      cannot use the protocol for fear of proxies getting in the way, and
+      that proxy vendors cannot use the protocol for fear of plugin 
+      vendors getting in the way.  Result: nobody can use it.
+
+Koen.
+
+
+

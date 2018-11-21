@@ -1,0 +1,174 @@
+docno="lists-040-0088078"
+received="Fri Jan 28 14:43:20 2000"
+isoreceived="20000128194320"
+sent="Fri, 28 Jan 2000 11:39:02 -0800"
+isosent="20000128193902"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: RFC-2518 LOCK-TOKEN: header"
+id="NDBBIKLAGLCOPGKGADOJCEBMCNAA.ejw@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="10001280420.AA29849&#64;tantalum"
+expires="-1"
+
+To: WebDAV WG<w3c-dist-auth@w3.org>
+
+
+Geoff Clemm writes:
+>    ... the locking examples in section
+>    8.10.8, 8.10.9, and 8.10.10 use the Authorization header in the request
+>    message to highlight the fact that authentication credentials must be
+>    supplied.
+>
+> Hmmm.  Specification by example ... leaving the reader to inductively
+> derive the protocol from the examples.  (Note: this is intended
+> to be friendly, amusing sarcasm, not bitter, vicious sarcasm :-).
+
+Actually, the ambiguity here is intentional.  If you look at RFC 2068, the
+one aspect that looks the most dated after just a few years is the Basic
+authentication information.  Since Basic is not secure, and while Digest is
+better, but still not perfect, we felt that hardwiring the WebDAV
+specification to any particular authentication mechanism would be a poor
+design.  In particular, we did not want to mandate use of the Authorization
+header (we mandate *support* for Digest, but not *use* of Digest), since it
+seemed quite reasonable that some connection-layer security mechanism might
+be developed that would handle authentication.  If this happened, it would
+cause people to ignore a requirement in the WebDAV spec. to use some other
+authentication mechanism.
+
+Furthermore, looking into the future we saw technologies like smart cards,
+fingerprint readers, retinals scans, etc., all of which could change how
+authentication was performed in the protocol.  It really seemed like a
+losing proposition to tightly specify the kind of authentication that was
+used.  That's why the requirement to have both authentication information,
+and the lock token submitted, was phrased that way it is at the bottom of
+section 7.6.  I'll grant you that, looking at this section with a critical
+eye, the wording could be improved, but I'll defend not explicitly stating
+we should use the Authorization header all the time.
+
+> OK, I'll play along.  Then since the Authorization header is only used
+> in the LOCK and UNLOCK examples, but never used in any of the
+> (several) examples that specify the lock-token in an If header, a
+> naive reader would conclude that authentication via the Authorization
+> header is *not* required for use of the lock token, but rather only
+> when creating (LOCK) and deleting (UNLOCK) a lock.
+
+Thanks for playing! :-)  Actually, by my count there are only four examples
+in the specification where the If header is use in a full HTTP request:
+
+Section 7.6.1: This example clearly states that authentication was performed
+in the transport layer (via some SSL-like technology that performs
+authentication)
+
+Section 8.9.6: Also states the authentication was performed in the transport
+layer.
+
+Section 8.10.9: This example uses the Authorization header.
+
+Section 9.4.2.1: In this case, no mention is made of authentication,
+primarily because it is being used to describe the use of the If header
+itself.  But, since this is a COPY operation, and the lock token is being
+submitted for the source resource, there actually is no need to provide
+authentication information, since the state of the source isn't modified on
+a copy.
+
+> Yes.  And to emphasize, I am 100% in favor of authentication and ACL's,
+> I just believe the ACL's should be on *resources* and not associated
+> with lock tokens.
+
+I agree that access control should be an orthogonal issue to locking.
+
+> If a given principal is authorized to do something,
+> it's client shouldn't have to pointlessly gather up lock tokens for use
+> in an If header, since this provides no additional security.
+
+Just to make sure we're violently agreeing, lock tokens shouldn't be used
+for access control, but should be used for merge avoidance.  Furthermore,
+submission of authentication information (different from access permissions)
+with a lock token is important, since it allows the server to ensure that
+only the principal that took out a lock is permitted to modify a locked
+resource.
+
+> What matters is that
+> a client only uses lock-tokens that it has issued.
+
+OR, if it uses lock tokens issued to other clients operated by the same
+principal, it does so with full knowledge that it could be causing an
+overwrite conflict. This presumably involves informing the user of this
+behavior (although the user probably already knows they're about to
+overwrite their own work).  One driving scenario for this was to make sure
+that someone could work on a document at work, then go home, decide they
+want to work on that same document from home, and be able to.  Sure their
+application will tell them they're about to overwrite their work, but this
+is OK. It's what they want to do.
+
+> Alternatively, if clients aren't going to restrict themselves to using
+> the lock tokens that they created via LOCK, but will grab any
+> lock-token that was created by their principal, then there is no
+> reason to have the complexity of lock-tokens in the protocol.
+
+You need lock tokens to identify the lock.  If a lock disappears underneath
+a client, and then another client (operated by the same principal) takes out
+a lock on the resource, then without lock tokens, the first client wouldn't
+know that it would cause an overwrite if it wrote to the locked resource.
+Using lock tokens, the client will be informed that the lock token isn't
+valid, even though the resource is locked, and by the same principal.
+
+> Note: Overwrite protection is the only reason I've ever heard for a
+> lock-token.  Perhaps there is some other reason I haven't heard yet?
+
+There are no other reasons I can think of.
+
+> Now there is a completely different question of how you deal with
+> malicious or non-cooperating clients.  My answer would be with ACL's,
+> since you need to keep the resource open for editing by trusted
+> principals while closed to non-trusted principals.  Lock-tokens are
+> totally irrelevant here.
+
+This scheme would work, but has several drawbacks.
+
+You either:
+(a) Allow everyone in the write set to have access to the resource, and they
+negotiate out-of-band to prevent overwrite conflicts.  But, since DAV allows
+people to be widely geographically dispersed, perhaps over several time
+zones, I don't think its reasonable to assume that people in the write set
+will always have perfect information about what their collaborators are
+doing.  As soon as the information is incomplete, it leads either to
+overwrites, or the need to merge.
+
+(b) Dynamically alter the write set.  So, if, before I start work, Jane,
+Fred, and I have access to a resource, I'll change the ACL list so that only
+I have access to the resource, and I'll persistently store that Jane and
+Fred used to have write access.  I'll do my work, and then once I'm done,
+I'll re-add Jane and Fred back.  But, what happens if my client crashes, and
+loses this information? Or, what happens if I leave work in the middle of an
+edit session, get ill overnight, and then don't come into work for two days?
+Or, even worse, what happens if the ACls are set by some kind of
+administrative policy, and I don't even have permission to change the ACL
+list?  These drawbacks, combined with the fact that it conflates the issues
+of overwrite avoidance with access permissions (two separate issues), are
+why I don't like this approach.
+
+
+> So to summarize my position:
+> - Locking with lock tokens is a good thing, and provides merge avoidance
+> for cooperating clients.
+
+Agreed.
+
+> - ACL's on resources is a good thing, and provides protection against
+> malicious or unauthorized clients.
+
+Agreed.
+
+> - using locks to "fake" acl's on resources produces confusion, since
+> a client doesn't know whether a lock is there to prevent merge avoidance
+> (i.e. it shouldn't steal it), or is there to fake an ACL (it is
+> welcome to steal it if you are the principal that requested the lock).
+
+Agreed (I think - devil's in the details :-).
+
+- Jim
+
+
+

@@ -1,0 +1,177 @@
+docno="lists-094-11399371"
+received="Wed Mar  1 02:55:54 2000"
+isoreceived="20000301075554"
+sent="Tue, 29 Feb 2000 18:11:42 -0500 (EST)"
+isosent="20000229231142"
+name="Uwe F Mayer"
+email="mayer@tux.org"
+subject="Re: Bug report for release 2.4 on linux"
+id="Pine.LNX.4.10.10002291808300.24697-100000@gwyn.tux.org"
+charset="US-ASCII"
+inreplyto="200002101349.OAA00647&#64;tuvalu.inrialpes.fr"
+expires="-1"
+
+To:jose.kahan@w3.org
+cc:www-amaya@w3.org
+
+
+More about symbolic hostname resolution with Amaya. First of all, the
+error message I am getting when using a symbolic URL is this one:
+
+The requested URL could not be retrieved
+While trying to retrieve the URL:http://www.yahoo.com/
+The following error was encountered:
+Connection Failed
+The system returned:
+(51) www.yahoo.com
+This means that:
+The remote site or server may be down or non-existent.
+Please try again soon
+
+I was asked what system I am running, so here is some info on that:
+Toshiba 4015CDT Laptop, 96MB RAM, Pentium II 266 MHz, running Linux.
+This is a libc5 based system, however, the libc6 libraries are
+installed also. This was originally a Slackware-based installation,
+but is by now heavily modified. "uname -a" gives:
+Linux tosca 2.2.12 #1 Tue Nov 16 10:56:02 MET 1999 i686 unknown
+
+It was suggested that there is a problem with the gethostbyname
+routine on my machine. I therefore wrote a little C program that just
+places this system call, and it seems to have some problem depending
+on what C library one uses. It seems that there is a problem with
+glibc2 to be precise. Here is a sample run while on-line (I use
+dial-up networking), using a libc-5.4.46 based binary, and it works
+just fine:
+
+tosca:~/tmp$ ./gethostbyname-libc5 finanzen.de.yahoo.com
+gethostbyname returned h_errno = 0, which should mean:
+no problem
+
+official name of host:  de.finance.yahoo.com
+alias list [0]:         finanzen.de.yahoo.com
+host address type:      2
+length of address:      4
+address list [0]:       194.237.109.9
+address list [1]:       194.237.109.10
+address list [2]:       194.237.109.15
+
+I also have access to a glibc2 (libc-2.0.7) based system. I compiled
+the gethostname test program there, got it back to my machine, and ran
+it, dynamically linked against glibc2, of course, but a newer
+version, libc-2.1.2. This is what I got:
+
+tosca:~$ tmp/gethostbyname-glibc2 finanzen.de.yahoo.com
+gethostbyname returned h_errno = 2, which should mean:
+Non-Authoritive Host not found, or SERVERFAIL
+Segmentation fault
+
+Thus it occurred to me, that maybe my C library is bad (I did compile
+it myself ;-)). Hence I installed the libc-2.0.7 libraries from the
+other machine, and ran the same binary as before, but now dynamically
+linked against libc-2.0.7:
+
+tosca:~/tmp$ ./gethostbyname-glibc2 finanzen.de.yahoo.com
+gethostbyname returned h_errno = 1, which should mean:
+Authoritative Answer Host not found
+
+official name of host:  de.finance.yahoo.com
+alias list [0]:         finanzen.de.yahoo.com
+host address type:      2
+length of address:      4
+address list [0]:       194.237.109.10
+address list [1]:       194.237.109.15
+address list [2]:       194.237.109.9
+
+Clearly something is wrong here, because the glibc2 version of
+gethostname reports an error through its error variable h_errno, while
+there really was no error. The source code to gethostbyname is
+appended at the end of this email.
+
+Curiously enough however, using libc-2.0.7 did in fact fix my DNS
+problems with Amaya!
+
+Just to make sure I also down-loaded the source of Amaya and compiled
+it, and that libc-5.4.46 based binary worked fine (well, there were
+obvious LessTif based problems, but that's a different story).
+
+It would be interesting to know if Amaya really does have a problem
+with libc-2.1.2, or if it was just my copy of the C library that is
+bad. Anyways, it seems clear now that Amaya's code is not at
+fault, at least as long as one uses the right library versions.
+
+The only problem is now that RealPlayerG2 needs libc-2.1 to run. Oh
+well, I'll write a wrapper script to load the correct version and edit
+the binary to get the correct dynamic loader.
+
+Cheers,
+
+Uwe
+<mayer@tux.org>
+---------------------------------------------------------------------
+/* 
+   Sat Feb 12 11:05:27 MET 2000
+   Uwe F. Mayer <mayer@tux.org>
+
+   This program reads out the results of a gethostname() call.
+   It takes a single argument which is a DNS IP address.
+   
+   */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <netdb.h>
+extern int h_errno;
+
+int main(int argc, char * argv[]){
+  int i,j;
+  struct hostent *hostname;
+  hostname=(struct hostent *)malloc(sizeof(struct hostent));
+  hostname=gethostbyname(argv[1]);
+  printf("gethostbyname returned h_errno = %d, which should mean:\n",
+    h_errno);
+  switch (h_errno){
+  case NETDB_INTERNAL:
+    printf("internal error in gethostbyname()\n");break;
+  case NETDB_SUCCESS:
+    printf("no problem\n");break;
+  case HOST_NOT_FOUND:
+    printf("Authoritative Answer Host not found\n");break;
+  case TRY_AGAIN:
+    printf("Non-Authoritive Host not found, or SERVERFAIL\n");break;
+  case NO_RECOVERY:
+    printf("Non recoverable errors, FORMERR, REFUSED, NOTIMP\n");break;
+  case NO_DATA:
+    printf("Valid name, no data record of requested type\n");break;
+  default:
+    printf("invalid return code in h_errno after gethostbyname() call\n");
+  }
+  /*
+     We will try to print the results anyways, regardless of the error
+     code. Of course, that might lead to "Segmentation fault" errors.
+  */
+  printf("\nofficial name of host:  %s\n",hostname->h_name);
+  i=0;
+  while (((*hostname).h_aliases)[i] != NULL){
+    printf("alias list [%d]:         %s\n",i,hostname->h_aliases[i]);
+    i++;
+  }
+  printf("host address type:      %d\n",hostname->h_addrtype);
+  printf("length of address:      %d\n",hostname->h_length);
+  i=0;
+  while (((*hostname).h_addr_list)[i] != NULL){
+    printf("address list [%d]:       ",i);
+    for(j=0;j<hostname->h_length;j++){
+printf("%d",(int)(unsigned char)(hostname->h_addr_list[i][j]));
+if (j!=hostname->h_length-1){
+  printf(".");
+}
+    }
+    printf("\n");
+    i++;
+  }
+  printf("\n");
+  return(0);
+}
+
+
+

@@ -1,0 +1,313 @@
+docno="lists-037-12236356"
+received="Wed Mar 19 23:49:17 1997"
+isoreceived="19970320044917"
+sent="Wed, 19 Mar 1997 20:49:18 -0800"
+isosent="19970320044918"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Distributed Authoring Proposals"
+id="11352BDEEB92CF119F3F00805F14F485026B71F9@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+1Content-Nature Header
+
+The Content-Nature header describes the "nature" of the associated
+resource. This is different from the content-type header in that this
+header describes purpose rather than format. A URI is used as an
+identifier in order to allow discovery. Multiple ContentIdentifiers may
+only be used if the relationship between these identifiers is well
+defined.
+
+ContentNature = "Content-Nature" ":" 1#ContentIdentifier
+ContentIdentifier = URI
+
+With this header it is now possible to mark resources as Data or
+Structures or what have you. This is very useful for searches where a
+client can now say "Search amongst all resources with a Content-Nature
+of Structure".
+
+2DAV.ResourceLink Link
+
+The DAV.Resource link is used as a mechanism for specifying the
+inclusion of a resource into the structure of another resource that is
+not its base. STRUCTURE calls on resources with DAV.ResourceLinks should
+return those links in the result.
+
+This link type is introduced in order to get rid of the ADDRESOURCE and
+REMOVERESOURCE methods.
+
+3COPY Method
+
+I recommend removing the Request-Version field as HTTP operates on URIs.
+Request-Version short-circuits that procedure by performing a de facto
+redirect to another resource.
+
+I also propose removing the copylink header. Meta data can be recorded
+in a number of places, including inside the resource itself. This makes
+it impossible to specify a meaningful copylink field. For example, if
+one copies an OLE file which contains attributes specifying things like
+author to a server that does not understand the OLE structure, the
+author attribute will suddenly "disappear". I believe the best course is
+to specify a "best effort" on the part of the server to copy everything
+possible but no guarantees about what will actually make it over. 
+
+In this vein, I recommend removing the COPYHEAD method. I realize this
+situation will be unacceptable to some quarters but I feel that their
+needs are in the very small minority and are specialized enough to merit
+their own separate draft, which will probably have to start dealing with
+server to server issues.
+
+3.1Request-URI
+
+The Request-URI specifies the destination of the COPY.
+
+3.2Source Header (Required)
+
+SourceHeader = "Source" ":" URI CRLF
+
+3.3Additional Headers (Optional)
+
+PropagateLevel and Atomic
+
+3.4Item Behavior
+
+The URI in Source is copied to the Request-URI. Please refer to Jim
+Whitehead's more generic definition for a further explanation. The COPY
+specified here is meant to be semantically equivalent to the one given
+in the current DAV spec.
+
+3.5Structure Behavior
+
+The URIs in Source, down to PropagateLevel, are copied based upon
+Request-URI as their URI base, rather than Source.
+
+COPY http://foo HTTP/1.1
+Source: http://blah
+PropagateLevel: Infinity
+Atomic: REQUIRED
+
+Let us say that http://foo is a structure that contains two entries,
+http://foo/bar and http://foo/baz, as well as the ResourceLink
+http://not/same/base. The request will only succeed if http://foo is
+moved to http://blah, http://foo/bar to http://blah/bar, http://foo/baz
+to http://blah/baz and the ResourceLink http://not/same/base is
+established on http://blah. If any resource could not be copied then the
+entire request must fail due to the atomic header.
+
+Note that if the server the resource is to be copied to does not support
+ResourceLink and if the Atomic: REQUIRED header is included, the request
+will never succeed.
+
+If the Atomic header is not included then a partial success is allowed,
+meaning some but not all the resources were copied. I recommend defining
+a new response code 207 Partial Success to cover situations such as
+this. A web collection should be included in order to provide status
+information.
+
+[TBD - Define Web Collection Entry]
+
+4MOVE Method
+
+4.1Request-URI
+
+The destination.
+
+4.2Additional Headers
+
+SourceHeader - Required
+PropagateLevel - Optional
+Atomic - Optional
+
+4.3Item Behavior
+
+The resource referred to in source is moved to the resource referred to
+by Request-URI. A successful response must contain the content-location
+header, set equal to the URI in source, so that caches will properly
+flush any cached entries for the source.
+
+4.4Collection Behavior
+
+The behavior is the same as COPY except that there is the addition of
+the need to deal with the deletion of the sources.
+
+Unfortunately the content-location header only allows a single value so
+it is not possible for caches unfamiliar with the MOVE method to
+properly clear their caches.
+
+5DELETE Method
+
+5.1Request-URI
+
+The resource to be deleted.
+
+5.2Additional Headers
+
+PropagateLevel - Optional
+Atomic - Optional
+
+5.3Item Behavior
+
+The item referred to in the Request-URI is deleted.
+
+5.4Collection Behavior
+
+The collection along with any included structures, up to PropagateLevel
+down are deleted. The results are otherwise the same as COPY in nature.
+
+6UNDELETE Method
+
+Deleted resources are often available for recovery right up to the
+moment their space is re-used. This scenario is very common with
+authoring systems where a relatively large but sparsely used storage
+area is assigned to a single owner. As such if the owner accidentals
+deletes a resource, they have a good chance of being able to recover the
+resource. The UNDELETE method is meant to provide the means to determine
+if recovery is possible.
+
+6.1Request-URI
+
+A resource that has had a delete executed against it
+
+6.2 Additional Headers
+
+PropagateLevel - Optional
+Atomic - Optional
+
+6.3Item Behavior
+
+If the resource has been deleted then UNDELETE will attempt to restore
+it. If the Request-URI points to a resource which is not deleted then
+the request should fail with a 409 Conflict. If the resource has been
+deleted but can not be restored then a 500 Internal Server Error should
+be returned. If the resource has been deleted but can be fully restored
+then a 200 Success should be returned. If the resource has been deleted
+but can only be partially restored then the proposed 207 Partial Success
+should be returned.
+
+6.4Collection Behavior
+
+The behavior is consistent with COPY's handling of success and failure
+codes, however the action in this case is not a copy but an undelete.
+
+7Destroy Header
+
+When deleting a resource the client often wishes to specify exactly what
+sort of delete is being enacted. The destroy header, used with PEP,
+allows the client to specify the end result they desire. The destroy
+header is specified as follows:
+
+DestroyHeader = "Destroy" ":" #Choices
+Choices = "VersionDestroy" | "NoUndelete" | "Undelete" | Token
+
+The Undelete token requests that, if possible, the resource be subject
+to UNDELETE. The server is not required to honor this request.
+
+The NoUndelete token requests that the resource not be recoverable
+through the UNDELETE method.
+
+The VersionDestroy token includes the functionality of the NoUndelete
+token and extends it to include having the server remove all versioning
+references to the resource that it has control over. 
+
+8Atomic Header
+
+The atomic header only guarantees that if the server can not completely
+perform an action, then it will keep its state constant. However the
+guarantee to not alter state is only kept if no other methods are
+requested while the server is processing the client's request.
+
+For example, let us say there is a structure http://foo that contains
+two entries, http://foo/bar and http://foo/baz. 
+
+Time 0: Client A Executes:
+DELETE http://foo HTTP/1.1
+PropagateLevel: 1
+Atomic: REQUIRED
+
+Time 1: Server Executes on self:
+DELETE http://foo/bar HTTP/1.1
+(RESULT: SUCCESS)
+
+Time 2: Client B Executes:
+UNDELETE http://foo/bar HTTP/1.1
+(RESULT: SUCCESS)
+
+Time 3: Client B Executes:
+DELETE http://foo/bar HTTP/1.1
+Destroy: NoUndelete
+(RESULT: SUCCESS)
+
+Time 4: Server Executes on self:
+DELETE http://foo/baz HTTP/1.1
+(RESULT: FAILURE, CLIENT A DOES NOT HAVE ACCESS RIGHTS)
+
+Time 5: Server Executes on self:
+UNDELETE http://foo/bar HTTP/1.1
+(RESULT: FAILURE, CLIENT B'S DELETE MADE http://FOO/BAR UNRECOVERABLE)
+
+Time 6: Response Sent by Server to Client A:
+HTTP/1.1 401 Unauthorized
+
+Thus the server can not restore the system to its original state. This
+behavior, however, is NOT a violation of the atomic header. The Internet
+is asynchronous and it is completely possible for the previous time line
+to be repeated as:
+
+Time 0: Client A Executes:
+DELETE http://foo HTTP/1.1
+PropagateLevel: 1
+Atomic: REQUIRED
+
+Time 1: Server Executes on self:
+DELETE http://foo/bar HTTP/1.1
+(RESULT: SUCCESS)
+
+Time 2: Server Executes on self:
+DELETE http://foo/baz HTTP/1.1
+(RESULT: FAILURE, CLIENT A DOES NOT HAVE ACCESS RIGHTS)
+
+Time 3: Server Executes on self:
+UNDELETE http://foo/bar HTTP/1.1
+(RESULT: SUCCESS)
+
+Time 4: Client B Executes:
+UNDELETE http://foo/bar HTTP/1.1
+(RESULT: FAILURE, THE RESOURCE IS NOT DELETED)
+
+Time 5: Client B Executes:
+DELETE http://foo/bar HTTP/1.1
+Destroy: NoUndelete
+(RESULT: SUCCESS)
+
+Time 6: Response Sent by Server to Client A:
+HTTP/1.1 401 Unauthorized
+
+In both cases the result is the same, the request returns with
+http://foo/bar deleted.
+
+The cost of preventing this situation is extremely high, including
+atomic locking on the server. As such I believe the current definition
+of Atomic is sufficient.
+
+I also propose changing my original atomic header definition to:
+
+AtomicHeader = "Atomic" ":" AtomicChoices
+AtomicChoices = "REQUIRED" | "IFPOSSIBLE" | #Token
+
+Where "Atomic: REQUIRED" means that the action must be atomic as defined
+above and  "Atomic: IFPOSSIBLE" means that the method should be atomic
+if the server supports atomic.
+
+The atomic header may not be dropped from DAV methods. If the atomic
+header is used with other methods, a PEP header will be necessary,
+assuming the server supports PEP.
+
+For those who think the name sucks, I agree. Please feel free to
+nominate a substitution. (Bracing myself for the flurry of smart-alec
+responses)
+
+
+

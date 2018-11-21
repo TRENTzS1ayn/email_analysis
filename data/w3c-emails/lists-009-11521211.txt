@@ -1,0 +1,64 @@
+docno="lists-009-11521211"
+received="Mon Nov 13 10:59:39 1995"
+isoreceived="19951113155939"
+sent="Mon, 13 Nov 1995 10:58:11 0800 (PST)"
+isosent="19951113185811"
+name="Simon Spero"
+email="ses@tipper.oit.unc.edu"
+subject="Re: Effects of Persistent Connections"
+id="Pine.SOL.3.91.951113103124.16928B100000@chivalry"
+charset="USASCII"
+inreplyto="199511121907.AA024173235&#64;hplb.hpl.hp.com"
+expires="1"
+
+To: Mike Cowlishaw<mfc@vnet.ibm.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+On Sun, 12 Nov 1995, Mike Cowlishaw wrote:
+> 
+> It's interesting to note that the number of packets transmitted has
+> increased slightly (per request) from before; doubtless because
+> persistent connections require that TCPIP_NODELAY be set.  Has anyone
+> done any simulation of this side-effect?
+
+[So how long till you announce HotREXX? :-)]
+
+I don't really understand why TCPIP_NODELAY would need to be set for P-HTTP;
+although I haven't implemented the P-HTTP specifications, I have taken 
+measurements for HTTP-NG operating in the closest available mode, using 
+the HTTP-TOS relay facility. Even though the implementation wasn't fully 
+tuned to take best advantage, we found very little negative interaction
+with the Nagle algorithm, and very few short packets. Indeed, even with 
+the simplest possible scheduling, we generally found that multiple 
+requests would be fitted into a single packet, *reducing* the average 
+packet count per request. This effect was seen even without 
+header-caching enabled; header-caching gives better interactions.
+
+[details: The test was run using netscape browsers talking to the 
+HP-proxy, which relayed HTTP/1.0 requests over HTTP-NG to other 
+HP-proxies, which then connected to other HTTP/1.0 servers to perform the 
+actual requests. Requests were processed in parallel - i.e. data from 
+multiple requests was interleaved over the HTTP-NG channel].
+
+
+The pure-NG approach hasn't been tested yet, but hand coding gave some 
+absolutely ridiculous results :-) For example, cache-checking with  1.0
+If-Modified for  a page with 20 images takes 6 packets per request 
+(SYN->, <-SYN-ACK, REQ->, <-RESP+FIN, FIN+ACK->,<-ACK). 120 packets total.
+
+HTTP-NG can fit all the requests and responses in a single packet; if the 
+connection is closed, this takes 6 packets - a 20 fold saving. If the 
+connection is warm (as it would be if we're fetchig inline images), the 
+total packet could would be 2, a 60 fold saving. 
+
+In the typical case, the packet savings are less- requests are co-aleced, 
+but responses typically need a whole packet or more. There are some extra
+savings available; typically 1/2 MSS per response. These savings are in 
+addition to the savings that come from avoiding the SYN/FIN/LAST-ACK 
+transactions documented in Jeff Mogul's SIGCOMM 95 paper.
+
+Simon
+
+
+

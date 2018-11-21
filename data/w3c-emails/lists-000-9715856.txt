@@ -1,0 +1,110 @@
+docno="lists-000-9715856"
+received="Tue Feb 29 08:19:15 2000"
+isoreceived="20000229131915"
+sent="Tue, 29 Feb 2000 13:19:09 +0000 (GMT Standard Time)"
+isosent="20000229131909"
+name="Dave Raggett"
+email="dsr@w3.org"
+subject="Re: [BUGFIX] Tidy ignores config line after &quot;doctype&quot; and &quot;alt-text&quot;"
+id="Pine.WNT.4.10.10002291315431.280-100000@OEMCOMPUTER"
+charset="US-ASCII"
+inreplyto="200002230535.AAA11145&#64;mail.bcpl.net"
+expires="-1"
+
+To:"J. David Bryan"<jdbryan@acm.org>
+cc: HTML Tidy List<html-tidy@w3.org>
+
+
+On Wed, 23 Feb 2000, J. David Bryan wrote:
+
+> This report is for the Tidy version of 13th January 2000.
+> 
+> When a configuration file contains the "alt-text:" option or the
+> "doctype:  <fpi>" option, Tidy will ignore the line in the
+> configuration file that follows either of these options.
+> 
+> For example, given a "config.txt" file consisting of these lines:
+> 
+>   doctype: "-//ACME//DTD HTML 3.14159//EN"
+>   logical-emphasis: yes
+> 
+> ...and an HTML test file "bug.html" containing:
+> 
+>   <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+>   <html>
+>   <head>
+>   <title>Bug test</title>
+>   </head>
+>   <body>
+>   <p>This <b>paragraph</b> has <i>presentation</i> markup
+>   which should be replaced by structural markup.</p>
+>   </body>
+>   </html>
+> 
+> ...then the following command:
+> 
+>   tidy -config config.txt bug.html
+> 
+> will *not* replace the <i> tags with <em> tags, etc.  A
+> corresponding test using the "alt-text" option will display the
+> same behavior.  Note that if the order of the configuration
+> options is reversed, or if an intervening comment is placed
+> after the "doctype" option, replacement will occur.
+> 
+> The fault appears to be in the "ParseString" routine of
+> config.c, line 717:
+> 
+>   NextProperty();
+> 
+> This line should be removed.
+> 
+> The "NextProperty" routine discards characters until the
+> succeeding line is encountered.  However, the ParseString
+> routine calls NextProperty *after* it has consumed all of the
+> "doctype" (e.g.) option line and the character pointer is
+> pointing at the first character of the succeeding line (at the
+> "logical-emphasis" line in my example).  Therefore, NextProperty
+> skips that line and returns with the pointer at the start of the
+> *second* following line (EOF in my example).
+
+Well spotted.
+
+> Note that there appears to be another (unrelated) problem in the 
+> ParseString routine.  Lines 691-702 of config.c are:
+> 
+>   if (IsWhite(c))
+>   {
+>     if (waswhite)
+>     {
+>       AdvanceChar();
+>       continue;
+>     }
+> 
+>     c = ' ';
+>   }
+>   else
+>     waswhite = no;
+> 
+> ParseString appears to attempt to compress white space in
+> "doctype" and "alt-text" parameters.  However, there appears to
+> be a flaw in the logic that prevents this from occurring
+> ("waswhite" is never set true, so the compression doesn't work).  
+> Regardless, I believe that compressing white space from the
+> user-specified parameters is incorrect.  If I specify a
+> "doctype" or "alt-text" parameter containing extra space, then
+> Tidy shouldn't second-guess me by removing it (unless it's
+> required by the HTML spec; is it?).
+
+Tidy already applies such whitespace munging to attribute values
+and it seems reasonable to apply the same to the alt-text values
+and to doctype FPIs. ParseString is only used for these two
+purposes.
+
+Regards,
+
+-- Dave Raggett <dsr@w3.org> http://www.w3.org/People/Raggett
+tel/fax: +44 122 578 3011 (or 2521) +44 385 320 444 (mobile)
+World Wide Web Consortium (on assignment from HP Labs)
+
+
+

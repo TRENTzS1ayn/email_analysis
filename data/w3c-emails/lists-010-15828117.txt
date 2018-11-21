@@ -1,0 +1,108 @@
+docno="lists-010-15828117"
+received="Wed Mar 19 17:23:23 1997"
+isoreceived="19970319222323"
+sent="Wed, 19 Mar 97 17:15:41 PST"
+isosent="19970320011541"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: determining proxy reliability"
+id="9703200115.AA25340@acetes.pa.dec.com"
+inreplyto="199703191613.LAA02148&#64;pat.appliedtheory.com"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Patrick McManus writes:
+    I'm starting to see this in a new light, your argument about
+    protocol trust is a good one. In summary non reliable worries me more
+    than non compliant, read on. What I'm still hesitant on is what I
+    feel will be a very strong content-provider hesitation to this
+    proposal because it's accuracy is so unbounded.
+
+It's not clear that the accuracy is really that unbounded.  Assuming
+that non-compliance is an orthogonal issue, the three things that
+could lead to inaccuracies are
+(1) perturbations of access patterns, due (as Koen has
+argued) to the potential for more cache-busting outside
+the metering subtree
+(2) failure (or reboot) of a proxy before a report is
+delivered
+(3) loss of a report message before it reaches the origin
+server (i.e., through network failure)
+If there are other sources of inaccuracy that I've missed, please
+let me know.
+
+Item #1 is, for now, unknowable.  Perturbation could just as easily
+improve the situation, since, as you observe, if hit-metering increases
+caching, then more users might be accommodated.
+
+Item #2 is addressed in the latest draft, by adding an optional
+timeout to the Meter response-directive (i.e., to the server's
+request that the response be hit-metered).  This can't eliminate
+the problem of proxy crashes or reboot, but it can bound the
+likelihood of report-lost-due-to-proxy-failure.  E.g., if the
+timeout is set to 10 minutes, and the mean time between reboots
+for the "average" proxy is (say) 60 minutes, then there is a 1/6
+chance of report loss.  Since I suspect that MTBF for proxies is
+probably on the order of days, not hours, the actual loss
+probability is likely to be lower.
+
+This leaves #3, loss-in-transit.  My experience is that the most
+common way for servers to lose HTTP requests is due to internal
+congestion (i.e., the SYN_RCVD problem), so if hit-metering
+improves caching, the reduction in congestion ought to help this.
+But loss due to network partition is also a problem, and (according
+to Vern Paxson's SIGCOMM '96 paper) it's getting worse.  This
+has inspired me to change the text in the next version of the
+draft from "The proxy is not required to retry the [report]
+if it fails" to "The proxy is not required to retry the [report]
+if it fails (but it should do so, subject to resource constraints)."
+This is still "best-efforts", but the specification now encourages
+more effort.
+
+The next draft will also say:
+   Note that if there is doubt about the validity of the results of
+   hit-metering a given set of resources, the server can employ
+   cache-busting techniques for short periods, to establish a baseline
+   for validating the hit-metering results.
+(with a citation to James Pitkow's WWW6 paper for more discussion
+of such sampling techniques).  Given that this gives each origin
+server a way to answer the question "is hit-metering making my
+counts inaccurate?", it seems to avoid the question of whether
+hit-metering is accurate in general.  (Clearly, a server that
+discovered this way that hit-metering is giving bad results would
+simply stop using hit-metering, at least for a while.)
+
+    I made a proposal months ago about being able to (at the origin
+    servers option) force the return of 0/0 counts.. at least this would
+    allow the construction of deterministic audit trails and therefore some
+    notion of reliability.. it doesn't account for outright fraud by the
+    proxy of course (they could misreport the numbers) but it does close
+    the case of any open ended transactions.. I'm not sure that it is
+    enough, but I do think it helps considerably in establishing 'good
+    faith and a reliable history' which is something to go on..
+    
+I tried putting support for 0/0 counts in a version of the
+proposal, but I took it out in favor of the timeout mechanism.
+James Pitkow's paper points out that the lack of a time-bound
+on the reports was a serious flaw of the original proposal.
+
+I think if the origin server can say "send a report within
+X minutes, if you have anything to report" then this effectively
+does the same thing as a request for 0/0 reports, but without
+the additional message overhead.  (Remember, lots of studies have
+shown that most cache entries are never used more than once.)
+A 0/0 report also doesn't solve the "proxy rebooted before sending
+a report" problem, but the timeout "solves" it (probabilistically).
+
+    -Pat, not feeling bad about bringing this back up when it's still in
+    ID and considering we can do 50 messages a day on cookies that are
+    nearing last call..
+
+Your comments have been quite valuable.
+
+-Jeff
+
+
+

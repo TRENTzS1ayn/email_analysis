@@ -1,0 +1,145 @@
+docno="lists-103-0443158"
+received="Thu Oct  7 22:24:05 1999"
+isoreceived="19991008022405"
+sent="Thu, 7 Oct 1999 20:23:18 -0600 (MDT)"
+isosent="19991008022318"
+name="Ray D. Whitmer"
+email="rayw@imall.com"
+subject="Re: The DOM is not a model, it is a library!"
+id="Pine.GSO.4.05.9910071945411.12988-100000@sol.imall.com"
+charset="US-ASCII"
+inreplyto="qcwvszp1ql.fsf&#64;congo.crc.ricoh.com"
+expires="-1"
+
+To:"Stephen R. Savitzky"<steve@rsv.ricoh.com>
+cc: Michael Champion<michael_champion@ameritech.net>, DOM Mailing List<www-dom@w3.org>
+
+
+On 7 Oct 1999, Stephen R. Savitzky wrote:
+
+>1. Live nodelists are trivial to implement badly, but useless in practice. 
+
+Live nodelists are trivial to implement so that they are efficient as long
+as the tree is not mutated during use.  The live node list is much more
+efficient for this case than a static one would be because you are not
+forced to build the list.  Often the user may only access the first node,
+too, and it is wastefull to traverse the whole document before they
+actually reference the node.
+
+The big problem with TreeWalker is that it can be used in a wide variety
+of ways, not all of which are optimized in the same way.
+
+Based on my implementation, I give my users a suggestion not use the count 
+(keep going until a null is returned) and copy node refs to a safe place if 
+they want to keep them around or mutate the document -- in Java, a simple 
+for loop adding elements to a vector.  It serves them well.
+
+>
+>   Specific fix: add operations to DocumentTraversal to construct a
+>   NodeIterator from a NodeList and from a NamedNodeMap.  This allows the
+>   problematic NodeList objects to exist only transiently before being
+>   replaced by something efficient. 
+
+I would be in favor of this if I didn't think it were already covered by
+iterators and tree walkers -- I still could be convinced by some use cases.  
+I think the users will have to change their code one way or the other to get 
+something better than NodeList for cases where this does not perform well.
+
+>2. The new ownerElement attribute of Attr is a major nuisance because it
+>   means it's impossible to share default values from the DTD.
+>
+>   Specific fix:  permit (or require) ownerElement to return null from an
+>   Attr for which specified is false. 
+
+This is not new with the addition of the ownerElement.  Please, explain to
+me how you can possibly share the Attr node object directly under the level
+1 API.  When the user does a setNodeValue on the attribute, are you going to
+change the value of that attribute for all elements which happened to have
+the old value in the tree?  If you are not, then you have to create at least
+a temporary object to hold the attribute's position in the tree.  There was
+never anything stopping you from sharing most of the attribute, but you need
+some placeholder, which also makes it trivially possible to implement
+ownerElement, because if you modify an attribute node, the system has to
+know well which element it is going to affect.
+
+FWIW, there is no requirement in DOM that the Java == function identify that
+two nodes are the same node.  You can create temporaries on the fly that
+get garbage collected.  This point may not be clear in the spec, but it
+needs to be, and was always hard-fought to keep it that way.  Many
+implementations don't have any attribute nodes in the hierarchy unless
+someone requests them, in which case they are constructed on the fly.
+And most users never bother to request them as nodes, but rather as
+strings, so you can just keep shared data and never worry about this.
+
+>3. Requiring the children of an EntityReference to exist and be identical to
+>   the children of the corresponding Entity is horrendous. 
+>
+>   Specific fix: make this a feature.  Better, allow it to be enabled or
+>   disabled by the application at the Document level.  It's much better for
+>   many applications if they look up the Entity.  Turning on
+>   expandEntityReferences in a TreeWalker would do this automatically
+>   without requiring the application to do anything.   
+>
+>   It would be necessary to make it clear that, when a TreeWalker descends
+>   into the ``children'' of an EntityReference, parentNode of those children
+>   might refer to the Entity rather than to the EntityReference. 
+
+This has always bothered me, and I think it might be possible to fix it in
+this way.  I like this issue and the proposed solution.
+
+>4. The requirement that the entire document be accessible is onerous for
+>   applications with limited memory and no external storage.  One could not,
+>   for example, put a DOM on a Palm Pilot. 
+>
+>   Workaround: enable a TreeWalker (perhaps under the control of some new
+>   attribute) to return a shallow clone of the current node rather than the
+>   node itself; add another attribute to make the TreeWalker unidirectional.
+>   This isn't as good as a complete set of tree traversers and constructors
+>   that can completely insulate an application from the Nodes, but it's
+>   better than nothing. 
+
+Returning the shallow clone is easy to do with the current API.  Lots of
+different lazy loading schemes are also possible.
+
+I don't see the need to make the thing unidirectional -- I think that most
+constraints can be addressed in other ways.  I fully plan on having a lazy-
+loading DOM that works well for palm pilots.  This is easy with the current
+API.  And it doesn't rely on TreeWalker.  I'd be happy to discuss a variety 
+of techniques...
+
+>5. No way for an application to attach its own information to the tree.
+>
+>   Specific fix: add a new attribute to Node:
+>
+>attribute NamedNodeMap applicationData;
+>
+>   It must be explicitly permissible for the items in the map to come from
+>   any mixture of owner documents, and indeed from any mixture of DOM
+>   implementations (this might have to be a feature).  This would allow an
+>   application to construct a Document containing sharable metadata with
+>   which it can then decorate some other Document with the application, not
+>   the DOM, controlling whether sharing is to occur.
+>
+>   Allowing application data to come from different DOM implementations
+>   would allow an application to decorate a document from some third-party
+>   library with its own extended nodes if it had them.
+
+I strongly agree that it is nice to be able to attach data to a node of the
+DOM, and this could easily turn out to be one of the first things we add for 
+level 3, as soon as we are able to address the legitimate concerns.
+
+I am opposed to a single attribute, because it means that when you have
+multiple DOM applications working on the same tree and using this for
+different extension purposes, they collide.  Why limit extensions
+this way?  I also think there are times when this data needs to be
+cloned/copied with the node.  Otherwise, cut and paste can lose important
+data, so a small accomodation is needed during node cloning, IMO.
+
+One other concern is shared data.  My DOM shares everything whenever it
+is the same.  For example, all similar whitespace is a single object
+in my DOM.  All identical attributes are a shared object, and so on.
+Attaching unique data makes this more difficult, but I think I can solve 
+it, so I am for the proposal.
+
+
+

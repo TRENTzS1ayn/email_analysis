@@ -1,0 +1,168 @@
+docno="lists-049-14805362"
+received="Sat Feb 16 00:38:06 2002"
+isoreceived="20020216053806"
+sent="Fri, 15 Feb 2002 21:37:33 -0800"
+isosent="20020216053733"
+name="Ronald Daniel"
+email="rdaniel@interwoven.com"
+subject="RE: Provenance usage scenario - releaseTime"
+id="145C1D60907A4944ABAE75DE3FF6418C2C7FE1@xchanger3.interwoven.com"
+charset="iso-8859-1"
+inreplyto="Provenance usage scenario - releaseTime"
+expires="-1"
+
+
+To:"'fmanola@mitre.org'"<fmanola@mitre.org>
+Cc:w3c-rdfcore-wg@w3.org
+
+Frank asked:
+
+> Could you clarify something about your example?
+> > 
+> >       <someArticleURI> <D:describedBy> ?M     # M is metadata record URI
+> >       ?M   <prism:receptionTime>  ?Tgot
+> >       ?M   <dc:source>  ?FromWho
+> >       ?M   <x:contains> ?_S                   # _S is statement URI
+> >       ?_S  <rdf:type>  <rdf:Statement>
+> >       ?_S  <rdf:subject> <someArticleURI>
+> >       ?_S  <rdf:predicate> <prism:releaseTime>
+> >       ?_S  <rdf:object> ?Trel
+> 
+> Are you assuming that the metadata record M contains the individual
+> triples that you would expect to see produced from parsing the XML/RDF
+> you give initially, or does it contain a set of reification quads (the
+> quads with ?_S as subject) expanded from those triples that would then
+> be directly matched by the query syntax?  
+
+The former. I assume the query processor 'knows' enough about
+rdf:subject, rdf:predicate, and rdf:object to be able to answer
+queries as if they are there, but there is no way I want all that
+gunk cluttering up the graph.
+
+(To digress for a moment; I actually assume M would identify a text file,
+or a text string in a DB, that holds the serialized RDF that was actually
+received. Reason is that it is better for the provenance application to
+be able to say "here are the bits we got from you" instead of
+"here are the bits we kept after we fiddled around with what you sent us".
+Of course, the query engine that would have the job of searching those
+files would probably have built a search index that looks astonishingly
+like a triples store. But I assume it will only have the explicit triples
+in it.)
+
+> Comment:  This, I think, illustrates one of the reasons for having a
+> standard vocabulary for describing statements (you can use it in
+> queries).
+
+Complete agreement.
+
+> It's still not clear to me how the vocabulary per 
+> se helps in
+> recording  provenance information,
+
+If by 'vocabulary' you mean rdf:subject,predicate,object I agree that
+they do not directly have much to do with the provenance of a
+statement or graph. However, being able to pick those fields out
+of a statement is important so we can do the queries.
+
+> since here the provenance is about
+> the metadata record (which has a URI), not an individual reified
+> statement.
+
+Yeah, it is more around the whole metadata record than one item in it.
+When I started I wanted to do a use case that would need a reified
+statement, but this example kind of took off with a mind of its own.
+However, it seemed important to show that there are provenance
+applications that need to identify an entire incoming description,
+because that has not been talked about as much as inidividual statements
+but will probably be more common.
+
+
+Note that the query assumes individual statements can be
+identified. If they can, then we would seem to have all that is needed
+for the finer-grained provenance (which I think you pointed out in an
+earlier message).
+
+So I think that for provenance we need the following:
+  1) A method for identifying 'statements' in a serialized RDF document.
+    (Again, don't take this to indicate any stance on Brian's 'stating'
+    vs. 'statement' terminology)
+     a) rdf:ID lets us ID some statements up front in the syntax
+     b) We MAY need to have an agreed-upon syntax for adding IDs to
+        statements ex-post-facto so that everyone can do it the same,
+        but I suspect that is a 'nice to have' not really a 'must have'.
+  2) A method for identifying whole graphs
+  3) A method for stating that a particular statement came from a particular
+     graph.
+
+> (On the other hand, this may be close enough:  I can
+> identify that a given *container* (the metadata record), 
+> which does have
+> a URI, contains a statement that *looks like* a given description, and
+> the provenance is associated with the container as a whole.)
+
+You are probably right, but I don't know what 'looks like' means.
+Here's a quick test case to show what I'm currently assuming:
+
+<rdf:RDF ...namespace decls...>
+ <rdf:Description rdf:about="http://example.com/index.html">
+  <dc:publisher rdf:ID="foo:12345">The Example Company</dc:publisher>
+  <dc:creator>webmaster@example.com</dc:creator>
+ </rdf:Description>
+</rdf:RDF>
+
+(Have to extend n-triples to n-quads which uses () at the front to hold
+the statement URI)
+
+ (foo:12345) <http://example.com/index.html> <dc:publisher> "The Example
+Company" .
+ (_:a)       <http://example.com/index.html> <dc:creator>
+"webmaster@example.com" . 
+
+A system that enabled provenance tracking would also create something like
+the following graph when it imported the serialization earlier:
+(the empty () at the start of these means the statements have a URI
+but I didn't bother to specify it)
+
+ () <_:m> <rdf:type> <x:RDF-serialization> .
+ () <_:m> <prism:receptionTime> "2002-02-15T20:19T-8:00" .
+ () <_:m> <x:contains> <foo:12345> .
+ () <_:m> <x:contains> <_:a> .
+ () <_:m> <dc:creator> "Jane Doe"
+
+Here are some queries over the inital graph:
+
+ ?X <dc:creator> ?Y
+ => [
+     X = <http://example.com/index.html>
+     Y = "webmaster@example.com"
+    ]
+
+ ?X <rdf:predicate> <dc:publisher>      # Domain of rdf:predicate is a
+Statement
+ => X = <_:a>
+
+ ?X <rdf:type> ?Y
+ => empty         # This is what I would expect because there are not
+explicit
+                  # rdf:type statements in the graph. But this may be bad
+                  # because...
+
+ ?X <rdf:type> <rdf:Statement>
+ => X = <foo:12345>
+    X = <_:a>
+
+                  # and also ...
+ ?X <rdf:predicate> <dc:publisher>
+ ?X <rdf:type> ?T
+ => [
+     X = <_:a>
+     T = <rdf:Statement>
+    ]
+
+Looks like I'd prefer that the subject/predicate/object/Statement things
+that are implicit are ignored until explicitly asked for in a query.
+
+Ron
+
+
+

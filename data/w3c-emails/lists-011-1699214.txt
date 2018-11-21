@@ -1,0 +1,124 @@
+docno="lists-011-1699214"
+received="Mon Apr 14 16:41:15 1997"
+isoreceived="19970414204115"
+sent="Mon, 14 Apr 97 16:34:47 MDT"
+isosent="19970414223447"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: HTTP/1.1 Pipelining"
+id="9704142334.AA12871@acetes.pa.dec.com"
+inreplyto="ML3.1.860766349.6838.josh&#64;birdcage"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+    When a client is talking to a proxy server and is pipelining requests,
+    should it use a single pipeline connection to issue requests to 
+    different origin servers ?
+    ie should GET http://www.ups.com/ HTTP/1.1
+       and    GET http://www.fedex.com/ HTTP/1.1 
+    be sent over the same pipeline or should a new connection be established.
+    A common occurence of this is when advertisement gifs come from a 
+    different server than the html file.
+    
+    I guess the question becomes :
+    Can requests in the same pipeline be to different origin servers?
+    
+In the case where you have an HTML file coming from one server, and
+an imbedded GIF from another, I think the "use two connections"
+rule applies.  I.e., the client has two connections to the proxy,
+uses the first connection to fetch the HTML file, and the other
+for the imbedded images.
+
+Note that this is actually not a particularly hard example; you
+can't actually start fetching the image until you have at least
+some of the HTML file (since you don't have the IMG SRC until then).
+
+A harder question is "what if the HTML file has lots of IMG SRCs,
+which come from more than one origin server?"  Then you could get
+into a situation where you request several different images over
+one connection, and some might be blocked waiting for earlier ones
+to complete.
+
+I think the best answer is that as long as the images are ultimately
+being used to construct the same layout, then you should stick
+to using as few connections as possible.  Ultimately, you can't
+finish the layout until you have most or all of the images, and so
+while there might be some minor benefit in trying to get them in
+"fastest first" order, this probably isn't a big deal.
+
+On the other hand, if one browser program has two or more independent
+Web-browser windows open (I often do this, especially when following
+up on search-engine results), then it might be best to act as if
+these are separate instances of the application.  I.e., each window
+gets its own pair of TCP connections, so that the two windows can
+be operated without interfering with each other.
+
+Although the use of lots of parallel connections has taken some
+criticism (including from me), the real problem is not having lots
+of TCP connections open per se.  The two bad things to do are
+(1) open and close connections frequently, resulting in lots of
+overhead at the server, and (2) run lots packets simultaneously
+over parallel connections, which defeats the TCP congestion
+control algorthms.  If you get into a situation where you have
+two proxy connections open, but both of them appear stalled, it might
+make sense to open another connection *if* you are going to use
+it to get responses from a different origin server.
+
+And if you have multiple origin servers to load from at once,
+it probably pays to distribute the URLs among your TCP connections
+so that all of the URLs from one server are fetched on one connection.
+I.e., if the servers are A and B, do this:
+connection 1: A A A A A A
+connection 2: B B B B B B
+instead of this
+connection 1: A B A B A B
+connection 2: A B A B A B
+since if server B is slow or dead, the latter approach will cause
+a lot more trouble.  It might even cause more TCP opening/closing,
+if the user gets tired and hits "stop" ... since if a request is
+in progress when that happens, you pretty much have to close the
+TCP connection to recover.
+
+Bottom line: minimize the number of (1) simultaneously active
+TCP connections and (2) the number of TCP opens and closes.
+But don't make the user wait because you've done things in the
+wrong order.
+
+    With the advent of pipelined persistent connections ( and to a lesser
+    extend 1.0 keep alives ), the distinction of 'who the client is
+    talking to' is confusing to me.  Since while the client may be
+    pipelining to a proxy, and the proxy can go ahead and do an
+    old style connection to an origin server, how does the client deal
+    with old responses?
+    Assuming the answer to the previous question,  is yes...
+    
+    IE: client pipelines:
+      GET http://www.foo.com/ HTTP/1.1
+      GET http://www.bar.com/ HTTP/1.1
+    what happens if foo.com is a 1.1 server ( the proxy can do a
+    persistent conenction ) and bar.com is 1.0 (proxy cannot)?
+    
+It's important to understand that persistent connections are
+"hop-by-hop", NOT "end-to-end".  I.e., what goes on between
+proxy and client (as far as TCP connections are concerned)
+is almost entirely unrelated to what goes on between proxy
+and origin server; at a higher level, the proxy is always just
+forwarding requests and responses.  If it has to use a separate
+TCP connection for each request/response, because its peer
+speaks HTTP/1.0, so be it.
+
+The "almost entirely" in that paragraph is because if the user
+hits "stop", the only way for the user agent to stop a transfer
+in progress is to close the TCP connection.  And since we want the
+proxy to pass this along (e.g., to stop wasting Internet bandwidth
+that's being used to load a large response from the origin server),
+then this causes the connection-close to propagate all the way through
+the chain of proxies.  Which is sad, but we've always said that
+TCP connections are not immortal.
+
+-Jeff
+
+
+

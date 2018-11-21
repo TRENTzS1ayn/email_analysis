@@ -1,0 +1,195 @@
+docno="lists-006-0481672"
+received="Thu May 31 22:51:52 2001"
+isoreceived="20010601025152"
+sent="Thu, 31 May 2001 19:50:10 -0700"
+isosent="20010601025010"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="RE: Deleting versions"
+id="HPELJFCBPHIPBEJDHKGKGEOBCFAA.lisa@xythos.com"
+charset="iso-8859-1"
+inreplyto="3906C56A7BD1F54593344C05BD1374B1018E2413&#64;SUS-MA1IT01"
+expires="-1"
+
+To:"Clemm, Geoff"<gclemm@rational.com>,"DeltaV"<ietf-dav-versioning@w3.org>
+
+
+
+
+Geoff said:
+>
+> I agree with Tim's responses.  To make sure that nobody misunderstands
+> the semantics of the method preconditions and postconditions, I propose
+> to modify section 1.6 to read as follows:
+>
+...
+>
+> Lisa: Does this address your concern?
+>
+
+It's an improvement in the definition of post/pre-conditions, certainly.
+There are still a couple of issues remaining:
+
+1.  By having (DAV:must-be-root-version) as a postcondition, you're
+preventing an implementation from deleting the last remaining version from a
+version history.  I assume this is your intent?  Like so many other things,
+it must be inferred rather than finding it stated in the text.  *sigh*
+
+2.  I don't think the issue of a version-controlled-resource with zero
+versions is sufficiently addressed.  For your convenience, here's the
+section from 2518:
+
+   A write locked null resource, referred to as a lock-null resource,
+   MUST respond with a 404 (Not Found) or 405 (Method Not Allowed) to
+   any HTTP/1.1 or DAV methods except for PUT, MKCOL, OPTIONS, PROPFIND,
+   LOCK, and UNLOCK.  A lock-null resource MUST appear as a member of
+   its parent collection.  Additionally the lock-null resource MUST have
+   defined on it all mandatory DAV properties.  Most of these
+   properties, such as all the get* properties, will have no value as a
+   lock-null resource does not support the GET method.  Lock-Null
+   resources MUST have defined values for lockdiscovery and
+   supportedlock properties.
+
+   Until a method such as PUT or MKCOL is successfully executed on the
+   lock-null resource the resource MUST stay in the lock-null state.
+   However, once a PUT or MKCOL is successfully executed on a lock-null
+   resource the resource ceases to be in the lock-null state.
+
+A direct read of this paragraph combined with deltaV draft 15 (and your
+implication) would indicate that you can't issue a VERSION-CONTROL method on
+a lock-null resource.  That's bogus.  A "write locked null resource" is
+there so that the creator can do all the write operations and state changes
+they need before making the resource visible to everybody.
+
+So, I suggest that VERSION-CONTROL (and perhaps other methods like CHECKOUT,
+MKWORKSPACE...) should be explicitly allowed by DeltaV to be done on write
+locked null resources, and that the spec define a precondition that can be
+returned if the server decides not to allow operations on write-lock
+resources.
+
+Lisa
+
+>
+> -----Original Message-----
+> From: Tim Ellison [mailto:tim@peir.com]
+> Sent: Friday, May 25, 2001 5:43 PM
+> To: DeltaV
+> Subject: RE: Deleting versions
+>
+>
+>
+>
+> > -----Original Message-----
+> > From: ietf-dav-versioning-request@w3.org
+> > [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Lisa Dusseault
+> > Sent: 25 May 2001 17:58
+> > To: DeltaV
+> > Subject: Deleting versions
+> >
+> >
+> >
+> > I know not all implementations of DeltaV will allow deleting
+> old versions,
+> > but the specifications specifically allows it.  I've been looking
+> > into that
+> > functionality and encountered some issues and questions.
+> >
+> > #1)  Is there some way of finding out, before trying the delete, if it's
+> > possible to delete a version?  Before you say
+> > "supported-method-set", allow
+> > me to point out that this property is not shown to exist on versions.
+>
+> Sure it is.  All resource properteis described in versioning-15 sec 3.1
+> states "The version-control feature introduces the following REQUIRED
+> properties for any WebDAV resource.", and since "The
+> version-control feature
+> MUST be supported if any other versioning feature is supported."
+> it follows
+> that you can always ask a versioning resource for its supported methods.
+>
+> > #2) It looks like there's a set of error msgs the server can
+> return if it
+> > decides to prevent the user from deleting the referenced
+> version, the root
+> > version, or all versions.  What error msg should the server return if it
+> > decides to prevent the user from deleting the "current" version
+> > (though one
+> > that is not checked out)?
+>
+> Please clarify what you mean by the "current" version?
+>
+> > Or what if the server decides to prevent the only
+> > remaining version from being deleted?
+>
+> This case is not called out by the spec., so I would expect 403 Forbidden
+> with no interoperable extended error info.  Just as there will be other
+> cases that servers (say for implementation reasons) refuse
+> methods and have
+> interop way of explaining why.
+>
+> > #3) I don't understand the following text from 3.12:
+> > "(DAV:update-predecessor-set): If a version is deleted, any reference to
+> > that version in a DAV:predecessor-set MUST be replaced by a copy of the
+> > DAV:predecessor-set of the deleted version."  Does that mean that before
+> > deleting a version, the client must munge the predecessor-set
+> > properties of
+> > a bunch of other versions?
+>
+> Yes, potentially.  The postcondition is required to fix up the history to
+> show a continuous ancestry for the remaining versions.
+>
+> > But the predecessor-set is protected!
+>
+> ... from clients.  There are many examples of protected properties that a
+> server can/will modify.
+>
+> > Or does
+> > it mean that the server must update the predecessor-set before
+> performing
+> > the action, and if it cannot, it returns the error msg?  Please
+> > explain this
+> > better in the draft & to the list...
+>
+> It is a postcondition of the DELETE method for a version, therefore if it
+> cannot be made true it MUST be as though the method was never sent.  No
+> partial results will be left by the server, whether the fix up is done
+> before/after the action is up to the implementation -- the spec states
+> effectively that by the time 'the response is dispatched' the
+> postcondition
+> is true.  This is the same for all methods (not just DeltaV).
+>
+> > #4) Can situations arise where resources can have no versions?
+>
+> No.  Take a look at the 3.12 postcondition
+> (DAV:must-be-root-version): If the root version of a version history
+> is
+> deleted, there MUST be another version that is the new root version,
+> i.e. that is the ancestor of all other versions in the version
+> history.
+>
+> > I can
+> > actually think of two ways this might be achieved:
+> >  - A client deletes all the versions (but not the version-controlled
+> > resource)
+>
+> See above.
+>
+> >  - A null resource gets versioning turned on but no body is added
+>
+> A what? <g>
+>
+> > Must clients be able to deal with VCRs with zero versions?  If
+> > not, then we
+> > need to make a requirement on servers that they must not ever
+> create a VCR
+> > with zero versions.
+>
+> The way to create a version-controlled resource is with VERSION-CONTROL
+> which always creates a version-controlled resource based on a version.  If
+> the target resource was versionable the new version is created, or the
+> VERSION-CONTROL can reference an existing version in the request body.
+>
+> Tim
+
+
+

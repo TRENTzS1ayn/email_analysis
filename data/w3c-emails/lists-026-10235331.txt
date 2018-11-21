@@ -1,0 +1,251 @@
+docno="lists-026-10235331"
+received="Tue Apr 20 12:02:34 2004"
+isoreceived="20040420160234"
+sent="Tue, 20 Apr 2004 08:49:03 -0700"
+isosent="20040420154903"
+name="david.burdett@commerceone.com"
+email="david.burdett@commerceone.com"
+subject="RE: Abstract, portable and concrete choreographies ... a proposed solution??"
+id="975D1A379F57F34995874608D9FE8C910FE263@C1SCAMSG05.commerceone.com"
+charset="iso-8859-1"
+inreplyto="Abstract, portable and concrete choreographies ... a proposed solution??"
+expires="-1"
+
+
+To:<public-ws-chor@w3.org>
+
+Resending as yesterday evening's post did not seem to work ...
+ 
+David
+
+-----Original Message-----
+From: Burdett, David 
+Sent: Monday, April 19, 2004 10:02 PM
+To: WS Choreography (E-mail)
+Subject: Abstract, portable and concrete choreographies ... a proposed solution??
+
+
+ Recently there has been a lot of discussion on the list on the need for abstract, portable and/or concrete choreographies. Martin, and others, has also said that we need suggestions on actual specification changes that could be made to resolve the problem. So, earlier today, in an Editor's meeting, attended by Nick, Greg and myself, I came up with the following approach that could be used solve the problem building directly on the work that has already been done and promised to write it up and send it to the list ... so here it is. 
+
+Unfortunately, I won't be able to join the call to discuss these ideas tomorrow until around 2PM (pacific time) as I have another phone call I need to be on.
+
+David
+
+The Basic Idea 
+
+The basic idea of the approach is to:
+
+1.Keep the existing CDL as described in the current editor's copy of the spec essentially unchanged. 
+
+2.Define a new separate element called something like packageBinding, that could be used to: a) redefine selected parts of a Package as defined in the current spec, b) complete parts of a package that were "missing" from the original definition, or c) some combination of both. 
+
+3.From a processing perspective, the  choreography Package definition would be processed first to specify the initial values to be used, followed by zero or more PackageBinding elements, where information in the package binding(s) would replace the information specified in the original package or earlier packageBinding definitions.
+
+An example 
+
+An  example follows that describes how it would work. It is based on the package example given at the end of section "2.5.2.4 Interaction Life-Line" in the current version of the spec.
+
+The Original Package Definition
+
+First, the existing example copied from the spec with line numbers added for ease of reference and a few items added in italics which were missing from the original ... ;)
+
+ 1 <package name="ConsumerRetailerChoreo" version="1.0" 
+ 2   <informationType name="purchaseOrderType" type="pons:PurchaseOrderMsg"/> 
+ 3   <informationType name="purchaseOrderAckType" type="pons:PurchaseOrderAckMsg"/> 
+ 4   <token name="purchaseOrderID" informationType="tns:intType"/> 
+ 5   <token name="retailerRef" informationType="tns:uriType"/> 
+ 6   <tokenLocator tokenName="tns:purchaseOrderID" informationType="tns:purchaseOrderType" query="/PO/orderId"/> 
+ 7   <tokenLocator tokenName="tns:purchaseOrderID" informationType="tns:purchaseOrderAckType" query="/PO/orderId"/> 
+ 8   <role name="Consumer"> 
+ 9     <behavior name="consumerForRetailer" interface="cns:ConsumerRetailerPT"/> 
+10     <behavior name="consumerForWarehouse" interface="cns:ConsumerWarehousePT"/> 
+11   </role> 
+12   <role name="Retailer"> 
+13     <behavior name="retailerForConsumer" interface="rns:RetailerConsumerPT"/> 
+14   </role> 
+15   <relationship name="ConsumerRetailerRelationship"> 
+16     <role type="tns:Consumer" behavior="consumerForRetailer"/> 
+17     <role type="tns:Retailer" behavior="retailerForConsumer"/> 
+18   </relationship> 
+19   <channelType name="ConsumerChannel"> 
+20     <role type="tns:Consumer"/> 
+21     <reference> 
+22       <token type="tns:consumerRef"/> 
+23     </reference> 
+24     <identity> 
+25       <token type="tns:purchaseOrderID"/> 
+26     </identity> 
+27   </channelType> 
+28   <channelType name="RetailerChannel"> 
+29     <passing channel="ConsumerChannel" action="request" /> 
+30     <role type="tns:Retailer" behavior="retailerForConsumer"/> 
+31     <reference> 
+32       <token type="tns:retailerRef"/> 
+33     </reference> 
+34     <identity> 
+35       <token type="tns:purchaseOrderID"/> 
+36     </identity> 
+37   </channelType> 
+38   <choreography name="ConsumerRetailerChoreo" root="true"> 
+39     <relationship type="tns:ConsumerRetailerRelationship"/> 
+40     <variableDefinitions> 
+41       <variable name="purchaseOrder" informationType="tns:purchaseOrderType" silent-action="true" /> 
+42       <variable name="purchaseOrderAck" informationType="tns:purchaseOrderAckType" /> 
+43       <variable name="retailer-channel" channelType="tns:RetailerChannel"/> 
+44       <variable name="consumer-channel" channelType="tns:ConsumerChannel"/> 
+45     </variableDefinitions> 
+46     <interaction name="sendOrder" channelVariable="tns:retailer-channel" operation="handlePurchaseOrder" align="true" initiateChoreography="true"> 
+47       <participate relationship="tns:ConsumerRetailerRelationship" fromRole="tns:Consumer" toRole="tns:Retailer"/> 
+48       <exchange messageContentType="tns:purchaseOrderType" action="request"> 
+49         <use variable="cdl:getVariable(tns:purchaseOrder, tns:Consumer)"/> 
+50         <populate variable="cdl:getVariable(tns:purchaseOrder, tns:Retailer)"/> 
+51       </exchange> 
+52       <exchange messageContentType="purchaseOrderAckType" action="respond"> 
+53         <use variable="cdl:getVariable(tns:purchaseOrderAck, tns:Retailer)"/> 
+54         <populate variable="cdl:getVariable(tns:purchaseOrderAck, tns:Consumer)"/> 
+55       </exchange> 
+56       <record role="tns:Retailer" action="request"> 
+57         <source variable="cdl:getVariable(tns:purchaseOrder, PO/CustomerRef, tns:Retailer)"/> 
+58         <target variable="cdl:getVariable(tns:consumer-channel, tns:Retailer)"/> 
+59       </record> 
+60     </interaction> 
+61   </choreography> 
+62 </package> 
+
+
+A sample Package Binding 
+
+Given the example above, the following could be an example of a packageBinding. Bold text has been used to highlight what is different and notes the effect of each statement in the packageBinding ...
+
+63 <PackageBinding name="SampleBinding" ref= "ConsumerRetailerChoreo" version="1.0"> ; Note 1 
+64   <informationType name="purchaseOrderType" type="ordns:MyPurchaseOrder" /> ; Note 2 
+65   <informationType name="purchaseOrderAckType" type="ordns:MyPurchaseOrderAck" /> ; Note 2 
+66   <token name="purchaseOrderID" informationType= "tns:string" /> ; Note 3 
+67   <token name="retailerRef" informationType= "tns:string" /> ; Note 3 
+68   <tokenLocator tokenName="tns:purchaseOrderID" query= "/PO/header/orderId" /> ; Note 4 
+69   <tokenLocator tokenName="tns:purchaseOrderID" query= "/PO/header/orderId" /> ; Note 4 
+70   <role name="Consumer"> ; Note 5 
+71     <behavior name="consumerForRetailer" interface= "cns:ConsumerRetailerPT1" /> ; Note 5 
+72     <behavior name="consumerForWarehouse" interface= "cns:ConsumerWarehousePT1" /> ; Note 5 
+73   </role> ; Note 5 
+74   <interaction name="sendOrder" operation= "acceptOrder" ; Note 6 
+75   ... ; Note 7 
+xx </PackageBinding>
+
+... and now for the explanation:
+
+*Note1. Line 63 indicates the name of the binding, SampleBinding, and that the PackageBinding is referencing the ConsumerRetailChoreo package defined earlier (line 1). The package referenced should be processed first to provide the initial values to be used. 
+
+*Note 2. In the original package definition on lines 2 and 3, the purchaseOrderType and PurchaseOrderAckType identify the XML documents that are to be used for by the interaction in the choreography definition. The effect of lines 64 and 65 are to specify that different business documents in different names spaces are to be used instead. 
+
+*Note 3. These statements (lines 66 and 67) in the packageBinding, have the effect of changing the Token types of the PurchaseOrderId from integer to string (line 4), and changing the retailerRef from URI to string (line 5). 
+
+*Note 4. These statements (lines 68 and 69) have the effect of changing the queries on the original tokenLocator (lines 6 and 7) which is necessary because different business documents are being used - see Note 2. 
+
+*Note 5. These statements (lines 71 and 72) have the effect of changing the original WSDL definitions (lines 9 and 10) that are referenced for a particular behavior 
+
+*Note 6. This statement (line 74) has the effect of changing the operation on the original sendOrder interaction (line 46) 
+
+*Note 7. Other parts of the original package definition could be replaced in a similar way by a) referencing the relevant part of the original package, then b) providing the replacement value to use. Although probably not a complete list, this could also apply to: 
+- The complete attribute on the choreography element 
+- The guard and repeat attributes on a workunit element 
+- The time-to-complete attribute on an interaction 
+- The XPath expressions in the variable attribute on the use, populate, source and target child elements within an interaction element
+
+Using Package Bindings
+
+A package definition combined with packageBinding definitions can be used to meet several different use cases including:
+
+*Defining a concrete choreography in a single document 
+
+*Defining a fully abstract choreography 
+
+*Defining a concrete choreography based on an abstract choreography 
+
+*Defining a "portable" choreography that provides a partially complete definition 
+
+*Choreography reuse
+
+Each of these uses is discussed in turn ...
+
+Defining a concrete choreography in a single document
+
+A concrete choreography in a single document could be defined by creating a single package definition that contained everything required. This is more-or-less what the current CDL specification provides.
+
+Defining a fully abstract choreography
+
+A fully abstract choreography could be defined, by omitting from the original package definition, the parts of the choreography that can vary from implementation to implementation, for example instead of on line 2 defining the following ...
+
+ 2   <informationType name="purchaseOrderType" type="pons:PurchaseOrderMsg"/>
+
+... it would be defined without the type, as in ...
+
+ 2   <informationType name="purchaseOrderType"/> 
+
+Note that this informationType cannot be used directly as it has no type. The actual type to use could be defined in the packageBinding instead as described next.
+
+Defining a concrete choreography based on an abstract choreography
+
+To define a concrete choreography based on an abstract choreography you can define the parts missing from the "abstract" package definition in the packageBinding as in ...
+
+<package name="abcPackage" ... > 
+  ... 
+  <informationType name="purchaseOrderType"/> 
+  ... 
+</package> 
+... 
+... 
+<packageBinding ref="abcPackage" ... > 
+  ... 
+  <informationType name="purchaseOrderType" type="pons:PurchaseOrderMsg"/> 
+  ... 
+</packageBinding> 
+
+
+Defining a "portable" choreography that provides a partially complete definition
+
+On the list, a "portable" choreography has been described as being a choreography definition that lies somewhere between an abstract choreography and a concrete choreography. This can be handled within a packageBinding, by allowing a packageBinding to ref another packageBinding instead of a package, as in ...
+
+<package name="abcPackage" ... > 
+  ... 
+</package> 
+... 
+... 
+<packageBinding name="ghiBinding" ref="abcPackage" ... > 
+  ... 
+</package> 
+... 
+... 
+<packageBinding name="xyzBinding" ref="ghiPackage" ... > 
+  ... 
+</package>
+
+Note that the second packageBinding, xyzBinding, references an earlier packageBinding, ghiBinding, rather than a package. The sequence in which the packageBindings are linked together indicates the sequence in which the data in one packageBinding is used to replace the values given by an earlier packageBinding or package. With this approach it is  possible to define:
+
+*a completely "abstract" package definition that contains no definitions of anything that could be directly implemented 
+
+*a "portable" packageBinding that bound the abstract package definition to some of the things that must be implemented, e.g. the business documents that are to be exchanged, and then 
+
+*a "concrete" packageBinding that completed the portable packageBinding by adding all the other information required.
+
+Choreography reuse
+
+Another benefit of this approach is that it makes it possible to take a "concrete" package definition that defines everything required and then treat it as if it is an abstract package definition by overriding the information in the original package definition with a packageBinding.
+
+Import Statements
+
+If we want to adopt this approach, then we need to simplify the current definition of an import statement so that it is nothing more than a way of combing definitions together. It no longer means that one import overrides an earlier definition.
+
+David
+
+Director, Standards Strategy
+Commerce One
+One Market Street, Steuart Tower, Suite 1300, San Francisco, CA 94105, USA
+Tel/VMail: +1 (415) 644 8749; Cell: +1 (925) 216 7704
+< mailto:david.burdett@commerceone.com>; Web: < http://www.commerceone.com <http://www.commerceone.com/> >
+
+
+ 
+
+
+

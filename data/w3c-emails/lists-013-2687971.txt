@@ -1,0 +1,158 @@
+docno="lists-013-2687971"
+received="Fri Aug 30 12:59:12 2002"
+isoreceived="20020830165912"
+sent="Fri, 30 Aug 2002 10:59:11 0600 (MDT)"
+isosent="20020830165911"
+name="Alex Rousskov"
+email="rousskov@measurementfactory.com"
+subject="correcting corrected_initial_age"
+id="Pine.BSF.4.44.0208241309570.66977-100000@measurementfactory.com"
+charset="USASCII"
+expires="1"
+
+To:ietf-http-wg@w3.org
+
+
+
+Hi there,
+
+We are testing a couple of RFC 2616 MUSTs related to
+current_age calculation. Many proxies violate a subset of test cases
+that includes an artificial proxy-to-server delay. Looking at the
+results, I think that the proxies are doing the "right thing" and the
+RFC has a problem.
+
+I will start with a specific example when current_age formula
+from the RFC yields a way-too-conservative and unnatural result (100%
+error). I will then describe the problem and suggest a fix.
+
+I understand that a way-too-conservative age does not lead to
+stale documents being returned. However, if we want proxies to be
+compliant, we may want to fix/mention the problem in the errata or
+elsewhere. Otherwise, the more problems like that are left unaddressed
+(ignored), the more difficult it would be to convince implementors to
+pay attention to the RFC.
+
+Perhaps I got it all wrong, please check!
+
+
+A simple example
+----------------
+
+Here is a real and simple example that detected the problem with the
+original current_age formula from "13.2.3 Age Calculations". The
+absolute values of timestamps below ("0" and "7") have no
+significance.
+
+   time event
+   ---- ------------------------------------------------------------
+    0.0 client request generated
+    0.0 client request reached the proxy, it is a MISS
+    0.0 proxy request to origin server is generated
+    0.0 proxy request reached the origin server
+    0.0 server response generated with Date correctly set to 0, no Age header
+    -- a network delay of 7 seconds --
+    7.0 server response reached the proxy
+    7.0 proxy cached the response
+    7.0 proxy forwarded the response
+    7.0 the response reached the client
+    7.0 another client request for the same URL generated
+    7.0 client request reached the proxy, it is a HIT
+    7.0 proxy must compute Age header value, see math below
+
+Following RFC 2616:
+
+    age_value = 0             (the cached response has no Age header)
+    date_value = 0            (the cached response has Date set to 0)
+    request_time = 0          (the proxy generated request at time 0)
+    response_time = 7         (the proxy received response at time 7)
+    now = 7                   (the current time is 7)
+
+    apparent_age = max(0, response_time - date_value) = 7
+    corrected_received_age = max(apparent_age, age_value) = 7
+    response_delay = response_time - request_time = 7
+    corrected_initial_age = corrected_received_age + response_delay = 14
+    resident_time = now - response_time = 0
+    current_age   = corrected_initial_age + resident_time = 14
+
+The true age is, of course, 7 and not 14. The above formulas just double true
+current age in the case of a network delay between the proxy and the origin
+server. The fixed formula (see below for the discussion) does not:
+
+ current_age = now - min(date_value, request_time - age_value) =
+             = 7 - max(0, 0 - 0) = 7
+
+N.B. If the proxy computes Age header for misses and uses that as
+age_value when serving hits, the formulas yield the same result.
+
+
+The Problem
+-----------
+
+RFC 2616 says:
+
+   Because the request that resulted in the returned Age value must have
+   been initiated prior to that Age value's generation, we can correct
+   for delays imposed by the network by recording the time at which the
+   request was initiated. Then, when an Age value is received, it MUST
+   be interpreted relative to the time the request was initiated...
+   So, we compute:
+
+      corrected_initial_age = corrected_received_age
+                            + (now - request_time)
+
+I suspect the formula does not match the true intent of the RFC
+authors. I believe that corrected_initial_age formula counts
+server-to-client delays twice. It does that because the
+corrected_received_age component already accounts for one
+server-to-client delay. Here is an annotated definition from the RFC:
+
+   corrected_received_age = max(
+     now - date_value, # trust the clock (includes server-to-client delay!)
+     age_value)        # all-HTTP/1.1 paths (no server-to-client delay)
+
+I think it is possible to fix the corrected_initial_age formula to
+match the intent (note this is the *initial* not *received* age):
+
+   corrected_initial_age = max(
+     now - date_value,                # trust the clock (includes delays)
+     age_value + now - request_time)  # trust Age, add network delays
+
+There is no need for corrected_received_age.
+
+
+Moreover, it looks ALL the formulas computing current_age go away with
+the above new corrected_initial_age definition as long as "now" is
+still defined as "the current time" (i.e., the time when current_age
+is calculated):
+
+   current_age = corrected_initial_age
+
+So, we end up with a single formula for all cases and all times:
+
+ current_age = max(now - date_value, age_value + now - request_time) =
+             = now - min(date_value, request_time - age_value)
+
+It even has a clear physical meaning -- the min() part is the conservative
+estimate of object creation time. We could rewrite for clarity:
+
+  creation_time = min(date_value, request_time - age_value);
+  current_age = now - creation_time;
+
+
+Am I missing something important here? If I am right, and the current
+formulas count server-to-client delays twice, is it worth mentioning
+in the errata or elsewhere as a bug? Or should we insist that
+implementations use current_age calculation from the RFC anyway?
+
+Thank you,
+
+Alex.
+
+-- 
+                            | HTTP performance - Web Polygraph benchmark
+www.measurement-factory.com | HTTP compliance+ - Co-Advisor test suite
+                            | all of the above - PolyBox appliance
+
+
+

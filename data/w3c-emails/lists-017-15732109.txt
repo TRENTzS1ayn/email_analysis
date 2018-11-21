@@ -1,0 +1,204 @@
+docno="lists-017-15732109"
+received="Tue Dec 10 15:26:07 2002"
+isoreceived="20021210202607"
+sent="Tue, 10 Dec 2002 15:20:44 0500"
+isosent="20021210202044"
+name="David Holmes"
+email="dholmes@tibco.com"
+subject="Re: Issue-0079: String-value vs. string-value of the typedvalue"
+id="339902DC0E58D411986A00B0D03D843201C020DF@extmail.rtp.tibco.com"
+charset="iso-88591"
+inreplyto="Issue-0079: String-value vs. string-value of the typedvalue"
+expires="1"
+
+
+To:"'public-qt-comments@w3.org'"<public-qt-comments@w3.org>
+
+
+I would like to propose an alternative view to Jeni's suggestion that "it
+would be a mistake to state that the string-value() of an element (or
+attribute) is the string value of its typed-value()".  I hope also that my
+proposal might encourage further discussion in the following related areas:
+
+1) Issue 0079 (Data Model): String-value vs. string-value of the typed-value
+2) Issue 0080 (Data Model): Typed value of Document, PI and Comment nodes.
+3) The idea that a text node typed value is just xs:anySimpleType.
+4) The idea that <xsl:value-of> creates a string.
+
+Apologies in advance to Jeni Tennison if this seems highly contrary to your
+view.  I hope I can convince you this approach has merit, especially since I
+think it meshes well with your other proposal on "sequence-constructors"
+which I whole-heartedly agree with!
+
+0079: String-value vs. string-value of the typed value
+=====================================
+
+Before addressing the issues above, and Jeni's message, I would like to
+identify three value spaces then walk through some simple examples to see
+how they are related.  The value spaces (meanings in parenthesis) are:
+
+i) Lexical-value (serialized form)
+ii) String-value (xs:string that results from some XPath/XQuery function).
+iii) Typed-value (atomic-value*)
+
+The first case I will consider is an XML source without type information
+(i.e. parsed without a schema).  In this case, attribute values will have
+the type annotation xs:anySimpleType and are essentially opaque.  The string
+value is the same as the lexical value.  The typed value of the attribute is
+of xs:anySimpleType and the string-value() of the typed-value is the same as
+the lexical value.  So far this discussion does not inform the real nature
+of the string-value. To some, talking about the string-value is synonymous
+with talking about the lexical value ("those who think of XML as marked up
+text"), while to others this is just a coincidence born out of the un-typed
+case I have just described.
+
+Now consider the case of an XML source with type information and what
+happens to an xs:decimal("01") and an xs;QName("foo:bar") (forgive the
+constructor hand-waving and assume that both types are fully parsed and
+expanded respectively).  The lexical values are clearly not open to dispute
+being "01" and "foo:bar".  The typed values are 1 and the uri/local-name
+pair (uri corresponding to foo, baz).  The string value (as defined by XPath
+1.0) is "1" for the xs:decimal and undefined for the xs:QName.  The point I
+would like to make here is that string-value is only tenuously connected to
+the lexical value and we have some choice to define string-value so that we
+strike the right balance between backwards compatibility and usefulness.  I
+believe that the best way to define the string-value is the canonical string
+value of the typed-value and not as the lexical value (OK, so now I have to
+define "canonical" - I'm getting to that!).  While this may at first appear
+offensive to those who in Jeni's words, "think of XML as marked up text", I
+believe that upon deeper analysis the objections melt away and everyone
+wins. I'm going to conclude this second use case by making the following
+suggestion:  The canonical value has it's conventional meaning i.e.
+xs:double("32") has a canonical string value of "3.2E1" (or something like
+that ;)), and the canonical string value of an xs:QName is
+"{namespace-uri}local-name".  I'll attempt to explain why this makes sense.
+First, using the example of an xs:double (and to address one of Jeni's
+points) what is the string value of the following content?:
+
+<value xsi:type="xs:double">32</value>
+
+Unfortunately for Jeni, XPath 2.0 defines it to be "3.2E1". Yes, that's
+different from XPath 1.0, but at least it is consistent with the parsing
+rules. However, Jeni, you did tell me the type so how can you complain?
+Besides, if you are really concerned about format then you should not rely
+on the lexical form you were given and should use formatting functions.
+Harsh but fair don't you think? ;)
+
+The string value of the xs:QName follows from the need for the string value
+to be context-free.  Since string-value of a complex type does not contain
+markup (and therefore no prefix mappings), information is best preserved if
+the result is made as context-free as possible.  
+
+Without defining all the rules for string-value (leave that to the spec
+editors), this analysis leads me to two general principles for string-value:
+
+1) Canonical.
+2) Context-free.
+
+This appears to create a contradiction in one of Jeni's examples which I
+also reproduce here:
+
+<foo xmlns:bar="http://www.example.com/" xsi:type="xs:QName">
+bar:baz
+</foo>
+
+The string value by rule #2 is "{http://www.example.com/"}baz"
+
+Now, if the content was untyped then the string value is "bar:baz" because
+it's just an xs:anySimpleType.  Is this a contradiction? Did we "loose"
+information? Well not really.  If you don't know the type then you can't
+conclude that "bar" in bar:baz is a prefix. So you might as well not have
+the prefix mapping xmlns:bar="..." and so what information have you really
+lost?
+
+Addressing another of Jeni's examples - the case of mixed content:
+
+<foo xsi:type="fooType">
+   blah <bar>blah</bar> blah
+</foo>
+
+The string value of the foo element *can* be obtained from it's typed value
+- it's not an error. Here I'll assert that the typed value of <foo> is the
+sequence obtained by concatonating the typed value of all the child nodes
+(atomization of the child node sequence).  Important to note here that this
+definition inverts the algorithm defined in the Data Model spec which
+pre-supposes that a string value is available and constructs a typed value
+based on that.  Since the type of the <bar> element is not specified in
+Jeni's example then it is impossible to say whether the string value yieds
+"CRLFblah blah blahCRLF" or something similar with the middle "blah"
+expanded.  In general this kind of ambiguity does not create a problem
+because users doing string-value over mixed content are unlikely to
+encounter types (like xs:QName) that expand into something surprising (they
+deal in Annula Reports and Shakespeare plays).  Conversely, users who "think
+of XML as serialized data" are unlikely to be doing string-value over mixed
+content. Anyone else working on documents that contain XPath expressions and
+QNames (like XSDL, WSDL, XSD) should be aware of the pitfalls.
+
+
+0080: Typed value of document, PI, comment nodes
+======================================
+
+With the "atomization" for elements approach outlined above it is also
+possible to define what the typed value and string value of a document node
+should be because they use the same algorithm.  The typed value of PI's and
+comments can also be brought into the fold as xs:string.
+
+Text nodes should not be restricted to returning xs:anySimpleType for the
+typed value.
+==============================================================
+
+I would also suggest that text nodes be allowed to return a type other than
+xs:anySimpleType.  The normalization rules for text nodes make it possible
+to think of text nodes as typed values which are bound to elements or
+documents.  However, text nodes don't have type annotations.  I strongly
+believe that allowing text nodes to return typed-values other than simple
+types will be key to making the Data Model spec feasible to implement.
+Without it, a data model would have to perform endless calculations and
+caching as the user alternates between the typed view and the text-node
+view.  I would also almost go so far as to say that the dm:string-value
+accessor on the Data Model is redundant because it can be calculated from
+the typed value, but for performance reasons with untyped data it probably
+should be retained.
+
+<xsl:value-of> and <xsl:text> don't create strings!
+====================================
+
+Having these instructions generate strings as opposed to typed values makes
+it impossible to correctly emit an xs:QName.  The correct approach here is
+for these instructions to first create a sequence through their appropriate
+sequence constructors (select attribute or "content-constructor") which is
+then atomized to create a typed value.  That typed value then creates a text
+node or a series of atomic values depending upon the output context (for
+XSLT this context is usually a Data Model node, but the creation of
+sequences is possible).  These instructions are also converging and probably
+should share the same syntax (excepting the actual tag name. Both should
+have optional select expressions or sequence(content) constructors like
+xsl:variable.  Implementations must deal with separators carefully but the
+approach is conceptually simple - rendering should be delayed as long as
+possible because serialization of an atomic value is, in general, context
+dependent.  In general I believe that conceptual simplifications occur in
+the XSLT specification if the Data Model concept of sequences and
+typed-values are embraced as being the first-class citizens and intermediate
+string values and fragments are shunned as being a bottleneck for
+type-enabling XSLT.  I also believe that this can be done in a way that
+minimises backwards compatibility issues (even though these are a *should*
+in the RFC) and above all in a way that makes sense of the string-value
+concept.
+
+Cheers
+
+David Holmes
+dholmes@tibco.com
+
+
+
+
+
+
+
+
+
+
+
+
+

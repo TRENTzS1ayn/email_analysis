@@ -1,0 +1,195 @@
+docno="lists-019-7794399"
+received="Thu Oct 16 14:30:59 2003"
+isoreceived="20031016183059"
+sent="Thu, 16 Oct 2003 11:30:57 -0700"
+isosent="20031016183057"
+name="Michael Rys"
+email="mrys@microsoft.com"
+subject="RE: XQuery"
+id="EB0A327048144442AFB15FCE18DC96C701069306@RED-MSG-31.redmond.corp.microsoft.com"
+charset="us-ascii"
+inreplyto="XQuery"
+expires="-1"
+
+
+To:"Guido Moerkotte"<moerkotte@informatik.uni-mannheim.de>,"Michael Brundage"<xquery@comcast.net>,"Kay, Michael"<Michael.Kay@softwareag.com>,<public-qt-comments@w3.org>
+Cc:<moer@pi3.informatik.uni-mannheim.de>
+
+
+Re 2):
+
+As Michael B. pointed out in his reply, erroring in 2 makes rewrites
+harder to understand for the user.
+
+In addition, in XPath/XQuery, = and predicates in general are mapped to
+an existential quantification, so even if you have three valued logic,
+existential quantification normally maps the third-value to false. This
+design is in the language for two reasons:
+
+1. XPath 1.0 did it.
+2. Existential quantification on predicates is the more natural
+semantics if you operate on semi-structured data.
+
+This leaves as one solution that you move the casting and atomization
+into the comparison operator. In that case, you can change the error
+into () or false. But that is still messy since it special cases these
+operators...
+
+If we return () for a comparison if the type cast or atomization fails,
+we will at least always return false on the existential comparisons
+(assuming you are using a value compare (eq and friends) and not an
+existential general compare (=).
+
+Best regards
+Michael
+
+
+> -----Original Message-----
+> From: Guido Moerkotte [mailto:moerkotte@informatik.uni-mannheim.de]
+> Sent: Thursday, October 16, 2003 2:21 AM
+> To: Michael Brundage; 'Kay, Michael'; public-qt-comments@w3.org
+> Cc: Michael Rys; moer@pi3.informatik.uni-mannheim.de
+> Subject: Re: XQuery
+> 
+> Hello,
+> 
+> This looks to me like it it's becoming a very interesting discussion.
+> Thanks to all who contributed.
+> 
+> Let met summarize what we have achieved so far:
+> 
+> 1) We detected indeterminism in XQuery.
+>    (Thanks to Michael Brundage and Michael Rys)
+>    In fact this indeterminism may show up
+>    a) in different implementations of XQuery.
+>    b) within the same implementation if (e.g. over time due to
+changing
+> statistics)
+>       different query evaluation plans are chosen.
+> 
+>    My oppinion on indeterminism (and I think Michael Brundage might
+> agree):
+>      Indeterminism sucks!
+>    I don't know any programming language that is indeterministic.
+>    Assume Java would be. How about debugging? Portability?
+> Maintainability? Applets? Nightmare!
+>    Query languages should be deterministic for the same reason.
+> 
+> 2) Some of us would like the query not to fail.
+> 
+>    Just as a reminder:
+>    document:
+>      <?xml version = "1.0"?>
+>      <persons>
+>       <person name="anton" age="two and a half"/>
+>       <person name="anna"  age = "3"/>
+>      </persons>
+>    query:
+>      for $p in document("p.xml")//person
+>      where $p/@age = 3
+>      return $p/@name
+> 
+>   Let me quote some Michaels on the issue:
+>   Michael Kay: "I think the comparison should return false."
+>   Michael Rys: "Making the expression to fail with false would be
+nice,
+> but the problem
+>                 is that the cast raises the error before we get to the
+> comparison."
+> 
+>   I would like to argue that returning false is *NOT* a good solution.
+>   But first, let us assume that returning false is a good solution.
+>   Then, we would have to implement this solution and define a
+semantics
+> for it.
+>   How do we implement it. As was pointed out by Michael Rys. It is not
+the
+> comparison that
+>   raises the exception. It is the conversion operator. Hence, the
+> comparison would have
+>   to catch the exception and return false. The question now is, which
+> exceptions should
+>   the comparison catch? There might be many and it may not be all
+> exceptions.
+>   This is nasty to implement. Difficult to understand for an XQuery
+user
+> and
+>   the semantics will be a mass.
+> 
+>   This was my first argument against returning false.
+>   Here comes my second argument.
+>   Consider the following query:
+> 
+>    for $p in document("p.xml")//person
+>    where not($p/@age = 3)
+>    return $p/@name
+> 
+>   You might not agree but in my oppinion this query should return the
+> empty sequence.
+>   Why? Definitely, Anna's age is three and hence here element should
+not
+> qualify.
+>   Anton's age is "two and a half". We can't convert this to a number.
+> Hence, the
+>   true age of Anton is unknown to the system. It may be 3 but it may
+also
+> not be.
+>   This becomes more obvious if you change Anton's age to "three".
+> 
+>   Hence, the only choice I see is to let the conversion return NULL.
+>   Comparison with NULL always gives "UNKNOWN" (not "true", not
+"false").
+>   Any query language I know of states that only those variables
+bindings
+> qualify for
+>   which the evaluation of the predicate stated in the "where" clause
+> returns "true".
+>   Those returning "false" or "unknown" don't qualify.
+> 
+>   Now, comes my next argument why introducing NULL and three-valued
+logic
+> into XQuery is
+>   a good idea.
+>   Obviously, there is something wrong with the document.
+>   And as was correctly pointed out by Michael Kay:
+>   "...there are many constraints that
+>    cannot be expressed in a schema or DTD - not only cross-document
+>    constraints, but also contextual constraints (a date must be in the
+> future)
+>    and constraints that are too complex to express in a given schema
+> language
+>    (e.g. if @x=1 then @y must be present)."
+>   Further, I know a company that makes a living out of providing tools
+for
+> checking
+>   consistency/integrity of document collections.
+>   Now, XQuery comes into play.
+>   Assume that I'm suspicious about my above document.
+>   Can I check that with simple XQuery?
+>   I can easily, if we have NULL values:
+> 
+>     for $p in document("p.xml")//person
+>     where is_null((number) $p/@age)  /* not exactly XQuery syntax,
+sorry
+> */
+>     return $p/@name
+> 
+>   Hence, even for somewhat inconsistent documents that might very well
+> exist
+>   due to evolution over time, integration from different source,
+> conversions, ...
+>   I know have a powerful tool (XQuery) to find out about those parts
+that
+> are not
+>   exactly what they should be.
+> 
+> 
+>   After writing this, I really look forward to your arguments
+>   a) in favor of Indeterminism
+>   b) against NULL and three-valued logic.
+> 
+> Best
+>  Guido
+
+
+

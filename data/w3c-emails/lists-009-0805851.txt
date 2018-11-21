@@ -1,0 +1,95 @@
+docno="lists-009-0805851"
+received="Thu Dec 15 00:48:23 1994"
+isoreceived="19941215054823"
+sent="Thu, 15 Dec 1994 00:46:05 0800"
+isosent="19941215084605"
+name="Roy T. Fielding"
+email="fielding@avron.ICS.UCI.EDU"
+subject="Re: HTTP Caching Model?"
+id="9412150046.aa28029@paris.ics.uci.edu"
+inreplyto="9412142143.AA06326&#64;ulua.hal.com"
+expires="1"
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+I wrote:
+>>  2) Patch the current model by adding a "Variants:" header like
+>>
+>>        Variants: text/html;qs=1;bs=9653;ua="Mozzilla",
+>>                  text/html;qs=0.9;bs=8753,
+>>                  text/plain;qs=0.2;bs=7989,
+>>                  text/plain;qs=0.3;bs=8989;lang="en/gb",
+>>                  application/postscript;qs=0.7;bs=90267
+>>
+>>     which would ONLY be sent when the given URI allows variants;
+
+and Dan replied:
+
+> This is kinda humorous... the answer has been in the spec all along:
+> ...
+> 
+> URI-header      =       "URI" ":" 1#( URI [";" vary] )
+> vary            =       "vary" "=" <"> 1#vary-param <">
+> vary-param      =       "type" / "language" / "version" / "encoding"
+>                 /       extension-vary
+> extension-vary  =       token
+> 
+
+No, that isn't enough information to allow a proxy to decide
+what is available.  For instance, let's say we have the same document
+in four natural languages: English (en), French (fr), Spanish (es),
+and Maori (mi).  Under the current scheme, the proxy would make its
+first request for Jacque (Accept-Language: fr) and get:
+
+    Content-Language: fr
+    URI: <http://www.roy.com/Maori/museum>;vary="language"
+
+    Bonjour -- uma rapate, uma rapate, uma uma uma
+
+so the proxy could be smart enough to keep track that this is the
+French version.  Okay, so Charles requests the same document
+w/(Accept-Language: en).  Knowing that it only has a French version,
+the proxy can pass the request on and get:
+
+    Content-Language: en
+    URI: <http://www.roy.com/Maori/museum>;vary="language"
+
+    G'day mate, welcome to my museum of New Zealand native culture.
+
+No problem so far -- we now have both the French and English versions
+cached.  Unfortunately (in more ways than one ;-), our next request comes
+from Hone Heke w/(Accept-Language: mi;q=1, en;q=0.2).  He wants to see the
+version in Maori:
+
+    Content-Language: mi
+    URI: <http://www.roy.com/Maori/museum>;vary="language"
+
+    Teenaa koutou katoa, Aotearoa haere mai!  Ke te pehea koe?
+    
+and he's going to be very upset when he gets the English version
+instead.  But, as far as the proxy can tell, that is the only acceptable
+version available.
+
+The same problem is generic to all the negotiated dimensions.  There are
+only three solutions that preserve transparent behavior:
+
+1) Have the proxy revert to the source if it receives a request which
+   includes a variant category that has not already been cached;
+
+2) Tell the proxy about all the possible variants so that it can make
+   the decision itself;
+
+3) Use URCs so that the decision can be made within the client and not
+   as part of the request.
+
+I think we can live with (1) for HTTP/1.0, but we should change to (3)
+for the next version.
+
+
+......Roy Fielding   ICS Grad Student, University of California, Irvine  USA
+                                     <fielding@ics.uci.edu>
+                     <URL:http://www.ics.uci.edu/dir/grad/Software/fielding>
+
+
+

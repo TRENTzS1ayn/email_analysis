@@ -1,0 +1,145 @@
+docno="lists-009-0776801"
+received="Wed Dec 14 13:55:10 1994"
+isoreceived="19941214185510"
+sent="Wed, 14 Dec 1994 15:43:17 0600"
+isosent="19941214214317"
+name="Daniel W. Connolly"
+email="connolly@hal.com"
+subject="Re: HTTP Caching Model?"
+id="9412142143.AA06326@ulua.hal.com"
+inreplyto="9412132125.aa15482&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+In message <9412132125.aa15482@paris.ics.uci.edu>, "Roy T. Fielding" writes:
+>
+>Since, in reality, only a small portion of URI space is capable of
+>generating variants, I think a more general solution would be to have
+>the server explicitly declare what variants are available (if any)
+>as part of the response metainformation.
+
+So back to my question of "where do we assign the fault?" you're
+saying we should assign it to the origin server for not telling the
+proxy that there were variants.
+
+It seems like Mitra and Brian would agree.
+
+Seems like a workable strategy, now that I think about it:
+
+And I seem to recall that Tony Sanders gave an explanation* of the
+URI: (aka Location:) header a while back that would solve this problem.
+
+* http://www.research.digital.com/nsl/formtest/home.html
+
+>  2) Patch the current model by adding a "Variants:" header like
+>
+>        Variants: text/html;qs=1;bs=9653;ua="Mozzilla",
+>                  text/html;qs=0.9;bs=8753,
+>                  text/plain;qs=0.2;bs=7989,
+>                  text/plain;qs=0.3;bs=8989;lang="en/gb",
+>                  application/postscript;qs=0.7;bs=90267
+>
+>     which would ONLY be sent when the given URI allows variants;
+
+
+This is kinda humorous... the answer has been in the spec all along:
+
+=======================
+7.9 URI Header
+
+The URI-header field contains a URI by which the object may be
+found. It should not be confused with the token in the Request-Line
+described in Section 5.4. As for a normal request, there is no
+guarantee that the object can be retrieved using the URI
+specified. The field is normally a part of a response having
+Status-Code "301 Moved Permanently" or "302 Moved Temporarily".
+
+URI-header      =       "URI" ":" 1#( URI [";" vary] )
+vary    =        "vary" "=" <"> 1#vary-param <">
+vary-param      =       "type" / "language" / "version" / "encoding"
+        /       extension-vary
+extension-vary  =       token
+=======================
+
+
+When a server returns an entity in response to a GET query on a URI,
+it can give a URI header, which specifies the set of entities that
+represent the accessed resource (at that time, or between the
+Last-Modified and the Expires times).
+
+We can describe the current practice by saying that when no URI:
+header is given in response to GET xxx, the client should assume:
+
+URI: xxx
+
+That is, the resource indicated by xxx has exactly one representation
+(at that time).
+
+If a URI yyy has representations that vary based on preferred content
+type, language, and user agent, the server should return:
+
+URI: yyy; vary="type,language,user-agent"
+
+The vary parameter tells a caching proxy exactly what headers it must
+keep in its "cache-key."
+
+This meshes happily with current practice, to a large extent.
+
+The only changes requred are that
+
+* when a server returns a representation of a resource, if
+it has other representations of that resource, it _must_ give
+an appropriate URI: header.
+
+* caching proxies _must_ take URI: headers into account when
+looking for cache hits. (The quick and dirty implementation is
+to not cache any responses with URI: headers).
+
+
+Hmmm... as I recall, TimBL or Tony S once explained that ideally, if
+a server has a document in text, html, and postscript in english, french,
+and german, and it's returning the french postscript, it should return:
+
+200 Document follows
+Date: Wed Dec 14 15:34:19 CST 1994
+Last-Modified: Wed Dec 14 10:34:19 CST 1994
+URI: http://this.host/path/to/multi;
+vary="language,type"
+URI: http://this.host/path/to/multi.ps;
+vary="language"
+URI: http://this.host/path/to/multi-french;
+vary="type"
+URI: http://this.host/path/to/multi-french.ps
+Content-Type: application/postscript
+
+%!PS-Adobe 2.0
+...
+
+So the client user can make a link to:
+
+* the multiformat document
+* the postscript represenation (in any language)
+* the french representation (in any format)
+* the postscript, french version
+
+And the caching proxy would create 4 cache entries.
+
+This is the ideal case. At a minimum, the server must return:
+
+200 Document follows
+URI: http://this.host/path/to/multi;
+vary="language,type"
+Content-Type: application/postscript
+
+%!PS-Adobe 2.0
+...
+
+And the caching proxy could just not cache that response.
+
+Dan
+
+
+

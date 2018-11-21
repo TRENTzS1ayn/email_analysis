@@ -1,0 +1,357 @@
+docno="lists-036-5615645"
+received="Sun Aug 31 13:30:31 2003"
+isoreceived="20030831173031"
+sent="Sun, 31 Aug 2003 12:50:18 -0400"
+isosent="20030831165018"
+name="Al Gilman"
+email="asgilman@iamdigex.net"
+subject="Re: URI reference to a directory (what do you want to do?)"
+id="5.1.0.14.2.20030831121526.0234a9e0@pop.iamdigex.net"
+charset="us-ascii"
+inreplyto="0d9c01c36fe2$d4530b10$a7357395&#64;stil.scitex.com"
+expires="-1"
+
+
+To:"Israel Viente"<israel_viente@il.vio.com>,<uri@w3.org>
+
+
+At 01:10 PM 2003-08-31, Israel Viente wrote:
+
+>Thanks for your answer. Sorry about the wrong base URI "file://e:/f/g" - my
+>stupid mistake.
+>
+>If I understood correctly, as far as it specified in the RFC :
+>
+>Base URI  :  "file:///e:/f/g"
+>Relative URI : "../h"
+>Resolved URI : "file:///e:/f/h"
+>
+>Base URI  :  "file:///e:/f/g/" (note the trailing slash).
+>Relative URI : "../h"
+>Resolved URI : "file:///e:/f/g/h"
+>
+>According to:
+> >     o  Return a string consisting of the reference's path component
+> >        appended to all but the last segment of the base URI's path (i.e.,
+> >        any characters after the right-most "/" in the base URI path are
+> >        excluded).
+>Since there are no characters after the right most "/" in the base URI
+>"file:///e:/f/g/" , g will not be excluded.
+
+That part is right.  But the answers above are not right yet.
+In the reference algorithm, which I have shortened to focus on your example:
+
+<quote cite=
+"http://gbiv.com/protocols/uri/rev-2002/draft-fielding-uri-rfc2396bis-03.txt"
+whereItSays=
+"5.2 Obtaining the Referenced URI">
+
+       --
+       ...
+       if defined(R.scheme) then ...
+       else
+          if defined(R.authority) then ...
+          else
+             if (R.path == "") then ...
+             else
+                if (R.path starts-with "/") then
+                   T.path = remove_dot_segments(R.path);
+                else
+                   T.path = merge(Base.path, R.path);  <<<< you got this 
+step right
+                   T.path = remove_dot_segments(T.path); <<<< missed this 
+step, this time
+                endif;
+                T.query = R.query;
+             endif;
+             T.authority = Base.authority;
+          endif;
+          T.scheme = Base.scheme;
+       endif;
+
+</quote>
+
+>Am I right ?
+
+Almost.  See above.
+
+I think the following are correct examples <cross fingers and hope/>:
+
+Base URI  :  "file:///e:/f/g"
+Relative URI : "../h"
+Resolved URI : "file:///e:/h"
+
+Base URI  :  "file:///e:/f/g"
+Relative URI : "./h"
+Resolved URI : "file:///e:/f/h"
+
+Base URI  :  "file:///e:/f/g"
+Relative URI : "/h"
+Resolved URI : "file:///h"
+
+Base URI  :  "file:///e:/f/g"
+Relative URI : "h"
+Resolved URI : "file:///e:/f/h"
+
+-- add terminal slash to base
+
+Base URI  :  "file:///e:/f/g/"
+Relative URI : "../h"
+Resolved URI : "file:///e:/f/h"
+
+Base URI  :  "file:///e:/f/g/"
+Relative URI : "./h"
+Resolved URI : "file:///e:/f/g/h"
+
+Base URI  :  "file:///e:/f/g/"
+Relative URI : "/h"
+Resolved URI : "file:///h"
+
+Base URI  :  "file:///e:/f/g/"
+Relative URI : "h"
+Resolved URI : "file:///e:/f/g/h"
+
+-- check me on that...
+
+Al
+
+>----- Original Message -----
+>From: "Al Gilman" <asgilman@iamdigex.net>
+>To: "Israel Viente" <israel_viente@il.vio.com>; <uri@w3.org>
+>Sent: Sunday, August 31, 2003 5:22 PM
+>Subject: Re: URI reference to a directory (what do you want to do?)
+>
+>
+> > At 06:31 AM 2003-08-31, Israel Viente wrote:
+> > >I'm just trying to understand how should one resolve a relative URI
+> > >reference according to a Base URI.
+> > >
+> > >If I have a Base URI
+> > >"file://e:/f/g"
+> > >
+> > >and a Relative URI
+> > >"../h"
+> > >
+> > >It can influence the resolving URI in case the 'g' above is a file or a
+> > >directory. (Lets assume 'g' file and 'g' directory exist in
+>"file://e:/f").
+> > >
+> > >In case g is a directory : Resolved URI would be "file://e:/f/h"
+> > >In case g is a file          : Resolved URI would be "file://e:/h"
+> >
+> > No, the answer does not depend on whether g is a directory or a file.
+> >
+> > The reference algorithm given in section 5. of the RFC draft that you
+>cited
+> > takes no note of the object class of the resource identified by any URI.
+> > It is a purely syntactic transform on two strings, the base and the
+>reference,
+> > to obtain a resolved result.
+> >
+> > The right answer in this case is always
+> >
+> >    file://e:/h
+> >
+> > even 'though it is extremely likely that this URI is wrong,
+> > because the Base it started with is wrong.  [Not for the reasons you
+>think.]
+> >
+> > The file or directory that you want is probably correctly identified by
+>the URI
+> >
+> >    file:///e:/h
+> >
+> > Note the third slash character.  Here the 'localhost' [naming]
+> > authority has been elided and left implied.  The likelihood is that the
+>Base
+> > should have been "file:///e:/f/g" .
+> >
+> > In the document you cited, may I draw your attention to the language:
+> >
+> > <quote cite=
+> >
+>"http://gbiv.com/protocols/uri/rev-2002/draft-fielding-uri-rfc2396bis-03.txt"
+> > whereItSays="5.2 Obtaining the Referenced URI">
+> >
+> >
+> >     The pseudocode above refers to a merge routine for merging a
+> >     relative-path reference with the path of the base URI.  This is
+> >     accomplished as follows:
+> >
+> > <snip/>
+> >
+> >     o  Return a string consisting of the reference's path component
+> >        appended to all but the last segment of the base URI's path (i.e.,
+> >        any characters after the right-most "/" in the base URI path are
+> >        excluded).
+> >
+> > </quote>
+> >
+> > The basification rules are written to work for any scheme and in
+>particular
+> > they respect the opacity of URI-references with respect to the type or
+>class
+> > of referents.
+> >
+> > The client resolving the relative reference is presumed to have to be able
+> > do this without prior knowledge of what sort of a resource it is that a
+>URI
+> > identifies.
+> >
+> > It is carefuly done in a form which is a resource-blind string
+>manipulation.
+> >
+> > The only intelligence is couched in terms of syntactic structure
+> > recognizable from the string value of the Base and instance
+>URI-references.
+> >
+> > If you are making different results based on information you got by
+>peeking
+> > into the file system, you are doing something wrong.  At least per the
+> > specification.
+> > And if you have to go outside the specification in an implementation to
+>deal
+> > with human frailty, you should be pausing to get confirmation of the
+>action
+> > from the user.
+> >
+> >   http://lists.w3.org/Archives/Public/www-tag/2002May/0134.html
+> >
+> > Now, so far I have only talked about the "as specified" behavior.
+> >
+> > For "as implemented behavior" you really want to get access to whatever
+> > information Paul Hoffman has collected.  Consider:
+> >
+> > <quote cite=
+> > "http://lists.w3.org/Archives/Public/uri/2003Aug/0011.html">
+> >
+> >      Section 2.8: will be updated to include specific usage of the file:
+> >      scheme on different operating systems
+> >
+> > Having done some experimentation, I believe that we can't say much
+> > general about particular operating systems. Instead, it seems like
+> > various versions of browsers and other URL resolvers do different
+> > things for file: based on the whim of the implementer. I can
+> > certainly discuss that in a paragraph, but that's probably all we
+> > need.
+> >
+> > </quote>
+> >
+> > Al
+> >
+> > > > As I understand it, any URL ending with a slash identifies a
+>directory,
+> > > > while any other identifies either a file or a directory.
+> > >
+> > > >That would be true for file: URIs.
+> > >
+> > >So I see (from previous answers) that at least in the file: scheme a
+> > >trailing slash is the convention to identify a folder URI.
+> > >Am I wrong ?
+> > >
+> > > > What is it that you are trying to do?
+> > >I'm participating in writing application note on file URLs for JDF in
+> > >cip4.org.
+> > >The JDF is XML instance that describes printing workflow of a print job.
+> > >One of the attributes there serves as the Base URI of the document that
+> > >relative URIs reference to.
+> > >It is according to RFC2396bis-03 section 5.1.1.
+> > >
+> > >I'm just trying to understand how should one resolve a relative URI
+> > >reference according to a Base URI.
+> > >
+> > >If I have a Base URI
+> > >"file://e:/f/g"
+> > >
+> > >and a Relative URI
+> > >"../h"
+> > >
+> > >It can influence the resolving URI in case the 'g' above is a file or a
+> > >directory. (Lets assume 'g' file and 'g' directory exist in
+>"file://e:/f").
+> > >
+> > >In case g is a directory : Resolved URI would be "file://e:/f/h"
+> > >In case g is a file          : Resolved URI would be "file://e:/h"
+> > >
+> > >I think the same question regards other schemes as well.
+> > >
+> > >Israel
+> > >
+> > >
+> > >
+> > >
+> > >----- Original Message -----
+> > >From: "Al Gilman" <asgilman@iamdigex.net>
+> > >To: "Israel Viente" <israel_viente@il.vio.com>; <uri@w3.org>
+> > >Sent: Friday, August 29, 2003 4:35 PM
+> > >Subject: Re: URI reference to a directory (what do you want to do?)
+> > >
+> > >
+> > > > At 02:30 PM 2003-08-27, Israel Viente wrote:
+> > > > >Can a URI reference to a folder and not a file ?
+> > > > >How can you distinguish between a file URI and a folder one ?
+> > > >
+> > > > So far, we have reiterated that there is no 'folder' concept in the
+> > > > top-level URI specification for all schemes.
+> > > >
+> > > > On the other hand, many HTTP servers offer a function resembling the
+> > >directory
+> > > > listing which is accessible by the URI
+> > > >
+> > > >
+> > > > ftp://rtfm.mit.edu/
+> > > >
+> > > > What is it that you are trying to do?
+> > > >
+> > > > True, for the most-hit URIs of the form
+> > > >
+> > > >    http://www.example.com/partial/path/
+> > > >
+> > > > one can request
+> > > >
+> > > >    http://www.example.com/partial/path
+> > > >
+> > > > and get the same results.  True, this may take more net traffic and
+> > > > wall-clock time for the user, so that when you mean the former, it is
+> > >better
+> > > > to put it (complete with slash character) as the value of the the
+> > > > html:a.href attribute.
+> > > >
+> > > > But yet you can't do URI-munging transforms to bash
+> > > >
+> > > >    scheme://node.example.tld/partial/path
+> > > >
+> > > > to
+> > > >
+> > > >    scheme://node.example.tld/partial/path/
+> > > >
+> > > > with certainty that this is equivalent on the server side, if what you
+> > >want
+> > > > is to offer directory services from your site there are multiple
+>competing
+> > > > implementations that will make this available from *your site*.
+> > > >
+> > > > Current HTTP practice runs against offering directory [a.k.a. folder]
+> > > > listings as a matter of site policy.  The data persistence service
+>that
+> > >the
+> > > > server uses in its computing platform often contains a mix of things
+>like
+> > > > HTML files that are wished to be visitable by the public and
+>supporting
+> > >data
+> > > > that is not wished to be shared in its persistent form.
+> > > >
+> > > > Current best practice would be to offer somewhere obvious on the site
+>a
+> > > > hierarchical catalog of the site contents that works much like a
+>digital
+> > > > talking book Table of Navigation[1].
+> > > >
+> > > > Al
+> > > >
+> > > > [1]  ANSI/NISO Z39.86, Supporting Documents Index Page
+> > > >   http://www.loc.gov/nls/niso/
+
+
+

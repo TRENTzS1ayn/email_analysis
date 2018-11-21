@@ -1,0 +1,98 @@
+docno="lists-014-3595936"
+received="Fri Dec 27 16:28:06 1996"
+isoreceived="19961227212806"
+sent="Fri, 27 Dec 96 12:12:35 EST"
+isosent="19961227171235"
+name="HUGO@watson.ibm.com"
+email="HUGO@watson.ibm.com"
+subject="Standardized key generation using PRFs"
+id="199612272127.QAA04367@mailhub1.watson.ibm.com"
+expires="1"
+
+
+To:dansimon@microsoft.com,ietf-tls@www10.w3.org
+
+Ref:  Your note of Mon, 16 Dec 1996 15:57:39 -0800 (attached)
+
+Dan Simon writes:
+ >
+ > Standardized key generation using PRFs
+ >
+ > Hugo Krawczyk recently suggested to the WG on this list that an explicit
+ > PRF primitive be introduced into the spec, so that the protocol could be
+ > based on an easily replaceable function whose assumed properties would
+ > be clearly defined and well understood.  Currently, there's an
+ > implicitly defined PRF in the spec, used for master secret and key block
+ > generation.  It has the following structure:
+ >
+ > f(k,x) =
+ > MD5(k + SHA('A' + k + x)) +
+ > MD5(k + SHA('BB' + k + x)) +
+ > MD5(k + SHA('CCC' + k + x)) + [...];
+ >
+ > This function (with the pre-master secret as k and x derived from the
+ > client's and server's random challenges) is used to generate the master
+ > secret; the same thing is done (with the master secret as k) to generate
+ > the key block from which encryption and MAC keys are taken.  The
+
+I am proposing for use in Oakley (IPSEC) the following way to derive arbitrarily
+long keys from a given "seed key" K (in the above example of TLS the seed key
+is the pre-master key). We use a generic function which we denote PRF
+(for pseudorandom function). Specific realizations of this generic function
+can be achieved through the use of keyed hash functions (e.g. HMAC-SHA1)
+or block ciphers (e.g. 3DES, IDEA, etc) in CBC-MAC mode.
+(In general, a pseudorandom function is a keyed cryptographic function
+whose output is unpredictable to any adversary that may know the input
+to the function but not the secret key.)
+
+A key is derived as:
+
+K1 = PRF(K, input)
+
+where K is the key to the pseudorandom function (or seed key) and 'input'
+is some value (can be public, secret, or mixed) that is known to any party
+that needs to compute K1. (In the above example of Dan: input = x ).
+
+If the output length of PRF is enough for the required keying material we
+stop with K1.  Otherwise we obtain more keys by
+
+K2 = PRF(K, K1 + input)  /* here '+' denotes concatenation */
+K3 = PRF(K, K2 + input)
+K4 = PRF(K, K3 + input)
+K5 = ...
+
+In this way the variability of the total input to the function for two
+different Ki's  is very significant and still the compromise of one key Ki
+does not mean the compromise of another Kj as long as K itself is not
+compromised. It is not clear that leaving 'input' in all the computations
+is necessary but since 'input' usually contains some extra randomness (e.g.,
+challenges) and sometimes even some secrecy then I prefer to have it there.
+
+If what is needed is just one single long key LK, it will be derived as above
+by defining LK = K1+ K2 + K3 +...
+
+Notice that there is nothing new about such an iterative approach to
+the generation of pseudorandom numbers. A similar approach is used in many
+pseudorandom generators (e.g., ANSI X9.17 based on DES or FIPS-186 based
+on SHA).
+
+For the sake of defining a default PRF for TLS one can choose
+HMAC-SHA1. Other candidates like 3DES can be considered as well.
+
+Finally I agree completely with Dan's paragraph below.
+
+ >
+ > As well as standardizing the key derivation process, this change to a
+ > uniform PRF-based method would encourage implementers to make the PRF
+ > pluggable, allowing more secure or more efficient functions to replace
+ > the current one in the future as needed.  (In fact, we might consider
+ > switching to a better PRF immediately, if we are already breaking
+ > backward compatibility by changing HMAC.)  Ideally the current cipher
+ > suites would either implicitly or explicitly specify the current default
+ > PRF, so that additional PRF options could be added, if necessary, simply
+ > by adding new cipher suites.
+ >
+Hugo
+
+
+

@@ -1,0 +1,168 @@
+docno="lists-010-5809398"
+received="Sun Aug  4 06:17:58 1996"
+isoreceived="19960804101758"
+sent="Sun, 4 Aug 1996 15:11:51 +0200 (MET DST)"
+isosent="19960804131151"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: New document on &quot;Simple hitmetering for HTTP&quot;"
+id="199608041311.PAA04819@wsooti04.win.tue.nl"
+charset="USASCII"
+inreplyto="9608010009.AA11298&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Jeffrey Mogul:
+>
+[...]
+>Our goal was NOT to solve the general problem of collecting demographic
+>information; it was to reduce the incentive for origin servers to
+>defeat caching merely so that they could collect simple hit-counts, of
+>a sort that the caches could just as easily collect for them.
+[...]
+>You can find a copy at
+>
+>    http://ftp.digital.com/~mogul/draft-ietf-http-hit-metering-00.txt
+[...]
+
+I have several comments.
+
+1. Cascaded proxy caches.
+
+At first glance, there seem to be counting problems in a cascaded
+proxy cache situation.  If we have the arrangement
+
+   origin server ---- proxy 1 ------ proxy 2 ---- user agent
+
+and the user agent requests and uncached page, section 5.1 seems to
+say that both proxy 1 and proxy 2 must set the use count to 1 when
+relaying the page.  This results in a count of 2 being reported in the
+end, though the page is only viewed once.  It seems like there needs
+to be a special case for proxy 1: a proxy should not count if it is
+relaying the response to another proxy.  (Under HTTP/1.1, the Via:
+header in the request would tell you that you are talking to another
+proxy.)
+
+2. Number of unconditional GETs = number of times read???
+
+You argue that the number of unconditional GETs, rather than the total
+number of GETs, more accurately reflects the number of times a page is
+read.  I don't know if this is true; I would like to see section 4
+discuss user agents on shared machines, and situations in which user
+agent disk caches are disabled entirely because there is a central
+proxy (like on our local sun cluster).
+
+3. A `hit' being an *un*conditional GET
+
+In the current (classic) meaning of the word,
+
+  1 hit-classic = 1 request on an origin server.
+
+Your draft defines a new kind of hit:
+
+  1 hit-new = 1 200/203/206 response returned to a user agent.
+
+Now, if I am an origin server which uses cache busting, and if most
+caches play by the rules, then for my server I will measure:
+
+  hit-new < hit-classic .
+
+Assuming that I get payed by the hit, I have absolutely no incentive
+to start measuring hit-news instead of hit-classics.  To stop using
+the cache-busting based hit-classics would be economic suicide.
+
+So even if hit-new is a better metric than hit-classic, I fear it
+won't be effective at reducing cache busting.
+
+The nicest solution to this problem seems to be for proxies to count
+both hit-new and a second metric:
+
+  1 touch-new = 1 response returned to a user agent
+
+for which it is guaranteed that
+
+   hit-classic <= touch-new .
+
+(Note: `hit' and `touch' would *not* be my proposals for adequate
+names for these metrics.)
+
+4. Interaction with Vary
+
+I don't like the extra complexity and inefficiency introduced by the
+Vary counting rules in section 3. (See second-to-last sentence of
+Section 5.1.)
+
+I think the proposal would be better if the Vary special case were
+removed entirely.
+
+5. Overhead in proxy efficiency
+
+I'm wondering if the counting mechanisms in the draft won't cause an
+unacceptable overhead for high-performance cache implementations.  I
+think we definitely need the opinions of proxy cache implementers on
+this issue.
+
+One possible hit counting alternative, post-processing proxy logfiles
+and delivering the results to the servers, seems to have less
+overhead.
+
+6. Max-uses mechanism
+
+The max-uses mechanism seems to be a way for origin servers to specify
+an upper bound to the inaccuracy of their information.  
+
+But to allocate max-uses values to proxies an efficient way, an origin
+server seems to have to keeping per-proxy database of
+`max-use-qouta-use-speed' (last two paragraphs of Section 2), which
+adds some overhead to every request.  Reading these paragraphs, the
+goal of the max-uses allocation heuristics seem to be to ensure that
+all counts are reported `soon enough'.
+
+It seems that a max-time-to-wait-before-reporting-hits mechanism, can
+achieve the same goal without the same computational overhead in
+origin servers.  This mechanism would also eliminate the need for
+implementing difficult max-use distribution heuristics in proxy
+caches: a cache could simply subtract the age of the response from
+the max-time value.
+
+Even better, we *already have* a
+max-time-to-wait-before-reporting-hits mechanism in the form of
+cache-control: max-age.
+
+I conclude that the max-use mechanism is unnecessary and propose that
+it is removed, and that a section about using cache-control: max-age
+is added.
+
+7. Hit-counts for 302 responses
+
+Section 7 talks about hit counts of 302 responses, but the definitions
+in section 5.1 do not allow such counting.  This can be easily fixed
+by rewriting the definitions, they should probably enumerate the 2xx
+and 3xx class response codes which should *not* be counted (as
+hit-news).
+
+8. How big is the cache busting problem anyway?
+
+About a year ago, I tried to measure cache busting for the web content
+accessed through our local proxy.  Contrary to my expectations, I
+could not find any definite signs of it.  I could find several
+resources and even whole servers which never sent Last-Modified
+headers, but I accounted this to bad CGI programming more than to
+`malicious' intent.
+
+Now, a lot can happen in a year, and maybe the cache busting sites
+which did exist a year ago were not sites which would get accessed
+(often) from a Dutch university.  But I would like to see some
+statistics/stories to indicate how big the cache busting problem
+really is, since cache busting (not improving your site through better
+statistics) seems to be the sole motivation the draft has for
+introducing the counting mechanisms at all.
+
+
+Koen.
+
+
+

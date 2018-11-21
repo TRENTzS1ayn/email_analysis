@@ -1,0 +1,97 @@
+docno="lists-103-6695054"
+received="Fri Mar 24 12:05:38 2000"
+isoreceived="20000324170538"
+sent="Sun, 19 Mar 2000 06:45:57 -0800"
+isosent="20000319144557"
+name="Raph Levien"
+email="raph@levien.com"
+subject="Proposed change in removeEventHandler semantics"
+id="200003191445.GAA12524@levien.com"
+expires="-1"
+
+
+To:www-dom@w3.org
+Cc: Philippe Le Hegaret<plh@w3.org>, Tom Pixley<joki@netscape.com>, Tim Janik<timj@gtk.org>
+
+Hi w3c dom people,
+
+   As a result of a conversation between Philippe Le Hegaret, Tim
+Janik, and myself yesterday, I am sending this mail to propose a
+change in the semantics of removeEventHandler. Briefly, the current
+semantics call for the handler to be invoked in some cases after it is
+removed. I propose that it should not be.
+
+   Let me start by outlining a concrete example. Suppose the document
+contains an "X" button that is intended to hide one of the elements of
+the document. Further suppose that there is a Model/View/Controller
+architecture with the DOM as the Model, and separate View and
+Controller modules that are connected via the DOM event mechanism.
+
+   Thus, both the Controller and the View have listeners on the
+button. The Controller listener implements the semantics of removing
+the object, while the View listener keeps the display up to date,
+including (in this example) visualizing mouse events.
+
+   Then, the following sequence is at least plausible: The user clicks
+on the "X". The Controller event listener is invoked first, which
+performs the operations needed to hide the object. In particular, it
+detaches the View from the element, changing the View state so that
+the element is no longer shown, and invoking removeEventListener on
+the View's handlers.
+
+   Finally, the Controller's event handler completes, and the DOM
+invokes the event listener of the View. However, the View's state is
+no longer consistent with the element being shown. Thus, unless the
+View takes special care to detect the fact that the event should no
+longer be handled, unexpected behavior is likely.
+
+   Note that this unexpected behavior is quite dependent on the order
+of invocation of the handlers on an element. If the View's handler is
+invoked first, nothing bad will happen.
+
+   The Gtk+ signal mechanism is quite analogous to DOM2 Events, and is
+extensively used for plumbing UI events, as might be expected from
+advanced usage of the DOM. Tim Janik, a long time co-maintainer of
+Gtk+, has collected quite a bit of experience in this area,
+particularly in dealing with re-entrant invocations and similar
+interactions. His experience is that invoking a handler after removal
+nearly always contains the possibility of unexpected behavior, and is
+rarely (if ever) actually useful. Gtk+'s signal mechanism currently
+enforces the invariant that a handler is never invoked after removal,
+and these semantics work quite well in practice.
+
+   For more information on Gtk+, please refer to the Gtk+ webpage at
+http://www.gtk.org/
+
+   After discussing the issues with Tim and Philippe, I believe that
+the current DOM semantics may well cause real problems in Gill, as I
+expect that quite a lot of functionality might be invoked from event
+listeners, including modifications to the relationship between the
+Model and the View. Gill is the Gnome implementation of SVG, a spec in
+preparation by the W3C for advanced graphics. Gill is based on a
+strict Model/View/Controller architecture based on the DOM, and the
+consistency between Model and View is maintained entirely from DOM2
+Events. The Gill webpage is at http://www.levien.com/svg/
+
+   Thus, I propose the following modification to the specification.
+The current language in the description of removeEventListener reads:
+
+      "If an EventListener is removed from an EventTarget which is
+      currently processing an event the removed listener will still be
+      triggered by the current event."
+
+   This should be changed to read "will not be triggered by the
+current event". Further, the statement, "an event listener will never
+be invoked after it is removed" should be added as a global invariant.
+
+   I believe that the pain of making this change now is insignificant
+to that of changing the semantics in a later DOM level. I advocate
+making the change now, before the status advances past Candidate
+Recommendation.
+
+   Thanks in advance for considering this issue.
+
+Raph
+
+
+

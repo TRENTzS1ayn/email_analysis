@@ -1,0 +1,102 @@
+docno="lists-010-5931792"
+received="Mon Aug  5 15:15:37 1996"
+isoreceived="19960805191537"
+sent="Mon, 5 Aug 1996 15:11:35 0700"
+isosent="19960805221135"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="Sticky headers and multiplexing (was: Sticky header draft &ndash;&ndash; as an attachment)"
+id="c=US%a=_%p=msft%l=RED-77-MSG-960805221135Z34246@tide21.microsoft.com"
+expires="1"
+
+
+To: 'Jeffrey Mogul'<mogul@pa.dec.com>
+Cc: 'http-wg'<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+
+>----------
+>From: Jeffrey Mogul[SMTP:mogul@pa.dec.com]
+>Subject: Re: Sticky header draft -- as an attachment 
+>
+>
+>Regarding:
+>    2.2 Contexts
+>    
+>    Proxies can operate just like user-agents if they want. However, they
+>    typically act on behalf of many clients, multiplexing a single
+>    connection to a server across messages from many clients. Such
+>    multiplexing will likely destroy the correlation between consecutive
+>    messages that makes sticky headers an effective compression technique.
+>
+>It might be a good idea for you to provide a means for negotiating
+>multiple contexts over a single proxy-server connection, but I am
+>not sure it's wise to implicitly bless the multiplexing of request
+>streams from several clients.  This can lead to something akin to
+>the "head of line blocking" problem seen in network switches:
+>
+>    Head of line blocking occurs when a packet at the head of an input
+>    queue blocks, thereby preventing a packet behind it from using an
+>    available output port. The problem is common to networks which
+>    employ input FIFOs which prevent packets from passing one another.
+>    The solution to head of line blocking is to use random access
+>    buffers which permit packets to be forwarded out of order.
+>
+>    quoted from "High Performance Communication for Distributed Systems"
+>    by William Stasior,
+>    http://www.tns.lcs.mit.edu/~wstasior/distrib_sys_comm/distrib_sys_comm.ht
+>ml
+>
+>Consider the case where proxy P is combining request streams from
+>client C1 and client C2 over the same TCP connection to server S.
+>Since we don't allow reordering of requests (i.e., we use "input FIFOs"
+>at the server side), if C2 makes a request that takes a long time to
+>answer, C1 may have to wait even though there is no intrinsic reason
+>for this.  The situation is especially bad if S is actually proxy
+>as well, and C1 and C2 are really making their requests to unrelated
+>origin servers S1 and S2.  If S2 is down, the C1->S1 request is stalled
+>until the C2->S2 request times out.
+>
+>This is why draft-ietf-http-v11-spec-06.txt says
+>
+>8.1.4 Practical Considerations
+>
+>[...] A proxy SHOULD use up to 2*N connections to another
+>server or proxy, where N is the number of simultaneously active
+>users. These guidelines are intended to improve HTTP response
+>times and avoid congestion of the Internet or other networks.
+
+I think we're talking about different time frames for multiplexing. I
+think you're thinking about multiplexing outstanding requests over one
+connection using pipelining, and I'm thinking about switching the
+connection from one client to another, when there are no outstanding
+requests on the connection. The "head of line blocking problem" can't
+occur when there is never anything ahead of you in the line.
+To give a concrete example that incorporates both points of view:
+suppose that there is a proxy that, in a typical one hour period,
+services requests for 1000 clients to a particular server, and that, due
+to the request interarrival times and service times, in this period as
+many as 100 of these clients had a pipelined burst of requests
+simultaneously outstanding to that server. Section 8.1.4 says that the
+proxy should use 200 connections to service these 100 clients (instead
+of trying to multiplex them across a smaller number of connections using
+pipelining).  The sticky header context mechanism was designed to allow
+the proxy to have (in this example) roughly 10 contexts on each
+connection, so that an incoming request could be assigned to a
+connection that already has a context for it, if it isn't busy;
+otherwise, a new connection should be opened (and a context created for
+it. (If a new connection weren't opened, then the static assignment of
+clients to connections could lead to a blocking problem.)
+
+I think that 8.1.4 is ambiguous -- in my example, are there 100 or 1000
+simultaneuously active users? I think it's 100, for the purpose for
+which 8.1.4 is intended, and 1000, for the purpose for which sticky
+header contexts are intended.
+
+Nevertheless:
+Maybe the word "connection multiplexing" too strongly implies the finer
+grained sharing -- I'm open to using a less loaded term; "connection
+reuse", perhaps?
+
+
+

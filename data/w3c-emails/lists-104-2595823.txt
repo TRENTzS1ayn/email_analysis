@@ -1,0 +1,223 @@
+docno="lists-104-2595823"
+received="Fri Sep 21 17:54:20 2001"
+isoreceived="20010921215420"
+sent="Fri, 21 Sep 2001 15:51:38 -0600"
+isosent="20010921215138"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="Comments on DOM L3 Core"
+id="70E215722F6AD511820A000103D141D40AA58F@thor.aeathtl.com"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+
+
+Section 1.1.10: Mixed DOM implementations
+
+"In a heterogenous document, elements from different modules expect different services and API's from the same Document object, since there can be one owner and root of the document hierarchy."
+
+I assume the services are primarily node creation and maybe the better approach is to separate the NodeFactory type methods (and adoptNode) into an interface distinct from Document and add a
+nodeFactory attribute to Node.  So instead of node.ownerDocument.createElement(""), you could also do node.nodeFactory.createElement("").  In a homogeneous environment, they would be equivalent, but
+in a heterogeneous environment, the type of node returned could be different.
+
+Trying to add a generic node to a specialized DOM would probably need to raise a WRONG_DOCUMENT_ERR since node identity would be different if you tried to transparently adopt the node.
+
+Trying to do a getInterface("org.w3.svg","1.0") would be problematic if a document embedded two distinct implementations of SVG for example.
+
+---------
+Interface DOMImplementation:
+
+Using the NodeFactory idea, createDocumentType and createDocument could go into the NodeFactory interface and getInterface would be unnecessary since you could get the specialized NodeFactory by
+either asking an existing SVG (for example) node for its NodeFactory or getting the right type of DOMImplementation from the DOMImplementationRegistry.
+
+Otherwise, getInterface should have a version argument.
+
+---------
+
+Document.actualEncoding:
+
+If the intent is to describe the encoding of the XML document parsed to create the DOM, then .initialEncoding might be a better name.  Unclear how this is related (and also distinct) from the encoding
+attribute and how these would change with or affect loading and saving.
+
+-----------
+
+Document.standalone:
+
+What should happen if standalone is set to true, but the document actually uses entities defined in the external subset?  Should this be read-only and calculated?  If encoding deserves both an
+actual/initial state and a current state, should there be a Document.initialStandalone attribute.
+
+-----------
+
+Document.strictErrorChecking:
+
+Don't like this as a global since one piece of code might turn strict error checking off while another unrelated fragment depends on strict error checking.  
+
+What is the particular penalty trying to be avoided?  If it is checking if names for validity, maybe a way to get a lax NodeFactory might suffice.
+
+----------
+
+Document.adoptNode:
+
+This would be a candidate to move to a NodeFactory interface.
+
+"from its parent child list" should read "from the child list of its parent" or "from its parent's child list".  Same phrasing appears elsewhere.
+
+"Specified attribute nodes are adopted, and the generated Attr Nodes."
+
+Are discarded?  Are adopted?  Inquiring minds want to know.
+
+NOT_SUPPORTED_ERR should also list entity and notation, should DOCUMENT be DOCUMENT_NODE?
+
+-------------
+
+Document.setBaseURI
+
+The interaction between this and XML Base is confusing, given the name, one might think that it should add an xml:base attribute to the document element.  If it did that, why is it not a method on the
+Element interface.
+
+I think Document.systemId might be a better name and more consistent with  Entity.systemId, Notation.systemId and DocumentType.systemId.
+
+On load, Document.systemId would be the URI used to load the document and changing Document.systemId would be like changing Document.encoding, a suggestion to the next save operation (and would change
+the results from any baseURI attribute accesses.
+
+Interface Node:
+
+Per previous discussions, maybe add a Node.nodeFactory attribute.
+
+Tree Position:
+
+Should also be able to determine if two nodes are siblings (following or preceding) or immediate parent or child.  I don't have access to the Xpath spec at the moment (office internet connection is
+down), however something like:
+
+const unsigned short TREE_POSITION_DIFFERENT_DOCUMENT = 0x0; 
+const unsigned short TREE_POSITION_SAME_DOCUMENT = 0x1; 
+const unsigned short TREE_POSITION_PRECEDING = 0x3; 
+const unsigned short TREE_POSITION_FOLLOWING = 0x5; 
+const unsigned short TREE_POSITION_SIBLING = 0x9; 
+//  combination of same document, preceding/following and sibling const unsigned short TREE_POSITION_FOLLOWING_SIBLING = 0xD; 
+const unsigned short TREE_POSITION_PRECEDING_SIBLING = 0xB; 
+const unsigned short TREE_POSITION_SAME_NODE = 0x11; 
+const unsigned short TREE_POSITION_ATTR_OF_SAME_ELEMENT = 0x21; 
+const unsigned short TREE_POSITION_ANCESTOR = 0x43;
+const unsigned short TREE_POSITION_DESCENDANT = 0x85;
+const unsigned short TREE_POSITION_PARENT = 0x143;
+const unsigned short TREE_POSITION_CHILD = 0x285;
+
+Intentionally combined bits when one condition is a more specialized form of another condition, so, for example, so if you return TREE_POSITION_PARENT, then (pos & TREE_POSITION_ANCESTOR) ==
+TREE_POSITION_ANCESTOR && (pos & TREE_POSITION_PRECEDING) == TREE_POSITION_PRECEDING.
+
+----------
+
+Node.compareTreePosition:
+
+Comparing two nodes of unrelated documents could return a code (TREE_POSITION_DIFFERENT_DOCUMENT) instead of raising an exception.
+Should a behavior be defined if other = null?
+
+---------
+
+Node.getInterface()
+
+Not positive this is needed or maybe it just needs to be refined.  Maybe it needs an interface and version attribute?  Something like:
+
+var svgelem = node.getInterface("org.w3.svg","1.0","SVGElement");
+
+However, if you split out the NodeFactory from the Document, then this might just become an alternative cast operation.
+
+--------
+
+Node.isSameNode()
+
+node.isSameNode(other) appears to be functionally identical to (node.compareTreePosition(other) == TREE_POSITION_EXACT_SAME) except that compareTreePosition() will throw an exception if the nodes are
+in different documents.  The two methods should be aligned so either they both throw WRONG_DOCUMENT_ERR or neither does (would prefer neither).
+
+--------
+
+Node.isSupported:
+
+Possibly clarify that feature is case-insensitive and version is not specified means null or "".
+
+--------
+
+Node.lookupNamespacePrefix
+
+What is the return value if the URI matches the default namespace? I'd recommend "#default", but it should be explicitly stated.
+
+Should the method throw an exception if the namespaceURI is not a valid URI?
+
+-------
+
+Node.lookupNamespaceURI
+
+How do you determine the default namespace?  Again I'd suggest a prefix value of "#default".
+
+Should the method throw an exception if the prefix is not an NCName (or #default)?
+
+-------
+
+Node.removeChild
+
+NOT_SUPPORTED_ERR: if this node !IF! of type Document,...
+
+Same typo appears elsewhere.
+
+-------
+
+Node.setUserData()
+
+Can key be null, empty string? 
+
+-------
+
+Text.isWhitespaceInElementContent:
+
+Wouldn't Text.isElementContentWhitespace be a better name since it is consistent with the XML Info Set name and JAXP?
+
+Should it throw an exception if there is not DTD or Schema?
+
+How about adding an additional Text.isWhitespace to determine if the text is just whitespace without making a value judgement on whether it is ignorable?
+
+-------
+
+Text.wholeText
+
+Maybe adjacentText, whole text might imply that you would get "Hello World" from either text node in this fragment:
+
+<Foo>Hello<?somepi?> World</Foo>
+
+Also, it says "all text of Text nodes"..., but shouldn't it also give text of EntityReferences (and probably explicitly mention CDATASections).
+
+
+------
+
+Text.replaceWholeText
+
+Again maybe replaceAdjacentText.
+
+------
+
+DOMError.severity
+
+No informative severity.  Might be useful to put more space between the values to allow graduation of severity.
+
+------
+
+DOMError.message 
+
+Assumes that we have fixed the locale.  Maybe a getMessage(DOMString locale) instead.
+
+------
+
+DOMError.errorURI
+
+Had suggested to the SAX group that they publish URI's for parse errors so you don't have to try to recognize errors by trying to recognize the message strings.
+
+------
+
+DOMErrorHandler.handleError
+
+... Multiple calls to the !!!handleEvent!!! method.
+
+
+

@@ -1,0 +1,209 @@
+docno="lists-010-15462620"
+received="Tue Mar 18 19:08:47 1997"
+isoreceived="19970319000847"
+sent="Tue, 18 Mar 1997 18:54:40 0800"
+isosent="19970319025440"
+name="Roy T. Fielding"
+email="fielding@kiwi.ICS.UCI.EDU"
+subject="Re: 305 Use proxy"
+id="9703181854.aa12253@paris.ics.uci.edu"
+inreplyto="ML3.1.858727819.5089.josh&#64;birdcage"
+expires="1"
+
+To: Josh Cohen<josh@netscape.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+>set-proxy : proxy-url scope=scopePrefix 
+>type= once
+>| forever 
+>| hits count=hitcount
+>| lifetime=seconds
+>
+>for GET http://www.foo.com/services/index.html HTTP/1.1
+
+Well, for starters, please use a syntax that can be unambiguously parsed.
+That means enclose all URLs in "double-quotes" or <angle-brackets> if
+you intend them to be used alongside parameters.  I suggest using a
+syntax similar to Link in the RFC 2068 appendix, since it overcame the
+same set of problems.
+
+>example response:
+>HTTP/1.1 305 Use Proxy
+>set-proxy : http://proxy1.foo.com:8080/ scope=http://www.foo.com/services/
+>
+>Suggested rules:
+>Origin servers may NOT send 305, only proxies may send them.
+
+Nope.  The original intended purpose of 305 is to allow an origin server
+to prevent access unless it goes through the appropriate proxy.
+
+>The set-proxy header is HOP BY HOP, not end to end.
+
+You mean that the 305 response is HOP by HOP -- it doesn't make any
+sense to just drop the header field.
+
+>On scope:
+>  If the returned scope is 'wider' that the request minus the part
+>of the path to the right of the final slash, the header should be
+>rejected or the user should be queried at the least.
+
+Hmmm, looks like a realm, smells like a realm, why not call it a realm?
+
+>Example:
+>for the above request ( http://www.foo.com/index.html )
+> scope=http://www.foo.com/services/ VALID
+> scope=http://www.foo.com/         INVALID
+>
+>So basically:
+>for a client: ( depending on level of paranoia )
+> (A)  if the scope is 'wider' than the requested URL, the user
+>is queried.
+> (B) if the scope is wider than the requested URL, and the destination
+>proxy is not in the same domain, query the user
+
+Sounds reasonable.
+
+>Notes on discussions:
+>
+>Cases for use:
+>1. An origin server wishes to redirect a client to use a proxy
+>to access its resources
+>
+>2. A proxy server wishes to redirect a client to another proxy.
+>(the client can be another proxy )
+
+Yep.
+
+>The Current spec:
+>10.3.6 305 Use Proxy
+>
+>The requested resource MUST be accessed through the proxy given by the
+>Location field. The Location field gives the URL of the proxy. The
+>recipient is expected to repeat the request via the proxy.
+>
+>
+>Issues:
+>1) scope:
+>Does this apply to only this exact URL or any others
+
+The original description only applied to the exact URL.  I agree that
+a realm would be more efficient, subject to a good set of security
+considerations.
+
+>2) validity time:
+>Should the client use this proxy for this or these resources
+>forever, or for how long, or how many transactions?
+
+Good question.
+
+>3) Loops / hop counts
+>What happens if proxy A redirects the client to proxy B which
+>redirects it back to A?
+
+The same that happens on all auto-redirection loops.  It is actually
+noted in the section on 3xx responses.
+
+>4) is Location: header enough?
+>Does the location allow enough flexibility to express some or
+>all of these?
+
+Probably not 1 and 2.  3 is not needed.
+
+>Im impartial on the new header / extend location header issue, 
+>However, the security implications make the new header a
+>probable choice, IMHO.
+>
+>5) Security
+>If the scope is 'wide' ie for all HTTP transactions or even
+>just for one domain, how does the client know to trust that the
+>response was not from a malicious server.
+
+That would be the new consideration if we introduced scope/realm.
+
+>Possible solutions:
+>
+>Scope: 
+>The redirecting host should be able to indicate a mask
+>for urls which are to be redirected to this proxy.
+>Naturally, this has security implications, ie an origin server
+>which tells a client to redirect to an evil proxy for ALL urls.
+>A safe suggestion I think it that that scope can be a prefix
+>which may only affect 'less significant URLS'..
+>Example:
+>  Client requests http://www.ups.com/services/index.html
+>  Server redirects to proxy1.ups.com
+>allowed scope: http://www.ups.com/services/*
+>    not allowed scope: http://www.ups.com/*
+>    not allowed scope: http://www.mcom.com/*
+
+Keep in mind that "*" is allowed in URLs.
+
+>Validity Lifetime:
+>We couldnt come to a unanimous consenses here, except for 
+>the fact that the current spec doesnt state anything about it.
+>
+>The main ideas are:
+>1) use this redirection forever ( or until the client is restarted )
+>2) use this redirection just once, and come back the next time
+>3) use this redirection for a specified amount of time
+>4) use this redirection for a specified amount of transactions
+>
+>While its hard to come up with useful examples for all the cases,
+>I beleive that a format which is flexible enough to allow any of them
+>to be expresses is smartest.
+
+That would be a good idea, yes.
+
+>While caching and proxies have been in use for a non trivial amount of time,
+>complex, hierarchical cache systems are only starting to be deployed.  
+>Because of this early stage, I feel that its best to keep as many
+>options open as possible, and give an much flexibility to administrators
+>as possible.
+>  
+>Loops:
+>Overall, this should be a solveable problem.  Intelligent
+>ICP type protocols should be able to avoid loops, but the idea
+>of some sort of 'redirected via' flag/signal/indicator isnt unreasonable.
+
+Ummm, the client can see for itself that it is looping.
+
+>Location: header.
+>If people feel that we need to express a scope and a lifetime,
+>we'll need to either extend the Location: header or create a new one.
+
+Create a new one.  The problem with using the Location header was that
+some older client might follow the HTTP rules and treat the response
+as if it were a 300, which would entice it to perform the original
+request on the URL in the Location header, which in this case would
+be the base proxy URL.  I suggest using "Proxy", since it seems more
+advisory in nature than "set-proxy".  Also, you should consider allowing
+the server to send multiple fields so that the client can be given a
+"choose one" option.
+
+>Without the scope restrictions, a malicious server can simply reply
+>with a 1.1 header, including a wide scope.  A 1.1 compliant proxy
+>should reject or supress this header, but an existing 1.0 or older
+>proxy will happily forward this header to the 1.1 client. 
+>This client would have no way of knowing if the 305 came from the
+>proxy or the malicious origin server.
+>
+>Unfortunately, this makes the scope restrictions necessary.  At the
+>same time, it makes large scale load balancing or failover difficult,
+>since the a proxy can use this response to redirect a scope wider
+>than one host to another proxy.
+
+Why not include the notion of "trusted" proxies?  It should be possible
+for a user agent to collect a list of trusted proxies in much the same
+way it would collect a list of trusted cookie sites, and there won't
+be that many proxies for any given user agent.  The user agent could
+then be set to accept direction automatically from trusted proxies,
+and query for all others.
+
+ ...Roy T. Fielding
+    Department of Information & Computer Science    (fielding@ics.uci.edu)
+    University of California, Irvine, CA 92697-3425    fax:+1(714)824-4056
+    http://www.ics.uci.edu/~fielding/
+
+
+

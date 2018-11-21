@@ -1,0 +1,103 @@
+docno="lists-026-3554431"
+received="Thu May 22 00:17:55 2003"
+isoreceived="20030522041755"
+sent="Wed, 21 May 2003 21:17:46 -0700"
+isosent="20030522041746"
+name="Ricky Ho"
+email="riho@cisco.com"
+subject="Re: Co-ordination protocol and BPEL"
+id="4.3.2.7.2.20030521203151.0359cbe8@franklin.cisco.com"
+charset="us-ascii"
+inreplyto="3ECC2F74.1030000&#64;intalio.com"
+expires="-1"
+
+
+To: Assaf Arkin<arkin@intalio.com>
+Cc:public-ws-chor@w3.org
+
+
+Assaf,
+
+>>=====================
+>>How do I associate a "scope" with the "context" of the message that I 
+>>just receive ? (especially when the <receive> is in the middle of the 
+>>BPEL process).
+>
+>I don't think you need to write it in the process definition explicitly. 
+>When the engine recieves a message that would start a new scope it would 
+>look for the context. If no context is provided it starts a new scope. If 
+>a context is provided it would start a new scope and register it as a 
+>participant in the larger context.
+
+There are a couple of issues ....
+
+Lets say in the following process
+
+<process>
+   <sequence>
+     ....
+     <receive/>
+     ....
+     <reply/>
+     ....
+     <receive/>
+     ....
+     <reply/>
+     ....
+   </sequence>
+</process>
+
+1) Lets say the first <receive> pass in a transaction context.  What is the 
+"scope of work" ?  Between the first request and first reply ?  or 
+everything after the first receive ?
+
+2) Lets say after receiving the first <reply>, the caller want to commit 
+the transaction.  What scope of work has been committed ?  Does the caller 
+wait for this whole process to be completed before the caller's transaction 
+can commit successfully ?
+
+3) If instead the caller want to cancel the transaction.  How does the 
+process cancel its work ?  Where is the compensation handler defined ?
+
+4) What if the second <receive> pass in a different context ?  (the only 
+way to prevent this happening is to use the context itself as the 
+correlation set)
+
+
+>So it would work like the transaction attribute requires in an EJB bean. 
+>Either you start a new transaction if none was started by the caller, or 
+>you participate in the caller's transaction.
+
+BPEL <Receive> is quite different from the EJB scenario.  The EJB doesn't 
+have a pre-establish transaction context, it either starts a new context or 
+inherit the caller's context.  In EJB, you never run into the situation of 
+the above question 4.
+
+
+>For atomic transactions you don't need prepare or commit, you are working 
+>at a higher level than the code and all that needs to be prepared or 
+>committed should be done by the engine for you. For BA transactions you 
+>don't have prepare or commit, every response is an indication that all 
+>previous steps have been completed (prepared and committed). You do need a 
+>way to cancel, but this can be done by a fault handler (the terminate 
+>fault). And you do need a way to compensate and this is done by a 
+>compensation handler.
+
+I'm talking about BA, not atomic.  Effectively, you restrict the choices by 
+forcing every scope of work must be compensatable.
+Lets say I'm an airline company.  I don't want to reserve the seat for a 
+lengthy period and later cancel it when the passenger change his mind.  So 
+my strategy is to only book the seat when the customer commits its 
+purchase.  After that, I don't refund (so not compensatable from the 
+passenger's perspective).
+The original state of the seat is "available".  When the passenger invoke 
+my "TicketBookingService", the seat is marked "potentially-booked".  When 
+the transaction commit successfully, the seat status to be "booked".  After 
+that, it is non-compensatable.
+
+How do I achieve this if I only have the CompensationHandler ?
+
+Rgds, Ricky
+
+
+

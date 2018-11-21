@@ -1,0 +1,142 @@
+docno="lists-103-6068290"
+received="Mon Mar  6 10:09:41 2000"
+isoreceived="20000306150941"
+sent="Mon, 06 Mar 2000 16:15:58 +0100"
+isosent="20000306151558"
+name="james anderson"
+email="james.anderson@mecomnet.de"
+subject="Re: Namespace treatment"
+id="38C3CBAD.2594906D@mecomnet.de"
+charset="us-ascii"
+inreplyto="85256897.006A388A.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+
+To:"www-dom@w3.org"<www-dom@w3.org>
+
+
+
+keshlam@us.ibm.com wrote:
+> 
+> >There is a peculiar asymmetry in the way the DOM models namespaces. It
+> >is said, for example, that a given element node (as any node) is bound
+> >to a namespace. This although it is not the node which stands in a
+> >relation to a namespace, but the node's name. Why was it deemed
+> >necessary to close this transitive relation in the model?
+> 
+> It's really an early-binding/late-binding issue. We could have bound the
+> URI to the name, and said that every time you try to get the namespace URI,
+> we would resolve it in the context of the namespace declaration attributes
+> at and above that node. This might have been more elegant, but would
+> definitely have involved more computation.
+
+You have confused me here. If the URI is bound to the name, then there
+is no resolution necessary. Or did you mean the prefix?
+
+In any case, the issue of early/late binding is independent of where the
+URI (or prefix) is bound. The dom binds it to the element node. The
+alternative would have been to make the name itself a first class node
+and bind the URI there. Whether it is then late or early bound is a
+separate issue. 
+ 
+> 
+> Also, it's unclear that's the right behavior. What if you move a node from
+> one point to another, and thereby into a context where the same prefix is
+> bound to a different URI? It's "the same node object", so one can argue
+> that its behavior shouldn't change -- and that therefore it should stay in
+> the original namespace. (This is more important if you have a DOM which
+> subclasses nodes based on which namespace they belong to -- we aren't sure
+> whether anyone will do that, but we didn't want to rule it out.)
+
+I agree with the above, but, as said, it's not the issue which I was
+adressing. If the URI is bound to the name, then the name is static, as
+the namespace spec implies it should be. All the questions re prefixes
+don't signify as the prefix has no defined meaning in the DOM.
+
+> 
+> We really did consider trying to define things such that the behavior would
+> always be consistent with writing out to XML text, making a change at that
+> level, and reading it back in. But our conclusion was that the DOM
+> represents the infoset -- the data model of the XML document's contents,
+> rather than its syntax -- and that the early-binding approach was most
+> practical for most DOM applications. Complications only arise if you really
+> want to change a node's namespace URI (in which case we feel you should
+> create a new node, since the URI is part of the node's identity in the same
+> sense that localname is), or at serialization time (see below).
+
+When the model is defined such that the prefix/uri bindings exist
+independent of the names, and the infoset is defined to include
+"namespace attributes", complications must arise each time one
+introduces a name into the scope of an element without having the
+appropriate prefix/uri bindings present. Until the namespace attributes
+are "normalized" the DOM is invalid.
+
+For a simple "attribute added to an element node" this is no real
+problem. A synchronized "add attribute" operator could be defined to
+clean up on the way out. For general tree mutations, on the other hand,
+this will be a lost cause.
+> 
+> >Any "namespace" attributes
+> >are superfluous. They could well be trashed upon element modification
+> >and generated (with caching if so desired) as requested.
+> 
+> True. Note that the Infoset says that the namespace declarations are not
+> really attributes, and some folks did argue that they shouldn't appear in
+> the DOM at all. But we wanted to allow Level 1 "pseudo-namespace" code to
+> continue working with Level 2 DOMs, and that meant retaining the
+> declarations.
+
+I wonder how long that will last.
+
+> 
+> >Why normalize? ever?
+> 
+> Valid question. But there were requests -- e.g. from those who (like
+> Deiter) don't like the look of attributes with qualified-name collisions --
+> for such a mechanism.
+
+?
+"Qualified name collisions" are an artifact of incorrect serialization.
+As I noted above, the prefixes (where they are prefixes) have no defined
+meaning in the DOM. Where they are part of the name proper, they are
+intrinsically invalid, but I'm not concerned with that case. Where the
+DOM is namespace aware no operations based on prefixed can have a
+defined result and the prefixes attain significance once serialized
+only. At which point correct serialization never generates collisions.
+
+>        Since the Load/Save chapter of Level 3 is going to
+> have to deal with that anyway, our current guess is that exposing it as a
+> separate method ought to be easy. If it isn't, we'll have to do a more
+> serious cost/benefit analysis.
+> 
+> >>     In Level 2, that normalization task is left as an exercise for
+> >> the reader,
+> > poor soul...
+> 
+> In fact, I expect that most folks will use a serializer that was packaged
+> with their parser... so this is mostly an exercise for the experts, who
+> probably have a pretty good handle on how to deal with it.
+> 
+> Shouldn't be bad. During the tree-walk, if you see a prefix-to-URI binding
+> that isn't currently declared, issue a declaration at that node (or, in the
+> case of an Attr, at the owningNode -- yes, this requires a tiny bit of
+> lookahead).
+
+A method which would work with the proposed SAX2 api is to
+- push a namespace frame with any asserted prefix/uri binding prior to
+processing an element node
+- serialize each name (element, attribute) in turn
+- if the uri is bound, there's nothing to do
+- if the uri is unbound then bind it in the frame with either a pretty
+nickname, if that is unique in the frame, or with a canonical name
+otherwise. the canonical names are generated when the namespace is first encountered.
+- serialize the namespace frame
+
+Whether this is said to involve lookahead depends on ones view of
+namespace frames.
+If one is not concerned with the pretty names, one also never needs to
+check for prefix uniqueness - "normalization" is a side-effect of
+namespace uniqueness.
+
+
+

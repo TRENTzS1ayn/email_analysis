@@ -1,0 +1,223 @@
+docno="lists-019-7777349"
+received="Thu Oct 16 14:10:42 2003"
+isoreceived="20031016181042"
+sent="Thu, 16 Oct 2003 11:16:46 -0700"
+isosent="20031016181646"
+name="Michael Brundage"
+email="xquery@comcast.net"
+subject="RE: XQuery"
+id="000801c39411$a9be4600$6501a8c0@xpider"
+charset="us-ascii"
+inreplyto="200310161121.02212.moerkotte&#64;informatik.uni-mannheim.de"
+expires="-1"
+
+To:"'Guido Moerkotte'"<moerkotte@informatik.uni-mannheim.de>,"'Kay, Michael'"<Michael.Kay@softwareag.com>,<public-qt-comments@w3.org>
+Cc:<mrys@microsoft.com>,<moer@pi3.informatik.uni-mannheim.de>
+
+
+
+Hi Guido,
+
+I can't fully agree with the sentiment that "non-determinism sucks".
+Perhaps I should write some articles on XML query optimization.
+
+Consider these two XPath 1.0 queries, taken from an XSLT 1.0 transformation:
+
+document('a.xml')[false()]
+document('a.xml')[document('b.xml')]
+
+As someone who implements an XML query optimizer at Microsoft, I'm actually
+quite happy that the XSLT 1.0 standard allows me to rewrite these two paths.
+The first one can be rewritten into the empty sequence, and the second can
+be rewritten into
+if (exists(document('b.xml'))) then document('a.xml') else ()
+
+An implementation might attempt to load document a.xml and might error if it
+does not exist or is not well-formed;
+or an implementation might not error (XSLT allows document() to return the
+empty sequence);
+or an implementation might not attempt to load the document a.xml at all
+(XSLT allows the re-ordering of expressions).
+
+There are two kinds of non-determinism in play here.  First, there is an
+implementation-dependent/defined behavior -- whether document() returns an
+error or not.  Second, there is an implementation-dependent
+order-of-evaluation -- because the predicate is independent of the step
+before it, they can be evaluated in any order.
+
+Allowing implementations to choose order-of-evaluation in most circumstances
+is very important (for implementation strategies and query performance).
+However, choosing order-of-evaluation is inhibited by certain kinds of
+expressions, especially errors.  If an implementation is constrained to
+check that an error could occur, then it cannot fully re-order the query.
+For example, if an implementation had to check that a.xml exists and is
+well-formed in both of the queries above ... well, that would "suck."
+
+When Michael Kay says he would prefer the where clause in your example
+return false instead of raising a dynamic error, he's really voting to allow
+implementations to choose the order-of-evaluation.
+
+Now consider a related query, person[2][@age=3].  Currently XQuery allows
+implementations to raise an error for this query (comparing both persons
+ages to 3, even though the user specifically asked for only the second one,
+and then raising a dynamic error because the first person's age cannot be
+converted to integer).  I believe this is a design mistake.  The only way
+for implementations to reliably reorder these expressions is if the
+comparison @age=3 returns false when @age is non-integer.  Then you get the
+same outcome from the query, regardless of the underlying implementation
+strategy.
+
+So the committee is faced with a conflicting set of requirements: allow
+implementations to reorder expressions (return false), but maintain strict
+typing (raise a dynamic error) and backwards compatibility with XPath (don't
+raise a static error).  Because these requirements are incompatible and the
+committee does not compromise on either reordering expressions (thankfully)
+or the type system, the only possible end result is implementation-defined
+(non-deterministic).
+
+This is the kind of non-determinism I object to.  Like Michael Kay, I would
+personally prefer that the committee compromise on type "safety" in queries
+like this and define (or at least allow) @age=3 to return false when @age
+converting @age to integer fails.  That way, implementations can safely
+reorder the query without affecting its result.
+
+
+Cheers,
+
+michael
+
+
+-----Original Message-----
+From: public-qt-comments-request@w3.org
+[mailto:public-qt-comments-request@w3.org] On Behalf Of Guido Moerkotte
+Sent: Thursday, October 16, 2003 2:21 AM
+To: Michael Brundage; 'Kay, Michael'; public-qt-comments@w3.org
+Cc: mrys@microsoft.com; moer@pi3.informatik.uni-mannheim.de
+Subject: Re: XQuery
+
+
+Hello,
+
+This looks to me like it it's becoming a very interesting discussion.
+Thanks to all who contributed.
+
+Let met summarize what we have achieved so far:
+
+1) We detected indeterminism in XQuery.
+   (Thanks to Michael Brundage and Michael Rys)
+   In fact this indeterminism may show up
+   a) in different implementations of XQuery.
+   b) within the same implementation if (e.g. over time due to changing
+statistics)
+      different query evaluation plans are chosen.
+
+   My oppinion on indeterminism (and I think Michael Brundage might agree):
+     Indeterminism sucks!
+   I don't know any programming language that is indeterministic.
+   Assume Java would be. How about debugging? Portability? Maintainability?
+Applets? Nightmare!
+   Query languages should be deterministic for the same reason.
+
+2) Some of us would like the query not to fail.
+
+   Just as a reminder:
+   document:
+     <?xml version = "1.0"?>
+     <persons>
+      <person name="anton" age="two and a half"/>
+      <person name="anna"  age = "3"/>
+     </persons>
+   query:
+     for $p in document("p.xml")//person
+     where $p/@age = 3
+     return $p/@name
+
+  Let me quote some Michaels on the issue:
+  Michael Kay: "I think the comparison should return false."
+  Michael Rys: "Making the expression to fail with false would be nice, but
+the problem
+                is that the cast raises the error before we get to the
+comparison."
+
+  I would like to argue that returning false is *NOT* a good solution.
+  But first, let us assume that returning false is a good solution.
+  Then, we would have to implement this solution and define a semantics for
+it.
+  How do we implement it. As was pointed out by Michael Rys. It is not the
+comparison that
+  raises the exception. It is the conversion operator. Hence, the comparison
+would have
+  to catch the exception and return false. The question now is, which
+exceptions should
+  the comparison catch? There might be many and it may not be all
+exceptions.
+  This is nasty to implement. Difficult to understand for an XQuery user and
+  the semantics will be a mass.
+
+  This was my first argument against returning false.
+  Here comes my second argument.
+  Consider the following query:
+
+   for $p in document("p.xml")//person
+   where not($p/@age = 3)
+   return $p/@name
+
+  You might not agree but in my oppinion this query should return the empty
+sequence.
+  Why? Definitely, Anna's age is three and hence here element should not
+qualify.
+  Anton's age is "two and a half". We can't convert this to a number. Hence,
+the
+  true age of Anton is unknown to the system. It may be 3 but it may also
+not be.
+  This becomes more obvious if you change Anton's age to "three".
+
+  Hence, the only choice I see is to let the conversion return NULL.
+  Comparison with NULL always gives "UNKNOWN" (not "true", not "false").
+  Any query language I know of states that only those variables bindings
+qualify for
+  which the evaluation of the predicate stated in the "where" clause returns
+"true".
+  Those returning "false" or "unknown" don't qualify.
+
+  Now, comes my next argument why introducing NULL and three-valued logic
+into XQuery is
+  a good idea.
+  Obviously, there is something wrong with the document.
+  And as was correctly pointed out by Michael Kay:
+  "...there are many constraints that
+   cannot be expressed in a schema or DTD - not only cross-document
+   constraints, but also contextual constraints (a date must be in the
+future)
+   and constraints that are too complex to express in a given schema
+language
+   (e.g. if @x=1 then @y must be present)."
+  Further, I know a company that makes a living out of providing tools for
+checking
+  consistency/integrity of document collections.
+  Now, XQuery comes into play.
+  Assume that I'm suspicious about my above document.
+  Can I check that with simple XQuery?
+  I can easily, if we have NULL values:
+
+    for $p in document("p.xml")//person
+    where is_null((number) $p/@age)  /* not exactly XQuery syntax, sorry */
+    return $p/@name
+
+  Hence, even for somewhat inconsistent documents that might very well exist
+  due to evolution over time, integration from different source,
+conversions, ...
+  I know have a powerful tool (XQuery) to find out about those parts that
+are not
+  exactly what they should be.
+
+
+  After writing this, I really look forward to your arguments
+  a) in favor of Indeterminism
+  b) against NULL and three-valued logic.
+
+Best
+ Guido
+
+
+

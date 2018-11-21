@@ -1,0 +1,237 @@
+docno="lists-044-14837276"
+received="Wed Aug 23 12:39:09 2000"
+isoreceived="20000823163909"
+sent="Wed, 23 Aug 2000 09:38:38 -0700"
+isosent="20000823163838"
+name="John Boyer"
+email="jboyer@PureEdge.com"
+subject="RE: Proposed processing model for Reference and Transforms"
+id="BFEDKCINEPLBDLODCODKMEIMCEAA.jboyer@PureEdge.com"
+charset="us-ascii"
+inreplyto="200008230515.OAA02510&#64;ns.trl.ibm.com"
+expires="-1"
+
+To:"TAMURA Kent"<kent@trl.ibm.co.jp>,"Gregor. Karlinger@Iaik. At"<gregor.karlinger@iaik.at>,"Joseph Reagle"<reagle@w3.org>,"Ed Simon"<ed.simon@entrust.com>
+Cc:"XML DSig"<w3c-ietf-xmldsig@w3.org>,<jboyer@csr.csc.UVic.CA>
+
+
+Hello all,
+
+1. Used CSS to show changes
+2. XSLT and Minimal C14N
+3. Answers to questions posted so far
+
+1. Used CSS
+===========
+Attached is a new copy of the overview that implements the CSS
+recommendation Joseph made.  My additions are green underlined, the stuff I
+struck is in blue.  Normal URLs may also be blue on your browser, but they
+aren't struck out so there should be no confusion.
+
+The prior editors' additions are red underlined, and their strike outs are
+in grey.  So, if it's not green underlined or blue struck out, I didn't do
+it :)
+
+Other than that, I didn't do anything except fix a tiny error, which I
+marked with strike in Section 6.5.1.
+
+2. XSLT and Minimal C14N
+========================
+I forgot to mention these changes in yesterday's manifest:
+
+a) I added more text to clear up our expectations regarding the XSLT
+transform.  I'd be particularly interested in review from Ed Simon and
+others who care a lot about this transform because I did not write it as 'we
+expect canonicalization of the result
+tree', as Ed's previous email indicated.  The reason is that the result tree
+may not be describing XML, which means that c14n of the result tree is not
+well-defined.  The rest is self-explanatory if you read the text.
+
+b) I added more words to minimal c14n to try capturing what people actually
+intend for this transform.  It really needs to be reviewed by those who care
+about it.  Basically, the problem stems from the fact that we changed the
+processing model to allow node-set input.  If your intent was to minimally
+canonicalize XML derived from within the same document, then it is
+impossible to do this without doing Canonical XML (which obviates the need
+for minimal c14n) or adding something like the words I added, which can be
+very hard to implement in the general sense.
+
+===========================================================================
+This is a response to the excellent questions posted so far by Joseph,
+Gregor and Kent.
+
+A) Joseph: No explicit C14N? (It's implied?)
+
+John: It's only implied if the final result of URI dereference and
+Transforms is an XPath node-set (or sufficiently functional alternative).
+If you dereference a URI to an external resource, the result is an octet
+stream.  If you apply a base-64 transform or a minimal canonicalization, the
+result is still an octet stream, so there's no Canonical C14N applied.
+
+But, if you use a same document reference like URI="#ID", the result is a
+node-set.  The DigestMethod requires an octet stream, so we automatically
+apply C14N to convert node-set to octet stream.  This was done because we
+agreed on the teleconference that we needed to specify how URI="#ID" was
+going to turn into an octet stream, and we agreed that it should be C14N,
+but the WG did not want the verbosity of setting up a Transforms element
+with a C14N Transform just to get the text of an identified element.
+
+B) Joseph: Regarding Don's comment, do we need a parse me transform?  Or
+will this be implicit...
+
+John: Didn't seem to need to do it explicitly.  In fact, by leaving it
+implicit and defining the I/O for each transform, I was able to improve the
+b64 transform so that it automatically stripped the start and end tags,
+internal comments and PIs, etc. when the input was a node-set.
+
+C) Gregor: How can the result of the XPath expression test be treated as a
+boolean?
+
+John: Anything in XPath can be converted to a boolean.  However, note that
+the XPath expressions one must now write are more like those one would write
+for an XSLT template.  It's just the predicate expression that used to be in
+the square brackets of the former XPath transform, because the XPath
+transform has been rewritten to automatically iterate through the input
+node-set (or the node-set formed from the input octet stream).
+
+The reason for this change is that the WG requested on the last
+teleconference that we keep to a minimum the number of times we actually had
+to c14n.  I agree with this request.  We now pass a node-set from transform
+to transform if it is possible to do so.  The problem is, consider the
+nature of the output node-set of an XPath or enveloped signature transform.
+The output is not a node-set that just contains the root node.  It is a
+node-set that contains all nodes that should be carried forward to the next
+step (which could be c14n).  So, what if you have an enveloped signature
+transform followed by an XPath transform?  I expect this to be a common
+scenario in my software.  The output of the enveloped signature transform is
+a 'full' node-set.  Unless I were to duplicate the parse tree and shave out
+all of the omitted nodes, then there is no way I can reset the node-set back
+to just having its root element.  In other words, unless I do nearly as much
+CPU work as if I'd just done a c14n and then reparsed the document for the
+XPath transform, I need to handle the case where the input node-set is a
+full node-set, not a node-set that has the root node with context position
+and size 1.
+
+By the way, I am assuming that iterating a full node-set, creating a new
+node-set containing a single node and evaluating the expression w.r.t. that
+node-set is cost-effective.  I assume this because I assume that the
+node-set data structure of a reasonable implementation would be something
+like {root of tree, context pos, context size, list of nodes, other data}.
+In other words, I assume that you don't have to duplicate the parse tree to
+create a new node-set, and I assume that given a node, you can use all of
+the axes defined in XPath (e.g. go to ancestors) even if the ancestors
+aren't in the node-set.  If these are false assumptions, then we may have to
+revert to the more costly alternatives.
+
+D) Joseph, Gregor, Kent: Comment issue will cause confusion, and people will
+wonder whether to include them.  If an app wants them, they can write an
+XPath to keep them.
+
+John: Firstly, the fact that we require the non-comment and recommend the
+commented version should make it pretty clear which should be used most of
+the time.  Secondly, I had real trouble with comments because it turns out
+that you can't just do an XPath to include them.
+
+The reasoning went as follows:
+
+When we have a Reference to an external resource, the result is an octet
+stream (including comments).  For a same-document reference, if we strip
+comments, then they can never be recovered by an XPath transform AND it
+makes life really hard on those who just want to self-reference the document
+and do minimal c14n (suddenly they have to strip comments).  Therefore, same
+document references should retain comments.
+
+An XPath transform receives either a node-set or an octet stream.  If a
+node-set, the comments are still in it (unless stripped out by a prior XPath
+transform).  If input is an octet stream, then XPath creates node-set
+including comments, so again comments are retained unless the XPath
+expression in the transform omits them.  However, the output is a node-set,
+not an octet stream.  So, how do you get an octet stream that includes
+comments?  Well, you have to canonicalize the node-set.  The problem is that
+most people seem hellbent on having c14n exclude comments by default. Hence,
+we need a canonicalizer that does not strip the comments.  Since we have a
+c14n algorithm that can easily be told whether or not to get rid of
+comments, it seems easy to create a second transform for this purpose.
+
+I would be interested in being told exactly where the document gets more
+complicated as a result of this change.  I think that more is being said
+about how we derive the data to be signed, but that was the purpose of
+rewriting the processing model.  However, the with or without comments
+problem does not occupy much space in the changes.  The complexity comes
+from actually solving as opposed to repeatedly failing to solve the
+enveloped signature problem.
+
+E) Gregor, Kent:  Why add all of the XPointer complexity?  Specifically, why
+do a location-set when we don't support ranges and reduce it down to a
+node-set, why the distinction between full versus other xpointers w.r.t.
+comments, and why those two special full Xpointers?
+
+John:  For starters, let's address location-set.  According to the W3C
+candidate recommendation known as XPointer, the thing after the # is an
+XPointer, not an XPath.  XPointers return a location-set, not a node-set. We
+can 'declare' it to be a node-set, but the truth is that we say full support
+of XPointer is 'OPTIONAL', not 'FORBIDDEN'.  Thus, it is incumbent on us to
+say what should be done with point and range nodes (which are the
+only difference between a location-set and a node-set).  Moreover, on the
+question of ranges, the fact that there is a question is precisely why we
+needed to write down what should be done with them.  We support as much of
+ranges as can be supported by a node-set because we convert the range to the
+set of nodes that it spans.  I feel that ranges will get used a lot, so
+saying nothing about how they fit into our processing model is a failure to
+provide enough detail for those who want to implement this OPTIONAL part.
+
+To be honest, when we decided to stick to Xpath and node-set, it looked like
+no progress was being made on the XPointer/XLink front.  At the last FTF, I
+proposed the idea that we switch to location-set, an XPointer transform, and
+switch c14n to canonicalizing location-set.  I still think this is the right
+idea, but the WG voted against, so we are stuck with this translation (or
+stuck with saying that our spec FORBIDS anything after the # except an ID).
+
+Now, for the question of why some distinctions were made between URI="#ID"
+and URI='#xpointer(id("ID"))' as well as the distinction between URI=""
+versus URI="#xpointer(//. | //@ | //namespace::*)".  The distinction is that
+the full xpointers include the comments in the node-set and the shorter URIs
+don't.  Why do this?  Well, as I said above, I feel that the same-document
+URI dereference SHOULD result in the retention of comments, which can be
+excluded later by the default XML C14N.  However, comments are a real
+problem because there are a lot of tools out there that toss the comments.
+So, if I'd said that URI="" and URI="#ID" retain the comments, then some of
+the WG would likely have written in to say that we can't REQUIRE retention
+of comments :).
+
+So, the write-up currently reflects the fact that support for comment
+retention is RECOMMENDED but not REQUIRED.  If we omit the full xpointers
+and let URI="" and URI="#ID" retain comments, then some implementations
+would be violating the processing rules by not supporting the comments.
+However, as far as I can tell, the situation would clean itself up before
+they got to the DigestMethod, so their reference validation would still
+work.  However, it puts those who omit comment support into 'hack' status,
+and I did not feel I could do that-- the WG needs to decide to do that.
+
+Finally, note that whether or not this gets changed, we still need the C14N
+with Comments for those who want the comments signed.
+
+============================================================================
+======
+
+Hopefully, it is now clear why it took a whole day to make these
+modifications.  There were a lot of picky little issues and scenarios to
+account for.
+
+John Boyer
+Development Team Leader,
+Distributed Processing and XML
+PureEdge Solutions Inc.
+Creating Binding E-Commerce
+v: 250-479-8334, ext. 143  f: 250-479-3772
+1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>
+
+
+
+
+
+text/html attachment: Overview.html
+
+
+
+

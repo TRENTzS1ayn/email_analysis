@@ -1,0 +1,145 @@
+docno="lists-009-11633991"
+received="Mon Nov 13 15:09:05 1995"
+isoreceived="19951113200905"
+sent="Tue, 14 Nov 1995 00:03:13 +0100 (MET)"
+isosent="19951113230313"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Some notes on content negotiation"
+id="199511132303.XAA08032@wswiop05.win.tue.nl"
+charset="USASCII"
+inreplyto="9511130205.aa05307&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:koen@win.tue.nl,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Roy T. Fielding:
+>[Koen Holtman:]
+>> I'm trying to decide if I should postpone comments on content
+>> negotiation mechanisms until after the new 1.1 draft has been
+>> released.
+>
+>Are they different than the comments already on the mailing list archive?
+
+I have not yet written out any comments, all I have now are notes, but
+yes, most comments would be different from the stuff already the
+mailing list archive.
+
+>If so, then they may be useful, and I'd prefer to hear them before
+>generating a new draft.
+
+OK, I'll write out some of the more `high level' notes.
+
+I tried to define some superstructure to the existing header
+definitions.  There are two reasons two have such a superstructure:
+  - it allows one to better state the definitions
+  - it allows one to see areas that are not yet defined.
+
+This is what came out:
+
+`Negotiation port' model of content negotiation
+-----------------------------------------------
+
+For various reasons, web software should distinguish between two kinds
+of URI types with respect to content negotiation:
+  1) normal URIs
+  2) negotiation ports
+
+A normal URI (e.g. http://blah.com/animals/cat.gif) is bound to one
+entity, which may be dynamic (the entity may change through time).
+There is no content negotiation when accessing a normal URI.
+
+A negotiation port URI (e.g. http://blah.com/animals/cat) is not bound
+to an entity, but to a `variant set', which is a set of normal URIs,
+e.g
+
+ { http://blah.com/animals/cat.gif , http://blah.com/animals/cat.jpg } 
+
+, where each element in this set has certain properties known (at
+least) to the server.  The variant set and variant properties can be
+dynamic, they can change through time.
+
+Normal and negotiation port URIs cannot be distinguished by their
+syntax.  To determine the status of a certain URI, a request for that
+URI must be made: The URI is a negotiation port if and only if an URI:
+header is present in the resulting response.
+
+When a user agent does a request to a negotiation port URI P, a
+content negotiation process is initiated, which results in either an
+error message at some point, or the choosing of one normal URI U from
+the variant set, after which the contents bound to U are displayed by
+the user agent.
+
+The content negotiation process can take multiple requests and
+responses.
+
+In the most simple case, with one request and one response, the
+request on the negotiation port P generates a 200 OK response, with
+the response message containing:
+
+ 1) in the response body:
+      the entity body bound to the chosen URI U
+ 2) in the response headers:
+      2a) headers describing the variant set of the negotiation 
+          port P (e.g. URI)
+      2b) the entity headers for the chosen URI U 
+          (e.g. Content-type, Location, Last-modified)
+      2c) headers about the whole response
+          (e.g. Pragma, Date)
+
+One of the unresolved issues is: for every response header, does it go
+under 2a), 2b), or 2c)?
+
+One particular sticky issue is the Expires header.  Does it apply to
+both URI P and URI U?  Would two different expires headers (say
+Expires for 2b) and Port-Expires for 2a) ) be better?
+
+
+There are a number of reasons for adopting the above model with its
+clear dichotomy between two types of URI:
+
+ - Conceptual simplicity.  This is especially important because
+   the negotiation will be visible, on request, to the end user.  One
+   requirement for content negotiation is that the user can manually
+   request different variants of a content negotiated resource.  This
+   model
+    - has no recursive negotiation, which may be nice to have for
+      CS purists, but which also makes a clear presentation of 
+      the available variants to the user a lot more difficult
+    - ensures that each variant has its own URI by which it can
+      be reached directly
+
+ - I expect that having this model will make the semantics of strange
+   combinations of headers more easy to define
+
+ - `emulation' of content negotiation by proxy caches can be
+   expensive.  Under this model, caches can always recognize normal
+   URIs (which make up at least 99% of all current URIs), and can
+   remember that they do not need to emulate negotiation for
+   them when serving them from the cache.
+
+Summary of caching related things that need to be defined:
+
+- how do we express the dynamism of
+   a) The variant set and variant properties bound to the negotiation
+      port P, and the property that P is a negotiation port
+   b) the entity bound to the result URI U
+
+- when may a conditional GET with date D on a negotiation port return
+  a `not modified' code?
+   i) if a) above was not modified since date D?
+   ii) if both a) and b) was not modified since date D?
+
+OK, that sums up the superstructure and the caching issues.  I have
+more notes, some about the negotiation calculation itself and some
+about a new option in reactive negotiation, but I don't have time to
+expand them now.  I'll see if I can send them tomorrow.
+
+> ...Roy T. Fielding
+
+Koen.
+
+
+

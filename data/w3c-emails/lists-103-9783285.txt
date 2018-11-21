@@ -1,0 +1,82 @@
+docno="lists-103-9783285"
+received="Tue Nov  7 10:16:02 2000"
+isoreceived="20001107151602"
+sent="Tue, 7 Nov 2000 10:14:56 -0500"
+isosent="20001107151456"
+name="Joseph Kesselman/Watson/IBM"
+email="keshlam@us.ibm.com"
+subject="Re: nullPointerException in importNode"
+id="OF5AF825DF.A6799BF0-ON85256990.005254D9@pok.ibm.com"
+charset="us-ascii"
+inreplyto="nullPointerException in importNode"
+expires="-1"
+
+To:"Juan J. Merelo"<jj.merelo@civista.com>
+Cc:<www-dom@w3.org>
+
+
+
+Fast guess: It looks like you are trying to use importNode to import an
+entire Document. You can't insert a Document into a Document. Try changing:
+      Node myNode = tidy.parseDOM(in, null);
+      Document myDoc = new DocumentImpl();
+      myDoc.appendChild( myDoc.importNode( myNode, false ));
+to
+      Document sourceDoc = (Document) tidy.parseDOM(in, null);
+      Document myDoc = new DocumentImpl();
+      myDoc.appendChild( myDoc.importNode( sourceDoc.getDocumentElement(),
+true ));
+
+Note the "true" in that last line. I presume you _do_ want to import the
+entire subtree...
+
+CAVEAT: This is nonportable code. Even ignoring the direct referenct to
+DocumentImpl, there's no promise that you can simply append a root element
+to an empty Document... and in fact there's no standard way to create an
+empty Document at this time. A more portble solution would be:
+
+      Document sourceDoc = (Document) tidy.parseDOM(in, null);
+     Element sourceRoot=sourceDoc.getDocumentElement();
+
+     // This one line currently needs to be aware of which DOM you're using
+     // Since you said you were using the Xerces DOM:
+     DOMImplementation
+myDOMImpl=org.apache.xerces.dom.DOMImplementationImpl.getDOMImplementation
+();
+
+
+     // I'm assuming here that tidy's DOM is a Level 1 DOM. If it's Level
+2,
+     // you'll want to alter this line appropriately. (Best solution would
+be
+     // to use hasFeatures to check whether the source DOM is Level 1 or
+Level 2)
+     // I'm also assuming you aren't assigning a DocumentType.
+      Document myDoc = myDOMImpl.createDocument(null,sourceRoot.getNodeName
+(),null)
+
+     for(Node n=sourceRoot.getFirstChild();
+          n!=null;
+          n=n.getNextSibling())
+     {
+           myDoc.getDocumentElement().appendChild(
+               myDoc.importNode( n, true )
+               );
+     }
+
+
+Re the null pointer exception:  Outside of the fact that you can't insert a
+Document into a Document... this looks like either Tidy returned null and
+you didn't notice, or Tidy isn't implementing the DOM correctly, or there's
+a bug in the Xerces implementation of importNode. Debug your way into the
+code and check which. If you need assistance, there's a mailing list for
+Xerces development -- I don't remember the details offhand, but you can
+find out more about it at http://xml.apache.org/xerces
+
+Hope that helps...
+
+______________________________________
+Joe Kesselman  / IBM Research
+
+
+

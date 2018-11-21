@@ -1,0 +1,106 @@
+docno="lists-018-0631603"
+received="Thu May 23 06:10:34 2002"
+isoreceived="20020523101034"
+sent="Thu, 23 May 2002 11:05:01 +0100"
+isosent="20020523100501"
+name="Jeni Tennison"
+email="jeni@jenitennison.com"
+subject="Re: Data Model WD"
+id="121327954723.20020523110501@jenitennison.com"
+charset="usascii"
+inreplyto="3CEBDE4D.D975762F&#64;saic.com"
+expires="1"
+
+
+To: Marton Nagy<MARTON.NAGY@saic.com>
+CC:public-qt-comments@w3.org
+
+Hi Marton,
+
+Thanks for getting back to me about my comments. Just to pick up on
+one of them.
+
+> You are right. At the time of the publication we took a very simple
+> approach for handling restrictions of simple types: we just used
+> xs:anySimpleType to label those. Since then, we have revisited this
+> decision and will likely do what you suggest: label these
+> restrictions with the name of the base type (if that has a name), or
+> walk up the type hierarchy till we find one that is named and use
+> that.
+>
+> Also note that the data model already handles list types. If your
+> example would just be a list of dates (rather than a list of
+> restrictions of dates), the atomic values in the sequence would be
+> properly labeled with xs:date. So once we fix the algorithm of
+> obtaining the type name of a subtype the whole example will be
+> handled properly.
+
+That sounds great. As you revisit this, here's another example (which
+I had posted to XML-Dev) that demonstrates a problem with lists of
+union types:
+
+Say you have:
+
+<xs:simpleType name="commandType">
+  <xs:restriction base="xs:token">
+    <xs:enumeration value="moveto" />
+    <xs:enumeration value="lineto" />
+  </xs:restriction>
+</xs:simpleType>
+
+<xs:simpleType name="commandOrCoordType">
+  <xs:union memberTypes="commandType xs:integer" />
+</xs:simpleType>
+
+Imagine a commandOrCoord attribute with type commandOrCoordType:
+
+  commandOrCoord="moveto"
+
+In the PSVI, the commandOrCoord attribute information item has a
+schema normalized value of "moveto", a type definition of
+commandOrCoordType and a member type definition of commandType.
+
+In the XQuery/XPath 2.0 data model, the attribute node has a type of
+commandOrCoordType and a typed value with the value 'moveto' and the
+type commandType. That's all fine, because you can get the type of the
+single value from the member type definition of the PSVI.
+
+Now consider:
+
+<xs:simpleType name="pathType">
+  <xs:list itemType="commandOrCoordType" />
+</xs:simpleType>
+
+and a path attribute with the type pathType:
+
+  path="moveto 100 300
+        lineto 200 400 300 300"
+
+The PSVI contains a path attribute information item with a schema
+normalized value of "moveto 100 300 lineto 200 400 300 300", a type
+definition of pathType and no member type definition.
+
+To satisfy its requirement that atomic values are always of atomic
+types, the XQuery/XPath 2.0 data model needs to translate this into an
+attribute node whose typed value is the sequence ('moveto', 100, 300,
+'lineto', 200, 400, 300, 300), with the 1st and 4th items being atomic
+values of the type commandType and the rest of the items being atomic
+values of the type xs:integer.
+
+I don't think that the current data model WD describes how you get
+from the schema normalized value and the type definition of pathType
+to the sequence of commandTypes and integers. I believe that it
+requires a separate invocation of the schema validator to work out the
+member type of the items in the sequence, since the information about
+the types of individual values isn't present in the PSVI.
+
+Cheers,
+
+Jeni
+
+---
+Jeni Tennison
+http://www.jenitennison.com/
+
+
+

@@ -1,0 +1,121 @@
+docno="lists-040-9457599"
+received="Fri Jun 29 10:52:56 2001"
+isoreceived="20010629145256"
+sent="Fri, 29 Jun 2001 10:59:22 -0400"
+isosent="20010629145922"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Status code for creating lock-null resource"
+id="3906C56A7BD1F54593344C05BD1374B103770D0B@SUS-MA1IT01"
+inreplyto="Status code for creating lock-null resource"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+   From: Dan Brotsky [mailto:dbrotsky@Adobe.COM]
+
+   But in the workflows I described, the user concept is not "intent
+   to create" per se, it's "intent to edit, creating if necessary".
+   From a user point of view, I'm being asked to work on resource
+   "foo," creating it if necessary.  I don't want to have to tell my
+   client to do something different in the two cases.
+
+I understand and agree with that, but in general, a user gesture
+will invoke several client requests (sometimes a very large number).
+Your client will be doing at least 2 requests for this gesture
+anyway (i.e. LOCK/GET), so having it do 3 requests (i.e. PUT/LOCK/GET)
+is not qualitatively different.  In somewhat more detail:
+
+PUT(URL)/if-does-not-exist
+LOCK(URL)
+if (lock-failed)
+  then report-error; break;
+GET(URL)
+PROPFIND(URL, appropriate-authoring-properties)
+
+Notice that the only difference in this sequence and the one you
+suggest is the initial "PUT(URL)/if-does-not-exist".  That additional
+request seems to be a relatively minor imposition on the client,
+compared to the complexity of dealing with the variety of ways that
+servers end up handling LNRs.
+
+   I just want to
+   tell it "I want to edit 'foo'; do the right thing."  Which, if we
+   allow LOCK to create foo if necessary (as it does currently), is
+   always done by the sequence LOCK / GET (but only if the GET is
+   allowed to succeed on the LOCKED created resource).
+
+Yes, I agree that this is a good argument against the current LNR
+behavior of returning a 404 on a GET.  In general, this is a very good
+argument for why a client can be written more simply if there is a
+"real" resource that holds the lock, instead of some "null" resource
+with special behavior.
+
+   I actually think (from your next message) that we agree about what 
+   should happen.  And I actually believe that LNRs can be changed 
+   fairly easily to be "empty" rather than "null" resources; all we have 
+   to do is remove the method response restrictions AND take away the 
+   "auto-delete" on UNLOCK behavior.
+
+Yes, but if we are going to implicitly create a real resource, I think
+it is a simpler and more consistent model to just have the client
+explicitly create the resource.  In particular, the "auto PUT with an
+empty body" doesn't handle the case where you want to create a
+collection there.  That's what motivated the "auto-morph" behavior
+of a LNR.  If the client just creates the kind of resource it
+wants there (PUT, MKCOL, MKWORKSPACE, whatever), you can do what you
+need without having to have a special "LNR" that has the ability to
+morph into another kind of resource (thus requiring special code in
+MKCOL, MKWORKSPACE, etc.).
+
+   A no-content resource is one which returns 204.  (By the way, some 
+   servers do this for directory resources when "default docs" and 
+   "directory listings" are turned off.)  The response means "there's a 
+   resource here but it has no body (and thus no mime type).
+
+   A 0-length resource corresponds to a 0-length file in a file system; 
+   it has a MIME type but no octets.
+
+   No-content resources and 0-length resources both show up in listings 
+   and both respond to GET.
+
+A problem with distinguishing no-content resources from 0-length
+resources is that most repositories have no such distinction, and
+it is a non-trivial amount of work to layer this distinction on
+existing repositories.  Which means you want to require it only if
+it really gives you significant benefit.  But either the no-content
+has the auto-morph capability (which means every "create" method
+has to have a special case for it), or it does not, in which case
+it does not handle any of the LNR use cases that are collections or
+other types of resources not created by PUT.
+
+   >   It might be just as
+   >hard for servers to handle no-content resources (if they currently only
+   >handle 0-length resources) as it is to support a lock-null resource.
+
+   That's a good point.  But I'm not arguing against LNRs cause I think 
+   they're hard to implement :^).  I don't like their conceptual model, 
+   and I think we don't need to introduce them at all.
+
+I'm somewhat different ... I believe they are a pain to implement,
+I'm fairly neutral on their conceptual model, but then agree with
+you on the conclusion, i.e. that we don't need to introduce them at
+all.  
+
+   >   At any
+   >rate, I wouldn't support adding a completely new concept (no-content
+   >resources) even if we did remove the lock-null concept.
+
+   No-content resources are not new; they're in HTTP 1.0 and 1.1.
+
+Yes, but the distinction between a no-content and zero-length resource
+is made by many repositories, and is not a feature currently required
+by 2518 servers, so requiring it for locking behavior would be
+problematic.
+
+Cheers,
+Geoff
+
+
+

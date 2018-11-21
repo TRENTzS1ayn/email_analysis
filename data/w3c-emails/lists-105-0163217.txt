@@ -1,0 +1,72 @@
+docno="lists-105-0163217"
+received="Sat Sep 20 00:09:49 2003"
+isoreceived="20030920040949"
+sent="Fri, 19 Sep 2003 23:09:48 -0500"
+isosent="20030920040948"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: &quot;negative count&quot; and unsigned counts"
+id="3F6BD30C.4070405@houston.rr.com"
+charset="ISO-8859-1"
+inreplyto="3F6B5763.3030706&#64;w3c.jstenback.com"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+
+Johnny Stenback wrote:
+
+> Agreed. I don't think there's anything that really can be fixed here, 
+> but DOM Level 3 (and maybe arratas to older versions) could explain 
+> the intended behavior better here, and IMO the DOM TS should not make 
+> an implementation fail if it doesn't throw a *DOM exception* when a 
+> negative value is passed as an unsigned type.
+
+
+Tests that pass negative numbers to parameters declared as unsigned have 
+an assertion that they are only applicable to bindings that exclusively 
+used signed values.  Typically, it looks something like this:
+
+<test>
+   <metadata/>
+   <implementationAttribute name="signed" value="true"/>
+   <!--  body of test goes here -->
+</test>
+
+Both the Java and ECMAScript frameworks accept tests where signed="true" 
+since neither supports unsigned values, however frameworks for other 
+bindings may dismiss those tests as not applicable.
+
+Unfortunately, most languages that support unsigned integers do not 
+raise an exception on an attempt to cast a negative value to unsigned.  
+This results in the same programing error having substantially different 
+outcomes on different bindings.  For example, if 
+CharacterData.substringData(0, -1) will raise an exception on Java and 
+ECMAScript implementations, but would return the entire string on 
+implementations that silently converted -1 to a very large positive integer.
+
+If I were designing a binding for a language that did not raise an 
+exception on a conversion of a negative number to unsigned and also 
+allowed function overloading, I would consider creating a signed variant 
+of each function that performed range checking an raised the appropriate 
+DOMException.  For example,
+
+class CharacterData
+{
+      //
+      //   signed wrapper function, called when uncast expressions or 
+literals are used in call
+      DOMString substringData(int offset, int count) {
+          if (offset < 0) throw DOMException(INDEX_SIZE_ERR);
+          if (count < 0) throw DOMException(INDEX_SIZE_ERR);
+          substringData((unsigned int) offset, (unsigned int) count);
+      }
+
+     DOMString substringData(unsigned int offset, unsigned int count) {
+          //  actual implementation
+     }
+}
+
+
+

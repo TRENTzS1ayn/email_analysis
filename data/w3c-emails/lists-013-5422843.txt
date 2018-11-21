@@ -1,0 +1,83 @@
+docno="lists-013-5422843"
+received="Wed Oct 15 15:20:11 2003"
+isoreceived="20031015192011"
+sent="Wed, 15 Oct 2003 15:20:00 0400"
+isosent="20031015192000"
+name="Peter Watkins"
+email="peterw@usa.net"
+subject="Re: Reverse Proxy Header Munging"
+id="3F8D9DE0.1060907@usa.net"
+charset="usascii"
+inreplyto="p05210603bbb344b81474&#64;[128.52.39.83]"
+expires="1"
+
+
+To:"John C. Mallery"<jcma@ai.mit.edu>
+Cc: Mark Nottingham<mnot@mnot.net>,ietf-http-wg@w3.org
+
+
+John C. Mallery wrote:
+
+> So, what happens if there is more than one reverse proxy in the chain?
+> 
+> X-Forwarded-For looks like the ip number of the reverse proxy.
+> 
+> X-Forwarded-server looks like the  virtual host (potentially), as you suggest.
+> 
+> What is not clear to me is why Apache can't just pass through the HOST header as
+> received and use the VIA header to convey the reverse proxy information to the
+> upstream server.
+> 
+> Why is a reverse proxy any  different than a forward proxy? Shouldn't the
+> VIA header do the job? Do we really need to differentiate the IP number from
+> the server domain? Shouldn't the later suffice?
+
+These sound more like Apache/implementation questions than IETF/HTTP 
+spec questions. Why does Apache, from your research, apparently send a 
+different Host header? I could speculate[0] but I'm not sure this is an 
+appropriate forum for discussing this particular behavior.
+
+-Peter
+
+[0] With the ProxyPass mechanism, the downstream server (the one that 
+the end-user's client software connects to) is essentially 
+*masquerading* -- very different from acting as an HTTP protocol proxy.
+
+Let's say you configure the Apache httpd with
+   ServerName yahoo.example.com
+   ProxyPass /yahoomail/ http://mail.yahoo.com/
+   ProxyPassReverse /yahoomail/ http://mail.yahoo.com/
+Clients will send a Host header with content "yahoo.example.com" to the 
+downstream/masquerading server. Now down/masq Apache will make an HTTP 
+request to upstream mail.yahoo.com. It would not make sense for the 
+down/masq Apache httpd on yahoo.example.com to pass along the Host 
+header with the initial value ("yahoo.example.com") to upstream 
+mail.yahoo.com, as the upstream server likely only accepts requests 
+within the yahoo.com domain. Request a URI within "yahoo.example.com", 
+and mail.yahoo.com is likely to give an error message (or, depending on 
+the HTTP server software it uses, it might return HTML for a different 
+site on the same IP address, e.g. content from "my.yahoo.com"). 
+mail.yahoo.com is likely to only give reliably correct documents when it 
+sees a Host header whose value it recognizes as one it's responsible for.
+
+As for the X- headers, I'd *guess* that it is expected that the upstream 
+server and downstream server will have some sort of relationship, and 
+Apache is passing along the original client information in X- headers so 
+that the info is available to the upstream server. Since Apache httpd's 
+ProxyPass is a *masquerading* setup and not an implementation of a 
+HTTP-compliant proxy server, X- headers were the only way for Apache to 
+pass that info to the upstream server.
+
+If that doesn't make sense (and it well might not; I'm not an Apache 
+proxypass developer), I think you might want to follow up with an 
+appropriate Apache mailing list.
+
+> At 22:58 -0700 10/12/03, Mark Nottingham wrote:
+> 
+>>They're X- headers; unofficial, albeit oft-used by reverse proxies (aka surrogates, gateways, etc.). X-Forwarded-For is quite common; X-Forwarded-Host and -Server are, I assume, to account for multiple virtual domains and/or multiple gateways in a farm.
+>>
+>>As to its behaviour, everything that happens between a gateway and the upstream server is between those parties, more or less. These headers are pretty straightforward (although there are some potential security issues), but there are other issues brought about by using a HTTP gateway that's based on proxy software; e.g., those highlighted in
+>> http://www.research.att.com/~edith/Papers/HTML/usits01/
+
+
+

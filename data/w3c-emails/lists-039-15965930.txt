@@ -1,0 +1,366 @@
+docno="lists-039-15965930"
+received="Fri Jan 21 11:56:40 2000"
+isoreceived="20000121165640"
+sent="Fri, 21 Jan 2000 11:56:36 -0500"
+isosent="20000121165636"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: draft-ietf-webdav-binding-protocol-02"
+id="10001211656.AA26520@tantalum"
+inreplyto="OFD84EAC65.2680719E-ON8825686D.000A8B5A&#64;ebuilt.net"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+First, many thanks to Roy for taking time to review the spec.  I
+agreed with many/most of his comments, so to keep this response short,
+I'll delete the parts of Roy's review that I agree with or have no
+comment on.  The result is that it will appear that I disagree with
+everything Roy says, but that emphatically is not the case!
+
+   From: fielding@ebuilt.com
+
+   I am a bit surprised by the size of the specification. After all, the
+   manpage for the Unix ln command is only 4 pages.
+
+There was a wide range in views on "how much to say" among the authors.
+At the end, we decided to err on the side of too much, and ask the working
+group to let us know what could be cut.  You can assume that any comment
+of the form "get rid of this" echoes the sentiments of at least one of
+the authors.  So to all reviewers, please take Roy's lead and let us know
+what to cut!
+
+   > Servers are required to insure the integrity of any bindings 
+   > that they allow to be created.
+
+   This is an implementation concern that has no relevance to the client.
+   Resources disappear for many reasons, and it isn't possible for a
+   binding to be more persistent than a resource.
+
+True, but this statement is intended to constrain a server implementation
+to retain a resource while there is a binding to it.  In other words,
+an implementation is faulty if it allows a method to have a resource
+disappear while there is still a binding to it.  This is in contrast
+to references (e.g. redirect references) that have no such guarantee.
+
+   resources != storage objects.  What is the motivation for creating aliases
+   within one namespace to identifiers in some other namespace?  That is what
+   needs to be described in the above paragraph -- storage is irrelevant.
+
+Although I agree that storage is not the primary value to a client of
+creating multiple bindings, it is one of the reasons why a BIND can be
+more desireable to a client than a COPY; namely, because they are
+aware that a BIND allows for certain storage optimizations that would
+not be feasible for a COPY.
+
+   However, the real deciding issue
+   in my mind is that none of this is useful to the client in defining
+   the protocol.  It would be better to simply say:
+
+      For the purpose of this protocol, each unique URI is considered to
+      be identifying a unique resource, even when the URI corresponds to
+      a binding created by BIND.  The only distinguishing characteristics
+      between the two that may be discovered by the client are ...
+
+This is a model we considered (and JimW even did some impressive ASCII
+art to illustrate it), but we found that saying that "every URI
+identifies a unique resource" makes the term "resource" irrelevant.
+The point of the binding spec was to allow two different URI's to
+identify the same "something".  If we say that every URI identifies a
+unique resource, then we need another term, say "object", and now all
+of our semantics are in terms of URI's and objects, i.e. "A bind
+causes two URI's to be mapped to the same object".  So instead, we
+took the approach of Yaron's WebDAV model, and say that there are two
+spaces, URI-space and resource-space.  URI's are strings whose syntax
+is well-defined.  A resource can respond to an HTTP method, and can
+be identified by a URI.  Without the binding protocol, there is no way
+for a client to cause two URI's to identify the same resource, so for
+all practical purposes, each URI identified a unique resource.  With
+the binding protocol, a client now has a way to cause two different
+URI's to identify the same resource.  In addition, there is a defined
+property, DAV:resourceid, that allows a client to determine whether or
+not two URI's are bound to the same resource.
+
+We found that this was much more comprehensible to readers, than to
+maintain that every URI identified a unique resource, but that a URI/resource
+can be "mapped" to an "object", and two URI/resources can be mapped to the
+same object.
+
+On the other hand, perhaps we missed something valuable that was gained
+by saying "every URI identifies a unique resource".  Could you explain
+what this is?
+
+   > Path Segment
+   >      Informally, the characters found between slashes ("/") in a URI.
+ xxxxxxxxx
+   in the path component of a hierarchical URI.
+
+   >      Formally, as defined in section 3.3 of [URI].
+
+   > Binding
+
+   Ugh.  Sorry, but all this does is define a bunch of things which are of
+   no concern to the client.  The abstraction is broken.
+
+A client uses collections and bindings to define and control the
+mapping of URI's to resources.  In particular, it can only do so (by
+the binding protocol) at the "segment" granularity, i.e. when you bind
+the resource R1 into collection C1 with the name "x", and the URL
+/stuff/coll identifies C1, then you have made /stuff/coll/x identify
+R1.  In particular, the discussions of segments and URL syntax is
+important to prevent the incorrect conclusion in this example you have caused
+/suff/collx to identify R1.
+
+   A binding is a name within a collection namespace.
+
+It is important for a binding to be a name with legal segment syntax,
+so that it produces a legal URL when it is concatenated to the URL
+that identifies the collection (separated by a "/").
+
+It is also important that a binding be both a name and the resource
+that the name identifies, so that when a method replaces a binding
+with another binding that has the same name but identifies a different
+resource, this is considered a change to the state of the
+collection (as reflected in a different entity tag, lock checking,
+etc.)
+
+   The only thing BIND does is
+   define a new way to create a binding, similar to PUT and POST.  Once
+   the binding is created, there is no way for the client to
+   differentiate it from the original PUT resource.  Thus, the protocol
+   doesn't care either.
+
+There is an important difference in that a BIND creates another name
+for a resource, meaning that changes to the state of the resource through
+the first name will be visible at the new name.  Unless you know the
+resource type of a resource, that doesn't mean much, but when you do
+know the resource type (e.g. that it is a collection resource), then
+saying changes through one URL are visible at another URL are of great
+significance to a client.
+
+For example, if you have two URL's that identify the same collection, and you
+add or delete a binding to that collection from one URL, you will see
+that addition or deletion at the other URL.
+
+   > The identity of a binding C:(S -> R) is determined by the URI segment 
+   > (in its collection) and the resource that the binding associates.  If 
+   > the resource goes out of existence (as a result of some out-of-band 
+   > operation), the binding also goes out of existence.  If the URI segment 
+   > comes to be associated with a different resource, the original binding 
+   > ceases to exist and another binding is created.
+
+   No!  It is fundamentally impossible to implement the above.
+
+I don't understand in what sense it is fundamentally impossible to
+implement the above.  What part of this appears problematic?
+
+   In order
+   to be a protocol requirement, we must specify it in terms of the 
+   interface.
+
+Perhaps something like: A binding cannot return a 404" and
+"any out of band operation that changes the resource associated
+with a binding in a collection results in a state change of the
+collection (as reflected in an entity tag)" ?
+
+   In other words, what must be done on a PUT/POST/DELETE upon a binding,
+   where "binding" includes any resource in the namespace.  Once you do
+   that, you will discover that no one will want to implement this.
+
+It sounds like you read this as meaning something very different than
+was intended.  Could you describe a bit what you thought this was saying,
+so we can make sure that we fix it?
+
+   > It would be very undesirable if one binding could be destroyed as a side 
+
+   > effect of operating on the resource through a different binding.  It is 
+   > not acceptable for moving a resource through one binding to disrupt 
+   > another binding, turning that binding into a dangling path segment.  Nor 
+
+   > is it acceptable for a server, after removing one binding, to reclaim 
+   > the system resources associated with its resource while other bindings 
+   > to the resource remain.  Implementations MUST ensure the integrity of 
+   > bindings.
+
+   I don't need any of these requirements.  If I don't need them, then they
+   must be specifying something more than a binding, because I've already
+   implemented every semantic in this spec aside from the BIND method itself.
+
+This is the strong integrity requirement.  If you don't need these
+requirements, then you don't need bindings (you probably want "references").
+
+   I am damn sure that I am not going to post-hoc implement alias integrity
+   within Apache just because this protocol says that a DELETE must result
+   in removal of all bindings to the binding being deleted.
+
+Actually, we specifically contradict 2518, and say that a DELETE must
+not result in the removal of all bindings to the resource being
+deleted (note that we have bindings to resources, not bindings to
+bindings).  Some servers will chose not to implement bindings, but
+there is (we believe) a large community of clients and servers that
+want/need the integrity constraints provided by the binding protocol.
+For servers that chose not to implement BIND, then there is no
+problem because there will not be multiple bindings to the same
+resource (as defined in this protocol).
+
+   Late binding,
+   where the existence or nonexistence of a resource is determined at the
+   time requested, is far easier to implement and corresponds to what
+   a user expects to happen -- no magic.
+
+Yes, and a simple limited form of that is provided by the redirect
+reference protocol.  A more extensive form of that would be provided
+by a "direct referenece" (i.e. a reference followed by the server),
+but that is not what the BIND protocol is about.  Yaron and others have
+indicated interest in developing a direct reference protocol, but that
+is very different from a binding (i.e. integrity preserving) protocol.
+
+There is a terminology question, i.e. should these non-integrity-preserving
+things be called "weak bindings" or "direct references" (I'm a staunch
+advocate of the latter), but this protocol is definitely not about
+them, whatever we end up calling them.
+
+   > 5.1 Overview of BIND
+   > 
+   > The BIND method creates a new binding between the resource identified by 
+
+   > the Request-URI and the final segment of the Destination header (minus 
+   > any trailing slash).  This binding is added to the collection identified 
+
+   > by the Destination header minus its trailing slash (if present) and 
+   > final segment.  The Destination header is defined in Section 9.3 of 
+   > [WebDAV].
+
+   As discussed in other mail, this is backwards because the Request-URI
+   needs to identify the collection that will be changed so that the right
+   authentication is picked up prior to other processing.  It can be
+   implemented in the reverse, but doing so is much less efficient for
+   a general-purpose HTTP server.
+
+A BIND request affects two resources: the source resource (it gets a
+new binding to it) and the target collection (it gets a new binding in
+it).  Whether this is implemented as an operation on the source
+resource, the target collection, or both, is completely up to the
+implementation.  You may need authentication on either or both
+resources, and whether it is more efficient depends on the
+implementation, so I believe that consistency with similar protocol
+methods (COPY, MOVE) should take precedence over optimizing towards a
+particular implementation.
+
+If this really is an efficiency killer for an implementation, then I'm
+certainly open to change, but I'd like to see that argument in more
+detail.  This topic is much less important to me than the underlying
+semantics, but seeing how many people get confused over the direction
+of "ln" over the years (i.e. using it like "cp"), I'd hate to submit
+WebDAV clients to the same confusion without good reason.
+
+In particular, I'd like to see why any such argument doesn't apply
+equally well to MOVE, which in practice does not seem to suffer from
+having the target in the Destination header.
+
+   >...
+   > After successful processing of a BIND request, it MUST be possible for 
+   > clients to use the URI in the Destination header to submit requests to 
+   > the resource identified by the Request-URI.
+
+   That says nothing.  Not even what was intended.  A client can submit
+   anything it wants at any time.
+
+The key here is "to the resource identified by the Request-URI".  A client
+can submit anything it wants the Destination URI, but if it's a COPY,
+it won't go to the resource identified by the Request-URI, but rather
+to some new resource.
+
+   > By default, if the Destination header identifies an existing binding, 
+   > the new binding replaces the existing binding. This default binding 
+   > replacement behavior can be overridden using the Overwrite header 
+   > defined in Section 9.6 of [WebDAV]. 
+
+   Yuck.  I don't like this either -- force the client to do a DELETE.
+
+If a client didn't want the old binding to be deleted unless the new
+binding could be created, it's convenient to be able to specify both
+operations in a single request.
+
+   > Creating a new binding to a collection makes each resource associated 
+   > with a binding in that collection accessible via a new URI, and thus 
+   > creates new URI mappings to those resources but no new bindings.
+
+   except for the binding created.  I think we'd all live longer if this
+   and the following paragraphs trying to explain it were just left to the
+   reader to figure out for themselves -- the description is far more
+   difficult to understand than just saying "you can create multiple
+   bindings to a collection resource".  Besides, the Note below does a
+   far more effective job of saying the same thing.
+
+I'm happy to improve the wording, but this distinction was the key
+one that distinguished this approach from another that Yaron proposed
+(i.e. the forest of mappings approach).  In this approach, when you
+add a new binding, you can cause more than one (in fact, with cyclic
+bindings, an infinite number) of new URL-resource mappings to be
+created.  Knowing exactly what URL mappings will be introduced by a
+BIND request is essential for a client to understand how to use multiple
+bindings to collections.
+
+   > 5.3 URI Mappings Created by a BIND
+   > 
+   > Suppose a BIND request causes a binding from "Binding-Name" to resource 
+   > R to be added to a collection, C.  Then if C-MAP is the set of URI's 
+   > that were mapped to C before the BIND request, then for each URI "C-URI" 
+
+   > in C-MAP, the URI "C-URI/Binding-Name" is mapped to resource R following 
+
+   > the BIND request.
+
+   Wow, that's an even more obscure way of saying that a BIND adds a name
+   to a collection such that the new name indirectly identifies R.
+
+This is emphasizing the above point, namely that adding a binding to a
+collection creates a set of mappings, one for each URI mapping to that
+collection.  We have found that most readers did not infer that from
+statements like "a BIND adds a name to a collection".  So we need better
+wording (if both Roy and Yaron find it confusing, I think we can safely
+predict that others will as well :-).
+
+   > 10 Determining Whether Two Bindings Are to the Same Resource
+   > 
+   > It is useful to have some way of determining whether two bindings are to 
+
+   > the same resource.  Two different resources might have identical 
+   > contents and identical values for the properties defined in [WebDAV]. 
+   > Although the DAV:bindings property defined in Section 13.1 provides this 
+
+   > information, it is an optional property.
+   > 
+   > The REQUIRED DAV:resourceid property defined in Section 13.2 is a 
+   > resource identifier, which MUST be unique across all resources for all 
+   > time.  If the values of DAV:resourceid returned by PROPFIND requests 
+   > through two bindings are identical, the client can be assured that the 
+   > two bindings are to the same resource.
+
+   Whoa, where did this requirement come from?  The URI is a resource ID.
+   If somebody wants to create a general metadata field for some sort of
+   sacred-name, then go wild, but this is not needed for bindings.
+
+The DAV:resourceid property is the only property that a client can
+use in general to determine of two different URL's identify the same
+resource.
+
+   A question like this should be answered by a method applied to the
+   collection, not to the individual bindings.
+
+Could you explain this?
+
+   I think that's it.  I'm sorry that I didn't get a chance to review
+   this earlier, but I've been pretty busy the past two years.
+
+I hear you on that "busy" thing (:-).  If you have time for a
+couple more iterations, that would be great!
+
+Cheers,
+Geoff
+
+
+

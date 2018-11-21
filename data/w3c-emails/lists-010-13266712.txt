@@ -1,0 +1,117 @@
+docno="lists-010-13266712"
+received="Fri Dec 13 17:57:10 1996"
+isoreceived="19961213225710"
+sent="Fri, 13 Dec 1996 17:55:03 0800"
+isosent="19961214015503"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="RE: HTTP/1.1 Contradiction"
+id="c=US%a=_%p=msft%l=RED-77-MSG-961214015503Z-108912@INET-02IMC.microsoft.com"
+inreplyto="HTTP/1.1 Contradiction"
+expires="1"
+
+
+To: 'Daniel DuBois'<dan@spyglass.com>, 'Jeffrey Mogul'<mogul@pa.dec.com>
+Cc:"'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'"<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>,"'pmontelo@spyglass.com'"<pmontelo@spyglass.com>
+
+Because the transfer-encoding is added and stripped off on a hop-by-hop
+basis, that header (and its effects on the entity-body) were
+deliberately left out of the digest.
+
+More precisely, only certain fields that we felt were strongly related
+to the integrity of the entity body are _included_ in the digest.  Here
+is what header-related info the digest-auth spec says is included in the
+digest:
+    entity-info = H(
+              digest-uri-value ":"
+              media-type ":"         ; Content-type, see section 3.7 of
+[2]
+              *DIGIT ":"             ; Content length, see 10.12 of [2]
+              content-coding ":"     ; Content-encoding, see 3.5 of [2]
+              last-modified ":"      ; last modified date, see 10.25 of
+[2]
+              expires                ; expiration date; see 10.19 of [2]
+              )
+
+    last-modified   = rfc1123-date  ; see section 3.3.1 of [2]
+    expires         = rfc1123-date
+
+It goes on to say that if a header is missing, then the null string is
+included in the digest. Note that this is mandatory for all the headers
+_except_ Content-Length, whose value can be computed even when the
+header is missing.
+
+Note also that in order to digest a chunked body, the digest has to go
+in the footer, after the end of the chunk-encoded body. However, the
+HTTP spec says that only headers that state that they are allowed in
+footers are allowed in footers, and the relevant digest-auth header does
+not so state.
+
+So, there is no semantic reason that a proxy couldn't convert from a
+content-length that is implicit in the chunked encoding to one that is
+explicit in the Content-Length header, but we'd have to change a couple
+of things that essentially needlessly disallow it:
+
+CHANGES NEED TO THE HTTP/1.1 SPEC to make the above work:
+1. Allow proxies to add Content-Length header if not present.
+
+CHANGES NEEDED TO THE DIGEST SPEC:
+
+1. Change section 2.1.3 "The AuthenticationInfo Header" to say that it
+is allowed in the footer of a chunked encoded HTTP message.
+2. Change section 2.1.2 to specifically state that content length is
+always to be included. The HTTP/1.1 spec requires that content length is
+well defined in all messages, whether or not there is a Content-Length
+header.
+
+Paul
+
+
+>----------
+>From: Daniel DuBois[SMTP:dan@spyglass.com]
+>Sent: Friday, December 13, 1996 4:37 PM
+>To: Paul Leach
+>Cc: 'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'; pmontelo@spyglass.com
+>Subject: RE: HTTP/1.1 Contradiction 
+>
+>At 04:18 PM 12/13/96 -0800, Paul Leach wrote:
+>>Imagine that you've computed an MD5 (or other) checksum over the content
+>>body and various of the headers. If you change any of them, the digest
+>>won't check thereafter. When the digest is used for authentication and
+>>as a secure integrity check, the failure of the digest to check would
+>>lead to some kind of security fault.  The "no-transform" directive was
+>>added to tell proxies that changing the body or certain headers would
+>>lead to some kind of failure.
+>>
+>>In the case in question (an HTTP to mail gateway), it may not be
+>>important that the recipient of the Mime-body be able to verify its
+>
+>First let me say I'm not concerned with mail gateways, so I don't want to
+>get too lost thinking about the implications of such. :)
+>
+>I understand what you are saying in the first paragraph, and it sounds like
+>what you are saying applies to Transfer-Encoding as well.  Or are we
+>presuming that whatever the digest-computation algorithms are in the browser
+>(and the server as well!) they are both intelligent/aware enough to ignore
+>the Transfer-Encoding headers in their computations?
+>
+>If we can't make that assumption (it sounds like a tenuous one), then we
+>should state somewhere in the HTTP/1.1 spec that proxies are *not* allowed
+>to remove Transform-Encodings on responses/messages that have a no-transform
+>Cache-Control directive.
+>
+>Are there any other implications of this?
+>
+>Now I think some more about it.... Why are we specifying headers at all?
+>Why aren't they ALL un-modifiable in face of no-transform and the
+>possibility of a some-headers-digested situation?
+>
+>-----
+>Daniel DuBois, Traveling Coderman        www.spyglass.com/~ddubois
+>   o  The Heroes of Might and Magic II Bible is here!
+>      http://www.spyglass.com/~ddubois/HOMM2.html
+>
+>
+
+
+

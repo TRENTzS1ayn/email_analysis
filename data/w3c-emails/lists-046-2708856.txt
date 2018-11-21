@@ -1,0 +1,87 @@
+docno="lists-046-2708856"
+received="Thu Jan 24 11:20:34 2002"
+isoreceived="20020124162034"
+sent="Thu, 24 Jan 2002 16:20:20 +0000"
+isosent="20020124162020"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: History: Question on C14N list of nodes instead of subtrees"
+id="20020124162020.4798E43C56@yog-sothoth.ie.baltimore.com"
+inreplyto="7874BFCCD289A645B5CE3935769F0B520C3505&#64;tigger.PureEdge.com"
+expires="-1"
+
+To:"John Boyer"<JBoyer@pureedge.com>
+Cc:reagle@w3.org,w3c-ietf-xmldsig@w3.org
+
+
+r/JBoyer@pureedge.com/2002.01.23/15:15:35
+>Finally, as to the speed issue that the originator is experiencing, I'd
+>say he is suffering from a non-optimized implementation.  The reason is
+>that an O(n) traversal of the nodes of a parse tree is sufficient for
+>including all such nodes in a node-set.  Since all members of the
+>node-set will be rendered in a serialization, the cost is O(n).  Thus,
+>the cost of putting all nodes in a node-set should (or can at least) be
+>commensurate with serialization.  If it is taking progressively longer
+>to calculate the node-set as the XML document grows, then the XPath
+>implementation needs to be optimized.  Alternately, we only require
+>behavior equivalent to the evaluation of the (//. | //@* |
+>//namespace::*) expression.
+
+The cost is more like O(n log(n)) because our use of XPath
+as a per-node filter often requires evaluating, for each
+node in the document, something along the lines of:
+
+  count(id('to-be-signed') | ancestor-or-self::node()) =
+    count(ancestor-or-self::node())
+
+Here, ancestor-or-self is going to be an O(log(n)) operation.
+
+In the originator's case he is trying to do an XPointer
+and winding up with:
+
+URI="", XPath=
+count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespace::*) |
+self::node()) =
+count((here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+ere()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespace:: *))
+
+This is O(log(n)) per node in the document (and you have to admit
+that there is going to be a hefty constant in front of that O),
+which is painful as the document size grows.
+
+One option (off the top of my head, so I've not given it mich
+thought) would be to introduce a new XPath intersection transform:
+
+<Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116#intersection">
+  <XPath>
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//. |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//namespace::*
+  </XPath>
+</Transform>
+
+The result of this would be the intersection of the input node
+set and the node set that results from evaluating the transform.
+
+This would be entirely XPath based (no need for XPtr), and
+would drop things to O(n) (with a significantly-reduced
+constant) for doing signature-relative operations.
+
+Merlin
+
+
+-----------------------------------------------------------------------------
+Baltimore Technologies plc will not be liable for direct,  special,  indirect 
+or consequential  damages  arising  from  alteration of  the contents of this
+message by a third party or as a result of any virus being passed on.
+
+This footnote confirms that this email message has been swept by
+Baltimore MIMEsweeper for Content Security threats, including
+computer viruses.
+   http://www.baltimore.com
+
+
+

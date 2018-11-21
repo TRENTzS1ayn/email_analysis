@@ -1,0 +1,102 @@
+docno="lists-009-13126489"
+received="Thu Dec  7 16:01:50 1995"
+isoreceived="19951207210150"
+sent="Thu, 07 Dec 95 15:50:42 PST"
+isosent="19951207235042"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: twophase send concerns"
+id="9512072350.AA02967@acetes.pa.dec.com"
+inreplyto="199512072215.RAA11660&#64;caffeine.server.net"
+expires="1"
+
+
+To:rg@server.net
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    Jeff> If the server doesn't want to receive the large body, it
+    Jeff> immediately replies with its 4xx or 5xx response, and
+    Jeff> immediately closes (not resets) the connection.
+    
+    Jeff> If the client manages to read the 4xx or 5xx response, it must
+    Jeff> honor it and should reflect it to the user.
+    
+    I really don't like the "If".  401 (not to mention 3xx) -require- the
+    client to read the response, because they aren't fatal, and they
+    contain critical information to making the transaction succeed!
+    If there is any doubt that the client might not read the response,
+    then we are doing something wrong.
+    
+Good point, although this is actually the result of an ambiguity
+in what I wrote.
+
+When I wrote "4xx or 5xx response", I was essentially qouting from
+Roy's draft.  It occurred to me while I was writing that message
+that the two-phase mechanism really needed an explicit status
+code for use here, which is why I ended up including this
+bit:
+    We might also want to do this:
+        Servers rejecting an entity-body for reasons of size
+        must respond with
+                413 Request too large
+So I would restate the phrases you object to as:
+
+    If the server doesn't want to receive the large body, it
+    immediately replies with a 413 response, and
+    immediately closes (not resets) the connection.
+    
+    If the client manages to read the 413 response, it must
+    honor it and should reflect it to the user.
+
+In other words, the server should only prematurely close the
+connection for this specific purposes (request too large)
+and SHOULD NOT prematurely close the connection for other
+4xx and 5xx statuses (although the server is always allowed
+to prematurely close the connection if it has to ... for example,
+if it crashes and reboots!)
+
+    The protocol should be deterministic in any case where the physical
+    connection hasn't been screwed up.  I'm all for fault tolerance and
+    fallback mechanisms, but they should not be the "standard" way of
+    moving data around.
+    
+I think my proposal is fully deterministic if no networking
+failures occur, although it does require at least one retry
+in some rare cases.
+
+    Anyway, everyone keeps talking about the 4xx and 5xx -fatal- cases.
+    These are the easy ones.  In any scenario, please think in terms of a
+    harder case, such as the client wants to PUT a giant chunk of data to
+    a location that requires authentication, or tries to POST to a
+    resource that has moved, etc.
+
+The real question here is "if there are two or more reasons why
+a request would fail, which one is reported in the status code?"
+(this is because each response carries exactly one status code).
+
+One answer would be "it doesn't matter" (more precisely, "it's
+up to the server implementer").  Take your first example: if the
+client wants to PUT a zillion bytes to a location that requires
+authentication, then does it really matter why it fails?  Either
+way, it can't be done.
+
+We could take that approach, but I think it might be too crude.
+For example, suppose that a server will accept a 1 KB chunk
+from anyone, but wants authentication before it will accept
+a 20MB chunk.  If a 20 MB Put arrives without authentication,
+it would be more useful to respond with 401 Unauthorized than
+413 Request too large, since if the client sees the 401 it
+could presumably retry after authentication, whereas if it
+simply sees the 413, it has no clue.
+
+Even in this scenario, it may be the case that the server
+implementor might have some reason for sending the 413
+response in preference to the 401 response (e.g., an organizational
+security policy that tries to obscure the reasons for
+a failure), so I think the HTTP spec could recommend a
+set of status-code precedences, but not require it.
+
+-Jeff
+
+
+

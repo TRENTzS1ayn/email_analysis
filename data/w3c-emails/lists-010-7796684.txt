@@ -1,0 +1,122 @@
+docno="lists-010-7796684"
+received="Sat Aug 17 15:04:48 1996"
+isoreceived="19960817190448"
+sent="Sun, 18 Aug 1996 00:01:32 +0200 (MET DST)"
+isosent="19960817220132"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: New document on &quot;Simple hitmetering for HTTP&quot;"
+id="199608172201.AAA06357@wsooti04.win.tue.nl"
+charset="USASCII"
+inreplyto="9608142350.AA17283&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:koen@win.tue.nl,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Jeffrey Mogul:
+>
+>If I understand your argument, it is that in order to bound the
+>size of the error in the hit count to lie within a reasonable
+>range, the max-uses setting would have to be so small that it
+>would effectively disable caching.
+
+Yes.  For uncooperative caches.
+
+     [Koen Holtman:]
+>    I'd like to see *actual statistics* disprove my argument
+
+>So I got a day's worth of log entries from our proxy.  Here are
+>some statistics:
+>
+>        589705  total log entries
+>        529756  after removing non-HTTP URLs with "?", "cgi", or "htbin"
+>        245481  unique "cachable" URLs
+>        189723  "cachable" URLs referenced only once during the trace
+>         55758  "cachable" URLs referenced more than once
+
+It's very tricky to extrapolate from a day's worth of log entries: to
+do these statistics right, you would have to count over the lifetime
+of a cache entry, which is presumably a lot longer than 1 day for your
+cache.  I find it difficult to guess in what direction your end
+results would change if you calculate over log entry lifetimes.
+
+>That's an effective cache hit rate of about 23%, not counting
+>things that can't be cached, and ignoring any misses that were
+>caused by modifications to the resources.
+
+Eek! I would calculate a ( 529756 - 245481 ) / 529756 * 100% = 54% hit
+rate for your figures, also ignoring misses due to modification
+(including the semi-modification known as cache busting!).  What is
+your definition of hit rate?
+
+>Supposing that, for each of the "cachable" URLs referenced more than
+>once, the origin server sent max-uses=3.
+[...]
+>220936 uses would not have to be forwarded to the origin server,
+>which comes out to about 37% of all the references logged.
+
+So if cache busting is replaced by max-uses=3, you expect a 37% cache
+hit rate (i.e. RTT savings in 37% of all cases) in an uncooperative
+cache, where it earlier had a 0% hit rate for the offending server
+
+There are several factors to pollute this figure: 1 day sample, not
+factoring out dynamic and authenticated content which is uncachable,
+not counting the 8th, 12th, ... hits, but let's forget about those.
+
+>Now, it's quite true that not every server insists on demographics
+>information, and so the actual number of references saved would
+>presumably be lower.  But this should give some idea of the
+>magnitude of the possible savings, and I don't think it's insignificant.
+
+Your statistics don't answer the main question I have: does max-uses=3
+(or max-uses=2 for that matter) give a good enough upper bound to make
+sites switch from cache busting to max-uses=3?
+
+Using figures from your post:
+
+         245481 unique "cachable" URLs
+         228240 of these were referenced 1, 2, or 3 times
+          17215 were referenced more than 3 times
+
+         529756 references on "cachable" URLs
+         276401 references to URLs referenced 1, 2, or 3 times.
+         253355 of these references were to URLs
+                referenced more than 3 times
+
+We can calculate how good the upper bound is.  If we assume
+optimistically that all references to `more than 3 times' URLs are
+reported under max-uses=3, we have
+
+   228240 + 253355 = 481595 known uses.
+
+For the 1,2,3 URLs, the server handed out 3 * 228240 = 684720 uses
+which never led to any reports.  481595 + 684720 = 11663135.  This
+means that the origin server knows
+
+  481595  <= actual uses <= 11663135 .
+
+But this upper bound is a factor 2.4 higher, which makes it hardly
+useful.  So max-uses=3 *still* gives you a useless upper bound, and
+you can't expect that people will switch from using cache busting to
+using max-uses=3.
+
+(Note that the real actual uses, 529756 uses, are only a factor 1.1
+higher than the 481595 reported, but this good figure is caused for a
+large part by the optimistic assumption that all uses of `more than 3
+times' URLs are reported.)
+
+Now, to do all of the above statistics _right_, you would have to have
+figures on how many times the contents of a cache slot are served
+during the lifetime of the cache slot.  Unfortunately, I don't know of
+any data set with these figures.  But I feel safe in saying that we
+can forget about the uncooperative cache option.  It won't work, and
+should be removed from the draft to make it shorter.
+
+>-Jeff
+
+Koen.
+
+
+

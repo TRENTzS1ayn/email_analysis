@@ -1,0 +1,89 @@
+docno="lists-020-1168019"
+received="Thu Jan  8 10:52:15 2004"
+isoreceived="20040108155215"
+sent="Thu, 8 Jan 2004 16:50:47 +0100"
+isosent="20040108155047"
+name="Roorda, Dirk"
+email="DRoorda@kluwer.nl"
+subject="XSLT2.0 feedback"
+id="430EAA2DEEE3584FB070EA441B0762B7113541@klms01.intra.kluwer.nl"
+charset="utf-8"
+expires="-1"
+
+
+To:<public-qt-comments@w3.org>
+
+Here is some feedback on saxon 7.8 and X-SLT/PATH-2.0.
+ 
+Description
+-----------
+I have written a stylesheet program to transform XML books into XSLFO.
+This program uses 5000 layout parameters. These will be read from a secondary XML input document, a so called Layoutmodel.
+ 
+Performance improvement!
+------------------------
+In XSLT1.0 the code was 160 kB, and on a book of 250 kB it ran 40 seconds (500MHz). This includes the generations of a table of contents and several registers.
+I have completely rewritten de code in order to exploit the benefits of XSLT2.0.
+Now the code is only 100 kB and the execution time is 20 seconds with identical output.
+ 
+Less extensions needed
+----------------------
+I generally enjoyed the improvements of 2.0 over 1.0 very much. A lot of code I have moved into XPATH2.0 expressions. I got rid of the use of all extensions, except saxon:evaluate.
+ 
+Using XSLT2.0 and XPATH2.0
+--------------------------
+1. No variable declaration in XPATH
+While moving code from XSLT to XPATH I encountered one particular stumbling block: in XPATH you cannot declare variables in full generality. As you say in your saxon documentation, XPATH now has variable binding constructs as for, some and every, but that does not help enough.
+For example, if I want to recode something like
+<xsl:for-each select="tokenize('1 2 3 4 5')">
+    <xsl:variable name="a" as="xs:string" select="my:func1(.)"/>
+    <xsl:variable name="b" as="xs:integer" select="my:func2(a)"/>
+    <xsl:variable name="c" as="xs:string *" select="my:func3(a)"/>
+    <!-- do something useful with $a and $b and $c -->
+</xsl:for-each>
+In XPATH2.0 I am tempted to do something like this:
+<xsl:sequence select="
+    for $i in tokenize('1 2 3 4 5') return
+        for $a in my:func1($i) return
+            for $b in my:func2($a) return
+                for $c in (my:func3($b)) return
+                    ...
+"/>
+But the problem here is that $c is sequence valued, and because sequences cannot be nested, I see no way to bind the $c of the third for loop to a sequence of strings.
+That's why I think XPATH would profit by a define or let construct, like functional programming languages have, something like
+define $x value ( expr ) in expr
+or more general
+define $x1 value ( expr ) $x2 value ( expr ) ... $xn value ( expr ) in expr
+ 
+2. Text nodes
+-------------
+It was not obvious to me how to generate text-nodes. Of the text comes from a parameter, <xsl:text> does not do it.
+Thanks to Michael Kay I know now how to do it:
+<xsl:function name="my:text" as="node()?">
+    <xsl:param name="text" as="xs:string"/>
+    <xsl:sequence>
+        <xsl:value-of select="$text"/>
+    </xsl:sequence>
+</xsl:function>
+Note that if $text is empty, no node will be returned!
+But I wonder why it is not possible to create text nodes with <xsl:text> as freely as you create attribute nodes with <xsl:attribute> and element nodes with <xsl:element> and namespace nodes with <xsl:namespace>.
+ 
+3. Manipulating the context
+---------------------------
+Often I find myself in a situation that I want to repeat a piece of working code, so I wrap it in a for loop. There are two options: an XSLT for-each or an XPATH for.
+When I have the choice, I take the XPATH version, which has the advantage that the context node does not change.
+But when I need to do things inside the body of the loop that cannot (yet) be done in XPATH, I am forced to use the XSLT for-each. But then the context node changes, and this may cause nasty problems. For example, if I use the function key in the body, it does not work if the sequence that I selected in the xsl:for-each does not consist of nodes in the current document.
+Again, Michael Kay pointed out that one can say $n/key($key,$value) for a suitable node $n.
+This may lead to a more general concept: allow more access to the stack of contexts that must be maintained somewhere. It would be nice to be able to specify in what context an XPATH expression should be evaluated. Especially in for-each loops, what you really want is to evaluate XPATH expressions in the parent context, i.e. the context that was in force just before entering the for-each loop.
+For example: current() is the current context node, current(1) the node that is current in the parent context, current(2) the node that is current in the grandparent context. Likewise position(1), position(2) and last(1) and last(2), etc.
+Or things like <xsl:value-of select="." context="2"/>.
+ 
+4. Overall impression
+---------------------
+I have the feeling that XSLT2.0 is much more of a programming language than XSLT1.0 was. I am pleased with the more general datastructures of sequences and with more capabilities of manipulating nodes, so that you can use node sequences for general data manipulation.
+ 
+Dirk Roorda
+ 
+
+
+

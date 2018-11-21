@@ -1,0 +1,228 @@
+docno="lists-006-9790689"
+received="Mon Jul  2 10:34:57 2001"
+isoreceived="20010702143457"
+sent="Mon, 2 Jul 2001 10:41:27 -0400 "
+isosent="20010702144127"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Version-controlled collection resources - I am still missing  something"
+id="3906C56A7BD1F54593344C05BD1374B1018E2501@SUS-MA1IT01"
+inreplyto="Version-controlled collection resources - I am still missing  something"
+expires="-1"
+
+
+To: DeltaV<ietf-dav-versioning@w3.org>
+
+   From: Alan Kent [mailto:ajk@mds.rmit.edu.au]
+
+   I can use VERSION-CONTROL to create a new version controlled
+   resource (VCR) by identifying a version resource (VR). If the VR
+   holds the versioning information for a collection, then the VCR
+   will be a collection resource.
+
+Yes.
+
+   What bindings will be in the VCR collection resource? Will it be an
+   empty directory? Or will it automatically have bindings to version
+   histories? (and what does this mean??) Or...
+
+Good catch!  The intent was for the semantics of VERSION-CONTROL for a
+collection version to be the same as the semantics of UPDATE for a
+collection version (see Section 14.12), but this of course should be
+stated explicitly.  In particular, the new version-controlled
+collection should have a version-controlled member for each version
+controlled binding specified in the DAV:version-controlled-binding-set
+of that collection version.
+
+So following text should have appeared in section 14.9 (additional
+VERSION-CONTROL semantics for version-controlled collections):
+
+ Additional Postconditions:
+
+ (DAV:new-version-controlled-collection): If the request body
+ identified a collection version, the collection at the request-URL
+ MUST contain a version-controlled internal member for each
+ DAV:version-controlled-binding specified in the
+ DAV:version-controlled-binding-set of the collection version, where
+ the name and DAV:version-history of the internal member MUST be the
+ DAV:binding-name and the DAV:version-history specified by the
+ DAV:version-controlled-binding.  If the internal member is a member of
+ a workspace, and there is another member of the workspace for the same
+ version history, the DAV:version of the internal member MUST be the
+ DAV:version of that other member; otherwise, the DAV:version MUST be
+ the DAV:root-version of the version history.
+
+If nobody has any objections to this text, I'll add this to the
+next working draft.
+
+   Basically I am trying to understand how to create a workspace, then
+   populate it with with non-checked-out version control instances.
+   What commands do I need to do?
+
+You need to do an initial VERSION-CONTROL request to get the
+first version-controlled collection into the workspace, and
+then do a sequence of MERGE (or UPDATE) requests to populate
+the members of that collection with the desired versions.
+
+If you put a collection under baseline-control, you can set the
+versions of all the members of that collection with a single MERGE of
+a baseline into that baseline-controlled collection.
+
+   If I do a VERSION-CONTROL command,
+   I can get a version-controlled-resource referencing a version-resource.
+
+Yes (the version resource is referenced by the DAV:checked-in
+property of the VCR).
+
+   I understand this for a non-collection resource. But what about a
+   collection resource? I guess I get a collection with bindings to
+   version histories(????).
+
+You get a version-controlled collection whose members are 
+new version-controlled resources for those version histories
+(initially selecting the DAV:root-version of those version
+histories).
+
+   Do I then use VERSION-CONTROL to replace the
+   bindings to version-history resources with bindings to version-controlled
+   resources?
+
+You would use MERGE to adust the DAV:checked-in version of the
+internal members.
+
+   Or using VERSION-CONTROL to get a collection, does it
+   magically walk the whole collection tree from that point down creating
+   version-controlled-resource instances to all the resources in the
+   whole collection tree?
+
+A collection version doesn't specify what versions of its members
+should be selected, but a baseline (i.e. a configuration version)
+does.  So to create a whole version-controlled collection tree in a
+single requests from an existing baseline, you can use
+BASELINE-CONTROL.
+
+   Hmmm. Not sure if the above makes much sense. Put simply, I have
+   a project with a tree of files. I want to create a workspace (for
+   server side versioning) then get a read-only copy of all the files
+   ("Get Latest Version" in Microsoft Visual Source Safe) in the project.
+   I do not want to check them out yet. I want to do that later.
+   I just want to read the files then later check out the files I
+   actually want to modify. I am not sure of the complete sequence
+   of commands to do this. (With an example of such a sequence, all
+   my other questions probably go away.)
+
+VERSION-CONTROL /ws/alan/src 
+<D:version> <D:href> http://repo/coll-ver/345 </D:href> </D:version>
+
+# assume that coll-ver/345 has bindings named a.html, sub, and othersub
+# in its DAV:version-controlled-binding-set
+
+MERGE /ws/alan/src/a.html
+<D:source> <D:href> http://repo/ver/4901 </D:href> </D:source>
+
+MERGE /ws/alan/sub
+<D:source> <D:href> http://repo/coll-ver/234 </D:href> </D:source>
+
+# assume that coll-ver/234 has a binding named b.html
+# in its DAV:version-controlled-binding-set
+
+MERGE /ws/alan/sub/b.html
+<D:source> <D:href> http://repo/ver/3244 </D:href> </D:source>
+
+# assume that there is a baseline for othersub
+
+BASELINE-CONTROL /ws/alan/othersub
+<D:baseline> <D:href> http://repo/bl/267 </D:href> </D:baseline>
+
+   The DeltaV spec I have says
+
+       14 Version-Controlled-Collection Feature
+       Although a collection version only records the version-controlled
+       bindings of a collection, a version controlled collection MAY
+       contain both version-controlled and non-version-controlled
+       bindings. Non-version-controlled bindings are not under version
+       control, and therefore can be added or deleted without checking
+       out the version-controlled collection.
+
+   So collections can contain both version-controlled and
+   non-version-controlled resources at the same time.
+
+Yes, a version-controlled collection can (but note that only
+the version-controlled bindings are captured by a collection
+version, so the non-version-controlled members are not "shared"
+by other workspaces).
+
+   I assume that I can create and delete non-version-controlled resources
+   in the directory whether the collection is checked-out or not.
+
+Yes.
+
+   This continues with text talking about Lock Null resources.
+
+       This feature is essential for the support of lock null resources,
+       since a lock null resource is a temporary internal member of a
+       collection that should only exist for the duration of the lock, and
+       should not be captured in the version history of tha coolection.
+
+   If we do not have lock null resources, does this mean that we no
+   longer need to be able to create non-version-controlled-resources
+   under a version-controlled collection? (My guess this is not the case,
+   but it seemed topical.)
+
+There are other reasons to have non-version-controlled bindings.
+In particular, if your server supports server-side build management,
+then the derived files (e.g. results of compilation or other kinds
+of processing) are commonly stored as non-version-controlled
+bindings.  Other kinds of derived resources are index resources that
+speed up searching within a collection (like the emacs TAG files).
+
+       14.10 Additional CHECKOUT Semantics
+       ... If the request has been applied to a collection version, the
+       new working collection MUST be initalized to contain a binding to
+       each of the history resources identified in the
+       DAV:version-controlled-binding-set of that collection version.
+
+   Does this delete references to any other bindings to
+   non-version-controlled resources that are in the working directory?
+   My guess is not.  But what if there is a collision? (Eg: a
+   non-version-controlled resource is created called FOO then the
+   collection is checked out which contains a FOO binding. Does the
+   CHECKOUT fail? etc.)
+
+Note that applying a CHECKOUT to a collection version is only
+done with the client-workspace package.  There you are not checking
+out the version-controlled collection, but rather creating a
+fresh new working collection, with bindings to version histories
+(very different from what happens when you CHECKOUT a
+version-controlled collection).
+
+When you CHECKOUT a version-controlled collection, there never
+is a collision because a CHECKOUT of a VCC does not change any
+of the bindings of that VCC.
+
+BUT, you can create the collision you describe with an UPDATE or MERGE
+request.  In this case, the rules in section 14.1.1 apply (the dreaded
+"eclipsed-set" that Tim referred to earlier :-).  The rule is pretty
+simple though ... if a version-controlled collection has a
+version-controlled binding that has the same name as a
+non-version-controlled binding, the non-version-controlled binding is
+the one that is visible.
+
+   Or, if using VERSION-CONTROL to get a collection resource does
+   populate it with all bindings (ie, the working collection is not
+   empty), then the only way to get a collision is to have deleted
+   the binding before hand (in which case there is probably no danger
+   as you probably are not permitted to delete a resource-controlled
+   binding if the collection resource is not checked out).
+
+   ps: Boy this can be a tounge/brain twister!
+
+We *really* appreciate you working through all the tricky bits!  The
+rest of us have been up and down this road too long to notice the
+missing signposts (:-).
+
+Cheers,
+Geoff
+
+
+

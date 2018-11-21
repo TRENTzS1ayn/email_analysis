@@ -1,0 +1,76 @@
+docno="lists-039-1242784"
+received="Wed May 12 21:31:37 1999"
+isoreceived="19990513013137"
+sent="Wed, 12 May 1999 21:29:09 -0400"
+isosent="19990513012909"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="Handling errors in DAV:propertyupdate"
+id="85256770.0008586B.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+
+There has been some discussion on the WebDAV mailing list concerning the
+handling of PROPPATCH errors. The current WebDAV spec says that either all the
+propertyupdates in a PROPPATCH must succeed, or none of the updates are
+performed. This is sometimes a little extreme as there are cases when best
+effort updates are ok, especially in the case of live properties. In order to
+accomplish best effort, the client must do a PROPPATCH, examine the errors that
+are returned, and do another PROPPATCH to perform the updates that would have
+been successful.
+
+Another scenario involves copying resources across servers. This would very
+useful for publishing a web site from a development server to a production
+server as well as sharing and reusing resources. Copy has a propertybehavior
+element that indicates what should happen to live properties that are candidates
+to be copied. If the copy method is completely executed within a single server,
+then there is no problem processing the method. However, if the copy is to go
+across servers, then there must be some way to handle the copying of live
+properties. One way to implement cross-server copies is to use a WebDAV to GET
+the contents of the source resource and PUT those contents to the destination
+resource. This would be followed by a PROPFIND to get the properties of the
+source resource, and a PROPPATCH to create the properties of the destination.
+However, as in the first scenario, there is no way for the server to indicate
+what should be done with live properties on the source resource. The server
+can't assume its live properties will be live for the destination, and there is
+no way to query the destination resource to see what properties would be live.
+
+Both of these scenarios and others could be supported if the DAV:propertyupdate
+element was extended to include information similar to the DAV:propertybehavior
+element. Then the client could specify how errors should be handled for each
+property to be updated: ignore the error, or fail. The default if nothing was
+specified would be to fail the update, and therefore the complete PROPPATCH.
+This would be consistent with the current WebDAV spec.
+
+I propose we extend the DAV:set and DAV:remove elements to include information
+describing how the client wishes to handle errors. The DTD additions would be:
+
+<!ELEMENT propertyupdate (remove | set)+>
+
+<ELEMENT set (prop, updatebehavior?)>
+<ELEMENT remove (prop, updatebehavior?)>
+
+<!ELEMENT updatebehavior (ignore | mustsucceed)>
+<!ELEMENT ignore EMPTY>
+<!ELEMENT mustsucceed (#PCDATA | href+)>
+
+If an updatebehavior is not included, it is equivalent to specifying
+<mustsucceed>*</mustsucceed> meaning that all the updates must be successful or
+none of them are performed. If a list of URIs is included as the value of
+mustsucceed, then the named properties must be updated successfully. The #PCDATA
+in element mustsucceed can only be "*" indicating all updates must be
+successful. If ignore is specified, then the server must use best effort to
+update the properties returning a multistatus indicating which properties were
+not updated.
+
+It would be possible to use propertybehavior instead of introducing a new
+element updatebehavior as the semantics are the same. However, it might be
+confusing as the words have different meaning.
+
+
+

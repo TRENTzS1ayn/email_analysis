@@ -1,0 +1,156 @@
+docno="lists-039-6297769"
+received="Thu Aug  5 18:56:49 1999"
+isoreceived="19990805225649"
+sent="Thu, 5 Aug 1999 15:51:56 -0700"
+isosent="19990805225156"
+name="Kevin Wiggen"
+email="wiggs@wiggenout.com"
+subject="RE: LOCK Scenarios"
+id="LNBBKDGPNJMOJNOBHLLMKEGKCBAA.wiggs@wiggenout.com"
+charset="iso-8859-1"
+inreplyto="8E3CFBC709A8D21191A400805F15E0DBD243D9&#64;crte147.wc.eso.mc.xerox.com"
+expires="-1"
+
+To:"Slein, Judith A"<JSlein@crt.xerox.com>,"'WebDAV'"<w3c-dist-auth@w3.org>
+
+
+
+Responses in <KW>  I have tried to give thoughts to what the user would
+think should happen.  I hope they are understandable, and I hope I don't
+contradict myself too much....
+
+Kevin
+
+In all cases, we assume that the agent requesting the MOVE owns all the
+locks in question.
+
+A resource is being MOVEd.  The locks are on that resource and / or its
+destination, not the collections that contain them.
+
+1. The source resource is locked, but the destination is not.
+MOVE /a/b to /x/y, where /a/b is locked  but /a/ is not and /x/y is not.
+
+<KW> The way I interpreted the spec is that /x/y is still not locked when
+this is done.  The lock is lost during the move.  I am OK with this.  So
+this means there are no locks at all when the MOVE is done.  Also note this
+means a TAGED IF header must be sent in order for this to happen </KW>
+
+2. The source resource is not locked, but the destination is.
+MOVE /a/b to /x/y, where /a/b is not locked and /x/ is not locked, but /x/y
+is locked
+
+<KW>The spec says that /x/y gets deleted.  The literal interpretation of
+this (see my earlier posts) means that the lock is removed and /a/b replaces
+/x/y.  I think this is wrong for two reasons.
+1)  I would expect that /a/b is REPLACING /x/y and thus keeping the lock.  I
+hate the fact that the spec says to do deletes (to depth infinity no less),
+but that is on the open issues list.
+2)  It might be possible in some implementations (I think) for someone else
+to create /x/y once I removed my lock via the DELETE, but before I placed
+the new file there...
+
+2 is an implementation issue, but as a user, I would most likely expect the
+lock to still be there.
+</KW>
+
+3. Both are locked, but with separate locks.
+MOVE /a/b to /x/y, where /a/b has lock L1 and /x/y has lock L2, but neither
+/a/ nor /x/ is locked.
+
+<KW> From my reading of the spec I would expect NO locks to exist when this
+was done.  Again I believe this is wrong, and the lock L2 should still exist
+afterward, but be locking the newly MOVED resource.  However if someone
+argues that in case 1 above the lock should FOLLOW the file across then I
+would expect this to overrule my problems with case 2 above and /a/b would
+still be locked by L1</KW>
+
+A resource is being MOVEd.  The locks are Depth: infinity locks on the
+collections that contain either the source or the destination location.
+
+4. The source collection is locked, but the destination collection is not
+MOVE /a/b to /x/y, where /a/ is locked, but /x/ is not and /x/y is not.
+
+<KW> I agree with the spec here.  The lock on /a simply looses /a/b as one
+of its members, the lock on /a and all the rest of its resources remains.
+Since /x/y is not locked.  It is not locked after the MOVE </KW>
+
+5. The source collection is not locked, but the destination collection is.
+MOVE /a/b to /x/y, where /a/ is not locked and /a/b is not locked, but /x/
+is locked.
+
+<KW> Again I think I agree with the spec on this one.  /x/y will be DELETED
+and removed from the lock.  Then /a/b will be MOVED there and thus be added
+to the LOCK infinity.  So the lock will contain the new resource /x/y at the
+end.</KW>
+
+6. Both are locked, but with separate locks.
+MOVE /a/b to /x/y, where /a/ has lock L1 and /b/ has lock L2.
+
+<KW> /a/b is removed from the /a lock, but the /a lock L1 remains locking
+the rest of /a's members. L2 also has locks on the new /x/y as noted in the
+above example.</KW>
+
+One lock is at the collection level, the other at the resource level.
+
+7. The source resource is locked, and the destination collection is locked
+with a different token
+MOVE /a/b to /x/y, where /a/b has lock L1, /a/ is not locked, and /x/ has
+lock L2.
+
+<KW> L1 gets deleted from the system, and the new /x/y is locked under L2.
+This also makes my way of handling number 1 more correct.  Because if the
+lock is moving with the resource what happens here???  The spec says one
+owner cannot have 2 locks on the same object (I like this rule).  So If 1 is
+written the other way, then is this a failure?  This backs up my idea for
+how number 1 should work. </KW>
+
+8. The source collection is locked, the destination resource (not its
+collection) is locked with a different token
+MOVE /a/b ro /x/y, where /a/ has lock L1, /x/ is not locked, and /x/y has
+lock L2.
+
+<KW> Again I think the spec says that at the end /a is still locking /a and
+its other resources than /a/b, and L2 gets removed during the MOVE, leaving
+you with a unlocked resource at /x/y.  Again I disagree.  I would expect
+that /x/y would still be locked with L2.</KW>
+
+For the following cases, should the MOVE succeed or fail? If it succeeds,
+what should the lock state be afterwards?
+
+<KW> In case 9 and 10 I had arguments that the resource R, and not the
+namespace should be locked.  This contradicts infinity locks a little, as
+they lose and gain members on movement in the namespace.  So I guess I am
+saying locks should LOCK the resource, but should be namespace aware :)
+</KW>
+
+9. The source resource was locked through one mapping, and a MOVE is
+attempted through a different mapping.
+9a. /a/b and /c/d map to R. /a/ is locked. MOVE /c/d to /x/y.
+
+<KW> Since the resource R is locked, if the correct lock token for /c/d is
+given (the lock token for the lock holding R), then the move occurs.  Since
+/a/b still points to R, /x/y is still locked via /a's lock. </KW>
+
+9b. /a/b and /c/d map to R. /a/ is not locked, but /a/b is. MOVE /c/d to
+/x/y.
+
+<KW> Again the MOVE succeeds if the token for R is given, the resource is
+still locked by /a/b </KW>
+
+10. The destination resource was locked through one mapping, and a MOVE is
+attempted through a different mapping.
+10a. /w/x and /y/z map to R. /w/ is locked. MOVE /a/b to /y/z.
+
+<KW> If correct lock token for R is given (If header with a tagged list of
+/y/z and the correct token) the move completes.  Since /w is locking the
+resource R, it continues to do so </KW>
+
+10b. /w/x and /y/z map to R. /w/ is not locked, but /w/x is. MOVE /a/b to
+/y/z.
+
+<KW> Given the correct lock tokens (See above), the move succeeds.  The lock
+is then lost according to number 2 above.  Again I would argue that the lock
+on /w/x would still be there with the same logic as in number 2 above </KW>
+
+
+

@@ -1,0 +1,209 @@
+docno="lists-013-3725940"
+received="Tue Dec 10 11:39:37 2002"
+isoreceived="20021210163937"
+sent="Tue, 10 Dec 2002 09:39:36 0700 (MST)"
+isosent="20021210163936"
+name="Alex Rousskov"
+email="rousskov@measurementfactory.com"
+subject="RE: HTTP Partial Download Query"
+id="Pine.BSF.4.44.0212100918590.8496-100000@measurementfactory.com"
+charset="USASCII"
+inreplyto="12DBF81D4944C546AF06D1A37A07A5C8148A94&#64;zenmail1.ind.zensar.com"
+expires="1"
+
+To: Yogesh Bang<Y.Bang@zensar.com>
+cc:ietf-http-wg@w3.org
+
+
+
+On Tue, 10 Dec 2002, Yogesh Bang wrote:
+
+> I have to write an AUTHENTICATION-AUTHERISATION module for DIGITAL
+> CONTENT (image,documents,mp3 etc)download request coming to a
+> Web-Server. This module will be in the form of a FILTER(IIS) or
+> MODULE(Apache). It will authenticate the request and for valid users
+> will allow to download the DIGITAL CONTENT.
+
+As you already know, the above has nothing to do with transfer sizes
+(assuming your authentication and authorization scheme does not require
+large transfers and can fit into a few HTTP headers of reasonable
+size).
+
+> One of the requirement for this is that the Client can even be any
+> device (PDA,cell phones etc) where the BROWSER is capable of
+> accepting only few BYTES at a time.
+
+The important question is: do you control the client? That is, do you
+have to support every client out there OR do you expect your own piece
+of software to run on the client? If you do not control the client,
+then you should not worry about its limitations (the client should);
+you should simply support any HTTP client.
+
+Another missing piece of information is the details of "accepting only
+few BYTES at a time" interface. Is it the rendering engine that can
+accept only a few _content_ bytes? Is it the HTTP stack that can
+accept only a few _response_ bytes? Is it the transport protocol that
+can accept only a few _payload_ bytes?  Can the transport protocol be
+forced into buffering no more than a few bytes?  Etc. etc. In most
+cases, the right solution will not depend on HTTP.
+
+> Considering that the BROWSER and
+> WEBSERVER both are capable of understanding HTTP1.1 and BROWSER can
+> accept only 100KB at a time,I have following query
+>
+> 1)Is it the responsibility of the BROWSER to make multiple GET request
+> to download a large DIGITAL CONTENT(say 100KB in every request) with
+> specifying Range parameter every time.
+
+If a client cannot accept more than 100KB of content, it is
+responsibility of a client to deal with its own limitation unless you
+are assuming that the client _and_ the server know about the
+limitation and work around it together. In the latter case (custom
+client and custom server), the question becomes moot because it is the
+responsibility of the entire client-server system to handle the
+limitation.
+
+Of course, one may be able to address the limitation on the server
+side as well, but, in general, it is not the server _responsibility_.
+
+> OR
+> 2)Is it the responsibility of the Web-Server/Server-Side program to
+> split the DIGITAL CONTENT in chunk of say 100KB and send the whole
+> DIGITAL CONTENT in ONE RESPONSE with many MULTUPARTS seperated by seperator.
+> Each PART is of say 100KB .
+
+No, it is not the server responsibility unless you want to implement a
+custom workaround to support broken clients or something like that.
+Moreover, sending a huge response with many small multiparts may not
+address your "browser can accept only few bytes at a time" problem --
+see above for entity-content versus HTTP-response versus
+transport-payload concern. It is not clear whether the buffering
+limitation you describe happens before or after HTTP response is
+parsed and multiparts are merged.
+
+Alex.
+
+
+> -----Original Message-----
+> From: Alex Rousskov [mailto:rousskov@measurement-factory.com]
+> Sent: Monday, December 09, 2002 10:45 PM
+> To: Yogesh Bang
+> Cc: ietf-http-wg@w3.org
+> Subject: Re: HTTP Partial Download Query
+>
+>
+> On Mon, 9 Dec 2002, Yogesh Bang wrote:
+>
+> > 1) With your replies it seems that its the responsibility of the
+> > BROWSER to make the MULTIPLE GET request to get a LARGE OBJECT(lets
+> > say MOBILE RING TONES)  by using the RANGE header of HTTP request
+> > and the server merely send those requested BYTES.
+>
+> Allow me to outline client-side and server-side options to clarify the
+> picture:
+>
+> Client option 1: send a simple GET request for the entire
+> object and rely on transport mechanism (e.g., TCP buffer
+> sizes) to limit sizes of incoming response chunks. This
+> is probably "The Right Way" to do it as previous replies on
+> this thread indicated.
+>
+> Client option 2: send a sequence of Range GET requests,
+> each for a single subrange of the response small enough to
+> satisfy your buffering requirements. This option relies on the
+> server (and all HTTP intermediaries on the path!) supporting
+> Range requests and not sending a complete response regardless
+> of the Range header. Thus, using this option does not really
+> make any practical sense unless you control the server and
+> all HTTP intermediaries on the path.
+>
+> Client option 3: send a single Range GET request with several
+> subranges, each small enough to satisfy your buffering
+> requirements. Rely on transport mechanism to limit sizes of
+> incoming response chunks. Note that the client may or may not
+> receive multipart/byteranges response, depending on whether
+> the server can handle Range requests and whether the server
+> will merge overlapping subranges and realize that they are
+> equivalent to the whole object. Thus, using this option does
+> not really make any practical sense unless you control the
+> server and all HTTP intermediaries on the path.
+>
+>
+> Server option 1: ignore Range header and send complete
+> response.
+>
+> Server option 2: honor Range request and send just the
+> requested range(s). Use multipart/byteranges if there
+> is more than one range requested.
+>
+> Server option 3: honor Range request and merge requested
+> ranges if possible. If the result is an entire object,
+> send a normal response as if the Range header was ignored.
+>
+> If you look at all the options above, you will realize that you cannot
+> rely on Range requests to limit transfer chunks _unless_ you control
+> the server and all intermediaries.
+>
+> > In such case how one can track if the download is complete or not?
+>
+> The client would know if it received the whole object because a
+> partial response contains the content length of the complete response.
+> The server cannot reliably aggregate individual request sizes for
+> reporting unless server authentication is used and request threads for
+> the same URL do not overlap. If server authentication is used, one can
+> aggregate sizes of individual ranged responses on a per-user per-URL
+> basis.
+>
+> > How to track that the request is coming from same authenticated
+> > user?
+>
+> Each request should have authentication information attached, of
+> course.
+>
+> > 2)If you refer to section 19.2 of RFC 2616, it depicts a scenario of
+> > HTTP Partial download. In this scenario the requested object is send
+> > as MULTIPART/BYTERANGES type seperated by a seperator. It seems it
+> > is a SINGLE response send as MULTIPART with each part cut into small
+> > chunks (which can be accepted by browser.).
+>
+> Yes, in general, you get a single response for a single request
+> (regardless of Range header presence or value). If you want multiple
+> responses, you have to send multiple requests (probably with different
+> Range headers).
+>
+> > If this is the way HTTP PARTIAL DOWNLOAD works then to implement
+> > this functionality what care a Web-Programmer needs to take ? Does
+> > he need to write a seperate DOWNLOAD program which will cut the
+> > requested object into chunks ,put the seperators and send it to
+> > browser as single response?
+>
+> That would be one option. It is difficult to give a specific design
+> advice without knowing a lot more about your environment. Please note
+> that most decent HTTP servers (e.g., Apache) support Range requests
+> for static objects. Please also note that an HTTP intermediary can
+> change a Range request into a simple GET.
+>
+> Overall, just based on the information you gave us so far, it seems
+> that using Ranges is the wrong mechanism to limit response chunks in a
+> general Web environment. I would expect the transport mechanism (e.g.
+> TCP) in the browser to handle browser buffering limitations.
+>
+> Thanks,
+>
+> Alex.
+>
+> --
+>                             | HTTP performance - Web Polygraph benchmark
+> www.measurement-factory.com | HTTP compliance+ - Co-Advisor test suite
+>                             | all of the above - PolyBox appliance
+>
+>
+>
+
+-- 
+                            | HTTP performance - Web Polygraph benchmark
+www.measurement-factory.com | HTTP compliance+ - Co-Advisor test suite
+                            | all of the above - PolyBox appliance
+
+
+

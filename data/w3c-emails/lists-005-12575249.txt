@@ -1,0 +1,101 @@
+docno="lists-005-12575249"
+received="Sat Nov 18 16:48:39 2000"
+isoreceived="20001118214839"
+sent="Sat, 18 Nov 2000 16:47:56 -0500 (EST)"
+isosent="20001118214756"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: Working collections"
+id="200011182147.QAA17391@tantalum.atria.com"
+inreplyto="20001115175834.A916&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   We need to be able to do a CHECKOUT on a collection version so that we can
+   perform operations within the collection and on the collection itself.
+   In Subversion, I've been planning to do a CHECKOUT on a parent collection
+   version resource, which will return a location such as:
+       http://host.name/repo/$svn/wrk/100.3
+
+We should first confirm that we agree on the semantics of a collection
+version and a collection version selector, namely, that each member of
+a collection version is a version history,  while each members of a
+collection version selector is either an unversioned resource or a
+version selector.
+
+Assuming we agree on that, then if we are going to allow a "working
+collection" (i.e. the result of checking out a collection version),
+then we need to decide what the members of a working collection would
+be.
+
+By analogy with collection versions, the members could be version
+histories.  By analogy with collection version selectors, the members
+could be unversioned resources or other working resources.  Or we
+could make up completely different semantics for a working collection
+that are distinct from those of either collection versions or
+collection version selectors.  I'd like to avoid this third alternative,
+since it is likely to cause additional complexity in what is already
+the most complex part of the protocol.
+
+   I can then do the following:
+       PUT http://host.name/repo/$svn/wrk/100.3/newfile.html
+   or even:
+       COPY http://host.name/repo/somedir/foo.c
+       Destination: http://host.name/repo/$svn/wrk/100.3/foo.c
+
+If working collections were like version selectors, then this
+would be fine since then working collections could have 
+unversioned members.
+
+If working collections were like collection versions, then this
+would be illegal since only version histories can be members.
+
+       (or a MOVE if the source's parent is checked out)
+
+A MOVE is fine, if the MOVE was from another working collection,
+but if the MOVE was from a non-versioned collection, then you
+run into the same problems as PUT.
+
+   The working resource for the collection is also handy for deleting or for
+   replacing the collection:
+
+       DELETE http://host.name/repo/$svn/wrk/100.3
+       (note that this request also requires a checked-out parent)
+
+This is fine.
+
+       COPY http://host.name/repo/somedir/
+       Destination: http://host.name/repo/$svn/wrk/100.3
+       Overwrite: T
+
+This wouldn't work, because deleting a working resource (as is done by
+an Overwrite:T) cancels the checkout.  You would need to use the new
+"update" value for the Overwrite header.
+
+   DELETE of a member is a CHECKOUT of two items: the thing to DELETE and the
+   parent collection.
+
+Only the parent collection needs to be checked-out in order to
+DELETE a member of that collection.
+
+   Without being able to do a CHECKOUT on a collection, there wouldn't be a way
+   to do any of the above.
+
+You could just use a VERSION-CONTROL request to create a new version
+selector whose target is the desired collection version.  Then you can
+do all your operations on that version selector.  It is one extra round
+trip, but if that really matters, we could easily add a "DAV:keep-checked-out"
+option to the VERSION-CONTROL request.  This would allow us to avoid
+all the extra complexity that would result from having two ways to manipulate
+versioned collections.
+
+Cheers,
+Geoff
+
+
+

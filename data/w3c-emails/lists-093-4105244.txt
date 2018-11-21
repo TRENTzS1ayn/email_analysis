@@ -1,0 +1,102 @@
+docno="lists-093-4105244"
+received="Wed Jul  2 09:52:55 1997"
+isoreceived="19970702135255"
+sent="Wed, 02 Jul 97 00:55:27 -0700"
+isosent="19970702075527"
+name="Paul M. Aoki"
+email="aoki@CS.Berkeley.EDU"
+subject="amaya-1.0b on ultrix 4.4"
+id="199707020755.AAA17516@faerie.CS.Berkeley.EDU"
+expires="-1"
+
+
+To:www-amaya@w3.org
+
+i have amaya-1.0b compiled and (kinda) working under ultrix 4.4
+(gcc-2.7.2).  nice to have an ultrix web client that has a halfway
+reasonable understanding of tables -- too bad the forms stuff doesn't
+work better...
+
+here's a shell script i used to (semi-)automate the configuration.  it
+won't work for you (for any instance of 'you') -- it contains paths to
+things like our local copy of the Motif library.  however, the
+(lengthy) comment lists the problems i had to solve and how i solved
+them.  note: there were three places where i couldn't avoid source
+tree changes (thotlib/dialogue/input.c, thotlib/dialogue/lookup.c and
+w3c-libwww-5.0a/configure).
+
+also, MAX_CHAR is an X/Open constant that probably shouldn't be used
+in Thot.  it causes a lot of compiler noise, at least on ultrix.
+(it's defined in thotlib/internals/h/constint.h.)
+
+this is provided as a public service to help other people along in
+their porting efforts.  i'm NOT on the www-amaya mailing list and i'm
+NOT likely to respond to any direct questions or requests.
+
+#!/bin/sh
+rm -f config.*
+
+if [ `uname` = ULTRIX ]; then
+  #
+  # ULTRIX issues:
+  #
+  #  - kaffe isn't ported to ULTRIX (not even as of 0.9.0), so we *must*
+  #    set --disable-java.  (ULTRIX has pthreads support, so it seems 
+  #    doable, but i don't have time to look at this right now.)
+  #  - there aren't any plugins for ULTRIX, so we may as well set 
+  #    --disable-plugin.
+  #  - the ULTRIX 4.4 <memory.h> has only non-ANSI prototypes.  we don't 
+  #    really want it, but autoconf sees it and sets HAVE_MEMORY_H.  undo
+  #    this.  unfortunately, this means we must modify "config.h" by hand.
+  #  - ULTRIX doesn't have strdup(3).  work around this using a macro.
+  #    (some of the code does the right thing with HAVE_STRDUP and some
+  #    of it doesn't; this makes it hard to fix this cleanly.)
+  #  - for some reason, autoconf doesn't set HAVE_MEMCPY.  thotlib 
+  #    contains a macro workaround for this; this causes the prototypes
+  #    to produce syntax errors.  work around this by setting HAVE_MEMCPY
+  #    by hand.
+  #  - ULTRIX has Motif libraries, but if we include /usr/include before
+  #    (the implicit) gcc-lib/include, we get the ULTRIX <stdarg.h> 
+  #    instead of the gcc <stdarg.h>.  this causes the va_* macros to
+  #    generate syntax errors.  make sure nothing in the /usr/include 
+  #    hierarchy is placed in the gcc command line!
+  #  - the ULTRIX /bin/sh has some crock that makes directory tests fail.
+  #    /bin/sh5 works, so use SHELL=/bin/sh5 in the Makefiles (via 
+  #    Options).
+  #  - thotlib/dialogue/input.c tries to work around the fact that
+  #    libX11(KeyBind.o):XLookupString is slightly broken by defining its
+  #    own in thotlib/dialogue/lookup.c.  problem: if you're using static
+  #    libraries instead of shared libraries, you can't link because you
+  #    need to pull in libX11(KeyBind.o) for other stuff that *isn't*
+  #    defined in thotlib/dialogue/lookup.c.  ULTRIX doesn't have shared
+  #    libraries, so the problem always shows up.  it will probably show 
+  #    up on other platforms as well for static binaries.  work around 
+  #    this by adding a '#define XLookupString TtaXLookupString' to 
+  #    input.c and '#if 0'ing the XLookupString in lookup.c.
+  #  - cpp is in /lib under ULTRIX, and darn few people have /lib in 
+  #    their PATH.  add this to the Makefiles (via Options).
+  #  - the definition of CFLAGS makes the 'configure' in libwww fail.
+  #    work around this by adding a shell script wrapper around 
+  #    libwww/configure that clears CFLAGS.
+  #
+  ../configure \
+   --bindir=/usr/local/X11/bin --libdir=/usr/local/X11/lib \
+   --x-includes=/usr/sww/X11R6/include --x-libraries=/usr/sww/X11R6/lib \
+   --without-thot --with-amaya --disable-java --disable-plugin
+  sed -e "s%^\(#define HAVE_MEMORY_H.*\)%/* \1 */%" < config.h > config.tmp
+  mv config.tmp config.h
+  sed \
+    -e "s/^\(CFLAGS=\) -g \(.*\)/\1 \2 '-Dstrdup(x)=(strcpy(malloc(strlen(x)+1),x))' -DHAVE_MEMCPY/" \
+    -e "s%^\(MOTIF_INCLUDES=\)-I/usr/include/X11%\1%" \
+    < Options.orig > Options
+  echo 'SHELL=/bin/sh5' >> Options
+  echo 'PATH:=${PATH}:/lib' >> Options
+fi
+
+--
+  Paul M. Aoki         | University of California at Berkeley
+  aoki@CS.Berkeley.EDU | Dept. of EECS, Computer Science Division #1776
+                       | Berkeley, CA 94720-1776
+
+
+

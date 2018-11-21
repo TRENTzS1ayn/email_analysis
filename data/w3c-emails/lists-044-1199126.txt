@@ -1,0 +1,93 @@
+docno="lists-044-1199126"
+received="Wed Nov 17 12:36:40 1999"
+isoreceived="19991117173640"
+sent="Wed, 17 Nov 1999 10:46:51 -0800"
+isosent="19991117184651"
+name="Marc Branchaud"
+email="marcnarc@xcert.com"
+subject="Re: Omitting Location and Transforms from SignedInfo"
+id="3832F81B.ADDCDADF@xcert.com"
+charset="us-ascii"
+inreplyto="3.0.5.32.19991117094401.0092d4a0&#64;localhost"
+expires="-1"
+
+
+To: DSig Group<w3c-ietf-xmldsig@w3.org>
+
+
+I _really_ think the last option is the right direction:
+
+"Joseph M. Reagle Jr." wrote:
+> 
+> [ snip ]
+>
+> 5. Permit people to move the dereferencing/transformation outside SignedInfo
+> (The Target Reference="..." means go to that reference to figure out how to
+> derefence/transform the content.):
+> 
+> <!-- This SignedInfo referenced one object which is decoded,
+>      canonicalized, deriving the content IS NOT bound to the signature -->
+> 
+>    <SignedInfo CanonicalizationMethod="&dsig;/xml-c14n"
+>                SignatureMethod="&dsig;/dsaWithSHA-1"/>
+>       <Object Name="2">
+>          <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+>          <Target Reference="4"/>
+>       </Object>
+>    </SignedInfo>
+>    ...
+>    <Object ID="4">
+>       <Target URI="http://www.mypage.com/hello.base64"/>
+>       <Transforms>
+>          <Decode Algorith="&dsig;/base64"/>
+>          <Transform Algorithm="&dsig;/xml"/>
+>          <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+>       </Transforms>
+>    </Object>
+> 
+
+I would suggest moving the transforms inside the signature, though.  The
+digest inside the signature lets you ensure that you're dealing with the
+right object (post-transformation, which is why the transforms have to be
+signed), but the URI outside the signature can change arbitrarily.  As long
+as the URI retrieves an object that can be transformed as dictated and
+digested to match the signed digest, then things are happy.
+
+The issue I see with signing the transforms is that some might interpret that
+to mean the transformation must be blindly applied.  This needn't be the
+case, at least not for all transforms.  base64 encoding is a good example
+here.  It's easy to tell whether something is in base64.  If it isn't, don't
+try to base64-decode it!  This basically makes the transforms optional.  In
+the limit, you can theoretically wind up with a set of transforms, every
+combination of which may need to be tried on the object before its digest
+matches the signed digest.  In practice, I doubt that there will ever be (a)
+a large set of transforms (i.e. > 2) and (b) a set of transforms so baroque
+that the right combination has to be discovered through an exhaustive search.
+
+Now the question might arise: If the transforms are optional, why sign them
+at all?  The reason is to restrict the possible set of transformations. 
+While in the end the signer doesn't really have any control over the
+verifiying software, by signing the transforms at least the signer gets to
+say "If you do anything other than one of these things to the object, then
+you accept my signature at your own risk."  The issue is that you want to
+prevent some evil transform from creating an object that has a falsely
+matching digest.
+
+So I suggest that this unsigned-URI/signed-transforms method be adopted,
+where the transforms are interpreted as "here are some things you may have to
+do to the object before it can be properly digested".  In the end, that list
+of transforms will be "here are the things I [the signer] had to do to the
+object when I (using whatever method) retrieved it for signing".
+
+Marc
+
++------------------------------------------------------------------------+
+ Marc Branchaud                                  \/
+ Chief PKI Architect                             /\CERT INTERNATIONAL INC.
+ marcnarc@xcert.com        PKI References page:              www.xcert.com
+ 604-640-6227          www.xcert.com/~marcnarc/PKI/
++------------------------------------------------------------------------+
+  PGP key fingerprint:  60 11 4B 9D 4E E5 2F 47  BD C5 C2 BF 26 DF 5A E1
+
+
+

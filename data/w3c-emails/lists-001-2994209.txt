@@ -1,0 +1,72 @@
+docno="lists-001-2994209"
+received="Thu Dec 21 16:53:47 2000"
+isoreceived="20001221215347"
+sent="Thu, 21 Dec 2000 13:53:36 -0800"
+isosent="20001221215336"
+name="Gary L Peskin"
+email="garyp@firstech.com"
+subject="Bug+Fix for spaces carried into empty block tags"
+id="3A427BE0.CAB4D56D@firstech.com"
+charset="us-ascii"
+expires="-1"
+
+
+To: Html-Tidy<html-tidy@w3.org>
+
+The following HTML page:
+
+<html>
+<body>
+<font size="2"><font face="Arial">This is a test </font>
+<hr>Example
+</body>
+</html>
+
+produces the following erroneous output in Tidy:
+
+<html>
+<head>
+<meta name="generator" content="HTML Tidy, see www.w3.org">
+<title></title>
+</head>
+<body>
+<font size="2"><font face="Arial">This is a test</font></font>
+<hr>
+<font size="2">E xample</font>
+</body>
+</html>
+
+Note the space between the "E" and the "x" in Example.  This is due to
+the trailing space from "This is a test " being moved into the following
+element.  However, the following element, <hr>, is defined as an empty
+block tag in tags.c.  Due to the order of tests in parser::ParseTag,
+lexer.insertspace never gets reset and the space eventually gets
+inserted in the wrong place.
+
+The following change corrects this problem:
+
+In Tidy 04aug2000, parser.c at line 421, change:
+
+    if (node->tag->model & CM_EMPTY)
+    {
+        lexer->waswhite = no;
+        return;
+    }
+    else if (!(node->tag->model & CM_INLINE))
+        lexer->insertspace = no;
+
+to:
+
+    if (!(node->tag->model & CM_INLINE))
+        lexer->insertspace = no;
+
+    if (node->tag->model & CM_EMPTY)
+    {
+        lexer->waswhite = no;
+        return;
+    }
+
+Gary
+
+
+

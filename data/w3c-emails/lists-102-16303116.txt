@@ -1,0 +1,71 @@
+docno="lists-102-16303116"
+received="Fri Oct  1 16:42:46 1999"
+isoreceived="19991001204246"
+sent="Fri, 1 Oct 1999 16:42:26 -0400"
+isosent="19991001204226"
+name="keshlam@us.ibm.com"
+email="keshlam@us.ibm.com"
+subject="Re: DOM L2 comments, various"
+id="852567FD.0071BF32.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="DOM L2 comments, various"
+expires="-1"
+
+cc:www-dom@w3.org
+
+
+Dave, I'm not sure of the status of your past questions about event handling --
+I'm also implementing this and stumbled across a few ot the same issues -- but a
+few comments follow based on my own best understanding. Note that I could be
+completely wrong; I wasn't involved in designing this chapter!
+
+Re 6.2, "there ought to be _one_ mechanism whereby event reporting isn't subject
+to interference." -- I think the best current answer to that need is to have the
+target node's event handler (which can't be blocked) or a capture handler on the
+tree's root (which ought to run before capturing gets turned off) respond to the
+event by sending out a separate custom event which, presumably, nobody else is
+going to discard before your "unblockable" handlers hear it.
+
+Someone proposed the concept of "event listener sets", wherein the "prevent"
+calls would only block other listeners which registered as members of the same
+set. The current inclination seems to be to defer this suggestion to a future
+release so we have time to think about its implications on behavior and
+performance.
+
+Re 6.3.1 and the Swing event conventions --  Swing can get away with this
+because Swing doesn't attempt to pass generic events; specific events are tied
+to specific registration calls and specific listeners. Since we intend to let
+application-specific events pass through our engine, we can't really hardcode
+event types into the dispatch/listener APIs.
+
+That's also part of the answer to your question about applications defining
+their own events: That _is_ supposed to be possible, though I'm not sure it can
+be done fully portably. No specific prefix is assigned for that use; it was
+deemed better to let folks negotiate their own conventions -- up to and
+including namespace-like URIs if absolutely necessary -- with the DOM* space
+reserved for those defined by the DOM spec.
+
+6.2.2: The intent is indeed that preventCapture() only shortcircuits the Capture
+phase. Good catch.
+
+6.6.4 DOMSubtreeModified: I believe the intent is that any document mutation
+generates its specific event and also "eventually" triggers this event... but
+there may not be a 1:1 relationship. If you take a node that's already in the
+tree and give it a new parent (which is a removal plus an insertion, each
+generating its own event), the hope is that a sufficiently clever DOM might
+generate only a single DOMSubtreeModified message for the combined operation,
+sent to the lowest common ancestor of the old and new parents. It's hoped that
+this might reduce the load if "realtime" response is not required. The
+definition of "sufficiently clever", and what granularity the batching occurs
+on, seem to have been left to the implementation.
+
+6.6.4 DOMNodeRemovedFrom/InsertedIntoDocument: There were a few use cases
+advanced where folks had active processes associated with nodes, which only
+wanted to run while the node was part of the Document. All I can suggest is not
+dispatching these unless there's a listener for them.
+
+______________________________________
+Joe Kesselman  / IBM Research
+
+
+

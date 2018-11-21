@@ -1,0 +1,151 @@
+docno="lists-009-8491567"
+received="Fri Aug 18 18:07:14 1995"
+isoreceived="19950818220714"
+sent="Fri, 18 Aug 95 18:00:46 MDT"
+isosent="19950819000046"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="A modest proposal, made more specific"
+id="9508190100.AA10245@acetes.pa.dec.com"
+inreplyto="95Aug18.165939pdt.2763&#64;golden.parc.xerox.com"
+expires="1"
+
+
+To: Larry Masinter<masinter@parc.xerox.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Larry Masinter writes:
+    And, secondly, I believe it is reasonable at some point to expect HTTP
+    clients and servers and the proxies in between to have correct clocks.
+    We're talking about Internet applications now, for machines that are
+    well connected on the net.
+and suggests that HTTP servers offer time service.    
+
+Ugh.  While it is perhaps reasonable to expect HTTP servers and
+clients to have correct clocks, for some definition of "correct"
+(talk to Professor Einstein about this), I do not think it is
+*necessary* to rely on this when designing the protocol.  Moreover,
+I would not confuse "reasonable to expect" with "safe to expect".
+
+Shel Kaphan suggests that clients use the "Date" information to run
+a sort of NTP-like clock synchronization algorithm, keeping
+track of each server's relative clock performance.
+
+Double ugh.  This is a lot of hard work, and it's already done
+by NTP.  And it's not all that useful.
+
+We're still confused about two uses of timestamps: (1) cache validation
+and (2) expiration.
+
+I think Shel is close to the truth when he writes
+    It is not possible to reliably compare times from two different,
+    unsynchronized, clocks. So, don't do it.
+But let me try to clarify things a bit more.
+
+(1) For the purpose of cache validation ("is the cached copy I have
+valid or not"), it should not be necessary to do ANYTHING besides
+a strict equality comparison.  The cached copy is either the same
+as the server's copy, or it isn't.  If we are using last-modified
+times as the validation ID, then either they are equal or they
+aren't.  I fail to see any value in allowing a server to return
+304 (not modified) if it's idea of the modification time is prior
+(that is, not exactly equal to) the client's (or proxy's) stored
+modification time.
+
+[I'll note that all the allowed date formats have one-second
+resolution.  This could be a problem in the future, if things are
+changing faster than once a second, and browsers can do something
+useful with this (but this is speculative, I admit).]
+
+(2) For expiration checking, it is obviously necessary to do inequality
+comparisons ("is expiration time > now?").  In this case, though,
+we don't need to be 100% accurate, since in almost all cases I can
+think of, when someone assigns an expiration date, it's at best a
+guess, anyway.  Doing expiration checking does not require carefully
+synchronized clocks; it only requires sufficient sanity checking that
+badly out-of-whack clocks are not believed.  I think the algorithm
+I suggested in my previous message should work fine, noting Roy's
+comment that the Date header provides the necessary sanity-checking
+info.  (And so HTTP 1.1 should make Date mandatory if Expires is
+sent, I think.)
+
+For both cache-validation and expiration, I believe that the algorithms
+used by clients and proxies should be identical.  That is, I see no
+reason why a client should cache something that a proxy isn't allowed
+to (except as explicitly instructed by the "Caching-allowed:" header
+or whatever we're calling that).  And there can't be any reason to
+allow a proxy to cache something that a client is not allowed to.
+
+So far, what I've suggested in this message does not change the
+syntax of the protocol; I'm suggesting changes in what servers,
+clients, and proxies do with the headers we already have.  This
+means that (so far) everything I've suggested in this message
+should interoperate with all reasonable implementations.  (Clearly,
+a server sending entirely random values for last-modified, for example,
+isn't entirely reasonable.)
+
+People may suspect that I don't entirely like the use of last-modified
+dates as cache validators.  It may be that a server implementor would
+prefer to use a separately managed and opaque unique-ID, such as a
+generation number (as done by NFS) or an MD5 checksum.  This relieves
+the server of having to be cautious about file modification dates, and
+also solves the problem of insufficient precision in the HTTP timestamp
+formats.
+
+I do not believe that file length is useful as a cache validator.  As
+many people have pointed out, it's hard to define "length" and it's
+not a safe validator, since the file contents may change without changing
+the length.  On the other hand, if server implementors are naive enough
+to use file length as their opaque identifiers, I'm not going to stop them
+(but I won't run their servers!).
+
+So I would like to suggest, for HTTP 1.1, a FULLY COMPATIBLE protocol
+change that should solve this problem.  Add a new header returned by
+a server (perhaps via a proxy):
+
+Cache-Validator = "Cache-Validator" ":" opaqueID
+opaqueID       = *( unreserved | reserved )
+
+And a new header sent by clients:
+
+If-Validator-Valid = "If-Validator-Valid" ":" opaqueID
+
+Clients and proxies are not allowed to do anything with the opaqueID
+except return it to the server that it came from by sending it in an
+"If-Validator-Valid" header.
+
+A server that receives both "If-Validator-Valid" and "If-Modified-Since"
+should ignore the latter.  Otherwise, the spec for "If-Validator-Valid"
+should look pretty much like the spec for "If-Modified-Since", except
+of course for simpler rules about comparisons.
+
+This allows full interoperability with older implementations.  Old
+servers won't send "Cache-Validator" headers; old clients won't
+send "If-Validator-Valid".  New clients will send only "If-Modified-Since"
+to old servers, since they won't have a validator in this case.
+Old clients may receive "Cache-Validator" headers, but they are
+already required to ignore unknown headers.  Proxies (old and new)
+will pass these new headers in either direction; new proxies may even
+use them.
+
+A server is free to use a timestamp as its opaqueID.  It may even
+use timestamps for some files, checksums for others, etc.  It might
+make sense to use one for files, and the other for CGI output.
+
+To summarize: I think HTTP 1.1 should aim for the simplest possible
+correct, interoperable cache-control protocol.  I claim that
+what I've proposed fits the bill:
+(1) Servers can use explicit "Caching-allowed:" headers
+to force non-caching behavior when necessary.
+(2) Servers and clients/proxies exchange opaqueIDs as cache
+validators.  This leaves no confusion about interpretation.
+Choice of how unique opaqueIDs are generated is left entirely
+up to the server implementor.
+(3) Cache expiration is done using a simple "Expires+Date"
+pair that allows the client/proxy to do a sanity-check,
+without requiring synchronized clocks.
+
+-Jeff
+
+
+

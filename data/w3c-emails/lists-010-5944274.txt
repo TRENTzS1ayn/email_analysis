@@ -1,0 +1,169 @@
+docno="lists-010-5944274"
+received="Mon Aug  5 16:14:29 1996"
+isoreceived="19960805201429"
+sent="Mon, 5 Aug 1996 16:09:05 0700"
+isosent="19960805230905"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="RE: New document on &quot;Simple hitmetering for HTTP&quot;"
+id="c=US%a=_%p=msft%l=RED-77-MSG-960805230905Z-34657@INET-01IMC.itg.microsoft.com"
+inreplyto="New document on &quot;Simple hitmetering for HTTP&quot;"
+expires="1"
+
+
+To:"'mogul@pa.dec.com'"<mogul@pa.dec.com>,"'koen@win.tue.nl'"<koen@win.tue.nl>
+Cc:"'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'"<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+
+>----------
+>From: koen@win.tue.nl[SMTP:koen@win.tue.nl]
+>Sent: Sunday, August 04, 1996 6:11 AM
+>To: mogul@pa.dec.com
+>Cc: http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+>Subject: Re: New document on "Simple hit-metering for HTTP"
+>
+>Jeffrey Mogul:
+>>
+>[...]
+>>Our goal was NOT to solve the general problem of collecting demographic
+>>information; it was to reduce the incentive for origin servers to
+>>defeat caching merely so that they could collect simple hit-counts, of
+>>a sort that the caches could just as easily collect for them.
+>[...]
+>>You can find a copy at
+>>
+>>    http://ftp.digital.com/~mogul/draft-ietf-http-hit-metering-00.txt
+>[...]
+>
+>I have several comments.
+>
+>1. Cascaded proxy caches.
+>
+>At first glance, there seem to be counting problems in a cascaded
+>proxy cache situation.  If we have the arrangement
+>
+>   origin server ---- proxy 1 ------ proxy 2 ---- user agent
+>
+>and the user agent requests and uncached page, section 5.1 seems to
+>say that both proxy 1 and proxy 2 must set the use count to 1 when
+>relaying the page.  This results in a count of 2 being reported in the
+>end, though the page is only viewed once.  It seems like there needs
+>to be a special case for proxy 1: a proxy should not count if it is
+>relaying the response to another proxy.  (Under HTTP/1.1, the Via:
+>header in the request would tell you that you are talking to another
+>proxy.)
+
+Sounds like a bug. The fix sounds yucky, though. WE'll try to dream up a
+cleaner one.
+
+>2. Number of unconditional GETs = number of times read???
+>
+>You argue that the number of unconditional GETs, rather than the total
+>number of GETs, more accurately reflects the number of times a page is
+>read.  I don't know if this is true; I would like to see section 4
+>discuss user agents on shared machines, and situations in which user
+>agent disk caches are disabled entirely because there is a central
+>proxy (like on our local sun cluster).
+
+>We didn't really intend the claim to be that strong. The "number of
+unconditional GETs = number of times read" only holds (approximately)
+true for interior, shared caches. (By interior, I mean that the client
+of the cache itself has a cache.) A single user leaf cache doesn't have
+to do anything in the hit-metering design (it can ignore max-uses and
+not send use-count) but a shared leaf cache would need to remember
+requestors' From or IP address to try to relay a meaningful use-count.
+>
+>3. A `hit' being an *un*conditional GET
+>
+>In the current (classic) meaning of the word,
+>
+>  1 hit-classic = 1 request on an origin server.
+>
+>Your draft defines a new kind of hit:
+>
+>  1 hit-new = 1 200/203/206 response returned to a user agent.
+>
+>Now, if I am an origin server which uses cache busting, and if most
+>caches play by the rules, then for my server I will measure:
+>
+>  hit-new < hit-classic .
+>
+>Assuming that I get payed by the hit, I have absolutely no incentive
+>to start measuring hit-news instead of hit-classics.  To stop using
+>the cache-busting based hit-classics would be economic suicide.
+
+No, the  payment per hit-new would just be higher than for per
+hit-classic.
+>Maybe the content providers only switch to hit-new when an ad contract runs
+out and the advertiser demands the better counting method, but other
+>than that I see no real barrier.
+>
+>So even if hit-new is a better metric than hit-classic, I fear it
+>won't be effective at reducing cache busting.
+>
+>The nicest solution to this problem seems to be for proxies to count
+>both hit-new and a second metric:
+>
+>  1 touch-new = 1 response returned to a user agent
+>
+>for which it is guaranteed that
+>
+>   hit-classic <= touch-new .
+>
+>(Note: `hit' and `touch' would *not* be my proposals for adequate
+>names for these metrics.)
+
+
+There is no need to have a new way count hit-classic -- people already
+do that today.
+
+>4. Interaction with Vary
+>
+>I don't like the extra complexity and inefficiency introduced by the
+>Vary counting rules in section 3. (See second-to-last sentence of
+>Section 5.1.)
+>
+>I think the proposal would be better if the Vary special case were
+>removed entirely.
+
+Don't you think that providers of multilingual content want to count the
+hits of the French, German, Dutch, and English (etc.) version
+separately? And that, if they insist on not losing counts when a page is
+flushed from the cache, they'll want to do that on multilingual pages
+too?
+
+However, I think I could be convinced that there only needs to be one
+count per Etag. The idea was that even if there were only an English
+version of a page, having the server set "Vary: Accept-Language" would
+cause separate counting of hits for users with "fr" "de", etc, so that
+the potential for these languages could be gauged without creating pages
+for all of them. Being able to count them is, I think, a GOOD THING; but
+maybe one could create a separate Etag without having to create a
+separate physical copy of the page. We'll think about it.
+
+>5. Overhead in proxy efficiency
+>
+>I'm wondering if the counting mechanisms in the draft won't cause an
+>unacceptable overhead for high-performance cache implementations.  I
+>think we definitely need the opinions of proxy cache implementers on
+>this issue.
+
+The design is supposed to just require addition of a counter to a data
+structure that needs to be around anyway, and to add a few bytes to a
+message you needed to send anyway.  The alternative is that pages for
+which demographic info is required aren't cached at all, which is
+plainly MUCH worse.
+>
+>One possible hit counting alternative, post-processing proxy logfiles
+>and delivering the results to the servers, seems to have less
+>overhead.
+
+But way more complicated to spec and implement.
+>
+More replies to the other comments later.
+
+>Paul 
+
+
+

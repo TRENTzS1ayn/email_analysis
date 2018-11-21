@@ -1,0 +1,245 @@
+docno="lists-026-3647998"
+received="Thu May 22 08:57:13 2003"
+isoreceived="20030522125713"
+sent="Thu, 22 May 2003 13:56:58 +0100"
+isosent="20030522125658"
+name="Furniss, Peter"
+email="Peter.Furniss@choreology.com"
+subject="RE: Co-ordination protocol and BPEL"
+id="221369570DEDF346AE42821041345E89194D88@exchange1.corp.choreology.com"
+charset="us-ascii"
+inreplyto="Co-ordination protocol and BPEL"
+expires="-1"
+
+
+To:"Assaf Arkin"<arkin@intalio.com>,"Ricky Ho"<riho@cisco.com>
+Cc:<public-ws-chor@w3.org>
+
+
+Assaf Arkin sent:
+
+
+> Ricky Ho wrote:
+> 
+> >
+> > There are a couple of issues ....
+> >
+> > Lets say in the following process
+> >
+> > <process>
+> >   <sequence>
+> >     ....
+> >     <receive/>
+> >     ....
+> >     <reply/>
+> >     ....
+> >     <receive/>
+> >     ....
+> >     <reply/>
+> >     ....
+> >   </sequence>
+> > </process>
+> >
+> > 1) Lets say the first <receive> pass in a transaction context.  What
+> > is the "scope of work" ?  Between the first request and 
+> first reply ?  
+> > or everything after the first receive ?
+> 
+> That depends on how you define the importing of the context.
+
+Agreed (assuming I interpret "importing" as you meant).
+ And obviously something known to both parties has got say what the
+presence of a context on a particular message means. That might be
+affected by the type of the message, by other "headers" on it, or be in
+the choreography definition, I suppose.  It could even be inside the
+message - and in that case it might not apply to all the message - it
+would seem quite rational, if using BTP or WS-T BA (which allow choice
+among participants of one transaction) to have a message that was
+<request-for-quote>
+<item>
+<transaction-context id=104>
+ ... 1000 nuts ..
+</item>
+<item>
+<transaction-context id=105>
+ ... 1000 bolts ..
+</item>
+      </request-for-quote>
+
+though that's not the same case Ricky raised.
+
+For the sequence case, unless the first message is explicitly defined as
+being the first of a conversation, and that definition says that a
+context on it is implicit to the rest of the conversation, I'd kind of
+assume that each message has it's own context. Of course, these could
+always be the same context, meaning each of them are part of the same
+transaction.
+
+
+> If you define the scope as the entire sequence then it will 
+> start with 
+> the first receive but it will end all the work after the last 
+> activity 
+> has occurred (i.e. after the second reply). The sender is not just 
+> waiting for a reply, the sender is also waiting to later on either 
+> receive a completed, exited, or failed message indicating that all 
+> further work done after the reply has completed/failed.
+> 
+> If the scope is for a single activity than only that activity is 
+> performed, but again after the reply is sent you still need to send 
+> completed/exited/failed which you could potentially piggyback on the 
+> reply message (though not allowed in WS-TX currently).
+> 
+> 
+> > 2) Lets say after receiving the first <reply>, the caller want to
+> > commit the transaction.  What scope of work has been 
+> committed ?  Does 
+> > the caller wait for this whole process to be completed before the 
+> > caller's transaction can commit successfully ?
+> 
+> If we are talking BA then there are two modes: either you tell the 
+> process when all work has been completed so it can wrap up 
+> things on its 
+> side and send a completed/exited message, or you wait for it 
+> to tell you 
+> when it completes and then wait for all others to tell you they 
+> completed. In case of aborting, you would just tell working scopes to 
+> cancel and completed scopes to compensate.
+
+There's also the option (in BA and BTP) that the receiver registers
+multiple participants, one for each receive (or, indeed, more than one).
+If the context declares that the decision will be atomic (i.e. the same
+for all participants), then how many participants there are, and how the
+work is partitioned among them is a concern only of the receiver.
+
+> The important thing here is that you should say what you mean 
+> and mean 
+> what you say. If what you meant is that no work could be completed 
+> unless you received two requests, then that's what should happen. If 
+> someone tries to commit before you completed all the work you 
+> consider 
+> this to be an inconsistent state and vote to rollback. This 
+> means that 
+> you will never do part of the work - either all or nothing.
+
+Shouldn't the receiver/participant trust the "someone" to mean what they
+say too ? If they said commit in relation to the context they sent, then
+they want a commitment on what they've asked for so far. If the receiver
+can do that to be internally consistent, it should vote commit. It's up
+to the other end to decide what the totatlity is.
+
+> If what you meant is that only some work needs to be done and 
+> the rest 
+> is optional, you should write it as such, perhaps by using an 
+> event handler.
+
+don't see why.
+ 
+> > 3) If instead the caller want to cancel the transaction.  
+> How does the
+> > process cancel its work ?  Where is the compensation 
+> handler defined ?
+> 
+> Since you haven't yet completed the sequence you can't compensate for 
+> it. Instead you get a terminate fault and handle it. However, 
+> since you 
+> already did some activities you may have nested scopes with their own 
+> compensation handlers which you would invoke from the event 
+> handler of 
+> the sequence.
+
+what you do to undo things is surely implementation detail - of no
+concern to the top-end, and not needing to be distinguished in the
+coordination protocol (contra ws-t). "cancel", "compensate" and
+"rollback" all mean "make it not so". The receiver must know its own
+state and work out how to revert, to the best of its ability.
+
+
+> 
+> > 4) What if the second <receive> pass in a different context ?  (the
+> > only way to prevent this happening is to use the context 
+> itself as the 
+> > correlation set)
+> 
+> Good question.
+
+if it was sent in a different context, it was meant in a different
+context (as Arkin says, you must mean what you say). If the receiver
+can't do the work separately, (and the requestor doesn't shortly confirm
+the first transaction), then this use isn't going to work. But generally
+it would be quite reasonable to do things step by step, confirming each
+one. And, depending what this is, it could be just as reasonable to send
+a sequence then confirm the effects of 1, 3 and 6 but cancel 2,4 and 5.
+(or as the requestor pleases).
+
+
+
+> In EJB if you have a session bean and you call it twice in 
+> two different 
+> transactions then the access would be serialized or you would get an 
+> error. I don't exactly remember which case is true, but you won't get 
+> two invocations from two transactions for the same bean if one 
+> transaction has not completed yet.
+> 
+> So I would tend to believe that the rule should be that all incoming 
+> messages should either be part of the same scope, part of a 
+> child scope 
+> (if that activity is defined as part of a child scope), or not 
+> associated with any scope. But it can't be part of a different scope 
+> unless it observes a parent-child relationship.
+
+Parent-child would be common, but again, if the application+coordination
+protocol combination allows the sender to communicate a different wish,
+it is possible to obey it.
+
+
+> > Lets say I'm an airline company.  I don't want to reserve 
+> the seat for
+> > a lengthy period and later cancel it when the passenger change his 
+> > mind.  So my strategy is to only book the seat when the customer 
+> > commits its purchase.  After that, I don't refund (so not 
+> > compensatable from the passenger's perspective).
+> > The original state of the seat is "available".  When the passenger 
+> > invoke my "TicketBookingService", the seat is marked 
+> > "potentially-booked".  When the transaction commit 
+> successfully, the 
+> > seat status to be "booked".  After that, it is non-compensatable.
+> >
+> > How do I achieve this if I only have the CompensationHandler ?
+
+excellent example - you are getting pushed out of shape by a protocol
+that thinks it knows how the world always works, and this bit doesn't.
+
+The general case is
+perform provisional work such that you can later:
+
+make it not so, if so instructed
+make it finally so, if so instucted
+
+(slot in as many synonyms for provisional, make it not so, make it so as
+you please)
+
+so, I agree, you need at least two "handlers". Whether these are defined
+as mainstream and exception, or both as event handlers is mostly a
+matter of how the language works, I think.
+
+
+
+Peter
+
+------------------------------------------
+Peter Furniss
+Chief Scientist, Choreology Ltd
+
+   Cohesions 1.0 (TM)
+   Business transaction management software for application coordination
+
+web: http://www.choreology.com
+email:  peter.furniss@choreology.com
+phone:  +44 20 7670 1679
+direct: +44 20 7670 1783
+mobile: +44 7951 536168
+13 Austin Friars, London EC2N 2JX
+
+
+

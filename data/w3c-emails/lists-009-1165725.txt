@@ -1,0 +1,66 @@
+docno="lists-009-1165725"
+received="Fri Dec 16 12:31:06 1994"
+isoreceived="19941216173106"
+sent="Fri, 16 Dec 94 12:13:50 PST"
+isosent="19941216201350"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: MIME and binary transport"
+id="9412162013.AA11694@acetes.pa.dec.com"
+inreplyto="199412161935.AA005006553&#64;relay.acns.nwu.edu"
+expires="1"
+
+
+To: Albert Lunde<Albert-Lunde@nwu.edu>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    Larry Masinter <masinter@parc.xerox.com> writes:
+    >You don't need content-length to search for the boundary. You can go
+    >ahead and scan the binary data for <CR><LF>--boundary--<CR><LF>. Doing
+    >so either using a simple scan or using a more elaborate boyer-moore
+    >algorithm should be computationally not significantly more expensive
+    >than merely counting bytes.
+
+    Yes, you can do this, but to make it work for arbitrary binary
+    files, you have to choose a boundary that is not in the file,
+    either using a random string and hoping, or scanning the whole file
+    (which generally costs more than just determining the size.)
+
+I used to think that boundary-scanning was expensive, but given my
+experience that CPUs always get faster (I started my programming life
+using a time-shared PDP-11/40, after all), I think I can see Larry's
+point.
+
+A little experiment should help shed some light on this.  On a reasonably
+fast machine (a DEC3000/600), I did (after first arranging for /vmunix
+to be in the filesystem cache):
+    % time wc /vmunix 
+ 15102     97927   6351808 /vmunix
+    0.93u 0.14s 0:01 94% 0+1k 0+0io 15pf+0w
+    a% time ngrep masinter@parc.xerox.com /vmunix 
+    0.27u 0.19s 0:00 74% 0+1k 4+3io 47pf+0w
+    % 
+ngrep uses a modified Boyer-Moore algorithm.  Larry is right;
+Boyer-Moore with a properly chosen search string is actually three
+times faster than simply counting bytes (although the byte count
+might actually be available as a side-effect of some other operation,
+6351808 bytes in 0.27 seconds is 188 Mbits/sec., so it's not going
+to be the rate-limiting step.)
+
+I did a similar experiment on the slowest machine I could find,
+an old DECstation-3100 (about 11 SPECmark, I think).  This time,
+/vmunix didn't fit into the buffer cache.  Anyway, I got:
+    % time wc /vmunix
+8821   50904 2120392 /vmunix
+    3.8u 1.4s 0:09 56% 40+71k 263+2io 0pf+0w
+    % time ngrep masinter@parc.xerox.com /vmunix
+    0.3u 1.0s 0:02 67% 78+112k 16+0io 0pf+0w
+    %
+That's "only" 56 Mbits/sec for Boyer-Moore.  But there is no way
+that this little CPU is going to drive any network interface
+at that speed, anyway.
+
+-Jeff
+
+
+

@@ -1,0 +1,100 @@
+docno="lists-009-12682412"
+received="Mon Nov 27 13:53:00 1995"
+isoreceived="19951127185300"
+sent="Mon, 27 Nov 95 13:42:28 PST"
+isosent="19951127214228"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Proxies and loops"
+id="9511272142.AA03833@acetes.pa.dec.com"
+inreplyto="9511271258.aa16046&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    > There are two main uses for the TTL field in IP headers: first,
+    > to avoid routing loops and long-delayed packets.  Second, to make
+    > "traceroute" work.  I would bet that most TTL "failures" in today's
+    > Internet are from traceroute users, not routing loops.
+    
+    Ummm, I thought traceroute just used this hack (useful as it is)
+    because there was no way to change IP to include a "traceroute"
+    command sending a response from each recipient.
+    
+I didn't say that this was the original intent of the TTL field,
+just that it might well be the main use.  Evolution works like that :-)
+
+But if you were going to design things from scratch to support
+traceroute, would you come up with a radically different mechanism?
+The "record route" IP header option isn't all that useful.  Aside
+from its inability to deal with paths longer than 6 or 7 hops, it
+only works if the entire path is functioning, and hence cannot
+be used to find out why a path is not functioning.
+
+    > Traceroute has proved to be an essential tool in debugging IP-level
+    > problems.  We ought to be thinking about providing analogous debugging
+    > tools at the HTTP level.  For example, "how come the users on my
+    > LAN are having trouble reaching server www.xxx.com?"  It would be
+    > really nice to have a "trace-http-path" program, like traceroute
+    > but displaying the HTTP-level forwarding path instead of the IP-level
+    > routing path.
+
+    That is why I put TRACE in the HTTP/1.1 specification as a new
+    method.  The only problem is that you won't get any response back
+    from an unbounded circular route.
+
+TRACE suffers from the same problem as the IP "record route" option:
+it's useless if the path is broken.  (Loops are not the only way
+to break a forwarding path; it's probably even easier to do that
+by misconfiguring a "proxy" pointer to point at a black hole.)
+According to the current 1.1 draft,
+
+   The TRACE method requests that the server identified by the 
+   Request-URI reflect whatever is received back to the client as the 
+   entity body of the response.
+
+This means that (1) the originator of the TRACE method must know
+the URI of the system that is being asked to reflect the header,
+and (2) that system must be up and reachable.  Neither of these
+things is generally true in the case of a faulty path!
+
+TRACE seems to be useful for debugging proxies and perhaps clients,
+but not for determining where a path is entirely broken.
+
+    I suppose we could add a Max-Forwards request header, but I'd
+    prefer to have an application test it out first.
+
+I think this is an appropriate thing to put into a Proposed Standard.
+We know from experience with traceroute that the basic algorithm
+is sound and useful.  On the other hand, we aren't likely to be
+able to do any realistic testing of the mechanism unless it is
+supported by popular proxies and perhaps servers.  And because it
+is not normal for clients to send it, if it turns out to be
+a bad idea, we won't have saddled ourselves with a lot of extra
+baggage.
+
+In summary, I think we are probably best served by a combination
+of the proposed mechanisms:
+
+TRACE
+method, useful for debugging implementations,
+vaguely analogous to ICMP Echo as used in "ping"
+
+Max-Forwards: (or TTL:)
+header, useful for debugging path problems,
+analogous to IP TTL as used in "traceroute"
+
+Forwarded:
+header, for stopping loops, also useful in conjunction
+with TRACE, analogous to SMTP "Received:" header
+
+Normal requests would carry Forwarded: but not TRACE or Max-Fowards:
+All servers SHOULD implement TRACE.  All proxies and servers SHOULD
+implement Max-Forwards:.  All proxies SHOULD implement Forwarded:.
+
+-Jeff
+
+
+

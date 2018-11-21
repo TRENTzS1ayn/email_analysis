@@ -1,0 +1,290 @@
+docno="lists-044-10180078"
+received="Fri Mar 17 19:43:36 2000"
+isoreceived="20000318004336"
+sent="Fri, 17 Mar 2000 15:05:38 -0800"
+isosent="20000317230538"
+name="Jonathan Marsh"
+email="jmarsh@microsoft.com"
+subject="RE: Xpath transform changes and questions"
+id="5F68209F7E4BD111A5F500805FFE35B91D3FDE74@RED-MSG-54"
+inreplyto="Xpath transform changes and questions"
+expires="-1"
+
+
+To:"'John Boyer'"<jboyer@PureEdge.com>, TAMURA Kent<kent@trl.ibm.co.jp>, IETF/W3C XML-DSig WG<w3c-ietf-xmldsig@w3.org>
+Cc:"Martin J. Duerst"<duerst@w3.org>,"Christopher R. Maden"<crism@exemplary.net>, James Clark<jjc@jclark.com>
+
+
+
+> -----Original Message-----
+> From: John Boyer [mailto:jboyer@PureEdge.com]
+> Sent: Friday, March 17, 2000 12:48 PM
+> To: TAMURA Kent; IETF/W3C XML-DSig WG
+> Cc: Jonathan Marsh; Martin J. Duerst; Christopher R. Maden; 
+> James Clark
+> Subject: Xpath transform changes and questions
+> 
+> 
+> Hi,
+> 
+> I have a few concerns that I think can be worked out, so I am 
+> requesting
+> feedback on the information below.  If everything works out, 
+> then yes, we
+> could remove parse() and exact order.
+> 
+> 1) On parse(),
+> 
+> I would be in favor of dumping parse() if we can solve ALL of the
+> implementation problems it solves.  It  solved some 
+> interesting, but not too
+> important problems for XPath transform users, but it also 
+> specified how
+> implementers were to solve certain problems.
+>
+> Please have a closer look at the output expectations of 
+> serialize().  The
+> serialize() function cannot operate without several features 
+> of parse().  In
+> particular,
+> 
+> i) Serialization of the root node requires that we output the 
+> byte order
+> mark and xmldecl read by parse() on input.  If parse() is not 
+> under our
+> control, we cannot specify that it retains this information.
+
+It seems useful that the BOM and encoding are preserved through
+re-serializing the document.  If these are inputs to the serialization
+mechanism, this is added incentive not to expose the serialization mechanism
+as a function.  Otherwise these would have to be passed through as variables
+(as you are doing) and users must not forget to use them, and must use them
+appropriately (e.g. not change them), if they want correct results.
+
+If serialization is not exposed as a function, but is performed
+automatically, these problems are avoided.  Since it seems that this
+capability already exists (nodesets are automatically serialized), at least
+the simple cases are already handled.  Thus an explicit serialize() and BOM
+and encoding variables seems to be an advanced feature.  It's necessity in
+solving important problems should be weighed against its potential for
+abuse.  I haven't seen you justify your design yet.  Mainly I'm curious
+here, not trying to kill serialize().  Of course, if you can't justify it,
+drop it.
+
+> This would
+> seem to suggest that root node serialization should result in 
+> the empty
+> string, which in turn suggests that serialize should output in UTF-8
+> regardless of the input encoding.  That would be OK with me.
+>
+> ii) Attribute and namespace serialization require a namespace 
+> prefix.  Based
+> on a new read of XPath I believe this information must be 
+> available, but I
+> want to be sure.
+
+Note in XPath that Namepace Nodes are different in quantity and position
+than the attributes used to declare namespaces.  Your current serialization
+does not take this into account.
+
+On the other hand, serialization does not necessarily have to be limited to
+the XPath Data Model.  This model of a document is used when locating the
+nodes, but given a document and a set of locations, your serializer can
+describe what to do on it's own terms.  Specifically, any namespace
+attributes in the source are copied through unchanged, and namepace
+attributes are added to elements taken out of scope (e.g. parents trimmed)
+to represent the namespace nodes of that element.  Retain the prefixes in
+all cases - otherwise QNames in content (e.g. XPaths) will break under the
+transformation.  Maybe the experts will have some comments on this idea...
+
+> iii) If everything else checks out, we can get rid of exact 
+> order and just
+> use lex order provided that lex ordering in UTF-16 results in 
+> the same order
+> as lex ordering in UTF-8 (which is Christopher Maden's claim).
+> 
+> Also, parse() has an additional feature that would need to be 
+> dealt with in
+> some other way:
+> 
+> iv) If the parser used to implement parse() is 
+> non-validating, then parse()
+> is required to throw an exception if it encounters an 
+> external reference
+> that would cause it to interpret the document differently 
+> than a validating
+> parser.  This exception is necessary since an unverifiable 
+> signature is
+> different than an invalid signature.
+
+I don't see that moving parsing out of parse() changes this.  The
+restriction still applies, and needs to be stated.  An implementation would
+either need to initialize their parser to provide such an exception during
+parsing, or do some post-parsing pre-filtering checks.
+
+> 2) On eliminating exprBOM and exprEncoding.
+> 
+> Sounds fine.  Sounds like any difference of encoding between the Xpath
+> expression and the transform input will be handled implicitly 
+> by the XPath
+> transform implementation.
+> 
+> 
+> 3) On automatic serialization,
+> 
+> There was some concern that serialization should be automatic 
+> ("why call
+> serialize() when that's always what we want to do").  Please 
+> see the first
+> paragraph of section 6.6.3.4, which already includes this feature.
+
+The question perhaps is better stated as "why do we need an explicit way to
+serialize, instead of always relying on the default that nodesets are
+serialized?
+
+For one thing, this design deeply entwines serialization with pruning of the
+tree, which makes it difficult to use off-the-shelf serialization components
+in an implementation.
+
+For another, I would not in general expect XPath implementations to handle
+large strings such serialize() generates particularly efficiently, since
+such strings are at this point pretty rare.  For example, I can't really
+imagine returning strings from XPath asynchronously, which I would expect
+from a serializing component.
+
+> Thus if we remove parse(), then there is no *need* to start 
+> expressions with
+> a function call.
+> 
+> 
+> 4) On providing an initial namespace context
+> 
+> We can provide an initial namespace context as is done in XPointer.
+> 
+> I was reviewing how XPath handles namespaces, and realized that it is
+> different than what I had previously understood, and it seems 
+> broken (so
+> there must be some good reason why it is done the way its 
+> done, or maybe I'm
+> just misreading the spec).
+> 
+> Section 2.3 says "A QName in the node test is expanded into 
+> an expanded-name
+> using the namespace declarations from the expression context. 
+> This is the
+> same way expansion is done for element type names in start 
+> and end-tags
+> except that the default namespace declared with xmlns is not 
+> used: if the
+> QName does not have a prefix, then the namespace URI is null 
+> (this is the
+> same way attribute names are expanded). It is an error if the 
+> QName has a
+> prefix for which there is no namespace declaration in the expression
+> context".
+> 
+> This seems to indicate that the input XML document's 
+> namespace declarations
+> are ignored and the expression context's namespace 
+> declarations are used
+> solely.
+
+Yes.  Prefixes are scoped, and can change throughout the document, so it is
+not possible to use these declarations in a global context such as an XPath.
+Also, the namespace rec implies that prefixes can be changed without
+changing the underlying names.  Since XPath has it's own namespace
+declarations, it is unaffected by prefix changes in the source document.
+
+> When XPath claims to be XML namespace compliant, I thought 
+> that meant it
+> would interpret a node's namespace in the context of the namespace
+> declarations in the document, but that appears not to be 
+> true.  To clear
+> this up, suppose I have an element x:E, and the document 
+> containing this
+> element associates x with www.w3.org, but the expression 
+> context associates
+> x with www.ietf.org, then which value will the 
+> namespace-uri() function
+> applied to x:E return?
+
+namespace-uri(x:E) will either return the namespace declared in the context
+(www.ietf.org) or an empty string if no element {www.ietf.org : E) exists in
+the document, which appears to be the case in your question.  In short,
+XPath cannot talk about an element without knowing it's full name, including
+the namespace uri.  This is an essential component to it's namespace
+awareness.
+ 
+> If it returns www.ieft.org, then although it seems weird to me that we
+> aren't using the namespace declarations in the document, it 
+> would at least
+> be good in the sense that it implies XPath implementations have the
+> namespace prefix kicking around for serialize().
+> 
+> It also would mean that Jonathan Marsh is correct in 
+> requiring an initial
+> namespace context since we could not do ANY namespace 
+> comparisons without it
+> (the XPath seems to say that it is an error to use a QName 
+> containing a
+> namespace prefix in an expression if that namespace prefix is 
+> not defined in
+> the expression context).
+
+Yep.  This really isn't a problem for XPaths appearing in XML documents,
+since there is a ready set of namespace declarations (and an existing syntax
+for declaring them) to pass into XPath.  We couldn't actually make this part
+of XPath because certain uses of XPath do not appear in an XML document
+context - namely XPointers embedded in URIs.
+
+I don't veiw this issue as a conceptual mistake, but as a cheap fix with
+large author simplicity benefits.  It's virtually free (no new syntax
+needed) - just add one line saying that the namespaces are initialized to
+the namespaces in scope on the <xpath> element.
+ 
+> I would appreciate your feedback, esp. from those who have 
+> sent prior emails
+> and therefore seem to be most interested in how this turns 
+> out.  If you
+> would please give this some extra priority, I will prepare an 
+> alternative
+> document for consideration before or during the meeting in Adelaide (I
+> regret that I will not be at that meeting, but I will be at 
+> the following
+> one in Victoria ;-).
+> 
+> John Boyer
+> Software Development Manager
+> PureEdge Solutions, Inc. (formerly UWI.Com)
+> jboyer@PureEdge.com
+> 
+> 
+> -----Original Message-----
+> From: w3c-ietf-xmldsig-request@w3.org
+> [mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of TAMURA Kent
+> Sent: Friday, March 17, 2000 12:59 AM
+> To: IETF/W3C XML-DSig WG
+> Subject: Re: XSL WG comments on XML Signatures
+> 
+> 
+> 
+> > <John>
+> > XPath filtering will not be substantially rewritten.  Based 
+> on Clark's
+> > feedback, we can remove the parse function and instead 
+> simply assert that
+> > the transform input is parsed and provided to XPath as a 
+> node set.  The
+> > notions of lex and exact order will be removed (since we 
+> cannot directly
+> > specify the parse).
+> 
+> That's good!  It would be easy to understand, easy to implement,
+> easy to use.
+> 
+> --
+> TAMURA Kent @ Tokyo Research Laboratory, IBM
+> 
+
+
+

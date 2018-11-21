@@ -1,0 +1,114 @@
+docno="lists-041-10772981"
+received="Thu Sep 12 05:19:48 2002"
+isoreceived="20020912091948"
+sent="Thu, 12 Sep 2002 11:19:13 +0200"
+isosent="20020912091913"
+name="Pill, Juergen"
+email="Juergen.Pill@softwareag.com"
+subject="RE: Proposal: WebDAV and transactions"
+id="DFF2AC9E3583D511A21F0008C7E62106031F2B67@daemsg02.software-ag.de"
+charset="iso-8859-1"
+inreplyto="Proposal: WebDAV and transactions"
+expires="-1"
+
+
+To:"'Roy T. Fielding'"<fielding@apache.org>,"B. Shadgar"<shadgar@cs.bris.ac.uk>
+Cc:w3c-dist-auth@w3.org
+
+
+Hello,
+
+Yesterday I was made aware of the TIP protocol
+(http://www.ietf.org/rfc/rfc2371.txt). It defines a 2PC TA protocol between
+TMs (transaction managers) and requires the application to pass the TID
+token to the resource manager (in our scenario the WebDAV server). [The
+communication between the application and the resource manager (RM) is not
+covered in the standard, except for the fact, that the TID token is passed).
+
+I can see now 3 scenarios:
+
+a) auto commit
+The application is not TA aware and sends the WebDAV commands without any TA
+commands or TA token. In this case the WebDAV server acts as today (every
+request is executed in a single atomic TA). 
+b) global TA
+In this case multiple resource managers (e.g. multiple webdav server and/or
+multiple other datasources) are involved on a single node or on multiple
+nodes (with a single or multiple TM). In this case the application sends the
+TA_BEGIN to the local TIP aware TM, receives a TID token, which is passed to
+all participating RM at every request call. In case of WebDAV the place
+could be a header (in case of e.g. PUT, the body is already reserved for
+content). The WebDAV server (if the implementation is TIP aware) would
+recognize the TID token and enlist at the local/global TM via the TIP
+protocol. At the end of the TA the application would send the TA_Commit TIP
+command to the local TM and the TM would initiate the 2PC execution to all
+participating TM via the TIP protocol. 
+c) local TA
+In this scenario the application will talk to exactly one RM (the webdav
+server) and possibly a full blown TM is not available. If the server would
+implement both WebDAV and (at least the 1PC part of) the TIP protocol, the
+TA_BEGIN could be send to the same server as all following WebDAV commands
+followed by a TA_END command.
+
+I can see following advantages going the TIP path:
+
+The TIP protocol is already standardized, no need for WebDAV to introduced
+something new (especially new methods). If WebDAV is used outside the TIP
+protocol, performance and scalability stay identical to today's situation.
+The decision if a WebDAV server is TIP aware will be driven by the specific
+implementation. If a server supports scenario "c" only, would be
+server-implementor defined too.
+If we could agree on a specific header name to carry the TID token, all TIP
+enabled WebDAV servers would be interoperable and could participate in a 2PC
+environment. This header agreement would be the only WebDAV/HTTP extension
+necessary.
+
+The same would apply for http too. I agree with Roy, this feature is valid
+in an http context too and specific to WebDAV. Would there be interest to
+agree at this header for HTTP protocol?
+
+Does this make sense?
+
+Best regards,
+
+Juergen
+
+
+
+ -----Original Message-----
+From: Roy T. Fielding [mailto:fielding@apache.org] 
+Sent:Wednesday, September 11, 2002 18.22 PM
+To:B. Shadgar
+Cc:w3c-dist-auth@w3.org
+Subject:Re: Proposal: WebDAV and transactions
+
+
+I'll try to explain.  It is fundamental to HTTP that intermediaries
+are able to inspect the method of an HTTP request in order to determine
+the semantics of a request, and thereby its associated access control
+and/or authentication requirements.  What you are suggesting is that
+we bypass that feature in HTTP via a new syntax that tunnels arbitrary
+methods within XML via HTTP, effectively bypassing all of the benefits
+of using HTTP in the first place.
+
+Sound familiar? It should, since this is the same objection that I have
+frequently given to the use of SOAP for tunneling arbitrary semantics
+though an HTTP POST method.
+
+Transactions can be accomplished by using a request to ask the server
+for a transaction context, possibly multi-level, and then sending
+the sequence of requests with a calculated transaction-request-id
+in the header fields, to each the server responds with 202 Accepted
+or an error, and finalized with a commit or abort method, to which
+the server responds with the appropriate message for the entire
+commit.  Such a transaction mechanism accomplishes the same thing
+without violating the requirements of HTTP.
+
+In any case, this is OUT OF SCOPE for WebDAV.  It is an HTTP issue
+that is not specific to authoring and will not be solved by an
+authoring-specific solution.
+
+....Roy
+
+
+

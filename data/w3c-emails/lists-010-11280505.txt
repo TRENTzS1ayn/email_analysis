@@ -1,0 +1,94 @@
+docno="lists-010-11280505"
+received="Fri Oct 25 15:14:51 1996"
+isoreceived="19961025191451"
+sent="Fri, 25 Oct 96 15:03:39 MDT"
+isosent="19961025210339"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Caching multipart data"
+id="9610252203.AA24974@acetes.pa.dec.com"
+inreplyto="Pine.SGI.3.95.961025140914.19005V100000&#64;shellx.best.com"
+expires="1"
+
+
+To:"Gregory J. Woodhouse"<gjw@wnetc.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    It occurs to me that under many circumstances the entity carried by
+    an HTTP message could consist of a mixture of very static
+    information and highly volatile data. For example, if HTTP is used
+    to retrieve a database record, many fields included in the reply
+    will be very stable (e.g., name, address, hair color, etc.) and
+    other fields will be quite volatile, possibly changing daily or
+    hourly. It makes sense to bundle such a message in MIME format with
+    the stable fields grouped together (albeit with a strong validator)
+    and the less stable fields in related groups. The idea is that a
+    cache that could handle the parts of a multipart MIME message
+    separately would be able to validate a message with considerably
+    less overhead. In fact, it would be possible to have data that
+    should not be cached at all (such as a stock price, humidity, heart
+    rate, etc.) retrieved from the origin server with each request, but
+    information that can be cached can simply be revalidated.
+
+This is a good point.  The current HTTP design does not have a way
+to provide meta-data (i.e., caching-related headers) for units
+with finer grain than an entire HTTP response message, and so it
+might be quite difficult to create a compatible extension that
+allowed cache validation of individual pieces of a Multipart response.
+
+However, if you view the problem more abstractly, what you are really
+asking for is a kind of data-compression mechanism.  I.e., your actual
+goal is not really individual validation of the pieces, but rather to
+prevent the unnecessary transfer of the stable pieces when the unstable
+pieces change.
+
+When one takes that (more abstract) view, it can be applied to all
+sorts of resources, not just multipart ones.  For example, imagine
+a one-piece HTML file showing a lot of information about a company,
+including its current stock price (which changes frequently).  If
+we could somehow arrange to transfer just the stock price info
+on an update, and rely on the cache for the rest, then we could
+save a lot of bits.
+
+This is basically "delta-encoding": saving time by transmitting
+the "delta" (difference) between two successive data elements,
+rather than transmitting each in its entirety.  And, in fact,
+several research projects have already been looking at this
+possibility.  For example, there was a brief mention buried in
+        Removal Policies in Network Caches for World-Wide Web Documents,
+        S. Williams, M. Abrams, C.R. Standridge, G. Abdulla, and E.A. Fox
+(Virginia Tech) Proc. SIGCOMM '96 (August, 1996)
+and there will be a paper with a related approach in the forthcoming
+USENIX conference (Jan. 1997):
+Optimistic Deltas for WWW Latency Reduction
+Gaurav Banga, Fred Douglis, and Michael Rabinovich, AT&T Research 
+
+There's also a paper at Mobicom that (from its title) might be
+related, but I haven't seen a copy yet:
+  WebExpress: A System for Optimizing Web Browsing in a Wireless Environment
+  B.C. House and D.B. Lindquist, IBM Corporation
+
+Although the basic concept is pretty simple, there are a lot of
+really hard research problems to solve.  For example, what is
+the best way to compute and encode the difference between two
+instances of a resource?  This probably varies based on Content-type!
+And how many different "base versions" should the servers and proxy
+caches keep around, and for how long?  And how do the client and servers
+communicate the necessary meta-information?
+
+And, finally, how well would this actually work in practice?  Or
+do most changeable documents change enough that delta-encoding doesn't
+save anything?
+
+I've been talking with the AT&T folks and the Virginia Tech folks
+about capturing a day or so's worth of the content that flows through
+Digital's proxy server (we're up to about 1.5 million requests on
+a good day), and then trying to compute deltas based on various
+algorithms.  But this is going to require some hacking on our proxy
+code, and a fair amount of disk space, so I haven't had a chance
+to get started on it.
+
+-Jeff
+
+
+

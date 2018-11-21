@@ -1,0 +1,108 @@
+docno="lists-001-8989763"
+received="Tue Mar 13 10:34:38 2001"
+isoreceived="20010313153438"
+sent="Tue, 13 Mar 2001 10:34:42 -0500"
+isosent="20010313153442"
+name="Andy.Quick@sybase.com"
+email="Andy.Quick@sybase.com"
+subject="Tidy cannot repair tags with missing '&gt;'"
+id="OF74ED3597.22A94C99-ON85256A0E.004E4ADC@sybase.com"
+charset="us-ascii"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+I could not find anything about this, so I am posting it.
+In the example below, Tidy cannot repair the document
+because the <font> tag is badly formed - it is missing the
+'>'.
+
+<html>
+<head><title>Sample Problem</title></head>
+<body>
+<p>
+<font size="-2">There seems to be an error occurring when you don't</font>
+<font face="arial,helvetica, geneva" size="-2"<b>end</b> a tag with a &gt;.  Tidy won't fix it.</font>
+</p>
+</body>
+</html>
+
+I can propose a possible solution.  The attempt was made
+in Java tidy, so I will describe it in terms of Java tidy:
+
+1.  In StreamInImpl, added a small stack to store characters
+so ungetChar can be used to back up more than 1 character.
+
+    public int readChar()
+    {
+        int c;
+
+        if (this.pushed)
+        {
+            this.prevPos--;
+            if( this.prevPos == 0 ) this.pushed = false;
+            c = this.previous[ this.prevPos ];
+
+            if (c == '\n')
+            {
+                this.curcol = 1;
+                this.curline++;
+                return c;
+            }
+
+            this.curcol++;
+            return c;
+        }
+        ....
+
+    public void ungetChar(int c)
+    {
+        this.pushed = true;
+        if( this.prevPos == 5 ) this.prevPos = 0; // Reset counter.
+        this.previous[ this.prevPos ] = c;
+        this.prevPos++;
+
+        if (c == '\n')
+        {
+            --this.curline;
+        }
+
+        this.curcol = this.lastcol;
+    }
+
+New class members:
+    protected int[] previous;
+    protected int   prevPos;
+
+Constructor:
+    this.previous = new int[ 5 ]; // allow 5 backup chars
+    this.prevPos = 0;
+
+2.  In Lexer, attempted to recover from unexpected '<'s
+in parseAttribute and parseValue.
+
+line 2179
+                this.in.ungetChar(c);
+                /* Report.attrError(this, this.token, null, Report.UNEXPECTED_GT); */
+     c = '<';
+     this.in.ungetChar(c);
+     return null;
+
+line 2445
+                    /* this.in.ungetChar(c); */
+                    /* Report.attrError(this, this.token, null, Report.UNEXPECTED_GT); */
+         this.in.ungetChar(c);
+         c = '>';
+         this.in.ungetChar(c);
+         c = lastc;
+         continue;
+                    /* break; */
+
+
+Regards,
+
+Andy Quick
+
+
+

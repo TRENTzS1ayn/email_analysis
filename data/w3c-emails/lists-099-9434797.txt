@@ -1,0 +1,359 @@
+docno="lists-099-9434797"
+received="Fri Apr  9 00:49:50 2004"
+isoreceived="20040409044950"
+sent="Fri, 09 Apr 2004 06:48:53 +0200"
+isosent="20040409044853"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="On schema quality and schema limitations"
+id="40900045.108005433@smtp.bjoern.hoehrmann.de"
+charset="ISO-8859-1"
+expires="-1"
+
+To:www-archive@w3.org
+
+
+
+Hi,
+
+  On http://www.w3.org/QA/2002/04/Web-Quality:
+
+[...]
+  Note: Some documents are valid with regards to the DTD and still
+        incorrect with regards to the HTML specification. In the near
+        future, we will present a list of possible errors not detected
+        by the HTML validator.
+[...]
+
+This has not happend yet. Unfortunately. In
+
+  http://www.w3.org/mid/3f9ab490.140875568@smtp.bjoern.hoehrmann.de
+  http://www.w3.org/mid/3faa04b3.226926613@smtp.bjoern.hoehrmann.de
+
+I have stressed why such lists and proper conformance terminology are
+important. Modularization of XHTML 1.0 Second Edition
+
+  http://www.w3.org/TR/2004/WD-xhtml-modularization-20040218/
+
+make such lists even more important. It is quite difficult to properly
+review the XML Schema modules without information about what is covered
+in those schemas, what is not, and most importantly why it is not
+covered. It seems for example that
+
+  <font color='orange'>...</font>
+
+is not invalidated by those schemas, while
+
+  <font color='#XXXXXX'>...</font>
+
+is. Now I wonder why. Is it because XML Schema does not allow to say
+the value must match the PCRE
+
+  /^(black|white|...)|(#[0-9A-F]{6})$/i
+
+or is this necessary for extensibility if a host language chooses to
+allow color='orange' or is this intentional because everyone is using
+color='orange' anyway? Or what about the ContentType (text/html, etc.),
+it is defined as
+
+  <!-- media type, as per [RFC2045] -->
+  <xs:simpleType name="ContentType">
+    <xs:list itemType="xs:string"/>
+  </xs:simpleType>
+
+Looks familiar to
+
+  <!-- comma-separated list of media types, as per [RFC2045] -->
+  <xs:simpleType name="ContentTypes">
+    <xs:list itemType="xs:string"/>
+  </xs:simpleType>
+
+Why are both xs:lists? http://www.w3.org/TR/xmlschema-0/ suggests that
+xs:list is for (white-?)space separated lists, yet neither type allows
+spaces (or maybe ContentTypes does before and/or after the comma, I've
+been unable to find explicit information in this regard) so this seems
+to be an inappropriate type for both. 
+
+  http://www.w3.org/TR/xhtml1-schema/
+
+defines them as
+
+  <xs:simpleType name="ContentType">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="ContentTypes">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+That seems a bit more accurate, but
+
+  <form accept="Karl Dubost" ...>
+
+even though it would probably be fun to upload Karl somewhere, it seems
+that this should not be allowed. At the very least I would expect that
+ContentType is required to contain a slash. Maybe it is not due to one
+of the reasons cited above. So continue to look at other types,
+FrameTarget is next. The PCRE for FrameTarget is (derived from HTML4)
+
+  /^(_(blank|self|parent|top))|([A-Z].*)$/i
+
+(note in particular that target='_new' is forbidden). Ok, now
+
+  http://www.w3.org/TR/xhtml1-schema/
+
+has
+
+  <xs:simpleType name="FrameTarget">
+    <xs:restriction base="xs:NMTOKEN">
+      <xs:pattern value="_(blank|self|parent|top)|[A-Za-z]\c*"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+This appears to be more restrictive than my PCRE. Hmm, [A-Za-z] suggests
+that this pattern is case-sensitive,
+
+  <a target='_BLANK' ...>
+
+would thus be considered invalid. It is not according to HTML4. Just
+like
+
+  <a target='X$' ...>
+
+is allowed in HTML 4. But then I have never understood the model behind
+changes (and lack thereof) for the lexical space of such attributes
+between HTML 4 and XHTML 1. Looking at the XHTML M12N SE WD again, it is
+defined as
+
+  <xs:simpleType name="FrameTarget">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>  
+
+This appears to allow any of
+
+  <a target='_new' ...>
+  <a target='_BLANK' ...>
+  <a target='X$' ...>
+
+So maybe this changed again? Or there is some good reason for this
+aswell. Oh, by the way, http://www.w3.org/TR/xhtml1-schema/ defines the
+color type as
+
+  <xs:simpleType name="Color">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[A-Za-z]+|#[0-9A-Fa-f]{3}|#[0-9A-Fa-f]{6}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+while M12N has
+
+    <!-- sixteen color names or RGB color expression-->
+    <xs:simpleType name="Color">
+        <xs:union memberTypes="xs:NMTOKEN">    
+           <xs:simpleType>                      
+              <xs:restriction base="xs:token">
+                 <xs:pattern value="#[0-9a-fA-F]{6}"/>
+              </xs:restriction>
+           </xs:simpleType>         
+        </xs:union>
+    </xs:simpleType>
+
+Seems like in one XHTML schema I can write
+
+  <font color = 'Haza?l-Massieux'>...
+
+while the other invalidates it. More importantly, very common constructs
+such as
+
+  <body bgcolor = 'ffffff' ...>
+
+would apparently validate. Maybe this is useful. Puzzling. Another
+example, the class attribute is defined in HTML 4 as CDATA, in XHTML
+1.0 it is still defined as CDATA but in XHTML 1.1 is is NMTOKENS. If
+I remember correctly, I have been told that XHTML 1.0 was supposed
+to be as close as possible to HTML 4. But the target attribute changed
+from CDATA to NMTOKEN. So, if there really is a rule, it seems that it
+is not consistently applied.
+
+Oh, great, XML 1.0 was changed to allow empty xml:lang attributes, I
+told the HTML WG a year ago and asked them to incorporate this change
+into their DTDs
+
+  http://www.w3.org/mid/3e856679.216018678@smtp.bjoern.hoehrmann.de
+
+Let's see
+
+  <!-- a language code, as per [RFC3066] -->
+  <!ENTITY % LanguageCode.datatype "NMTOKEN" >
+
+Hmm, they never got back to me on this one, ... aha, here
+
+? http://hades.mn.aptest.com/cgi-bin/voyager-issues/Modularization-DTDs?user=guest;selectid=6298
+
+"Updated in XHTML Modularization SE". Note quite, no? It would also be
+interesting to know whether <form name='...' ...> and <a name='...' ...>
+are allowed in XHTML 1.0 SE Strict. HTML 4.0 Strict does not allow it,
+HTML 4.01 Strict allows it, XHTML 1.0 FE Strict does not, XHTML 1.0 SE
+Strict does not either. I have asked in July 2003
+
+  http://www.w3.org/mid/3f4a2211.377098258@smtp.bjoern.hoehrmann.de
+
+According to
+
+? http://hades.mn.aptest.com/cgi-bin/voyager-issues/XHTML-1.0?user=guest;selectid=6504
+
+they still need to figure this one out. Of course
+
+  http://www.w3.org/2002/08/REC-xhtml1-20020801-errata/
+
+says
+
+  Known errors
+  None at this time.
+
+Back to M12N SE XML Schemas, http://www.w3.org/TR/xhtml1/#prohibitions
+notes that e.g.
+
+  <a ...><span><a ...>...</a></span></a>
+
+is not allowed but this cannot be expressed using XML DTDs (while SGML
+DTDs allow it and it is defined that way in the HTML 4 DTDs). Will XML
+Schema Validators catch this? And if, is this constrained spellt out
+in the relevant schemas?
+
+What about anchors, there must be a unique anchor <=> element
+relationship, is this requirement covered by those schemas? I asked
+whether this is possible
+
+  http://www.w3.org/mid/402c46ea.490712317@smtp.bjoern.hoehrmann.de
+
+but
+
+  http://lists.w3.org/Archives/Public/xmlschema-dev/2004Jan/0073.html
+
+suggests it is not. HTML 4 also says that <input type='reset' ...> is
+allowed to omit the name attribute, while <input type='password' ...>
+is not, I believe this is neither possible to spell out in XML Schema.
+
+I do not know, I am not a XML Schema expert. I did not even manage to
+figure out how a xs:list is supposed to be separated from the
+specification. So it seems I won't become one either. Well...
+
+As I point out in
+
+  http://www.w3.org/mid/3faa04b3.226926613@smtp.bjoern.hoehrmann.de
+
+this might all get worse. If a specification ships with schemas in DTD,
+RNG, WXS 1.0, WXS 1.1, Schematron, ... and they all combined still don't
+cover certain aspects of validity... Who is reviewing these schemas? 
+Unless I miss an important (probably undocumented) aspect of XHTML M12N
+SE, it strikes me as most obvious that these schemas are not quite what
+they should be. They are on the Recommendation Track for more than three
+years now, am I the only one who looks at them? That seems a bit
+unlikely. But this appears to underscore of what I suggested for SpecGL.
+Though that might be insufficient. Maybe the QA Activity should have a
+Schema Expert who reviews schemas as part of the QA review. That would
+of course be most difficult if machine-reportable errors are hard to
+discover in the specification.
+
+  http://www.w3.org/TR/xhtml1/#prohibitions
+
+is good practise as is
+
+  http://www.w3.org/TR/xhtml1-schema/#diffs
+
+That is at least something. Insufficient, but helpful. XHTML M12N SE
+lacks such a section.
+
+  http://www.w3.org/QA/WG/2003/09/qaframe-spec-extech-20030912
+
+suggests that the QA Activity like XHTML M12N a lot. I do not. I do not
+like statements such as
+
+[...]
+  When the user agent claims to support facilities defined within this
+  specification or required by this specification through normative
+  reference, it must do so in ways consistent with the facilities'
+  definition.
+[...]
+
+Especially not if "facilities" is undefined. Of course
+
+? http://www.w3.org/2001/04/REC-xhtml-modularization-20010410-errata
+
+  Known errors
+  None at this time. 
+
+At least they fixed this unknown error in the SE draft in response to
+
+  http://www.w3.org/mid/3f650077.197501031@smtp.bjoern.hoehrmann.de
+
+But that does not help such statements. Lets have a look at M12N SE
+again,
+
+[...]
+  3.4. XHTML Family Document Conformance
+
+  A conforming XHTML family document is a valid instance of an
+  XHTML Host Language Conforming Document Type.
+[...]
+
+What a "valid instance" is I do not know. Btw., they happen to like
+this facilities speak very much, 
+
+http://www.w3.org/TR/xhtml-print/
+
+[...]
+  2.1. Document Conformance
+
+    A conforming XHTML-Print document is a document that requires only
+    the facilities described as mandatory in this specification. 
+[...]
+
+What it means for a document to require something, or what these
+facilities are, or which of them are described as mandatory, I do not
+know. At least they improved the text discussed in 
+
+  http://www.w3.org/mid/407fad85.21285647@smtp.bjoern.hoehrmann.de
+
+a little...
+
+Hmm, it seems I got drifted a bit...
+
+But back to <http://www.w3.org/QA/2002/04/Web-Quality>, documenting the
+current limitations of the W3C MarkUp Validator is quite simple, doing
+so for all these schemas probably not. But it is apparently necessary to
+do this even if only to improve the quality of the schemas. It is also
+much simpler to write a little add-on script (or XSLT) that could be
+plugged into an existing ACME schema validator to cover uncovered
+aspects. Multiple tools or schemas don't help as the tools lack
+functionality to share validation information. It is also helpful for
+the community if such information is available as they would provide
+better understanding of the issues involved. It makes them aware where
+to trust validators and where not. It also helps to make them aware
+about certain constraints. And tool developers would get less bed
+feedback about "changing the rules" and all that. Seriously, if the
+MarkUp Validator is improved to check whether %URI; attributes really
+contain legal URIs, I am certain there would be negative feedback from
+the I18N WG/IG about invalidating their
+
+  * http://www.w3.org/International/tests/test-idn.html
+  * http://www.w3.org/International/tests/sec-idn-1.html
+  * http://www.w3.org/International/tests/sec-idn-2.html
+
+conformance test pages. But test suite should be
+
+? http://www.w3.org/mid/Pine.LNX.4.58.0403121204370.23385@dhalsim.dreamhost.com
+
+valid, no? But maybe these are error recovery tests. I do not know, they
+do not mention error recovery. Maybe I miss something. The QA Activity
+apparently does not have the resources to document limitations of tools
+and schemas. Who knows best about conformance requirments? The WG
+publishing the spec. And who knows best about limitations in published
+schemas? The editors of these schemas. Hence they should be required to
+edit schemas and their limitations. And WGs as I suggested for SpecGL.
+
+regards.
+
+
+

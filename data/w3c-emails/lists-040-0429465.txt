@@ -1,0 +1,283 @@
+docno="lists-040-0429465"
+received="Wed Feb  2 20:08:24 2000"
+isoreceived="20000203010824"
+sent="Wed, 2 Feb 2000 17:07:58 -0800 "
+isosent="20000203010758"
+name="Yaron Goland"
+email="yarong@Exchange.Microsoft.com"
+subject="Why IE's Web Folders are accessed through File/Open"
+id="7DE119D3D0E15543874F7561EECBDBED02619E3F@BEG.platinum.corp.microsoft.com"
+expires="-1"
+
+
+To:"'Joe Orton'"<joe@orton.demon.co.uk>,w3c-dist-auth@w3.org
+
+O.k., I admit it, I am the person responsible for the awful file/open check
+box UI in Web Folders in IE. It is all my fault. Throw rotten tomatoes my
+way.
+
+All of us at MS tried to come up with a better solution. The ways to improve
+Web Folders in IE fell into two types - 
+1) Enable people, only by typing in a URL to tell the system that they want
+a PROPFIND view
+2) Put in a switch to allow people, once they are at a site, to flip between
+GET/PROPFIND
+
+We were, unfortunately, not able to achieve either of these goals for the
+reasons I will outline below. This is why we ended up with the file/open UI.
+It was the best thing we could come up with. 
+
+There are however, two features that we did put in. The first makes it
+possible in IE 5.0 to markup a HTML anchor tag so that when clicked it will
+do a PROPFIND rather than a GET. The beauty of this feature is that if the
+HTML is displayed on a non-IE 5.0 system then the extra text will be ignored
+and the anchor will work as a normal GET anchor. Please see
+http://msdn.microsoft.com/workshop/author/behaviors/overview/webfolder.asp
+for details.
+The second is that when you have navigated to a Web Folder you can
+use the favorites menu to create a favorite to it. That way, in the future,
+you can get back to the site through favorites rather than file/open. Note
+that this favorite doesn't work across machines so if you send it to a
+friend it probably won't work. This feature is actually a side effect of how
+Web Folders is implemented.
+
+Our first goal, to enable people to just type in a URL and have that URL
+navigate to a web folder, failed because we couldn't find a reliable way to
+tell if a URL should be resolved as a PROPFIND or a GET. 
+The first trick we tried was to say that if a URL ended in a "/"
+then we would try to do a PROPFIND. If the PROPFIND failed then we would do
+a GET. The problem is that http://foo.com/bar/, for example, is a legal name
+and something a user would very likely want to do a GET on. Can you imagine
+their confusion when they get some weird icon filled page rather than their
+normal homepage? We could hear the support phone lines ringing. 
+The next suggestion was to use a "." at the end of a HTTP URL as an
+indicator that one should navigate to a PROPFIND. Everyone liked this one a
+bit better because even though a HTTP URL could technically end in a "." it
+is sort of traditional to treat "." as meaning "this directory". Note, this
+is not the standard. As defined in RFC 2396 the character "." only has
+special meaning in the context of a relative URI. Of course it didn't hurt
+that IIS doesn't allow resources to have the name ".". Unfortunately we had
+to abandon this idea as well because it turns out that Office strips "." at
+the end of HTTP URLs thinking that they are periods at the end of a
+sentence. This was necessary to prevent confusion when users typed a HTTP
+URL at the end of a sentence.
+There is, btw, a way to get around this parsing. If you enclose your
+HTTP URL in "<" ">" then Office will still recognize the HTTP URL and thus
+highlight it but won't strip the "." at the end. However this still
+presented the problem that a user could type a HTTP URL into IE such as
+http://foo.com/bar/. and then copy/paste it into an e-mail message and their
+friend at the other end would click on it and not get the same experience
+because Outlook would strip the ".". Again, we could hear the support phone
+lines ringing.
+We gave some thought to perhaps using an illegal HTTP URL character
+to indicate that one should do a PROPFIND instead of a GET but it seemed
+like a truly awful idea to depend on illegal behavior. This is exactly the
+sort of thing that destroys interoperability and annihilates processing
+paths. So this idea was rejected.
+The last idea to be considered, which I admit responsibility for,
+was to introduce a new type of URL, dav:. Any time we saw a dav: URL we
+would do a PROPFIND. Ignoring the obvious conflict this would introduce with
+WebDAV's use of the dav: URL (we could have used webdav:) everyone really
+hated the idea of having two different schemes for the same protocol. Nobody
+liked https, for example. While I wasn't enamored with this idea I felt it
+was practical. However people were very concerned about what would happen
+when someone sent a friend a webdav: URL and nothing happened when the
+friend (on a non-MS system or using older MS software) clicked on it. For
+example, what was liked about the first two proposals was that on down level
+systems one still got the GET behavior. This was considered a critical
+feature in order to enable a smooth transition between the WebDAV and
+non-WebDAV worlds. Also people really hated the idea of introducing yet
+another URL type. Users barely are able to deal with HTTP URLs. Asking them
+to figure out when to use HTTP and when to use DAV just seemed to be too
+much. Also the IE UI guys went absolutely insane at the mere suggestion that
+a DAV: URL could appear in the address bar. They too could hear the support
+phone lines ringing as people demanded to know what the hell a DAV URL was
+and where the HTTP URL had gone to. So this idea was also killed off.
+The real issue is that a URL points at something but tells you
+nothing about how to interact with it. It is a noun without a verb. The
+reason we were running into so much trouble was that we were trying to
+verbify the noun. What we really need is a two-part system. XML could do a
+good job here. One could use a piece of XML to say things like "Go to this
+URL and perform this Action". Of course having users type in XML was too
+much to ask. We could, of course, try to put in a helper UI (say a wizard)
+but even that was a bit much to ask. The general feeling was that we should
+be trying to have users type in less URLs rather than making entering URLs
+even more complex. 
+I talked with our usability people about this problem and they told
+me that according to their lab tests the majority of users could not type in
+a URL at all. They couldn't use the address bar. They couldn't see an Ad
+with a URL then type that URL into their browser. All these users can do is
+click on URLs, not type them in. This has lead to situations where
+sysadmins, if they want to tell a user their file share, will just send an
+e-mail with a link to the file share. The user will then live out of that
+e-mail. Every time they want to get to their files they will find that
+e-mail, open it and click on the link. This is why it is so critical to have
+home pages with lots of links, up front and easily available. Users won't
+type in links. So once someone sends them a homepage in e-mail they will
+continue to go back to that homepage to find everything. So clearly trying
+to solve the problem by inventing URL tricks wasn't going to buy us much in
+the case of the majority of our users. I still wanted to at least do the
+DAV: URL, if only for power users and other early adopters, but I didn't
+have the time or resources left to deliver the feature.
+
+One idea that was considered was enhancing the right click menu on HTTP URLs
+to allow the user to select GET or PROPFIND behavior. The idea is that you
+could type in a HTTP URL, right click on it and then select how you wanted
+the HTTP URL resolved. However adding this to the right click menu was
+non-trivial. Still, it does set up the stage for the second set of proposals
+- a switch.
+
+The original argument was that we should add an option to IE's view menu to
+allow the user to switch to a PROPFIND view. The problem with this proposal
+is that 99.9% of the time for the lifespan of IE 5.0 the resource would not
+be a WebDAV resource. This meant that we would have a feature in the menu
+that didn't work most of the time. Anyone but me hearing the support phone
+lines ringing? (Yes, I know, I should have a check up for these ringing
+sounds =) So the idea of just putting a "directory" view choice on the view
+menu was ruled out. 
+However we decided to be smart. What if we knew that the resource
+that was currently displayed was a WebDAV resource? That is, what if the
+user typed in http://www.webdav.org and we already knew that
+http://www.webdav.org was a WebDAV resource? Everyone agreed that if we knew
+that a resource was a webdav resource then we could make the menu item
+appear. We figured what we could do was to let the user type in the URL,
+press return/go and navigate to the resource. Then, in the background, after
+the file had completely loaded (so there would be no performance penalty) we
+would do a background OPTIONS request to see if we were dealing with a
+WebDAV resource. If we were then we would do a PROPFIND on resourcetype and
+see if it was a collection. If it was then we would make the menu item
+appear.
+The theory was o.k. but the implementation would be awful. First of
+all, this means that every time a user was just randomly browsing around we
+would issue at least one request (OPTIONS) and sometimes two (PROPFIND).
+Even assuming we figured out a caching scheme (anyone know how long to cache
+an OPTIONS output? How about how long to cache that a resource is a
+collection?) to reduce the load the implications were still frightening. I
+could see the headlines "IE 5.0 single handedly takes out the Internet, news
+at 11." However, believe it or not, there was an even worse problem, from
+our point of view.
+Pretend our normal user Missy is sitting in front of her computer.
+Her admin has repeated to her, three times, that she is supposed to type in
+http://company/files/missy into the address bar. Then she is supposed to go
+to view and select "Directory View".
+So, Missy, types in http://company/files/missy, presses return, got
+to the view menu and... well... nothing. There is no "Directory View"
+option. First the page has to finish displaying before we will try OPTIONS.
+Then the amount of time it takes for the OPTIONS message to get there and
+back is variable. Then, assuming http://company/files/missy is a WebDAV
+resource, we still have to make the PROPFIND request. This means that for
+some indeterminate and largely inconsistent period of time the "Directory
+View" menu option wouldn't appear. The user experience was just too awful to
+contemplate. We couldn't implement a randomly appearing menu item.
+Another suggestion was to try and make some use of the largely
+useless go button. The reason the go button was introduced was that users
+did not seem to understand the idea that one typed a URL into the address
+bar and then pressed return. It was the "then press return" part that got
+them. However other browsers had put in some sort of button that users could
+press to start the navigation. We got so much feedback from system
+administrators and others that their users were having this problem that we
+felt we had to put in the go button. Nobody liked it but oh well. So we
+figured at least we could use the stupid thing. We thought we could put in a
+drop down menu off that button that the user could use to select GET or
+PROPFIND behavior.
+However this suggestion suffered from the same problem that the
+previous suggestion suffered from, 99.9% of the time the PROPFIND selection
+wouldn't do anything useful.
+There was thought given to having a switch somewhere in advanced
+that would just add a "directory" switch to the view menu or add the drop
+down menu to the GO button but then the feature would only be useful to
+super power users. While we have found that it is often useful to enable
+super power users the IE WebDAV project at the time was incredibly resource
+constrained. I couldn't justify the effort for a power user feature. 
+
+So, in the end, the best idea we could come up with was file/open. Of course
+the file/open switch suffers from the same sort of problems we identified
+previously, 99.9% of the time the damn thing wouldn't work right. A small
+improvement is that if the attempt to navigate to the resource as a
+FrontPage/WebDAV resource fails then we will put up an error and ask the
+user if they would like to see the page as a normal web page (GET). However,
+under normal circumstances, this wouldn't be considered acceptable. Having a
+feature that 99.9% of the time produces an error isn't an acceptable user
+experience.
+The reason we were allowed to use file/open is that absolutely
+nobody ever uses file/open. So the UI folks weren't worried about having
+this funky "Open as Web Folder" switch in file/open. In fact the UI folk
+wanted to remove file/open all together from IE but the MS UI regulations
+require it to be there. So they said we could throw in the switch there. In
+other words, we were allowed to produce a bad user experience because we
+were counting on the majority of users never, ever, finding the switch
+without being explicitly told it was there. Don't you wish I was making this
+all up?
+
+In the future I hope we are able to throw in a WebDAV switch as a power user
+feature. I normally would have driven this into IE 5.5 but I left IE a year
+or so ago and my new job took my attention away from WebDAV.
+
+Obviously the considerations that went into IE's design don't necessarily
+apply to all software products. Microsoft makes its money by selling
+software to the average user. The needs of the average user are very
+different from high end users. If you are making a high end user product
+then obviously your considerations will be very different. I often find it
+difficult to explain to IETFers why MS does what it does because people at
+the IETF are most definitely NOT our target audience. Normal users think
+very differently from technical users. Things that seem painfully obvious or
+easy to technical users present insurmountable barriers to normal users.
+Normal users do not want to understand how these systems work. They just
+want the damn product to work. That means that our first priority has to be
+to avoid making things complex. If a UI element isn't painfully obvious then
+it is cut or hidden away for power users. That's the theory, anyway.
+
+Yaron
+
+> -----Original Message-----
+> From: Joe Orton [mailto:joe@orton.demon.co.uk]
+> Sent: Tue, January 25, 2000 3:20 AM
+> To: w3c-dist-auth@w3.org
+> Subject: Re: Comments please!
+> 
+> 
+> > Hmm. But this doesn't solve my problem. Let's say that my 
+> website is called
+> > 'http://www.foo.com'. If I do a
+> > get on this url, I'll get 'http://www.foo.com/index.htm' by 
+> default. But
+> > 'http://www.foo.com' is also a directory at the to level. 
+> So if a user types
+> > 'http://www.foo.com' I don't know if I should perform a Get 
+> or a Propfind,
+> > both are valid. The user types the same thing for directory 
+> browsing in
+> > 'http://www.foo.com' and for getting the default page.
+> 
+> I think this mostly a UI problem. From the user's point of 
+> view, have two "views" 
+> on a collection resource; it's GET response, and the listing 
+> of collection members
+> from a PROPFIND response. These correspond to the traditional 
+> "web browser" mode of
+> operation, and the traditional "file browser/explorer" mode 
+> of operation.
+> 
+> Like you say, in Web Folders you have the "Open as Web 
+> folder" checkbox on open
+> dialog, which selects which of these views should be used for 
+> the given URI. 
+> Another way to do this (maybe Web Folders does this too, I've 
+> not been that side of
+> the fence for a while?), is to have some way of switching 
+> between modes from within
+> the browser; a toolbar button, or a drop-down box, or whatever.
+> 
+> So then, the user can browse about their web site, happily 
+> viewing their pages,
+> then maybe they want to move some files about, so they hit 
+> the "view collection
+> contents" button, and they can do that, then switch back 
+> again when they've
+> finished. That would be a nice interface, IMO.
+> 
+> joe
+> 
+
+
+

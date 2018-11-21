@@ -1,0 +1,111 @@
+docno="lists-098-1368531"
+received="Mon Sep  3 13:27:20 2001"
+isoreceived="20010903172720"
+sent="Mon, 3 Sep 2001 13:27:18 -0400 (EDT)"
+isosent="20010903172718"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="Inkling sample code: parsing and querying remote RDF"
+id="Pine.LNX.4.30.0109031321020.8261-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To:<www-archive@w3.org>
+cc:<libby.miller@bristol.ac.uk>
+
+
+
+I just made this, to better understand how Inkling uses the JDBC APIs to
+hide RDFisms behind a familiar looking interface. Looks similar to my SOAP
+version. It has been a while since I used JDBC, so I'm not sure how close
+this usage is to classic JDBC apps.
+
+Dan
+
+---------- Forwarded message ----------
+
+package DanTest;
+
+import org.desire.rudolf.rdf.*;
+import org.desire.rudolf.query.*;
+import org.desire.rudolf.query.modelcore.*;
+import java.sql.*;
+import java.util.*;
+import java.lang.*;
+
+/**
+A class that uses the Inkling RDF query APIs (and hence JDBC) to download and query RDF.
+See also:  http://swordfish.rdfweb.org/rdfquery/
+...and Libby, Edd, Leigh   and Andy's investigations into re-factoring Inkling.
+
+TODO:
+ - figure out how these interfaces relate to my SOAP experiments
+ - rationalise package naming
+ - datatypes, nameless nodes etc.
+ - getting RDF view of resultset
+
+@@author Dan Brickley <danbri@w3.org>
+  */
+
+public class AskWeb {
+    public static void main (String[] args) {
+
+String query = "SELECT ?x, ?l, ?c " +
+    "FROM     http://xmlns.com/wordnet/1.6/Job "+
+    "WHERE "+
+    "  (web::type ?x rdfs::Class) "+
+    "  (rdfs::label ?x ?l) "+
+    "  (rdfs::description ?x ?c) "+
+    "USING web FOR http://www.w3.org/1999/02/22-rdf-syntax-ns# "+
+    "rdfs FOR http://www.w3.org/2000/01/rdf-schema#";
+
+java.sql.ResultSet results;
+ try
+    {
+RDFModelCore rdfdata = DownloadUrls.getUrlsFromQuery(query);
+if(rdfdata != null && !((RDFGraph)rdfdata).isEmpty()) {
+    Driver inklingDriver = null;
+    java.sql.Connection conn = null;
+    try {
+inklingDriver = new MemModelCoreDriver();
+conn = ((MemDriverInterface)inklingDriver).connect(rdfdata);
+    } catch(Exception e){
+System.out.println("Inkling: JDBC-RDF error: "+e );
+e.printStackTrace();
+    }
+    java.sql.Statement statement = conn.createStatement();
+    results = statement.executeQuery( query );
+    statement.close();
+    conn.close();
+    java.sql.DriverManager.deregisterDriver(inklingDriver);
+}
+
+ParsedQuery pq = ParsedQuery.parse(query);
+while (results.next()) {
+    Enumeration fields = pq.variables.elements();
+    while(fields.hasMoreElements()){
+  String varname = (String)fields.nextElement();
+  String value = (String)results.getString(varname);
+  System.out.println ("  "+ varname + " = " + value);
+    }
+    System.out.println("\n");
+}
+    }
+catch (Exception e) {
+    System.err.println("Inkling: RDF query exception: "+ e );
+    e.printStackTrace();
+}
+    }
+}
+
+/*
+Installation notes
+Saved and compiled as DanTest/AskWeb.java this should run with the following CLASSPATH:
+
+LIB=`pwd`/lib
+export CLASSPATH=$CLASSPATH:$LIB/rdfquery.jar:$LIB/modelcore.jar:$LIB/rdf-api-2001-01-19.jar
+export CLASSPATH=$CLASSPATH:$LIB/sirpac-1.14.jar
+*/
+
+
+

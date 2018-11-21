@@ -1,0 +1,103 @@
+docno="lists-103-1838179"
+received="Tue Dec 21 16:22:54 1999"
+isoreceived="19991221212254"
+sent="Tue, 21 Dec 1999 13:22:42 -0800"
+isosent="19991221212242"
+name="David Brownell"
+email="david-b@pacbell.net"
+subject="Notes on DOM L2 CR"
+id="385FEFA2.CF82BADD@pacbell.net"
+charset="us-ascii"
+expires="-1"
+
+
+To:"www-dom@w3.org"<www-dom@w3.org>
+
+Here are some random nodes that came up when I was finetuneing my
+implementation of the latest L2 (what's there just now is a quick
+update to use the latest Java bindings).  There were some other
+issues that came up, but I don't have notes for them just now.
+
+- The text uses the word "platform" inappropriately.  It talks about
+  behaviors coupled to the "platform" ... but those are really coupled
+  to the "implementation".  As a rule, platforms can support more than
+  one implementation of DOM.
+
+  The point being that a given platform may have dozens of different
+  implementations of DOM, differing in those respects.  DOM is not
+  part of the platform (e.g. Java, Linux, Win32) and there's no reason
+  to demand either that it be so, or that the DOM spec be paired with
+  platform-specific addenda (which then need to be negotiated, at
+  the usual levels of committee pain).
+
+- For elements and attributes without a namespace, setPrefix should
+  throw an exception (preferably NO_MODIFICATION_ERR).
+
+- There's still a fundamental bug in the document type creation model.
+  I still can't see why it'd need to be as unusable as it is.
+  
+  Consider how an XML parser must use DOMImplementation if it's
+  going to try to populate a DOM tree using public APIs.
+
+    * Start parsing.
+
+    * Queue up an ordered list of descriptions any comment and PI
+      nodes found, without creating DOM nodes yet.
+
+    * If a DTD is found:
+
+- Create a DocumentType node, and remember its position
+  (that is, after comments and PIs seen so far)
+
+- Queue up an ordered list of descriptions any comment and
+  PI nodes found after the DTD, without creating DOM nodes.
+
+    * Read at least the name and namespace of the root element.
+
+    * ONLY NOW is there enough information to create a document
+      object using DOMImplementation.createDocument:
+
+- Create the document using the root element name, its
+  namespace, and the document type previously created.
+
+- Take that first set of comments and PIs, and insert
+  it (preserving the original order) before the DTD node.
+
+- Take the second set of comments and PIs, and insert
+  it (preserving the original order) before the root.
+
+    * OK, now you can continue to populate the DOM tree with
+      the children of that root element, and any comments/PIs
+      following that element.
+
+  In short, quite an extreme level of pain for something that
+  is conceptually quite simple:  store the data as it's parsed,
+  using the APIs existing for that purpose.
+
+  SUGGESTED FIX: createDocumentType doesn't belong as a method
+  on the DOMImplementation object.  It belongs on Document,
+  since the DTD is feature internal to the Document.
+
+  (It appears that the current DTD model of DOM conflates the
+  notion of internal declarations, like XML/HTML/SGML DTDs,
+  with external ones such as MIME content type labels or the
+  conventions file systems use to record such information.  The
+  current scheme appears to think DTDs are the latter; this
+  doesn't even work for XHTML.)
+
+  In the "last call" draft I could at least parse into a DOM tree
+  that recorded the DTD, though it was impossible to build a
+  populated DTD even using proprietary DocumentType extensions
+  (the ownership model was broken).  This draft isn't even that
+  good; I can't use this feature at all.
+  
+- The example under "element" is incorrect; it says that there are
+  only element nodes, while it's clear that there should also be
+  three Text nodes (holding whitespace).
+
+That's all for now.
+
+- Dave
+
+
+

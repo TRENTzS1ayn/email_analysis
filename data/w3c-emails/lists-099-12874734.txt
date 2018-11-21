@@ -1,0 +1,95 @@
+docno="lists-099-12874734"
+received="Wed Jan 28 12:31:35 2004"
+isoreceived="20040128173135"
+sent="Wed, 28 Jan 2004 12:32:27 -0500"
+isosent="20040128173227"
+name="Sandro Hawke"
+email="sandro@w3.org"
+subject="my 'global-replace' script"
+id="200401281732.i0SHWR5x018730@roke.hawke.org"
+expires="-1"
+
+
+Cc:www-archive@w3.org
+To:ericm@w3.org
+
+
+
+Does a perl-regexp search/replace on multiple files, in place.  Makes
+a backup copy in $HOME/.global-replace-saves.
+
+#!/usr/bin/perl -w
+
+### *** BACKUP IS NOT AS PARANOID AS IT SHOULD BE.   DOESNT
+### EVEN CHECK FOR ERRORS
+###
+
+use strict;
+
+# avoid UTF-8 problems
+# http://london.pm.org/pipermail/london.pm/Week-of-Mon-20030512/018876.html
+use POSIX 'locale_h';
+setlocale(LC_CTYPE, "en_US") or warn "uh oh... $!";
+use locale;
+
+my $from = shift @ARGV;
+my $to = shift @ARGV;
+my @files = @ARGV;
+my %data = ();
+
+die "usage:  global-replace from-string to-string files...\n" unless @files;
+
+chomp(my $cwd = `pwd`);
+my $saveroot = $ENV{HOME} . "/.global-replace-saves$cwd/";
+
+my $old_sep = $/;
+$/ = undef;
+$| = 1;
+my $matching_files = 0;
+for my $file (@files) {
+    open(F, "<$file") or die("Can't read $file");
+    $data{$file} = <F>;
+    close(F);
+    
+    my $nonrev = ($data{$file} =~ m/$to/g);
+    my $presize = length($data{$file});
+    my $count = ($data{$file} =~ s/$from/$to/mge);
+    my $postsize = length($data{$file});
+
+    if ($count) {
+$matching_files++;
+printf("%4d %s (%dk->%dk, %d%%) %s\n",
+       $count, $file,
+       $presize/1024, $postsize/1024, 
+       $postsize*100/$presize,
+       ($nonrev ? "non-reversable" : ""),
+       );
+    }
+
+}
+$/ = $old_sep;
+
+if ($matching_files) {
+    print STDERR "Save prefix:\n=> $saveroot\n";
+
+    print STDERR "Do replacement in all files? (y/n) ";
+    my $reply = <STDIN>;
+    if ($reply =~ m/^y(es)?$/i) {
+system("mkdir -p $saveroot");
+for my $file (@files) {
+    system("cp -a $file $saveroot/$file");
+    open(F, ">$file") or die("Can't write $file");
+    print F $data{$file};
+    close(F);
+}
+print STDERR "Files Backed Up and Modified.\n";
+    } else {
+print STDERR "Aborted.\n";
+    }
+
+} else {
+    print STDERR "Pattern (\"$from\") not found in any named files.\n";
+}
+
+
+

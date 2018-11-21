@@ -1,0 +1,61 @@
+docno="lists-098-15028112"
+received="Wed Sep 11 20:24:25 2002"
+isoreceived="20020912002425"
+sent="Wed, 11 Sep 2002 14:09:15 -0400 (EDT)"
+isosent="20020911180915"
+name="Andrew Kuchling"
+email="akuchlin@mems-exchange.org"
+subject="Small cwm patch: fixing embedded RDF"
+id="E17pBv1-0000uh-00@ute.mems-exchange.org"
+expires="-1"
+
+To:timbl@w3.org,connolly@w3.org, www-archive+n3bugs@w3.org
+
+
+
+
+
+
+If you have RDF embedded in some larger XML document, cwm's rdf parser
+raises an "Unknown RDF parser state 'Not RDF' in end tag" exception.  
+For example, this little file won't be processed.
+
+<?xml version="1.0"?>
+<metadata  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:s="http://mems-exchange.org/schema/file/1.0/"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title>  This is non-RDF content </title>
+  <rdf:RDF>
+    <rdf:Description rdf:about="%s">
+      <dc:Creator>%s</dc:Creator>
+      <s:Run>45</s:Run>
+    </rdf:Description>
+  </rdf:RDF>
+  <element />
+</metadata>
+
+The patch is simple, just ignoring the NOT_RDF state in the end
+tag handler; see below.
+
+--amk
+
+Index: sax2rdf.py
+===================================================================
+RCS file: /sources/public/2000/10/swap/sax2rdf.py,v
+retrieving revision 1.22
+diff -u -r1.22 sax2rdf.py
+--- sax2rdf.py2002/08/06 01:36:091.22
++++ sax2rdf.py2002/09/11 18:03:06
+@@ -415,7 +415,8 @@
+         elif self._state == STATE_DESCRIPTION:
+             self._items.pop()
+         elif self._state == STATE_NOVALUE or \
+-             self._state == STATE_NO_SUBJECT:
++             self._state == STATE_NO_SUBJECT or \
++             self._state == STATE_NOT_RDF:
+             pass
+         else:
+             raise RuntimeError, ("Unknown RDF parser state '%s' in end tag" % self._state, self._stack)
+
+
+

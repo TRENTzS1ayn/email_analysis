@@ -1,0 +1,108 @@
+docno="lists-040-12372407"
+received="Tue Jul 31 22:19:56 2001"
+isoreceived="20010801021956"
+sent="Wed, 1 Aug 2001 12:19:17 +1000"
+isosent="20010801021917"
+name="Alan Kent"
+email="ajk@mds.rmit.edu.au"
+subject="Re: rfc2518 issue: DEFER_LOCK_NULL_RESOURCES_IN_SPEC"
+id="20010801121917.A17914@io.mds.rmit.edu.au"
+charset="us-ascii"
+inreplyto="59697CCC6CE3D411B4CD00805FBB77672875FB&#64;gbrwgcms03.wgc.gbr.xerox.com"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+On Tue, Jul 31, 2001 at 01:44:18PM +0100, Hall, Shaun wrote:
+> The purpose of LNRs are to "lock the name" (RFC 2518 sec 7.4), which is in
+> line for PUTs and MKCOLs. If you drop support for MKCOLs, then you might
+> confuse readers as you've diluted this statement....
+
+Personally, I am not too stressed whichever way things go - I have not
+implemented locking yet! :-)
+
+Regarding LNR's being dropped - yes, it was suggested, but I think
+enough people said "it should stay" so that it will not be removed.
+
+There was another problem area brought up, which I can appreciate.
+Its that LOCK for some implementations cannot be guaranteed to be
+implemented fully and correctly. For example, consider WebDAV being
+an interface onto a UNIX file system. (In my own case, its on to
+a database containing web resource objects such as collections
+and files. Sticking with a UNIX file system is easier to explain.)
+
+So there is a WebDAV library sitting above the file system API.
+Users of WebDAV always come in via the WebDAV library. Other
+applications however can go directly to the file system.
+
+  +----------------+ +----------------+ 
+  |                | |                |
+  | Application 1  | | Application 2  |
+  |                | |                |
+  +----------------+ +----------------+ 
+           |               |
+  +----------------+       |
+  |                |       |
+  |  WebDAV Layer  |       |
+  |                |       /
+  +----------------+      /
+             \           /
+           +----------------+
+           |                |
+           |   File System  |
+           |                |
+           +----------------+
+
+If the WebDAV layer implements LOCK itself, then it can protect a
+web resource against other WebDAV clients, but it cannot protect
+itself against other applications going in via a different API.
+
+The solution is for the WebDAV layer to translate the LOCK request
+into a file sytem lock request. Then the lock will be honoured by
+all applications (not just WebDAV clients).
+
+Lock null resources however have unusual semantics in terms of what
+most other systems implement. I don't think the UNIX file system,
+for example, has the concept of locking a file name so other applications
+cannot use it without a file being created.
+
+There are possible solutions. For example, create a file, lock it,
+then if the WebDAV client issues a MKCOL, delete the file and create
+a directory instead and hope another application does not sneak in
+with a race condition and create the directory first. (Deleting the
+file I believe will delete the lock.) But this defeats the purpose of
+a lock, doesn't it? It does reduce the chance of a race condition, but
+it is not a guarantee.
+
+To summarise: I can implement LNR in the WebDAV layer easily. But as
+soon as the underlying data store is accessible by an means other
+than WebDAV, the locking model (for a 100% correct implementation of
+locks) must be pushed down into a common layer. I believe the problem
+with the WebDAV LNR is that it is not a commonly implemented scheme for
+locking by other systems, so it will be hard for implementors to
+implement correctly according to the spec.
+
+The choices (in my opinion) then are
+
+(1) Its ok for implementors to not implement locking safely - its just
+    an aid for applications, not something they should rely on.
+
+(2) Locking is only to protect against other WebDAV clients and not
+    against anything else
+
+(3) WebDAV is only for use when the underlying storage model supports
+    the LNR concept
+
+(4) The locking model needs to change
+
+I think (3) is not an appropriate choice for WebDAV as it restricts its
+scope too much (I don't know of any other system that supports LNR).
+I think (2) is silly - what is the purpose of locking if they don't work?
+I think the real choices are (1) or (4). With the current WebDAV spec,
+(1) is the only choice to me.
+
+Alan
+
+
+

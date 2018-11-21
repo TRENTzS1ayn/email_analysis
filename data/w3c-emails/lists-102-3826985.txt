@@ -1,0 +1,139 @@
+docno="lists-102-3826985"
+received="Wed May 20 19:25:16 1998"
+isoreceived="19980520232516"
+sent="Wed, 20 May 1998 17:25:16 -0600"
+isosent="19980520232516"
+name="Ray Whitmer"
+email="ray@corel.com"
+subject="Proposals (was Re: The &quot;splice&quot; call)"
+id="3563665C.2F05A747@corel.com"
+charset="us-ascii"
+inreplyto="98May19.215903edt.26881&#64;thicket.arbortext.com"
+expires="-1"
+
+
+To: Mike Champion<mcc@arbortext.com>,www-dom@w3.org
+
+Mike Champion wrote:
+
+> Could you elaborate, and perhaps make a more concrete suggestion?
+> This
+> sounds reasonable ...
+
+Here are 5 suggestions:
+
+1.  Moving the Text.splice() method to a higher-level API than
+w3.dom.core, and make it operate on a Node instead of on a Text.
+
+The DOM has two distinct classes of Node, which are perhaps not
+sufficiently isolated by the API.  Nodes with string data (Text, PI, and
+Comment), and Nodes with child nodes.  In the former case the integer
+arguments in the splice call would continue to refer to characters.  In
+the latter case, the count would refer to child nodes.
+
+In this higher-level API, I would also include the inverse of splice
+(unsplice()?) which removes the specified Element making his children
+into siblings of the Node's original siblings.
+
+2.  Provide character position markers.
+
+Iterators are useful to hold positions in a hierarchy which may shift.
+The characters of a Text, Comment, or PI node may shift just like
+children in the Node hierarchy shift.  For example, I need to hold the
+location in a text the user is typing into.  If some other operation
+inserts or removes something in the text before my current location, I
+want the location I am typing into to be preserved.
+
+A solution would be to add the method getCharPos(int pos) to Node which
+returns a CharPos object with a single readable/writable property "pos",
+which  is fixed up when character insertions and deletions occur.
+
+i.e.
+public interface CharPos()
+{
+    int getPos();
+    int setPos();
+}
+
+The Text.replace effect on CharPos inside a replace range is clarified
+by specifying that with respect to CharPos it is just a convenience
+routine for delete followed by insert.  And null is returned by
+getCharPos on anything besides a Text, Comment, or PI.
+
+3.  Complete the random access for Iterators.
+
+It is difficult to create a NodeIterator to hold a known position in the
+hierarchy because the iterator is obtained from the parent and requires
+traversing to the desired node.
+
+Adding "getChildNumber()" to Node (perhaps with the same performance
+note as on "NodeIterator.moveTo(int n)") would allow you to use moveTo
+to position an iterator more directly.
+
+Or alternatively add a method "getSiblings()" to a node which
+automatically starts a child iterator of the parent at the current node.
+
+4.  Remember relative orders between coinciding NodeIterator or
+above-proposed CharPos objects.
+
+When these position holder objects are registered with a containing node
+a registration list is often used, in which case an order between
+coinciding NodeIterator or CharPos objects can be derived at little
+additional cost.
+
+Three enabling additions could be made to the spec, which would not
+affect the current DOM behavior if they were not used:
+
+a.  Clarification that the order of coinciding position objects can be
+significant.
+b.  Ability to specifically reorder coinciding position objects after
+traversal
+c.  Ability to relatively adjust which way position coinciding objects
+shift during insertion
+
+For example:
+
+(a) NodeIterators and CharPos's preserve their original order even when
+all intervening Nodes or characters are removed.
+
+(b) The owner of a repositioned NodeIterator or CharPos manually
+controls the order via new methods:
+
+property String behavior;
+String getCoincidingBehavior()
+passCoinciding()
+
+(c) after an insertion, the NodeIterator or CharPos used to position the
+insertion shifts any following coinciding positions via a new method:
+
+shiftRelative(int insertionCount, boolean follow)
+
+Currently NodeIterator or CharPos objects precede a coinciding
+insertion.  shiftRelative would navigates coinciding NodeIterator or
+CharPos objects which follow the current one past the insertion.  If
+"follow" is true.
+
+In this case, I believe the benefit is worth the cost of adding these
+new methods to NodeIterator and CharPos.
+
+5.  Provide Node.clone() to efficiently copy a sub-hierarchy for
+synchronization, replication, and other purposes.
+
+To wrap this up, suggestions (2) - (5) are essential features I need in
+a DOM so I can do rather basic things.
+
+I could implement these features as extensions in a private DOM
+implementation which implements with the w3 API.
+
+But if I do, I will not be able to employ anyone else's DOM (although
+anyone else could plug into mine), because (2) - (5) don't seem to be
+easily built from w3 API calls as (1) is.
+
+I have more suggestions relating to good DOM change listener models, but
+I guess that waits until later :-).
+
+Ray Whitmer
+ray@corel.com
+
+
+

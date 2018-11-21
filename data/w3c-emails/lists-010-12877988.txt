@@ -1,0 +1,83 @@
+docno="lists-010-12877988"
+received="Thu Dec  5 12:23:25 1996"
+isoreceived="19961205172325"
+sent="Thu, 05 Dec 96 12:09:29 PST"
+isosent="19961205200929"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="caching CGI responses"
+id="9612052009.AA09857@acetes.pa.dec.com"
+inreplyto="Pine.LNX.3.91.961204160310.27647G100000&#64;andrew.triumf.ca"
+expires="1"
+
+
+To:advax@triumf.ca
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Andrew Daviel writes:
+    Why can't (shouldn't) one cache a CGI response ? It seems to me
+    more rational to flush cache based on the frequency of hits.
+
+The HTTP/1.1 specification, in fact, does not specifically say
+that proxies and clients should not cache the results of a CGI
+response.  In fact, section 13.4 (Response Cachability) says
+
+    Unless specifically constrained by a Cache-Control
+    directive, a caching system may always store a successful response 
+    as a cache entry, may return it without validation if it
+    is fresh, and may return it after successful validation. If there is
+    neither a cache validator nor an explicit expiration time associated
+    with a response, we do not expect it to be cached [...]
+
+In other words, if the server supplies a response with either a
+Last-Modified header, or an Expires header (or "Cache-control: max-age")
+that gives an expiration time in the future, then the response
+*should* be cached.
+
+However, because most existing caches were designed before HTTP/1.1,
+and do not expect servers to generate Expires headers (most servers
+apparently do not), they often cache responses that have neither
+a Last-Modified header or an Expires header.  This is not really
+such a great idea, but it "usually" works.  The two well-known cases
+that it often does not work in are those where the URL includes a "?"
+and those where it includes "cgi-bin" (or a few similar strings).
+So it's normal practice for proxies to not cache responses to such
+URLs.
+
+Note that section 13.9 says, regarding URLs with "?" in them,
+    caches MUST NOT treat responses to such URLs as fresh unless
+    the server provides an explicit expiration time.
+There is a general consensus (but not unanimity) that it is better
+to err on the side of caution in this case.  I.e., since there are
+many such URLs for which caching would cause seriously wrong results,
+it's better to not cache any of these responses (and thus give up
+the ability to cache certain responses that are cachable), rather
+than to risk occasionally returning wrong answers.
+
+However, I think everyone agrees with you that it's both possible and
+desirable for origin servers to explictly mark all responses
+as either non-cachable or cachable, since then the proxies don't
+have to play guessing games based on the URL.  E.g., if you are
+writing a server that uses CGI or "?" URLs, and you know that
+some of these are cachable, if you simply add a Last-Modified
+or Expires (in the future) header to the response, then a well
+designed proxy will cache the response.  Conversely, if you
+mark the response as Expires "in the past", then no well designed
+cache should cache it (without at least sending you a conditional
+GET to see if the value has changed).
+
+As to why the AltaVista people haven't done this: I don't know.
+Some of them work in our building, but I don't have much to
+do with their design decisions (and they didn't invite me
+for a ride in the blimp!).
+
+It's probably too hard to decide automatically that a response
+on a query for "Soccer in Latvia" would be more stable than
+a query for "Cool Site of the day", but it should certainly
+be possible to set an expiration time reflecting the expected
+time between database updates.
+
+-Jeff
+
+
+

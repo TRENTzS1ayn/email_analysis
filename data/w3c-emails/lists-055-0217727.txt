@@ -1,0 +1,210 @@
+docno="lists-055-0217727"
+received="Sun Sep 22 18:11:18 1996"
+isoreceived="19960922221118"
+sent="Sun, 22 Sep 96 15:02:56 CDT"
+isosent="19960922200256"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.CC.UIC.EDU"
+subject="what *are* the RE rules?"
+id="199609222211.SAA27459@www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+The other day, I asked for a summary of SGML's RE rules, in terms other
+than those of clause 7.6.1.  Paul Prescod pointed us all to a 1993
+posting from Erik Naggum on comp.text.sgml, which does in fact seem to
+me very useful.  Some people may quibble over his interpretation of the
+word 'ignore', but his interpretation has the advantage of being
+explicit, plausible, and on the record.
+
+On the other hand, Erik's paraphrase, like clause 7.6.1, refers rather
+obscurely to situations in which "no data or proper subelement" has
+occurred within the element content, which passes over in silence the
+question what *can* occur in these situations.
+
+Inspired by the recent discussion and by Erik Naggum's old posting, I've
+made my own attempt at summarizing the rules in clause 7.6.1 in a less
+indirect way.  Is this a full and accurate summary?
+
+-------
+
+RS is significant only if it's markup -- since it can be markup only in
+a shortref, it's of no interest to XML.  For our purposes, RS is always
+ignored, period.
+
+SGML documents consist of markup and content.  If an RE occurs in an
+SGML document, it's in markup or in content; there's no place else for
+it to be.
+
+In markup, RE is easy; an RE can occur only:
+  - as a separator (in declarations or tags), in which case it's
+    ignored
+  - within a PI, in which case it's passed through to the application
+  - within a literal in an attribute value specification (in a tag or
+    entity declaration or attlist declaration), in which case it's
+    replaced by a SPACE before the attribute value is passed
+    to the application
+  - within a literal in an entity declaration, in which case its
+    treatment is determined when the entity is expanded
+  - as the refc delimiter on a reference, in which case it's eaten by
+    the parser
+
+
+In content, RE can occur:
+
+  - in element content, in which case it's ignored
+  - within mixed content or (replaceable) character data; it is here
+that the rules for ignoring it or treating it as data seem, to some
+people, to become complex.  (Or, as Charles Goldfarb has just reminded
+me, the rule is simple:  RE is ignored when caused by markup.  The
+determination of causality is what seems complex.  Fair point.)
+
+Clause 7.6.1 a says "the first RE in an element is ignored if no RS,
+data, or proper subelement preceded it."  Phrased the other way around,
+and working from the list in clause 7.6 of all the things that can occur
+in mixed or character data content, this means that the pattern
+
+  starttag negligible* RE
+
+reduces to
+
+  starttag negligible*
+
+where 'negligible' is defined as
+
+  negligible ::= comment declaration
+             | shortref use declaration
+             | link set use declaration
+             | processing instruction
+             | character reference
+             | entity reference
+             | marked section declaration
+             | included subelement
+             | short reference
+             | entity-end
+
+Rule (b) in the same clause says, in effect, that the same applies at
+the end of an element:  so if the end of an element matches the pattern
+
+  RE negligible* end-tag
+
+the RE is ignored.
+
+Rule (c) in the same clause says, I think, that if a record (i.e. the
+space between an &#RS; and the next &#RE;) is not empty, but contains no
+data, then the RE is ignored.  I think this means that if any record
+containing nothing other than comment declaration(s), PI(s), the
+beginning of an entity, a marked section declaration, or an included
+subelement, then its RE is ignored.
+
+So the element Q contains no REs in any of the following cases:
+
+  <q>
+  Listen to my heart beat.
+  </q>
+
+This is the simple case:  RE adjacent to a start-tag or end-tag.  All
+the most persuasive examples I've seen involve REs adjacent to the tag,
+which has often led me to wonder why the rule couldn't be just that that
+the TAGC of a start-tag is defined as ">" followed by an optional
+newline, and ETAGO as an optional newline followed by "</".
+
+  <q>
+  <!-- sound track is silent -->
+  Listen to my heart beat <!-- --
+  ><?DIRECTOR begin: audio>
+  and beat and beat and beat.
+  </q>
+
+Here rule (a) takes care of line 1, rule (c) of line 2, the comment of
+line 3, rule (c) again of line 4, and rule (b) of line 5.
+
+The only case I can think of where rule (a) applies without the RE being
+adjacent to the start-tag is something like
+
+  <q><!-- sound track is silent -->
+  Listen to my heart beat.
+  </q>
+
+Perhaps most of the obscurity lies in 8879's omitting any explanation of
+what 'ignoring' data means.  (For example, RS is ignored
+unconditionally.  But it can't be ignored in the sense that the software
+takes no notice of it, since the RE rules involve knowing precisely
+where the last RS occurred.)
+
+Well, no.  Not *most* of the obscurity.  Clause 7.6.1 really begins to
+challenge my hermeneutical skill when it mentions that REs are 'deemed'
+to occur immediately preceding the next following data or proper
+subelement.
+
+So the element
+
+  <q>
+  Listen.
+  <!-- silence. -->
+  <!-- The clock ticks. -->
+  <!-- The wind sighs. -->
+  <!-- The clock chimes. -->
+  <?DIRECTOR:  start audio-track 1 >  Listen to my heart beat.
+  </q>
+
+is, if I am reading the standard right, to be 'deemed' identical to
+
+  <q>
+  Listen. <!-- silence. -->
+  <!-- The clock ticks. -->
+  <!-- The wind sighs. -->
+  <!-- The clock chimes. -->
+  <?DIRECTOR:  start audio-track 1 >
+    Listen to my heart beat.
+  </q>
+
+with the RE originally situated after "Listen." having migrated five
+lines down, past four comments and a processing instruction.
+
+Rule (c) also appears to mean that
+
+  <q>
+  Listen. <!-- silence. -->
+  <!-- The clock ticks. -->
+  Listen to my heart beat.
+  </q>
+
+has a record end between the two sentences, since the RE after the first
+comment cannot be ignored by rule (c), but that
+
+  <q>
+  Listen. <!-- silence.
+  The clock ticks. -->
+  Listen to my heart beat.
+  </q>
+
+has no record end, since the record end after the second line of the
+comment ends a non-empty record which contains no data.
+
+-------
+
+Is this an accurate summary?
+
+If so, I suggest that either of the following alternative rules are
+simpler for both implementor and user; the first one handles all the
+cases I think people are likely to agree aren't confusing.
+
+  - RE is ignored when immediately adjacent to the TAGC of a start-tag,
+    the ETAGO of an end-tag, the PIC of a processing instruction
+    that began at or before the beginning of the current line,
+    or the MDC of a comment that began at or before the beginning
+    of the current line
+
+or
+
+  - RE is ignored when it occurs outside literals within markup
+  - RE is ignored in element content
+  - in character data, RE is a data character
+
+-C. M. Sperberg-McQueen
+
+
+

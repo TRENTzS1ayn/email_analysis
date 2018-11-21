@@ -1,0 +1,320 @@
+docno="lists-010-15673686"
+received="Wed Mar 19 08:44:15 1997"
+isoreceived="19970319134415"
+sent="Wed, 19 Mar 1997 11:38:06 0500"
+isosent="19970319163806"
+name="Dave Kristol"
+email="dmk@belllabs.com"
+subject="Re: Issues with the cookie draft"
+id="3330166E.63DECDAD@belllabs.com"
+charset="usascii"
+inreplyto="11352BDEEB92CF119F3F00805F14F485025666C0&#64;RED-44MSG.dns.microsoft.com"
+expires="1"
+
+
+To: Yaron Goland<yarong@microsoft.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+Yaron Goland wrote:
+
+> Why are names beginning w/$ still reserved? As we have now defined the
+> position of NAME=VALUE, this restriction is no longer necessary.
+
+Unfortunately, it is, given the compatibility rules for combining
+Set-Cookie and Set-Cookie2 headers.  When the origin server receives a
+Cookie header, it doesn't know, a priori, whether it's an old or new
+cookie.  Because Netscape's original spec. separated distinct cookies by
+';', the positional placement isn't sufficient to find NAME=VALUE.  More to
+the point, something like Version=1 could look like a NAME=VALUE.  So I
+retained the '$' reservation, to distinguish returned attribute/values from
+cookie values.
+
+> 
+> Comment should be a language tagged Unicode string not a quoted string.
+> The actual language used can be implicitly negotiated on by the
+> accept-language headers with the request. This is clearly not a robust
+> solution but it is probably appropriate to this situation.
+
+I'd like to see a more detailed proposal of how the language gets chosen,
+what the syntax of the Comment attribute would be, and what the
+implications would be for displaying Comment's contents to a user (sect.
+4.2.2).
+
+> 
+> Discard is entering dangerous territory. When exactly does a user agent
+> terminate? Both MSIE 4.0 and NS 4.0 are moving to desk top models where
+> the user agent is operational as long as the computer is on.
+
+In that model, the user agent terminates when you shut down the computer.
+
+> Furthermore, why would you want to discard a cookie when the user agent
+> terminates? It sounds like this is an attempt to solve the problem of
+> shared cash behavior. If the cookie is sensitive and if the cache is
+> shared, we don't want the cookie hanging around. I think we should
+> change Discard to Private. Private would indicate that the cookie SHOULD
+> only be recorded if a private cache is in use.
+
+What's your definition of a "private cache"?  Does a Wintel PC have a
+private cache?  If so, how about a Wintel PC that sits in a university lab,
+where it's shared by lots of students?
+
+Here's the problem to solve, from the origin server's perspective.  The
+server sends a cookie to a user agent.  The lifetime is meant to be the
+shorter of, say, 3 hours or the end of a session.  If I say Max-Age=10800,
+User1 (in a shared PC lab) might finish after one hour and exit the
+browser, thinking this will eliminate any context that had been
+instantiated while s/he used the PC.  User2 comes along, starts up the PC,
+goes to the same site, and inadvertantly starts using User1's cookie, which
+is "a bad thing".  So the origin server also wants to send Discard, so when
+the user agent session ends (browser exits, user reboots Windows,
+whatever), User1's cookie is gone.
+> 
+> Version should be optional, if not included, it should default to V1.
+
+Again, the S-C and S-C2 combining rules necessitate an explicit Version, so
+a server can tell whether it's getting V0 or V1 cookies.  Remember, the
+origin server only sees a Cookie header (not Cookie2), which is ambiguous.
+
+> 
+> The default for Max-Age has the same "how long is a UA session" problem
+> as Discard. IMHO the most robust solution is to have the cookie kept
+> indefinitely if no Max-Age is included.
+
+That *is* the default, unless there's a Discard.  That's why Discard is
+needed -- to override the default where an application needs to do so.
+
+> 
+> 2. Quotes & Responses:
+> 
+> Quote:
+> "When it sends a
+>      "secure" cookie back to a server, the user agent should use no less
+>      than the same level of security as was used when it received the
+>      cookie from the server."
+> 
+> Response:
+> What is greater or lesser security? Do we expect clients to record what
+> security they were using when they received the cookie and then, through
+> some as yet undefined mechanism, decide what "greater" or "lesser"
+> security than the original security mechanism means? This definition is
+> too fuzzy to be useful, I believe it should be removed.
+
+I agree it's fuzzy, but RFC 2068 says nothing about transport security, so
+it would be hard to be more specific.  I think we can agree, though, that
+encryption is more secure than no encryption.  I don't want a cookie that
+was originally encrypted to be returned to the server as cleartext.  So we
+*have* to say something here, and removing the statement would be wrong.  I
+invite alternative words that get the point across.
+
+> Quote:
+> "If an attribute appears more than once in a cookie, the behavior is
+> undefined."
+> 
+> Response:
+> Undefined things have a nasty habit of defining themselves. I propose
+> the sentence read "If an attribute appears more than once in a cookie,
+> then the cookie is illegal and MUST be ignored."
+
+I was trying to be "generous in what you accept".  The HTTP spec., for
+example, does not mandate that a request be ignored if a header is
+malformed.  It's an implementation decision.  Returning to Set-Cookie,
+ignoring a duplicate attribute is a valid behavior.  Ignoring the cookie is
+a valid behavior.
+
+> 
+> Quote:
+> "HTTP/1.1 servers must send Expires: old-date (where old-date is a date
+> long in the past) on responses containing Set-Cookie2 response headers
+> |
+> unless they know for certain (by out of band means) that there are no
+> downsteam(sic) HTTP/1.0 proxies.."
+> 
+> Response:
+> I believe this sentence should be changed to read "HTTP/1.1 servers MUST
+> send Expires: old-date (where old-date is a date long in the past) on
+> responses containing Set-Cookie2 response headers meant for single users
+> unless...". We allow caching of Set-Cookie2 headers intended for
+> multiple people.
+
+The point of the original paragraph (sect. 4.2.3; could you cite sections,
+please?) was, I think, that HTTP1.0 caches are unreliable and can't be
+trusted to honor caching directives correctly.  So stuff must be stored in
+them pre-expired.  Even cookies intended for multiple users, because
+there's no way to persuade such older caches that they must revalidate
+documents and cookies.  HTTP/1.1 caches will ignore Expires in favor of
+Cache-Control and do the right thing.
+> 
+> Quote:
+> "   * The request-host is a FQDN (not IP address) and has the form HD,
+>      where D is the value of the Domain attribute, and H is a string
+>      that contains one or more dots."
+
+[4.3.2 Rejecting Cookies]
+> 
+> Response:
+> The company Blah Inc. has the web site blah.com. Blah sells many
+> products, one of which is called bar. Bar has been released in several
+> versions, the newest of which is Foo. Blah wants to be able to present
+> information to its customer that it thinks the customer will be
+> interested in and it wants to present this information across all of its
+> sites. So it sends a cookie whose domain is .blah.com. If a user is
+> visiting foo.bar.blah.com and receives this cookie they will have to
+> reject it because it violates the above rule. It is totally appropriate
+> for Blah Inc. to want to hand out cookies that apply to all the sites it
+> owns. However instead of doing it simply by having a single cookie, it
+> now has to clutter the user's hard drive with cookies for every
+> *.blah.com site visited, not to mention complicating the server's
+> implementation. I believe this requirement is not reasonable, especially
+> for complicated sites.
+
+Sorry, this piece has a long history of discussion, and I don't think we're
+willing to change it, although I do understand your point.  The issue was
+how to provide adequate flexibility to applications (and you don't think we
+have) while preventing cookie-sharing abuses that might arise from sites
+that send cookies with too-liberal Domain=.
+> 
+> Quote:
+> "User agents should allow the user to control cookie destruction...."
+> 
+> Response:
+> If a UA maker wants to never allow a customer access to cookie control
+> mechanisms, that is the UA maker's business, not the standards. We can
+> not threaten companies by saying "Well if you don't create your
+> interface the way we say then you aren't compliant" and expect to remain
+> credible as a standards organization. This is not a wire protocol
+> related issue. It is a feature issue and a matter of competitive
+> advantage for UAs.
+
+This item, of course, is part of the broader discussion about what RFC 2109
+can and cannot say about UA interfaces.  The members of the sub-group were
+quite firm in their belief that users should have control of cookies.
+
+> 
+> Quote:
+> "   * The value for the $Domain attribute must be the value from the
+> |
+>      Domain attribute, if any, of the corresponding Set-Cookie2 response
+> |
+>      header.  Otherwise the attribute should be omitted from the Cookie2
+> |
+>      request header.
+> |
+> 
+>    * The value for the $Path attribute must be the value from the Path
+> |
+>      attribute, if any, of the corresponding Set-Cookie2 response
+> |
+>      header.  Otherwise the attribute should be omitted from the Cookie2
+> |
+>      request header"
+> 
+> Response:
+> All cookies have Domain and Path values. When not explicitly defined
+> they are implicitly defined. Thus a user agent will record these values,
+> explicit or not. The above requirements now dictate that the UA has to
+> record extra information, an indication if the Domain and Path are
+> implicit or explicit. I can find no good reason to place this
+> requirement on the UA. Instead we should simply require that the Domain
+> and Path, explicit or not, should always be returned with the cookie.
+
+Yes, there we are requiring extra information.
+
+Here's why.  You cannot specify explicitly by Domain and Path the domain
+and path you get by default.  For example, suppose x.y.com sends a cookie.
+If it leaves out Domain=, the default domain is x.y.com.  The cookie will
+be returned *only* to that site.  However, if you say Domain=.y.com, the
+cookie gets sent to any site *.y.com, not just x.y.com.  Or you can say
+.x.y.com, which domain-matches *.x.y.com.
+
+There's a similar behavior for Path regarding '/'.
+> 
+> Quote:
+> "Domain Selection
+>      The origin server's fully-qualified host name must domain-match the
+>      Domain attribute of the cookie.  The origin server's port number
+> |
+>      must equal the port number of the server that sent the cookie."
+> 
+> Response:
+> Why do we have the port number requirement? If Blah Inc. has an HTTP
+> server on ports 80 and 81, why would we want to prevent sharing between
+> two ports on the same system?
+
+Well, for one thing the two servers may be administered separately for
+different purposes, and letting them share cookies seems like a bad idea.
+
+> 
+> Quote:
+> "If multiple cookies satisfy the criteria above, they are ordered in the
+> |
+> Cookie2 header such that those with more specific Path attributes
+> precede those with less specific.  Ordering with respect to other
+> attributes (e.g., Domain) is unspecified."
+> 
+> Response:
+> If we leave domain ordering undefined doesn't that sort of destroy the
+> utility of requiring path ordering?
+
+Okay, I was lazy, following Lou's example in the original spec.  I didn't
+want to have to specify a multi-dimensional sorting algorithm.  Got any
+ideas?  (I'm hoping that multiple cookies to the same site are rare, so it
+isn't that big a problem, but I do feel a little guilty it is so poorly
+specified.)
+
+> 
+> Quote:
+> "User agents may offer configurable options that allow the user agent,
+> or
+> any autonomous programs that the user agent executes, to ignore the
+> above rule, so long as these override options default to ``off.''"
+> 
+> Response:
+> Again, I do not feel it is appropriate for this specification to dictate
+> to UA makers how to build the parts of their product that do not go over
+> the wire. If a UA maker wants this to default to "ON", that is their
+> business. If the UA maker wants to default to "ON" and not allow the
+> user to change the value, that is also their business. The mission, I
+> hope, is interoperability, not second guessing UA makers.
+
+Same user agent interface discussion as before.  And same user control
+discussion.
+> 
+> Quote:
+> "This state
+> management specification therefore requires that a user agent give the
+> user control over such a possible intrusion, although the interface
+> through which the user is given this control is left unspecified.
+> However, the control mechanisms provided shall at least allow the user
+> 
+>    * to completely disable the sending and saving of cookies.
+> 
+>    * to determine whether a stateful session is in progress.
+> 
+>    * to control the saving of a cookie on the basis of the cookie's
+>      Domain attribute."
+> 
+> Response:
+> Wire protocols have a massive effect on the range of functions a client
+> can implement. In effect, they restrict products. Software companies
+> have decided that interoperability is such an important product feature
+> that it is worth having their functionality restrained. However there is
+> another reason behind the software maker's behavior, they know that the
+> real battle is UI not features. Features tend to be a check-list, so
+> long as everyone has the same check marks, the competitive field remains
+> flat. The area of competition becomes primarily one of interface. When
+> standards step beyond the wire, beyond even functionality, and go into
+> the area that is the heart of computer software, they render themselves
+> irrelevant. Companies are not going to give up their competitive
+> advantage in order to be compliant with a standard. Worse yet, due to
+> press pressures, companies will be forced to look like they are
+> compliant, even when they are not. This reduces the ability of the IETF
+> to be an effective standards setting organization. Once companies are
+> forced to selectively ignore standards the goal of interoperability
+> becomes impossible.
+
+Ditto.
+
+Dave Kristol
+
+
+

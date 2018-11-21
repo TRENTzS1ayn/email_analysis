@@ -1,0 +1,318 @@
+docno="lists-040-0182964"
+received="Mon Jan 31 02:40:17 2000"
+isoreceived="20000131074017"
+sent="Sun, 30 Jan 2000 23:39:48 -0800"
+isosent="20000131073948"
+name="Yaron Goland"
+email="yarong@Exchange.Microsoft.com"
+subject="RE: WebDAV Bindings - Issue Yaron.AtomicDelete"
+id="7DE119D3D0E15543874F7561EECBDBED02619E39@BEG.platinum.corp.microsoft.com"
+charset="iso-8859-1"
+inreplyto="WebDAV Bindings - Issue Yaron.AtomicDelete"
+expires="-1"
+
+
+To:"'Slein, Judith A'"<JSlein@crt.xerox.com>,"'Greg Stein'"<gstein@lyra.org>,ccjason@us.ibm.com
+Cc:w3c-dist-auth@w3.org, Brian Andrew<brianan@Exchange.Microsoft.com>
+
+Firstly, although I still need to see the final language the proposal Judy
+makes is fine with me. Obviously in the case of file system based
+implementations if you try a delete on a collection with members without a
+depth infinity header then you will get an error. However, assuming that the
+atomic language will be replaced with Judy's language without any mention of
+the word "atomic" then I am ready to consider this issue closed baring
+review of the final spec.
+
+Secondly, below I explain how linking works in NTFS. This is mostly FYI but
+several people have asked me about this issue so I decided to find out the
+answer. The following info comes from our NTFS guru Brian Andrew. Again, any
+technical mistakes are my fault.
+
+NTFS supports hard links to files ONLY. NTFS actually implements hard links
+as bindings (their term) and all bindings are equal. So, for example, if I
+create the file c:/foo/bar and then create a link c:/icky to c:/foo/bar then
+I can delete c:/foo/bar and the file will still be around and pointed to by
+c:/icky. So, in so far as I can tell, our hard link behavior for files works
+exactly the way the BIND spec wants it to work.
+
+NTFS supports symbolic links to directories ONLY. A symbolic link is an
+actual file whose contents are the file location of a  directory. The file
+system at a really deep level understands that the file is a symbolic link
+so all the normal file commands will work properly, including commands from
+older programs that don't know anything about a symbolic link. However if I
+create a directory c:/di/rectory and create a symbolic link (called a
+Junction in NTFS language) to c:/some/other and then delete c:/di/rectory
+then c:/some/other will still exist but will return an error when
+de-referenced. However one can still refer to c:/some/other even though
+c:/di/rectory no longer exists. Also, there is no way to find out from
+c:/di/rectory that the junction c:/some/other exists.
+
+I asked Brian why we choose not to implement hard links to directories. He
+said that detecting loops was extremely expensive, especially during
+CHECKDISK operations. He said that while Junctions could be used to create
+loops because everything was late bound and there were no consistency
+guarantees it wasn't felt that they needed to actually find junction loops.
+He also said that they were never able to get consensus on what to do when a
+loop was found, although this issue was secondary to the expensive of
+finding the loops in the first place. As such hard links to directories will
+not be added in the foreseeable future.
+
+My assumption therefore is that out NTFS DAV implementation will either not
+implement the BIND spec or will only implement BIND for non-collection
+resources. We will give some 5xx error for requests for a BIND to a
+collection. I am extremely concerned about the effect of the 5xx strategy on
+interoperability. However the expensive of dealing with loops is so high
+that we can't just "suck it up" and make NTFS handle hard links to
+directories. So this means that we either leave out BIND all together or use
+the 5xx strategy. Both leave a bad taste in my mouth.
+
+> -----Original Message-----
+> From: Slein, Judith A [mailto:JSlein@crt.xerox.com]
+> Sent: Thu, January 27, 2000 8:01 AM
+> To: 'Greg Stein'; ccjason@us.ibm.com
+> Cc: w3c-dist-auth@w3.org
+> Subject: RE: WebDAV Bindings - Issue Yaron.AtomicDelete
+> 
+> 
+> I think maybe we haven't made it clear what we are trying to 
+> accomplish by
+> saying that DELETE must be atomic.  And maybe expressing it 
+> that way is
+> confusing.  Here are the results we want (I think):
+> 
+> 1. DELETE removes a single binding.  It does not remove all 
+> the bindings to
+> a resource, only the one identified by the Request-URI.  If 
+> it happens to be
+> the last binding, then what happens about garbage collection of either
+> content or properties is outside the scope of the spec.  
+> DELETE is just
+> about removing the binding.
+> 
+> 2. In the case where the binding is to a collection, DELETE 
+> still means only
+> remove the binding to that collection.  It is not acceptable 
+> to walk the
+> tree deleting bindings to descendents of that collection.  
+> This would have
+> disastrous consequences in an environment with multiple bindings to
+> resources.  To resurrect an example of Jason's:
+> 
+> User UA uses URL /a/C/ to access collection coll1.  User UB 
+> uses URL /b/C/
+> to access the same collection.  Now suppose UA issues a 
+> DELETE on /a/C/.
+> What you want is for UB to be able to continue to use /b/C/ 
+> to access the
+> collection (and all its descendents).  So you can't go 
+> deleting the bindings
+> in coll1 to all its children.  All you want to do is remove 
+> the binding
+> a:(C->coll1) from collection /a/.
+> 
+> Does either of these restrictions cause problems for mod_dav?
+> 
+> --Judy
+> 
+> > -----Original Message-----
+> > From: Greg Stein [mailto:gstein@lyra.org]
+> > Sent: Friday, January 21, 2000 5:36 PM
+> > To: ccjason@us.ibm.com
+> > Cc: Yaron Goland; w3c-dist-auth@w3.org
+> > Subject: Re: WebDAV Bindings - Issue Yaron.AtomicDelete
+> > 
+> > 
+> > On Tue, 18 Jan 2000 ccjason@us.ibm.com wrote:
+> > >...
+> > > >>
+> > >  There are, I freely admit, circumstances in which a client 
+> > MUST be able to
+> > > ensure that a DELETE is issued atomically. Clients in those 
+> > cases will have
+> > > to choose to not interoperate with many WebDAV servers in 
+> > order to gain
+> > > atomic delete.
+> > > >>
+> > > These clients can interoperate with an old iterative server 
+> > just fine if
+> > > they also include 2518 support.  That's their choice.
+> > > 
+> > > We have asked around and it seems that server authors 
+> > appreciate and are
+> > > willing to comply with semantic of an "atomic" removal of a 
+> > single binding.
+> > 
+> > I don't recall being asked, nor agreeing with atomic 
+> > operations. If that
+> > binding happens to be a collection, then it will definitely 
+> > be non-atomic.
+> > 
+> > [ also assuming this is the "final" removal of the collection ]
+> > 
+> > >...
+> > > >>
+> > > Let me clarify that DELETE was defined to not be atomic 
+> > with malice of fore
+> > > thought. The non-atomic delete language was the result of 
+> > nearly three
+> > > years of negotiations and represented a deep and broad 
+> > consensus built up
+> > > amongst a huge community. Might I respectfully suggest to 
+> > the BIND authors
+> > > that they should not be so ready to overthrow years of 
+> > careful consensus
+> > > building.
+> > > >>
+> > > We've asked around.  Folks appreciate this behavior and are 
+> > willing to
+> > > support it.
+> > 
+> > Again: I don't remember being asked. Maybe I missed a post to 
+> > this list?
+> > 
+> > Regardless, I am not willing support atomic deletions of 
+> > collections OR
+> > single, member resources. Note that I mentioned member 
+> > resources here. I
+> > delete a member resource in two steps: the contents and its 
+> > properties.
+> > Definitely non-atomic.
+> > 
+> > And with respect to the Apache web server, I will not even 
+> > begin to think
+> > of making it atomic (e.g. serialize all requests while a 
+> > resource is being
+> > deleted).
+> > 
+> > > >>
+> > > Do not imagine that the lack of screaming on this issue 
+> > reflects consensus.
+> > > Rather it reflects the fact that most of the WebDAV 
+> > community is too busy
+> > > implementing RFC 2518 to pay much attention to BIND. The BIND
+> > > functionality, while I believe it will be important to 
+> > WebDAV, is a bit
+> > > ahead of the majority of implementers so they just aren't 
+> reading or
+> > > reviewing it, yet.
+> > > >>
+> > > We have asked around and we didn't accept silence as a response.
+> > 
+> > I was certainly silent. Either that, or I'm going senile and forget
+> > responding to a question of atomicity. I certainly can't 
+> > imagine replying
+> > "sure, I can sure an atomic delete".
+> > 
+> > > >>
+> > > The key reason DELETE was not allowed to be atomic (which 
+> > certainly would
+> > > have been a nice thing to be able to do) has to do with 
+> the way file
+> > > systems work. Most file systems do not support depth 
+> > operations atomically.
+> > > So, for example, when you delete a directory what actually 
+> > happens is that
+> > > the program does a depth first walk of the directory tree 
+> > and deletes all
+> > > the individual files, walking backwards up the tree until 
+> > finally deleting
+> > > the parent directory.
+> > > >>
+> > > You've pointed out that this is a problem on your file 
+> > system.  We've found
+> > > no other.   We've tested it and our testing indicates that 
+> > the MOVE option
+> > > you mention below works.  (We did not test with ACL's 
+> > though... or multiple
+> > > bindings.)    We've also contacted folks at your 
+> > organization and they
+> > > didn't see a problem.
+> > 
+> > This is an undue complication: generate a unique name, rename 
+> > the resource
+> > to that new name, then process its removal. And again, 
+> > mod_dav couldn't
+> > even do this because of its separation between properties and 
+> > contents: I
+> > could move the contents away, but a PROPFIND could still return
+> > properties.
+> > 
+> > >...
+> > > >>
+> > > There is then the third and final issue, WebDAV begins with 
+> > a "D" for a
+> > > reason. It's goal is to be distributed. Requiring atomic 
+> > DELETEs would
+> > > essentially hinder all but the most expensive of systems 
+> > from being able to
+> > > implement distributed namespaces across multiple physical 
+> > servers. The
+> > > reason being that the atomic requirement means that these 
+> > systems will have
+> > > to establish transactioning systems between themselves in 
+> > order to issue
+> > > DELETEs if they share namespace.
+> > > >>
+> > > It's only one binding.  The goal isn't to be atomic, that's just a
+> > > fortunate side effect.
+> > 
+> > It is *definitely* not a "side effect." mod_dav certainly 
+> > does not do a
+> > rename-then-delete. Therefore, I have to take explicit 
+> > actions to achieve
+> > that behavior. I don't even think that I could *ever* 
+> > guarantee an atomic
+> > DELETE operation.
+> > 
+> > >...
+> > > >>
+> > > As such I move that the atomic DELETE language be struck 
+> > from the BIND spec
+> > > on the grounds that it destroys interoperability, requires 
+> > behavior that
+> > > would preclude file system based systems from supporting 
+> WebDAV and
+> > > significantly increases the cost of implementing WebDAV in 
+> > a distributed
+> > > manner.
+> > > >>
+> > 
+> > I agree with Yaron on this one. Strongly.
+> > 
+> > > I believe I've addressed all of these above.
+> > > 
+> > > It is very clear that DELETE should not be iterative or 
+> > accept partial
+> > > results in a server that supports multiple bindings.
+> > 
+> > I think it is very clear that it shouldn't.
+> > 
+> > Stating your opinion of clarity doesn't make it so, nor does 
+> > mine. But I
+> > certainly can tell you right now that I won't be one of the "example
+> > implementations" required for an IETF Standard.
+> > 
+> > > Legacy clients may
+> > > invoke DELETE without knowledge of the potential dangers.  
+> > Therefore, a
+> > > simple DELETE should delete a single binding.  --- There is 
+> > no compelling
+> > > reason (so far) not to support single binding delete and it 
+> > simplifies the
+> > 
+> > I believe that I've given you one. With a good chunk of 
+> extra work and
+> > serialization within the server, then it might be possible. 
+> > But I am not
+> > really up for trying to figure it out.
+> > 
+> > Cheers,
+> > -g
+> > 
+> > -- 
+> > Greg Stein, http://www.lyra.org/
+> > 
+> 
+
+
+

@@ -1,0 +1,140 @@
+docno="lists-050-12043427"
+received="Mon Mar  4 10:42:37 2002"
+isoreceived="20020304154237"
+sent="Mon, 4 Mar 2002 15:42:30 -0000"
+isosent="20020304154230"
+name="Jeremy Carroll"
+email="jjc@hplb.hpl.hp.com"
+subject="RDF C14N XML Literal Equality"
+id="JAEBJCLMIFLKLOJGMELDCECPCDAA.jjc@hplb.hpl.hp.com"
+charset="iso-8859-1"
+inreplyto="CEECKEAMDAJDDEDGJNBEOEBNCAAA.jjc&#64;hpl.hp.com"
+expires="-1"
+
+To:"Jeremy Carroll"<jjc@hplb.hpl.hp.com>,<w3c-rdfcore-wg@w3.org>,<w3c-ietf-xmldsig@w3.org>
+
+
+> RDF C14N XML Literal Equality
+> =============================
+> Should C14N be used to describe the processing of
+> rdf:parseType="Literal" or
+> only in the definition of XML Literal equality.
+
+
+This is where I start trying to be clever, perhaps too clever.
+
+The obvious way of how the RDF specs should use the C14N spec is to say that
+the literal delivered by the rdf:parseType="Literal" production is
+canonicalized using the C14N method.
+
+A different way is to not say that, but to say that two xml literals are
+compared by comparing their canonicalizations.
+
+
+In more detail ....
+
+C14N as part of parsing
+=======================
+
+Add text to appropriate specs in appropriate places like:
+[[[
+An XML Literal in RDF consists of an optional language tag paired with a
+unicode string that is a well-balanced XML fragment, without use of entity
+reference except the predefined entities, and in which all visible
+namespaces are declared.
+
+In the literal production
+http://ilrt.org/discovery/2001/07/rdf-syntax-grammar/#literal
+the string value of the XML Literal is found by using the canonicalization
+algorithm of C14N (with/without) comments.
+
+Two XML Literals are equal if the language tags are either both absent or
+equal (ignoring case) and if the unicode strings are equal.
+
+NOTE: any XML Literal that does not canonicalize to itself in some XML
+context cannot be serialized in an RDF/XML document.
+]]]
+
+
+C14N as part of equality
+========================
+
+Add text to appropriate specs in appropriate places like:
+[[[
+An XML Literal in RDF consists of an optional language tag paired with a
+unicode string that is a well-balanced XML fragment, without use of entity
+reference except the predefined entities, and in which all visible
+namespaces are declared.
+
+In the literal production
+http://ilrt.org/discovery/2001/07/rdf-syntax-grammar/#literal
+a possible string value of the XML Literal can be found by modifying the
+string as in the input file, to ensure that all (non-predefined) entity
+references have been expanded, and that any namespace declarations that are
+visibly used are present in the string value. Any other equal string
+representation is permitted. Any other representation from which the
+canonical string representation can be generated is permitted.
+
+Two XML Literals are equal if the language tags are either both absent or
+equal (ignoring case) and if the unicode strings canonicalize to the same
+string when put into the following XML context:
+
+<foo><!-- Insert Here --></foo>
+
+NOTE: different RDF processors may treat the underdefined aspects of XML
+Literals
+differently. These include aspects that are not in XML Infoset and
+(maybe) XML comments
+and (maybe) non-visible XML namespaces.
+
+NOTE: RDF processors may choose to use an alternative communication band to
+transmit a different XML context in which XML Literals should be compared.
+In particular, many metadata applications may choose to use a context:
+<foo xmlns="http://www.w3.org/1999/xhtml"><!-- Insert Here --></foo>
+]]]
+
+
+Looking at our example:
+
+
+<rdf:Description
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/metadata/dublin_core#"
+  xmlns="http://www.w3.org/1999/xhtml"
+  rdf:about="http://example.org/papers/paper1">
+  <dc:Title rdf:parseType="Literal"><!-- Relevant text start. -->
+    Foo<em>bar</em>
+  <!-- Relevant text end. --></dc:Title>
+</rdf:Description>
+
+the former approach (using C14N during parsing):
+- requires all RDF parsers to implement C14N
+- does not require graph matchers to implement C14N
+- specifies precisely which string an RDF parser must produce.
+- no current RDF parser will comply
+- maximises the ease of interoperability between different RDF processors
+
+e.g. with comments, then we must retain the comment strings.
+
+
+the latter approach (using C14N during equality)
+- does not require RDF parser to implement C14N, but parser writers must
+have some awareness of the issues
+- does require RDF graph matcher implementors to implement C14N
+- is explicitly vague about what string an RDF parser produces
+- does address the issues on our issue list
+- blesses at least some current implementations (more or less) (ARP and CARA
+I think - although ARP does not do processing instructions, I don't know
+about CARA).
+- still leaves some interoperability questions
+
+e.g using exclusive without comments, then implementations that retain the
+comments and all the namespace will nevertheless be conformant, as long as
+the equality algorithm (if any) strips the comments and the non-visibly used
+namespaces.
+
+I note that nearly all RDF implementations provide RDF/XML input, not that
+many provide equality.
+
+
+

@@ -1,0 +1,139 @@
+docno="lists-042-6326983"
+received="Sat Jul 19 12:02:25 2003"
+isoreceived="20030719160225"
+sent="Sat, 19 Jul 2003 12:02:06 -0400"
+isosent="20030719160206"
+name="Geoffrey M Clemm"
+email="geoffrey.clemm@us.ibm.com"
+subject="Re: Binding loops and PROPFIND clarification needed (was Re: COPY  and  bindings)"
+id="OF9CDA3961.0826FBC8-ON85256D68.005139C9-85256D68.005814BC@us.ibm.com"
+charset="US-ASCII"
+inreplyto="3F0F3909.5090109&#64;nasa.gov"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+How about the following alternative:
+
+For PROPFIND, define a new 2xx status code that means "resource already 
+reported".
+
+A server that detects a loop in a PROPFIND result, would use this new 2xx 
+status
+code for the 2'nd (and subsequent) encounters with a given resource.  This 
+allows
+the client to reconstruct the binding structure based on just a single 
+PROPFIND
+call.
+
+In particular, we could add the following paragraph to the Binding 
+specification:
+
+-----------------------------
+
+7.1   208 Already Reported
+The 208 (Already Reported) status code can be used inside a DAV:propstat
+response element to indicate that information about the resource has
+already been reported in a previous DAV:propstat element in that response.
+The members of the 208 status resource are omitted from the response. 
+For example, consider a PROPFIND request on /Coll (bound to collection C),
+where the members of  /Coll are /Coll/Foo (bound to resource R) 
+and /Coll/Bar (bound to collection C).
+
+>> Request:
+
+PROPFIND /Coll/ HTTP/1.1
+Host: www.example.com
+Depth: infinity
+Content-Type: text/xml; charset="utf-8"
+Content-Length: xxx
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:propfind xmlns:D="DAV:">
+   <D:prop> <D:displayname/> </D:prop>
+</D:propfind>
+
+>> Response:
+
+HTTP/1.1 207 Multi-Status
+Content-Type: text/xml; charset="utf-8"
+Content-Length: xxx
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:multistatus xmlns:D="DAV:">
+   <D:response>
+      <D:href>http://www.example.com/Coll/</D:href>
+      <D:propstat>
+         <D:prop>
+            <D:displayname>Loop Demo</D:displayname>
+         </D:prop>
+         <D:status>HTTP/1.1 200 OK</D:status>
+      </D:propstat>
+   </D:response>
+   <D:response>
+      <D:href>http://www.example.com/Coll/Foo</D:href>
+      <D:propstat>
+         <D:prop>
+            <D:displayname>Bird Inventory</D:displayname>
+         </D:prop>
+         <D:status>HTTP/1.1 200 OK</D:status>
+      </D:propstat>
+   </D:response>
+   <D:response>
+      <D:href>http://www.example.com/Coll/Bar</D:href>
+      <D:propstat>
+         <D:prop>
+            <D:displayname>Loop Demo</D:displayname>
+         </D:prop>
+         <D:status>HTTP/1.1 208 Already Reported</D:status>
+      </D:propstat>
+   </D:response>
+</D:multistatus>
+
+A client can request the DAV:resourceid property in a PROPFIND request to 
+guarantee that they can accurately reconstruct the binding structure of a 
+collection with multiple bindings to a single resource.
+-------------------------------------
+
+Cheers,
+Geoff
+
+Chris wrote on 07/11/2003 06:24:09 PM:
+> 
+> Julian Reschke wrote:
+> 
+> >>First/easiest thing would be to change the example to have the 506
+> >>followed by a 200. (The example implied to me that processing stopped 
+at
+> >>the first 506.)
+> >> 
+> >>
+> >
+> >That would break the multistatus format - every URI may only appear 
+once.
+> >
+> >What we should do is clarify that the processing only stops *for the
+> >resource that is part of the bind loop*. So maybe just change the 
+example to
+> >have the "looping child" appear first in the collection.
+> > 
+> >
+> Sorry for being unclear, that's what I meant (having a different URI in 
+> the 200 after the 506.)
+> 
+> >Maybe, maybe not. So which clients *do* require 
+PROPFIND/depth:infinity? The
+> >Microsoft webfolder client doesn't.
+> > 
+> >
+> You're right, no client requires it and could do the same by recursively 
+
+> PROPFINDing down the tree.
+> 
+> Are you going to make it to the Interop? Hope to see you there! (We 
+> might even have a first pass at a BIND-capable server. :*)
+> 
+
+
+

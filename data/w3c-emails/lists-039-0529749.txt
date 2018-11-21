@@ -1,0 +1,129 @@
+docno="lists-039-0529749"
+received="Thu Apr 22 14:59:41 1999"
+isoreceived="19990422185941"
+sent="Thu, 22 Apr 1999 11:53:35 -0700"
+isosent="19990422185335"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: Some problems with the WebDAV protocol"
+id="001701be8cf1$6d55d060$d115c380@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="37192749.860DD6AD&#64;mindless.com"
+expires="-1"
+
+To: Yoram Last<ylast@mindless.com>, WEBDAV WG<w3c-dist-auth@w3.org>
+
+
+Yoram Last, on April 22, 1999 wrote:
+> I would like to apologize for writing things that seem to have ended up
+> being interpreted as offensive...
+
+Thank you.
+
+Yoram Last, on April 17, 1999 wrote:
+> 2) The main problem with DELETE doesn't so much effect functionality as
+> it effects compliance with HTTP/1.1 and has the potential of confusing
+> HTTP/1.1 compliant clients. In connection with DELETE for collections,
+> RFC 2518 says: "If an error occurs with a resource other than the resource
+> identified in the Request-URI then the response MUST be a 207
+> (Multi-Status)." Since 207 is not a valid HTTP/1.1 response, HTTP/1.1
+clients
+> are not supposed to be able to understand it. They are likely to consider
+it
+> as a success code (it's a 2xx) even though in this particular case it
+actually
+> indicates failure.
+
+Yoram Last, on April 20, 1999 wrote:
+> You don't say anything about the DELETE issue. Do you think that it's a
+> kosher thing to send 207 responses that are really error responses to
+> (non-WebDAV) HTTP/1.1 clients? Some people previously suggested that since
+> HTTP/1.1 says that a 2xx response to a DELETE is not an absolute
+commitment
+> to having the resource deleted, then you are allowed to always send a 2xx
+> regardless of the outcome. This is a distorted interpretation of HTTP/1.1.
+> It says that a 2xx response to a DELETE indicates the acceptance of the
+> request as such, and that there might still be a chance that this request
+> will be rejected in the future due to the possible existence of further
+> control mechanisms such as human intervention. This is not the same as
+> responding with a 2xx in cases where the server fully and clearly rejects
+> the request, and nobody in his right mind will design a purely HTTP/1.1
+> server to behave in this way.
+
+Just to set some groundwork here, if a WebDAV server executes a DELETE on a
+collection, and the delete is completely successful, then the response code
+should be a 204 (No Content), although 202 (Accepted) and 207 (Multi-Status)
+are also acceptable.  I think we agree there are no interoperability
+problems in this case.
+
+On the other side, if a WebDAV server executes a DELETE on a collection, and
+the delete completely fails, then the response code should be a 404 (Not
+Found) or a 403 (Forbidden), depending on what caused the problem (404 -
+nothing was there to delete, while the 403 could handle access control
+problems).  For a complete failure, the 207 (Multi-Status) should not be
+returned (although I will admit that, upon reading RFC 2518, this latter
+point is probably not clear, and should be clarified in future drafts).
+Assuming a DAV server does not return a 207 for this case, then complete
+failure should also not generate any interoperability problems with HTTP/1.1
+delete.
+
+So, any potential problems would be with a partial completion of the delete
+operation.  For this case, let me note:
+
+1) The behavior of a DELETE on a collection in HTTP/1.1 is problematic for
+file-based servers.  If a DELETE is issued to a resource which has a URL
+which ends in a slash "/" (e.g., "testdir/"), and there are other resources
+which have URLs which add a path onto this slash (e.g, "testdir/one.html",
+"testdir/two.html"), HTTP/1.1 doesn't give any guidance as to what should be
+done with the resources which have URLs which come after the slash.  It
+seems to me that, for the same reason that filesystem-based servers create
+intermediate paths, these same servers would want to delete the resources
+which have "slash plus path" URLs. This leaves servers with the choice of
+either a) deleting the collection, plus the "slash plus path" resources, b)
+doing nothing (reporting an error), or c) internally marking the collection
+as removed, and not affecting the "slash plus path" resources.  My
+interpretation of the HTTP spec. is that either (b) or (c) is what was
+intended by the spec., but I wouldn't be surprised if a filesystem-based
+server has implemented (a).
+
+For reference, mod_put's implementation of DELETE does (b), since it will
+attempt to perform an unlink() on the directory, which will fail, causing it
+to report a 403 (Forbidden). It's hard to tell whether this is intentional,
+or if the implementor didn't consider that a directory could be removed.  At
+the very least it is suggestive that HTTP/1.1 delete on a collection is rare
+enough not to be worth implementing.
+
+2) Though you've brought it up already, I do think it is worth stating again
+that HTTP/1.1 clients, if designed correctly, should not depend on *any*
+state change occurring on the server as the result of a delete.  As HTTP/1.1
+states, "The client cannot be guaranteed that the operation has been carried
+out, even if the status code returned from the origin server indicates that
+the action has been completed successfully."
+
+So, since an HTTP/1.1 client cannot depend on the response code to a DELETE,
+and since the existing definition of DELETE is ambiguous for collections,
+and since existing implementation practise suggests that delete on a
+collection is an infrequent (perhaps even never executed) operation for
+HTTP/1.1 clients:
+
+a) this problem does not warrant a re-issue of RFC 2518
+b) it is not clear that this problem warrants any changes to the
+specification at all, since at worst it would cause user confusion for an
+error case on an infrequently (if ever) used option of an infrequently
+executed method.
+
+> This particular DELETE problem can also be given a relatively simple
+> pointwise solution: Just make it a MUST for the client to submit a
+> Depth header, so the client would be actually identifying itself as
+> a WebDAV client in this way, and the server would be allowed to use
+> HTTP/1.1 semantics for the DELETE if a Depth header is not included.
+> While it might not be elegant to use a Depth header to convey information
+> that isn't related to a requested depth, it will work.
+
+While this might work, it's a bad design to use the Depth header to signal
+this information.
+
+- Jim
+
+
+

@@ -1,0 +1,268 @@
+docno="lists-054-1779530"
+received="Sun Dec  8 22:52:00 1996"
+isoreceived="19961209035200"
+sent="Sun, 8 Dec 1996 19:49:55 -0800"
+isosent="19961209034955"
+name="Jon Bosak"
+email="bosak@atlantic-83.Eng.Sun.COM"
+subject="An application of FPIs"
+id="199612090349.TAA04073@boethius.eng.sun.com"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+cc:bosak@atlantic-83.Eng.Sun.COM
+
+In this message I'm going to attempt to fulfill promises made in
+earlier postings to the SGML WG by sketching the FPI system we're
+putting into place at Sun for Solaris documentation.  The point is to
+give a concrete example of a bottom-up FPI resolution system that is
+well on its way toward implementation and may serve as an initial test
+case for FPI/URN resolution.  Despite the fact that not everyone on my
+team at Sun agrees with me that FPIs should be included in XML 1.0,
+please note that I am speaking here as an interested party and
+consider what I have to say in that light.
+
+
+The AB2 daemon
+--------------
+
+To understand why my publishing group is interested in
+location-independent addressing, you have to know a little bit about
+how we intend to distribute documents in Solaris 2.6.  In that
+release, we are going to replace our old PostScript-based AnswerBooks
+with a new SGML-based system.  The new system will be HTTP-based
+rather than NFS-based and will deliver data to generic HTML clients
+rather than to specialized viewers.  We are still looking for a
+properly slick market-oriented name for this system, but at the moment
+we are just calling it AnswerBook2, or AB2 for short.
+
+AB2 is implemented as a daemon, ab2d, that is (at administrator
+option) installed on a server, along with some set of compiled SGML
+documents, and started up when Solaris is booted.  The ab2d daemon is
+not a full Web server but just a lightweight HTTP process that sits in
+the background and waits for document requests.  When a Web client
+makes such a request (using a complex URL driven by a forms-based
+interface of our construction), ab2d hands it off to a custom DynaWeb
+plugin that turns the complex URL into a query against the compiled
+SGML database, retrieves the data, and converts the requested document
+-- or by autochunking, an appropriate document fragment -- into HTML
+on the way out.  (DynaWeb implementors will understand that the server
+may also return a generated table of contents, among other things, and
+that it is trivially easy for the same server to generate XML instead
+of HTML from the same compiled SGML files if a client identifies
+itself as XML-aware.)
+
+
+A distributed document space
+----------------------------
+
+This system has a number of pretty cool advantages, not least among
+which is the ability of system administrators to make their own
+tradeoffs between performance and disk usage in corporate networks.
+Let's suppose that in order to conserve local disk space you have
+installed just the basic Solaris user documentation on your
+workstation.  The ab2d daemon is running on your workstation, and you
+can consult the documentation you've installed there using HotJava,
+Navigator, lynx, or whatever HTML browser you happen to have handy.
+
+Now suppose that you want to consult some documentation relating to
+the C compiler.  You don't have that available on your system, but you
+know that Sally down the hall has installed that on the departmental
+server.  If you know the name of that server, a simple request to its
+ab2d lets you access that server's list of document resources, and you
+can navigate, read, and bookmark the documents available there just as
+easily as you can the ones on your own machine.  To find even less
+frequently used documentation, you may have to go as far as the
+corporate library machine, located at some distant node on the
+corporate WAN.  And to get some really obscure piece about an obsolete
+version of one of Sun's products, you may have to go through the
+Internet to Sun's AB2 server, which has copies of everything we
+publish.
+
+But in every case, you are accessing a unified document space.  If
+your AB2 installation has been set up correctly (which we make very
+easy to do), you are not even aware where specific documents are
+located; the only perceptible difference between getting a document
+from your own machine or some other machine is a performance
+difference resulting from network latency and the difference in CPU
+utilization.  If you go clear out to Sun's document repository you
+will, of course, notice a perceptible lag due to Internet transmission
+delays, but within the kind of corporate network for which this system
+is primarily designed, such delays will be far less noticable.  If you
+find yourself using a distant collection often enough, you can always
+request that it be copied to a machine that is faster or closer to
+you, or you can just access Sun's master server directly and download
+the compiled SGML files to your own workstation.
+
+
+Location independence
+---------------------
+
+Anyone who has tried to set up a distributed system like the one I've
+just described knows that it is virtually impossible to do if URLs are
+the only way to identify documents.  What happens to the
+cross-reference links between your partial document set and the
+compiler documentation if Sally's machine goes down?  What happens to
+your bookmarks if she reorganizes the file system on her machine?
+
+We realized very early on in the AB2 effort that the whole idea hinges
+on the use of location-independent document identifiers.  Two things
+are needed to make the AB2 system work:
+
+1. All documents must be referred to through a location-independent
+naming system, and
+
+2. This system cannot depend on centralized name resolution, because
+(a) the corporate network cannot be assumed to be connected to the
+Internet, (b) an internal resolution server cannot be assumed to be
+available at all times, and (c) users and system adminstrators must be
+free to install and remove documents from the bottom up, without
+having to check things in and out of some central tracking database.
+We also wanted our customers to be able to use AB2 to distribute their
+own documents with an absolute minimum of organizational overhead.
+
+
+FPIs and socats
+---------------
+
+The most important design decision we made in constructing a
+location-independent naming system was a negative one: we were not
+going to attempt a global, all-encompassing solution, we were just
+going to implement the simplest possible system that could work for us
+and our customers.  Consequently, a number of features that one would
+want in a more general solution, such as the ability of the system to
+find the best possible copy of a resource at any given moment, have
+been deliberately omitted from the design.  The assumption of
+relatively modest goals has resulted in a system that is simple,
+robust, and easily managed.
+
+The whole thing is based on FPIs and on SGML Open catalogs that use
+Tauber's proposed DELEGATE extension.  We call such catalogs "socats"
+for short.
+
+Whenever a document is checked into our corporate document system, it
+is assigned a unique identifier of the form
+
+   -//Sun::SunSoft//DOCUMENT SPARCINSTDESK Version 1//EN
+
+The uniqueness of the identifier is verified by the check-in process
+that all publications have to go through on their way to our master
+document database.  The same database is referred to by the link
+editor that all SunSoft authors use for making links between books,
+for example
+
+   <!ENTITY SPARCINSTDESK PUBLIC "-//Sun::SunSoft//DOCUMENT
+   SPARCINSTDESK Version 1//EN" NDATA SGML>
+   [...]
+   <olink TargetDocEnt="SPARCINSTDESK">Installation Instructions for
+   Solaris 2.6 (SPARC Platform Edition)</olink>
+
+Thus, all book authoring, management, compilation, and distribution is
+done using identifiers that are completely independent of physical
+location.  When a book fragment containing the example link above is
+finally converted from SGML to HTML at the moment of its transmission
+to the client browser, the FPI reference in the olink is translated to
+a URL containing encoding that an AB2 server will understand as a
+request to resolve the FPI if the user traverses the link.
+
+To resolve the link, all AB2 servers maintain a "local socat"
+consisting only of PUBLIC and DELEGATE entries (other entries are
+ignored).  The PUBLIC entries provide a lookup table for the FPIs of
+all books installed on the local system, and the DELEGATE entries
+point to a list of other AB2 servers that have been designated as
+alternative sources of information by the system administrator.  The
+local socat is automatically updated whenever a documentation package
+is installed on or removed from the system.  By default it only
+contains one DELEGATE entry, which points to the master document
+repository at Sun; a utility allows the system administrator to add or
+remove other DELEGATE entries at will, keeping the default entry
+always at the bottom of the list (because a reference to one of our
+FPIs will always find a match there and never fall through to other
+entries).
+
+The local socat is typically cached in server RAM.  If there were a
+requirement to solve the global URN resolution problem with this
+mechanism, it would obviously fail, but since the local socat consists
+only of locally installed books and manually entered DELEGATE entries,
+it remains small and fast, even if (as in the case of our own master
+document server) it contains entries for every document we publish.
+
+If we were to extend the DELEGATE mechanism to allow multiple levels
+of indirection, as suggested in Tauber's original proposal, we could
+run into a number of interesting complications, starting with circular
+references.  But again, we're not trying to solve the world's problems
+with this system, so we feel perfectly comfortable in arbitrarily
+limiting the DELEGATE process to just one level.  If an attempt to
+resolve a given FPI fails, an AB2 server queries (in list order) the
+other AB2 servers pointed to by the DELEGATE entries in its local
+socat.  These AB2 servers know how to respond to the special query by
+returning their own local socats, but their DELEGATE entries are
+ignored.
+
+The result, therefore, is that every AB2 document on the local system
+and every AB2 document on systems explicitly pointed to in entries
+made by the system administrator is available to the user in a
+seamless, unified document space.  In a large network, a careful admin
+will make sure to include servers that have duplicate copies of
+various document sets.  The order in which to seek alternative copies
+of a resource is not determined by some insanely complex algorithm but
+simply by the order in which the admin has decided to list them based
+on his or her own knowledge of the network environment.
+
+Thus, if the user has bookmarked a publication that typically comes
+from a machine at the other end of the building, and that machine
+happens to be down at the moment, then the link does not fail but
+rather continues down the list until it finds another copy.  If the
+user is hooked up to the Internet, then in the worst case the FPI
+falls through to the bottom of the list and finds resolution on Sun's
+master document repository.  The user will notice a delay, but the
+link won't fail, and as soon as the usual machine comes back up again,
+performance will return to normal.
+
+There are lots of interesting details that I have left out of this
+brief description because the folks on the AB2 team who are
+implementing the system plan to tell you all about it at the WWW6
+conference in April and at SGML Europe in May.  Suffice it to say that
+this system solves our problem and will (we think) solve similar
+problems for Solaris customers who wish to use the same infrastructure
+for distributing their own documents.
+
+
+Relevance to FPIs in XML
+------------------------
+
+As I stated in an earlier posting, nothing in our scheme requires the
+addition of a single line of code to existing HTML browsers or future
+XML browsers; the implementation hit on browser vendors is exactly
+zero.  In our system this all takes place on a server.
+
+Furthermore, nothing in our scheme requires changes to the existing
+XML draft if XML is used only as a delivery mechanism, because XML
+generated from our SGML data can use exactly the same generated URLs
+that we're using now in HTML generated from that data.  The issue of
+including FPIs in XML arises only if XML is going to be used as an
+authoring format.  Our current DocBook-based publishing system doesn't
+need FPIs in XML, but at some point I would like to use XML as a
+migration path for other groups within Sun that are using HTML on an
+ad hoc basis to provide documentation for unbundled products.  At that
+point, we will need XML to include FPIs as syntactic objects.
+
+Some people (including the AB2 developers!) have pointed out to me
+that FPIs need not be included in XML 1.0 to serve Sun's immediate
+needs, which is true.  But I do think that they have to be included at
+some point if I'm going to be able to use XML as a way to get current
+HTML writers into our unified document space, and since the only
+requirement for an application like ours is that FPIs have a syntactic
+specification, I think that they should be included now rather than
+later.
+
+As I made clear at the beginning of this message, my argument is far
+from disinterested, but I suspect that the application I've described
+is not unrepresentative of other schemes that use FPIs to uniquely
+identify documents.
+
+Jon
+
+
+

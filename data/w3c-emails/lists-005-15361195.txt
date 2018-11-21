@@ -1,0 +1,116 @@
+docno="lists-005-15361195"
+received="Sun Dec 31 20:59:25 2000"
+isoreceived="20010101015925"
+sent="Sun, 31 Dec 2000 20:58:38 -0500 (EST)"
+isosent="20010101015838"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: shared version histories"
+id="200101010158.UAA22619@tantalum.atria.com"
+inreplyto="20001231050445.R28628&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   I'm seeing some issues in the draft when a namespace has two VCRs that refer
+   to versions from the same history.
+
+   For example, let's say that I have a version history with:
+
+       V1 -> V2 -> V3 -> V4
+
+   In the VCR namespace:
+
+     /coll/foo.c -> V2
+     /coll/bar.c -> V4  [copied from foo.c, then extended]
+
+If it really was "COPY"d, then foo.c and bar.c would be in different
+version histories, by the semantics of COPY.  You'd have to use
+BIND or the MOVE trick to get this situation.
+
+Note though, that if /coll were a workspace, this could not happen,
+because you cannot have two different version controlled resources
+with the same version history in the same workspace.  (You could have
+two bindings to the same version-controlled resource, but then they
+would share the same DAV:checked-in version).
+
+   I see two problems arising from this now:
+
+   1) a MERGE request is going to have problems because it doesn't know which
+      VCR to update when bar.c is moved from V4 to V5. foo.c also refers to the
+      same version history, so the MERGE may want to update that to V5, too.
+
+Yes, that is why this is not allowed to happen in a workspace.
+
+      [ based on my understanding of MERGE which says "update all VCRs which
+refer to the version history of the merge version (V5)". in this case,
+two VCRs do. ]
+
+Currently the protocol is not explicit about what happens in this
+situation (i.e. it talks about "the" merge target).  This means
+that currently, a server could call it an error, update just some
+of the VCR's, or update all of the VCR's.
+
+   2) I have a change set style of an activity. The resulting version history
+      should look like:
+
+       V1 -> V2 -> V3 -> V4 -> V5
+       \
+V2.1
+
+      But the limitations imposed on activities prevents two versions in the
+      same line of descent. (but the point is *after* the change set is
+      applied, I want two lines of descent)
+
+You can have multiple lines of descent, but V2.1 is not allowed to be
+in the same activity as V3, V4, or V5.
+
+      [ oh, wait a sec. DAV:unreserved fixes this ]
+
+Depends what you mean by "fixes".  DAV:unreserved just lets thing
+branch in the same activity at CHECKOUT time.  You cannot CHECKIN
+something (whether or not it is reserved) if it would cause a fork
+in an activity.
+
+   I have a feeling that problem (1) could be lessened because V5 was created
+   by checking in a change against V4, so we only update VCRs that refer to V4.
+
+In general, you can update a VCR to any other version from the version
+history of that VCR (skipping forward, backward, or sideways in the
+history is all legal), so only updating a VCR if it currently has
+the predecessor of the change would be a significant loss of functionality.
+
+   But that isn't actually in the draft, and it might not be desirable (MERGE
+   isn't always based on checking stuff in; it can also be used for workspace
+   management).
+
+Yes.
+
+   Okay. (2) is moot. The introduction to activities is very misleading. It
+   says that versions in an activity must be on a single line of descent.
+   Twice. Well, that gets completely thrown out later when DAV:unreserved is
+   described. The introduction should say something about this to prevent
+   confusion (like I just did above).
+
+The confusion must be in the definition of "unreserved", which needs to
+make it very clear that the unreserved fork only applies to a checkout ...
+the *versions* in an activity must be on a single line of descent, so the
+checkout forking is only temporary.
+
+   I'll look for other issues with shared version histories, but this is my
+   start. Of course, there is also the problem of getting two references in
+   there in the first place (in the working collection model; it would appear
+   that the workspace model can just use VERSION-CONTROL to create the second
+   reference).
+
+Yes, but not in the same workspace.
+
+Cheers,
+Geoff
+
+
+

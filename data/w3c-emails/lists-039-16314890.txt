@@ -1,0 +1,175 @@
+docno="lists-039-16314890"
+received="Tue Jan 25 13:15:59 2000"
+isoreceived="20000125181559"
+sent="Tue, 25 Jan 2000 10:11:53 -0800"
+isosent="20000125181153"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="FW: Bindings Protocol"
+id="NDBBIKLAGLCOPGKGADOJKEMJCMAA.ejw@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="Bindings Protocol"
+expires="-1"
+
+To: WebDAV WG<w3c-dist-auth@w3.org>
+
+
+Accidentally caught by the spam filter.
+
+- Jim
+
+-----Original Message-----
+From: James J. Hunt [mailto:jjh@ira.uka.de]
+Sent: Tuesday, January 25, 2000 1:30 AM
+To: w3c-dist-auth@w3.org
+Subject: [Moderator Action] Bindings Protocol
+
+
+
+Dear WebDAV Contributors,
+
+After having had read the recent postings on the proposed bindings protocol
+specification, we would like to add our position on some issues that still
+seem unresolved.  Some of this reiterates points that have already been
+made, but it is necessary to restate these point to provide a consistent
+view.  Some other points are new.
+
+MEMBER URIs
+
+The definition of WebDAV's internal member URIs seems to be one of the
+key problems for the bindings protocol: creating a new binding to a
+collection results in providing access to its members through
+alternate request URIs and hence formally creates new internal member
+URIs (as defined in WebDAV) for that collection, hence undesirably
+changing its state.
+
+Unfortunately, this is not a server-only issue: clients become aware
+of internal member URIs, for example when applying a PROPFIND, i.e.
+during client/server communication, which is the central scope of the
+protocol.
+
+The question is how can we make the requirement for internal member URIs
+consistent with multiple paths to the same resource.  There seems to be no
+requirement that the internal member URIs be stored in full in each
+collection.  They are just need to be constructible for sending back to a
+client.  If each collection and resource contains a list of all collections
+that reference the given collection or resource, all internal member URIs
+could be constructed.
+
+When enumerating through a collection, each member of the collection would
+be seen then just once, and the URI that was used to address the collection
+could be used as the base for generating the URIs of the members.  The
+situation is a little more complicated for deep iterations, e.g. PROPFIND
+on a collection with depth infinity.  Here, if a resource is accessible
+through more than one path from the root collection, the simple
+implementation would return an entry or result for each path.  Note however
+that path from outside this subtree need (and should) not be in the
+enumeration.  (A recursive ls in UNIX does exactly this with hard links.)
+We
+would argue that this is acceptable.  The unique resource identifier can be
+used to detect duplicates.
+
+It is probably better to redefine the definition of internal members, but
+that is outside our scope.  It would be better to make the above
+implementation requirement instead of assuming some other definition.
+Trying to compensate more than the above implementation suggests is
+undesirable.
+
+SOFT vs HARD
+
+Another central topic is the discussion on soft/weak and hard/strong
+links/bindings.  While an exact definition of these terms may slightly vary,
+there seems to be agreement about the fact that the redirection reference
+resources specification [RR], will cover the specification of some kind of
+weak bindings, while DeltaV (particularly with revisioned collections) will
+need strong bindings.  Thus hard link should be addressed in the binding
+specification.
+
+The binding specification claims that it is not acceptable
+for moving a resource through one binding to disrupt another binding.
+This seems sensible for use in future specifications like DeltaV that
+will build upon the bindings specification.  In practice, this means,
+that bindings probably will behave similar to, for example, hard links
+in a file system. This should not be too hard to implement.
+
+Moreover, future protocols like DeltaV seem to require that clients may
+trace bindings on the server in both directions, from each binding source
+(or path segment, as called in the specification) to its single destination
+resource, and from each destination resource to its (possibly multiple)
+binding sources.  Currently, the bindings specification allows to determine
+whether two bindings are to the same resource (section 10).  In order to be
+
+able to find all URI to a particular resource or collection, it is
+necessary to implement the optional DAV property DAV:bindings.  This is not
+only much more efficient than traversing the URI space of a server and
+comparing bindings, but when links for other servers are allowed it may be
+the only way to find all visible links (some links may not be visible to a
+particular user because of access restrictions).
+
+As for that, one could propose the bindings protocol to extend WebDAV
+such that upon explicit request by the client (e.g. through an
+additional header) the server returns not only a single member URI in
+a single href element on PROPFIND requests, depending on the specific
+request URI, but a set of member URIs that contains an arbitrary
+single URI out of the set of all URIs for each binding resource that
+immediately maps to the request URI.
+
+RESOURCE INTEGRITY
+
+There seems to be still some disagreement about the integrity of binding.
+Our position is that binding should maintain integrity, but side effects
+should be avoided whenever possible (Roy's no magic criteria).  This
+dictates
+that DELETE should only remove the given binding, not the resource or
+collection itself.  That should (must) be deleted when no more references
+exist.
+
+One argument against this is that one can not positively remove a resource
+from the server.  Permission restrictions aside, this is possible through
+another mechanism, namely DAV:bindings.  By locking a resource and then
+iterating through the results of DAV:bindings, the user should be able
+to completely remove any resource from a server (again permission
+restrictions aside).
+
+Strong bindings *across* servers may, as mentioned in the current
+version of the bindings specification, cause severe problems.
+As host-to-host communication is the central issue for web protocols,
+the bindings specification should thoroughly specify the behavior
+between the corresponding servers rather than just mentioning some
+problems.
+
+LOCKS
+
+According to [WebDAV], section 7.1, the bindings specification should
+specify
+how the BIND method interacts with a write lock.
+
+ATOMICITY
+
+Atomicity of DELETE would be very hard to implement, if at all possible,
+e.g. on the basis of non-journaling file systems.  However, the idea behind
+atomicity as used in the specification seems to be that a client can perform
+a series of actions as a unity without being disturbed by other clients.
+DeltaV, for example, wants to implement a CHECKIN operation with a workspace
+or activity as request URL (but that is currently still on the TODO list).
+This will probably require some kind of transaction model rather than an
+atomicity model.  A transaction model that prevents other clients from
+intermingling a series of operations should be sufficient. And this is
+exactly what WebDAV locks are designed for.  For example, when deleting a
+hierarchy of resources, a client may beforehand try to lock each resource
+that contributes to the hierarchy and start deletion only if all locks could
+be set.  Or a client may assert a write lock on a null resources on the
+destination of a MOVE operation.  In other words, the binding specification
+should not require atomicity of operations; instead, a transaction model
+should be introduced, based on operation on DAV locks.  But transactions are
+not in the scope of the bindings protocol; they belong either directly to
+DeltaV or should be specified in a separate transactions protocol
+specification.
+
+Sincerely,
+
+Juergen Reuter
+James J. Hunt
+
+
+

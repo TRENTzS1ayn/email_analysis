@@ -1,0 +1,165 @@
+docno="lists-038-15785629"
+received="Wed Dec 30 18:54:46 1998"
+isoreceived="19981230235446"
+sent="Wed, 30 Dec 1998 15:54:25 PST"
+isosent="19981230235425"
+name="Jim Davis"
+email="jdavis@parc.xerox.com"
+subject="initial results of interoperability testing with CyberTeams   WebDAV server."
+id="3.0.3.32.19981230155425.00988ab0@mailback.parc.xerox.com"
+charset="us-ascii"
+inreplyto="199812220106.RAA27305&#64;goose.prod.itd.earthlink.net"
+expires="-1"
+
+
+To: Randall Severy<severy@cyberteams.com>,w3c-dist-auth@w3.org
+Cc:webdav-list@cyberteams.com
+
+I attempted to test my Python DAV client against the CyberTeams
+WebDAV server.  I found many problems, in fact they were so severe that I
+did the bulk of my testing my opening a telnet connection and pasting in
+the request bodies.
+
+It is of course possible that the true problem lies in my client library,
+not the CyberTeams server.  I would be pleased to have my error revealed to
+me if so.
+
+1. The PROPFIND response seems odd in a few ways.
+
+Here is the response I got for a PROPFIND (with no body) on /.  I've
+indented the response myself for clarity, it was not part of the original.
+
+<?xml version="1.0" ?>
+<D:multistatus xmlns:D="DAV" xmlns:W="http://www.cyberteams.com/">
+ <D:response>
+  <D:href>http://serv1-r.fwi.com/</D:href>
+  <D:propstat>
+   <D:prop>
+      <D:creationdate>(null)</D:creationdate>
+      <D:displayname>(null)</D:displayname>
+      <D:getcontentlength>0</D:getcontentlength>
+      <D:getlastmodified>(null)</D:getlastmodified>
+      <D:getcontenttype>httpd/unix-directory</D:getcontenttype>
+      <D:resourcetype/>
+      <D:supportedlock/>
+      <FileSize>1536</FileSize>
+     </D:prop>
+    <D:status>HTTP/1.1 200 OK</D:status>
+   </D:propstat>
+  </D:response>
+</D:multistatus>
+
+
+ 1. creationdate is wrong.  The DAV spec (13.1) says this property, if
+ present, contains a time stamp in date-time (1SO 8601) format.  the
+ value "(null)" is not acceptable.  Since this is an optional property,
+ it would be better to omit it from the response.
+
+ Likewise for getlastmodified, except it should be an HTTP-date.
+
+ 2. In my opinion, it would be better to omit displayname altogether
+ than to return "(null)", but this is just opinion, not an error.
+ 
+ 3. getcontenttype is (probably) wrong.  I think (but am not certain)
+ that 'httpd/unix-directory' is a not registered MIME type.
+
+ 4. 'FileSize' is missing a namespace.  Not stricly speaking an error,
+ but it's weird.  Also I don't see the namespace prefix W used
+ anywhere.  Perhaps it should have been used here?
+
+2. I tried PROPFIND for a non-existant resource (/jrd/), and got:
+
+ HTTP/1.1 500 Internal Server Error
+ Date: Wed, 30 Dec 1998 20:16:36 GMT
+
+ The server encountered an internal error or misconfiguration and was
+ unable to complete your request.
+
+ Please contact the server administrator, webdav@cyberteams.com and
+ inform them of the time the error occurred, and anything you might
+ have done that may have caused the error.
+
+ Additionally, a 500 Internal Server Error error was encountered while
+ trying to use an ErrorDocument to handle the request.
+
+3. MKCOL on a resource whose parent does not exist, e.g. 
+ MKCOL fish/Nixon/sneakers 
+
+ returned no error, but should have failed, as the parents don't exist.
+
+It seems to have created /jrd/fish
+
+4. Although PROPFIND with no method body works, I could not get it to
+work with a non-null method body, e.g.
+
+PROPFIND / HTTP/1.1
+Host: www.fwi.com
+Authorization: Basic anJkOmZvbw==
+Content-Type: text/xml
+Content-Length: 104
+
+<?xml version="1.0"?>
+<D:propfind xmlns:D="DAV:">
+<D:prop><D:resourcetype/></D:prop>
+</D:propfind>
+
+I tried several variations, and all of them failed.
+
+5. Deleting a non-existant resource returned a response body with
+invalid XML:
+
+DELETE /jrd/foo.html HTTP/1.1
+Host: www.fwi.com
+Authorization: Basic anJkOmZvbw==
+
+returned
+
+<?xml version="1.0" ?>
+<D:multistatus xmlns:D="DAV" xmlns:W="http://www.cyberteams.com/">
+<D:response>
+</D:response>
+</D:multistatus>
+
+This response is invalid according to the syntax in 12.9.1.
+
+Response must contain at least one href, and it must contain either a
+status or one or more propstats.
+
+Also, in my opinion, this method should have returned a 404 (Not
+Found) status, not a 207 (Multistatus)
+
+6. I think the server is handling XML namespace attributes
+incorrectly. The URL in the attribute is missing the final colon,
+e.g. it's <D:multistatus xmlns:D="DAV"  >
+
+but should be <D:multistatus xmlns:D="DAV:"  >
+
+7. I tried to PUT /foo.html
+
+PUT /foo.html HTTP/1.1
+Host: www.fwi.com
+Authorization: Basic anJkOmZvbw==
+Content-Type: text/plain
+Content-Length: 16
+
+barking pumpkin
+
+and got back a 412 precondition failed, yet the data was written
+anyway (as confirmed by a subsequent GET)
+
+A subsequent PROPFIND on this resource returns (null) for
+DAV:getlastmodified, despite the fact that the Last-Modified header is
+provided in the reply.  Also, the getcontentlength is 0.
+
+On the other hand, at least one thing did work:
+
+HEAD on a 'plain' resource (e.g. foo.html) worked fine as did HEAD on
+a collection.  HEAD on a collection without the trailing slash
+returned a 301 (Moved Permanently) which is quite reasonable.
+
+I look forward to working with you to resolve these errors.
+
+Jim
+
+
+

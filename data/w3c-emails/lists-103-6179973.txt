@@ -1,0 +1,171 @@
+docno="lists-103-6179973"
+received="Mon Mar  6 16:03:46 2000"
+isoreceived="20000306210346"
+sent="Mon, 6 Mar 2000 16:02:46 -0500"
+isosent="20000306210246"
+name="Keith W. Boone"
+email="kboone@ebt.com"
+subject="RE: DocumentTraversal"
+id="000201bf87af$531d5100$767770c6@ebt.com"
+charset="us-ascii"
+inreplyto="8525689A.00639991.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+To:<keshlam@us.ibm.com>
+Cc:<www-dom@w3.org>
+
+
+
+As you said, your mileage may vary.  Mine still does, so perhaps I can make
+more convincing arguments:
+
+> -----Original Message-----
+> From: www-dom-request@w3.org
+> [mailto:www-dom-request@w3.org]On Behalf Of
+> keshlam@us.ibm.com
+> Sent: Monday, March 06, 2000 1:08 PM
+> To: w
+> Cc: www-dom@w3.org
+> Subject: Re: DocumentTraversal
+>
+>
+> >First: The DocumentTraversal methods appears to be an
+> >extension of the Node Interface, rather than an additional interface
+> >that may be supported by the Document.
+>
+> Interesting thought.
+>
+> We designed these to live on the Document with the other
+> factory methods, and to be passed their root node as an argument...
+> but we _could_ have instead designed them so the factory was invoked
+> on the root node itself, and had that association be implicit.  I agree
+> that the latter is prettier architecturally.
+>
+> But consider the recent comment "You mean I have to cast to
+> get access to the DocumentTraversal methods? Yuck!" -- If these live
+> on the Document object, you may be able to cast once and hang onto the
+> DocumentTraversal through repeated operations on that document. If they
+> live on individual Nodes you'd have to cast each root node, probably every
+time
+> unless you're  repeatedly iterating over a single subtree.
+>
+> Unless the factory continues to take the root node as a
+> parameter... in which case I'm not sure the difference between this
+proposal
+> and status quo is large enough to make much difference.
+>
+> I don't have a hugely strong opinion on this either way.
+
+One way to avoid this would be to just put the two factory operations on
+Node, removing the factory altogether.  Then take the approach that a Node
+supporting
+(c.f. "supports()") the traversal API would return a non-null
+TreeWalker/Iterator
+from the createTreeWalker/createIterator methods, whereas one that doesn't
+support
+it simply returns null.  This eliminates the need for the cast (and the
+separate
+Factory) completely.  OK, so now you have to check the result everytime you
+call
+createTreeWalker ..., perhaps not as nice as a factory which always returns
+a TreeWalker
+or Iterator.
+
+Yup, it breaks existing implementations, but you've already required
+existing
+implementations to modify node anyway.  Those that don't care to support the
+new
+methods can add a few lines of code and they are done.
+
+Finally, I would hope that the largest users of the API would be developers,
+not implementors.  That would mean to me that making it easier for
+developers
+should take priority.  Making it easier to access these from Node does make
+it
+easier for developers.
+
+NOTE:  I cannot make the same argument for Range, as that really should be
+available from Document.  Although if you do decide to put the factory
+methods in
+Document, you should take the same approach with the RangeFactory methods in
+a
+Document.
+
+
+> >Secondly, the expandEntityReferences flag on the factory method should
+> >really just be another constant that can be passed into whatToShow:
+> >SHOW_ENTITY_REFERENCE_EXPANSION or SHOW_ENTITY_REFERENCE_CHILDREN.
+>
+> It could be another bit in that mask, true. I'm not sure this is a net
+> gain, though; it's conflating two seperate operations. Given that the
+> factory call is a relatively rare operation compared to actually using the
+> traversal objects, I'm not convinced that saving a parameter really gains
+> us anything. Especially as bits are a scarce resource; I don't expect us
+to
+> need more than 31 nodeTypes, and there's the workaround of moving the
+> nodeType test into a filter, but I'd rather not establish a precedent of
+> nibbling from both ends toward the middle.
+>
+> And thinking about how I'd implement it, the first thing I'd be inclined
+to
+> do inside the factory would be to break SHOW_ENTITY_REFERENCE_EXPANSION
+out
+> into a separate boolean so it could be tested conveniently, and clear that
+> bit in the mask so I didn't have to special-case it when deciding how to
+> handle the rest. So saving a parameter might increase computation.
+>
+> I think this winds up being a matter of style as much as
+> anything else. My instincts say to leave it as is. Your milage may vary.
+
+The spec says that "whatToShow" specifies which node types may appear in the
+logical view of the tree presented by the iterator.  As far as I'm
+concerned,
+that is the operation being referenced, so I don't consider the two
+operations
+to be 'conflated'.
+
+Sure, you've made it easy to implement it as:
+
+if ((whatToShow & ( 1 << node.getNodeType()) != 0)
+show(node);
+
+if (expandEntityReferences && node.getNodeType() == Node.ENTITY_REFERENCE)
+showChildren(node);
+
+But that's syntactic sugar unless you make the above implementation part of
+the specification.  [i.e., indicate that the flags will always be
+specified that way].  BTW:  The easy implementation shown above wouldn't
+pass
+muster in our organization.  It's a cute trick, but it isn't obvious what
+the
+code does, and it relies on some details that could change in a subsequent
+release.
+
+Furthermore, if you want the same "simplicity" you can handle it just as
+easily using
+a static array, which is independant of where you put the actual flag
+values.
+
+if ((whatToShow & showMasks[node.getNodeType()]) != 0)
+show(node);
+
+if ((whatToShow && expandMasks[node.getNodeType()]) != 0)
+showChildren(node);
+
+The second implementation seems preferable, especially when you consider
+that
+TreeWalker and NodeIterator may be used to walk/iterate over DocumentTypes
+in DOM3, in
+which case you might have more flags like expandEntityReference.
+
+If you are going to stick with the two separate arguments, could you at
+least make
+the second one another mask, and define a constant for entity references.
+That way
+it is extensible enough so that if DOM3 wants to, it can expand into the
+field.
+
+Keith
+
+
+

@@ -1,0 +1,106 @@
+docno="lists-010-4383435"
+received="Sat Jul  6 16:24:54 1996"
+isoreceived="19960706202454"
+sent="Sun, 7 Jul 1996 01:16:39 +0200 (MET DST)"
+isosent="19960706231639"
+name="Drazen Kacar"
+email="dave@fly.cc.fer.hr"
+subject="Re: proposed HTTP changes for charset"
+id="199607062316.BAA22810@fly.cc.fer.hr"
+charset="USASCII"
+inreplyto="9607051725.aa26368&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@liege.ICS.UCI.EDU>
+Cc:yergeau@alis.ca,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Roy T. Fielding wrote:
+
+>   3) None of the issues you have raised involve a technical problem
+>      with the HTTP/1.1 protocol -- they are POLITICAL problems that
+>      are an artifact of historical reality, a reality which the IETF
+>      is not capable of changing.
+> 
+>   4) Labeling the charset with its real value if it is different than
+>      iso-8859-1 *always* works, both in old an new practice, because
+>      any user agent incapable of handling a charset value is also
+>      incapable of handling a charset other than iso-8859-1.  The only
+>      time problems occur is when iso-8859-1 data is labeled as such
+>      and then delivered to an older client.
+> 
+> I see no point in continuing this discussion unless you can demonstrate
+> a real problem that needs to be solved and can be solved within the
+> constraints of HTTP/1.1.
+
+Demonstration of a real problem following...
+
+Suppose we have a server that delivers a page with
+
+Content-type: text/html; charset=iso-8859-2
+
+On the other side of a connection we'll probably (50-60% in my logs) have
+Netscape 2.0 on Windows CEE. CEE is Central & Eastern Europe version,
+Latin 2 fonts come with OS. Netscape 2.0 can switch code page when it
+receives charset parameter (so I've been told). Everything should work,
+but it doesn't. Why?
+
+Because Latin 2 does *not* mean the same for ISO and Microsoft. Microsoft
+delivers their systems with something they sometimes call CP1250 and
+sometimes Latin 2. That code page has all of the ISO 8859-2 characters, but
+some of them are at different positions. Positions from 128 to 159 are
+filled with something, but that's not the problem. The problem is that
+they swapped two 32-character blocks. They wanted to have copyright (or
+trademark, I don't recall any more) sign at the same position as in
+Latin 1.
+
+I couldn't find any charset with 1250 in its name in IANA registry, but
+there is iso-8859-2-windows-latin-2, and I suppose that's the name of
+the code page, since nothing else fits. I don't use PCs (except as text
+terminals for Unix) and I'm not 100% sure, but I think that Netscape
+can't recognize that in charset parameter and it would show the page
+with default charset, which is ISO 8859-1. Wrong, again.
+
+<note>Netscape 3.0 beta has a workaround for this, with lots of bugs
+at this stage. Bug reports filled and delivered. But this is just one
+browser.</note>
+
+The typical server here will send a page with CP1250 (without charset),
+the page would inform the user that he should manually switch to Latin 2
+encoding, and offer 2 or 3 links for other encodings (those pages would
+again be sent without charset parameter).
+
+I hacked my server a bit, wrote several CGI programs and it's a little
+smarter than others. It can convert HTML pages to 5 different code pages or
+3 different ASCII approximations on the fly. I'll probably add some more
+output representations. I think Macs use the 6th code page for Latin 2
+and two more approximations would be handy.
+The conversion is automatic if browser sends Accept-charset header.
+Lynx 2.5 is the only one at the moment. Other browsers will receive
+some kind of menu.
+
+Too many code pages are in use (ISO 646 has a fair amount of users) and
+browsers are currently incapable to deal with them. Servers (or proxies)
+could. Not with labeling Content-type, because it would only pass the
+potato to the browser. Servers could convert, but they MUST know which
+code page user on the other side has installed. HTTP 1.1 spec says that
+absence of Accept-charset means that any charset is acceptable and almost
+all browsers don't bother to send it. I'd like to change that to
+something like this:
+
+No Accept-charset       --   HTTP 1.1 agent is capable of representing
+                             ISO 8859-1 only.
+Accept-charset: *       --   Any charset is acceptable. I doubt that this
+     will be true for browsers, but it would be
+     useful for robots.
+If the agent can use charsets other than ISO 8859-1, then it MUST, MUST
+and MUST send Accept-charset header with those charsets listed.
+
+-- 
+Life is a sexually transmitted disease.
+
+dave@fly.cc.fer.hr
+dave@zemris.fer.hr
+
+
+

@@ -1,0 +1,264 @@
+docno="lists-005-15343795"
+received="Sun Dec 31 20:41:00 2000"
+isoreceived="20010101014100"
+sent="Sun, 31 Dec 2000 20:40:12 -0500 (EST)"
+isosent="20010101014012"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: collection version resources"
+id="200101010140.UAA22596@tantalum.atria.com"
+inreplyto="20001231042616.P28628&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   Basic issue: needing a way to add a member to a working collection that
+   refers to an existing version resource, then possibly allowing further
+   changes to that added member before [activity] checkin.
+
+Sounds reasonable.
+
+   Background/details/etc:
+
+   *) current situation: collection versions contain version histories. Working
+      collections contain version histories or non-versioned resources.
+
+Yes.
+
+   *) VERSION-CONTROL creates a new VCR, which implies it cannot be used in a
+      collection version or a working collection
+
+Yes.
+
+   *) BASELINE-CONTROL was suggested by Geoff for some purpose (not entirely
+      clear), but it puts existing collections under baseline control. We have
+      only one "public" collection, which is the repository root's VCR.
+
+Your server would automatically have the "root collection" of your
+repository under BASELINE-CONTROL, so a client would not need to
+explicitly make a BASELINE-CONTROL request (until we get to subversion
+"labels", when they would :-).
+
+   *) (model-wise) Subversion's collection versions contain version resources.
+
+What you are calling a "Subversion collection version" is what the
+protocol calls a "collection baseline".  If there's any flexibility in the
+subversion terminology choice, it would be good if Subversion could
+also use the term "baseline", or perhaps "deep version" for this concept.
+
+      New collection versions are created if the collection must refer to a
+      different version resource of a member ("bubble up" occurs).
+
+This is also true for the protocol ... if we use the protocol
+terminology, this says "new collection baselines are created if the
+collection must refer to a different version of a member ("bubble up
+occurs"). 
+
+      [ I say "model-wise" because this is the SVN model, but the DeltaV terms
+don't strictly apply because of the definition of a collection
+version's member resources. ]
+
+The DeltaV concepts apply ... it's just that we need to get the
+terminology alligned (or at least, understand the terminology mapping).
+
+
+   *) Commits can be made atomic via merging an activity. This is a rather
+      heavyweight operation in the SVN server:
+      - for all non-versioned resources in the activity, create new version
+histories and initial versions
+      - check in all working resources
+      - update all VCRs to refer to the new version resources
+      - the VCRs are baseline-controlled, so the baseline selector is checked
+out, a new baseline is created, and then the baseline is checked in.
+(per S9.11, DAV:auto-baseline)
+
+      The resulting baseline would refer to the proper set of version
+      resources, so we're fine so far.
+
+All OK here.
+
+   *) While SVN collections refer to specific versions, it could be possible to
+      leave that only to the baselines and to somehow construct a "standard"
+      collection version resource.
+
+Yes, that would make things interoperate.
+
+      [ this might be difficult because in DeltaV, a new collection version is
+created when the *set* of members is changed; in SVN, a new collection
+version is created when the set changes *or* a member gets a new
+version resource. The hard part is "creating" collection versions on
+set-changes, but not member version changes. Now that I have thought
+about it, it might not be possible to do this; if it *is* then it will
+probably be quite expensive and it doesn't fit the model at all ]
+
+      [ hmm. an alternative would be to go ahead and create new collection
+version resources even when "no change" has occurred in the set of
+members. to a client, it simply sees spurious creation of collection
+versions, but shouldn't have a real issue with it. ]
+
+Yes, this alternative would be fine.
+
+      Given the second model in the "aside" above, it would seem that we could
+      model a DeltaV collection version. A true SVN collection version would
+      only be exposed via a baseline.
+
+Yes, an "SVN collection version" is what DeltaV calls a "collection baseline".
+
+   *) The problem: given a working collection, I need a way to specify that a
+      member is a specific version resource.
+
+It's true that a client needs to know what version it is looking at,
+but I don't see that it needs to get this information from a working
+collection (the client just keeps a list of the versions that it has).
+
+      The member may be furthered
+      modified before it is checked in.
+
+That's fine, but there is no need to check it out "in the context of
+the working collection" ... just check out that version directly.
+
+      When the new (auto) baseline is
+      constructed, it will refer to the original version resource or to the
+      modified successor of that version resource.
+
+That happens because the activity contains the working resource ...
+no need for the working collection to contain the working resource.
+
+      Note that the member may be a collection or a non-collection resource.
+      (I state this because I think Geoff said to use a BASELINE-CONTROL for
+       this copy-by-ref thing, but that would only apply to a collection)
+
+As long as it is a working resource, it will be in the checkout-set of
+the activity, the new version will be captured by the new baseline and
+because of the semantics of the MERGE operations, will become the
+DAV:checked-in version of the appropriate version selector.
+
+   My ideal solution would be to allow collection versions, and thusly working
+   collections, to contain version resources *instead* of version histories.
+
+No need for this change.  Activities contain versions, and baselines
+contain versions, which should be all the version containment that
+you need.
+
+   This would solve the model disparity for collection versions. However,
+   putting a version resource into a working collection isn't quite right...
+   That would prevent a change of the copy-by-ref'd resource before it was
+   checked in. It almost seems that the needed model would be a working
+   resource where the DAV:checked-out property is the copied version resource.
+   But that might spawn a new version resource even when we don't make any
+   changes...
+
+You are about to get lost in a maze of twisty passages, all of which
+look alike ... don't go there (:-).
+
+   sigh. Here would be an ideal sequence of semantic operations:
+
+   1) CHECKOUT a collection version (within an activity)
+
+Yes.
+
+   2) "copy" a specific version resource into the working collection; the copy
+      should also be a version resource, tied to the same version history. In
+      fact, using the BIND method is pretty close: construct a new URL for a
+      given version resource.
+
+You would need to "bind" the appropriate version history into the
+working collection, not "copy" a version into it (which would create
+a new version history, not link you to an old one).
+
+BIND would be the most direct way (the DeltaV spec is my highest
+priority, then the ACL spec, and then BIND ... I'm hoping JimW will get
+the BIND editing done, but having your first baby does tend to absorb
+quite a bit of time (:-), so I may end up getting to it before he does.
+
+Alternatively, you can just CHECKOUT a collection version that
+contains the desired version history (creating a second working
+collection), MOVE the desired version history from the second working
+collection into the first working collection, and then DELETE the
+second working collection.  This achieves the result of a BIND
+without actually using the BIND method.
+
+   3) somehow "checkout" the "new" version resource to create a working
+      resource
+
+That's the easy part.  You just checkout that version resource, to get
+a new working resource.
+
+You don't need anything more than the implict connection between the
+working collection and the working resource (i.e.  the working
+resource checks out a version whose version history is now a member of
+the working collection).
+
+   4) PUT/PROPPATCH changes to that working resource
+
+Yup.
+
+   5) MERGE the activity
+
+Yup.
+
+   Yes... steps (2) and (3) are the hard part.
+
+Step (3) is easy, so that just leaves step (2) to think about.
+If you just use the BIND protocol (it's going to happen, so you won't
+be *that* far in front of the crowd), step (2) is simple as well.
+Or if you don't want to have a BIND dependency, just use the
+CHECKOUT, MOVE approach, which isn't too bad.
+
+   I'm all for fitting into the existing DeltaV model(s), but I can't see how.
+   Hmm. What if I copy/bind/whatever a version resource ("VR") into the working
+   collection ("WC").
+
+BIND the version history in, and you've got the collection change done.
+
+   If changes are needed, then I do a CHECKOUT on VR and a
+   working resource ("WR") is returned.
+
+Yes (but there's no need for the working collection to be involved in this
+version checkout).
+
+   PUT/PROPPATCH request(s) are performed on WR.
+
+Yes.
+
+   At checkin/merge time, the server understands that WR corresponds to
+   VR.
+
+It's true that the DAV:checked-out property of a WR identifies the VR
+that was checked out.
+
+   The new collection version (or baseline; the actual new "thing" seems to
+   be moot here) is created to refer to VR, or to VR' (resulting from the
+   checkin of WR).
+
+Well, it's actually very important to get the "thing" right to get
+interoperability, so let's go with "baseline".  Then, yes, the new
+collection baseline will refer to VR' (because the MERGE updates
+the version-controlled resource to have VR' as its DAV:checked-in
+version, which means that VR' is added to the DAV:version-set of
+the new baseline.
+
+   It may also be that a version-controlled resource would go into WC which
+   initially points at the original version resource. However, this creates
+   problems when we go to check out that version resource to make further
+   changes. That would lose the association between WC and the "new" member.
+   But the nice part about the VCR is that it can point to VR'. Otherwise,
+   there is a need to "replace" VR (within WC) with VR'.
+
+The MERGE takes care of getting VR' into the new baseline, so there's
+no need to get it into the working collection.
+
+   Obviously... I haven't figured out the best way to model this (within the
+   existing DeltaV or figuring out how it needs to change). Any thoughts?
+
+Let me know if any of this doesn't work for you.
+
+Cheers,
+Geoff
+
+
+

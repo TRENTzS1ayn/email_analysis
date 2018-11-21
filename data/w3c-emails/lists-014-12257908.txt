@@ -1,0 +1,221 @@
+docno="lists-014-12257908"
+received="Tue Mar  9 04:51:59 2004"
+isoreceived="20040309095159"
+sent="Tue, 09 Mar 2004 09:51:13 +0000"
+isosent="20040309095113"
+name="Graham Klyne"
+email="gk@ninebynine.org"
+subject="Negation, local closed world, log:Falsehood?"
+id="5.1.0.14.2.20040309092741.02620b58@127.0.0.1"
+charset="iso-88591"
+expires="1"
+
+
+To: public-cwm-talk<public-cwm-talk@w3.org>
+
+
+I've been reading the paper by Heflin/Munoz-Avila [1] on using local closed 
+world declarations (LCW) with semantic web reasoners, and thinking about 
+how the ideas might apply to Notation3 and cwm.
+
+I'm (again) looking at processing network access-related descriptions, and 
+wish to deduce that a particular connection is not allowed if it is not 
+explicitly permitted.  This presumes that a given list of permitted 
+connections is complete.
+
+Originally, I thought to use the "closed" property of a collection (list), 
+but then realized that when the list contains compound values, expressed like:
+   [ prop val ; prop val ]
+in N3, the list closure potentially breaks down because there may be other 
+statements that have the list-member resource as a subject.
+
+Roughly, the LCW approach asserts that some locally scoped information is 
+complete, and that absence of some information is sufficient to deduce its 
+falsehood.  Examples given are based on DAML+OIL and SHOE, noting that DAML 
+(also OWL) can express these ideas but to do so is somewhat cumbersome.
+
+I went rummaging at:
+   http://www.w3.org/2000/10/swap/doc/CwmBuiltins
+thinking that there was something there about log:Falsehood and/or 
+negation, which might be a way of latching onto the LCW ideas, but am 
+finding nothing there.
+
+Are there any common techniques for dealing with closed information in CWM?
+
+Specifically, in the example below, I can deduce that :conn1 is a 
+wc:AllowedConnection, but I wish to deduce that :conn2 is a 
+wc:DisallowedConnection.
+
+Ideas?
+
+(My current thoughts are along the lines thus:
+
+    { <pattern1> .
+      { <pattern2> } a log:LCW_Falsehood .
+    }
+  =>
+    { <conclusion using variables from <pattern1>> }
+
+Where there is a presumption that the formula declared to be an 
+LCW_Falsehood contains complete information in relation to nodes bound by 
+<pattern1>.)
+
+#g
+--
+
+[1] LCW-Based Agent Planning for the Semantic Web
+     Jeff Heflin and Hector Mu?oz-Avila
+     http://www.cse.lehigh.edu/~heflin/pubs/lcw-aaai02.pdf
+
+...
+
+Example data:
+[[
+# 20040308-wlan-connection.n3
+#
+# Meeting 20040308
+#
+# Data for WLAN connections example discussed in meeting
+#
+# -----
+
+# Declare namespace prefixes
+#
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdft: <http://id.ninebynine.org/2003/rdfext/rdft#> .
+@prefix wd:   <http://id.ninebynine.org/wip/2003/wlanDevices/> .
+@prefix wp:   <http://id.ninebynine.org/wip/2003/wlanPolicy/> .
+@prefix wc:   <http://id.ninebynine.org/wip/2003/wlanConnection/> .
+@prefix log:  <http://www.w3.org/2000/10/swap/log#> .   # CWM built-in
+@prefix :     <#> .
+
+
+# Declare data about wlan-connected devices
+
+wd:BossComputer a wd:Device ;
+     rdfs:label "Boss computer" ;    # Brief description
+     wd:devid  "1" ;                 # Asset schedule identifier
+     wd:wlanif [ wd:macadrs "00:00:00:00:00:11" ] ;
+     rdfs:comment
+         """
+         This resource is a laptop computer belonging to
+         "big boss", who is not technically literate but
+         may have sensitive data on his/her computer.
+         """ .
+
+wd:AdminComputer a wd:Device ;
+     rdfs:label "Admin computer" ;   # Brief description
+     wd:devid  "2" ;                 # Asset schedule identifier
+     wd:wlanif [ wd:macadrs "00:00:00:00:00:22" ] ;
+     rdfs:comment
+         """
+         This resource is a laptop computer belonging to
+         a system administrator, who is assumed to know how to
+         protect it from casual attack.
+         """ .
+
+wd:SerfComputer a wd:Device ;
+     rdfs:label "Serf computer" ;    # Brief description
+     wd:devid  "3" ;                 # Asset schedule identifier
+     wd:wlanif [ wd:macadrs "00:00:00:00:00:33" ] ;
+     rdfs:comment
+         """
+         This resource is a laptop computer belonging to
+         a company slave, who is regarded as an active risk
+         to the company's network.
+         """ .
+
+wd:PublicAccess a wd:Device ;
+     rdfs:label "Public AP" ;        # Brief description
+     wd:devid  "8" ;                 # Asset schedule identifier
+     wd:wlanif [ wd:macadrs "00:00:00:00:00:88" ] ;
+     rdfs:comment
+         """
+         This resource is a wireless access point connected
+         to the public facing side of a company's network.
+         """ .
+
+wd:PrivateAccess a wd:Device ;
+     rdfs:label "Private AP" ;       # Brief description
+     wd:devid  "9" ;                 # Asset schedule identifier
+     wd:wlanif [ wd:macadrs "00:00:00:00:00:99" ] ;
+     rdfs:comment
+         """
+         This resource is a wireless access point connected
+         to the internal part of a company's network.
+         """ .
+
+
+# Declare data about company access policy.
+# Any connection not explicitly allowed is forbidden.
+
+wp:WlanPolicy a wp:ConnectionPolicy ;
+     wp:allowedConnection
+         [ wd:devid "1" , "9" ],
+         [ wd:devid "2" , "8" ],
+         [ wd:devid "2" , "9" ] ;
+     rdfs:comment
+         """
+         Boss can connect to private network.
+         Admin can connect to private and public networks.
+         Serf can connect to none.
+         """ .
+
+# Describe some potential connections
+
+:conn1 a wc:Connection ;
+     wd:macadrs "00:00:00:00:00:11" ;
+     wd:macadrs "00:00:00:00:00:99" ;
+     rdfs:comment
+         """
+         Boss connects to private network.  OK.
+         """ .
+
+:conn2 a wc:Connection ;
+     wd:macadrs "00:00:00:00:00:11" ;
+     wd:macadrs "00:00:00:00:00:88" ;
+     rdfs:comment
+         """
+         Boss connects to public network.  not OK.
+         """ .
+
+
+# Describe inference rules to define acceptability of a connection.
+
+# 1. Deduce device connections from MAC address connections
+
+   { ?c  a wc:Connection ;
+         wd:macadrs ?ma1, ?ma2 .
+     ?d1 a wd:Device ;
+         wd:devid  ?di1 ;
+         wd:wlanif [ wd:macadrs ?ma1 ] .
+     ?d2 a wd:Device ;
+         wd:devid  ?di2 ;
+         wd:wlanif [ wd:macadrs ?ma2 ] . }
+=>
+   { ?c  wd:devid ?di1 , ?di2 . } .
+
+
+# 2. Rule to define that connection is OK.
+
+   { ?c  a wc:Connection ;
+         wd:devid ?di1 , ?di2 .
+     ?cp a wp:ConnectionPolicy ;
+         wp:allowedConnection
+           [ wd:devid ?di1, ?di2 ] .
+     ?di1 log:notEqualTo ?di2 .
+   }
+=>
+   { ?c  a wc:AllowedConnection . } .
+]]
+
+
+
+------------
+Graham Klyne
+For email:
+http://www.ninebynine.org/#Contact
+
+
+

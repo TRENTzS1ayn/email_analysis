@@ -1,0 +1,390 @@
+docno="lists-016-11063743"
+received="Wed Mar 12 14:45:55 2003"
+isoreceived="20030312194555"
+sent="Wed, 12 Mar 2003 13:44:04 0600"
+isosent="20030312194404"
+name="Debasish Banerjee"
+email="debasish@us.ibm.com"
+subject="Some Comments on WSi18n Scenarios"
+id="OFE66D4DEB.51C55B0DON86256CE5.0065CC84@us.ibm.com"
+charset="USASCII"
+expires="1"
+
+To:"Addison Phillips [wM]"<aphillips@webmethods.com>
+Cc:<public-i18n-ws@w3.org>
+
+
+
+
+
+
+
+Hi,
+
+Following contains some rough ideas and thoughts about the use of
+internationalization contexts (i18nContext = a chain of locales + a time
+zone) and their management policies (RunAsCaller, RunAsServer, and
+RunAsSpecified) in the contexts of "Web Services Architecture Usage
+Scenarios" and "Web Services Internationalization Usage Scenarios"
+documents.
+
+I would like to receive your detailed comments. We can discuss and refine
+some of the items over our next teleconference sessions. Maybe we can come
+up with some more use cases.
+
+Thanks,
+
+Deb
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+A.  Web Services Architecture Usage Scenarios Document dated July 30, 2002
+(http://www.w3.org/TR/ws-arch-scenarios/)
+------------------------------------------------------------------------------------------------
+
+A.1  S001   In this so called 'Fire-and-forget Single Receiver' scenario,
+the sender can conceivably send localized messages to the receiver under
+certain circumstances. In fact, some may consider the stock quote currency
+can be a localized entity. The example  presented in the document does not
+mention whether the price of the stock is 34.5$ or 34.5 DM.
+
+Unless the sender is aware of the receiver's locale preference, the sender
+will transmit all the messages either in its default or some pre-configured
+locale.
+
+Question: Can the sender be aware of the receiver's locale preferences
+through some sort of subscription metadata? To receive a fire-and-forget
+message, a receiver may have to subscribe to a fire-and-forget sender's
+service. If the subscription information contains, receiver's i18n
+preferences, the sender can use that information to localize the
+transmitted message in appropriate locale and time zone if necessary.
+
+
+A.2  S002   An extension of scenario S001. If 'multicast distribution
+technology' is used, the same message (probably localized in sender's
+default locale) will be received by all the receivers. However, if the
+sender uses a distribution list to 'generate and push' messages to all the
+subscribed recipients, the proposed internationalization scheme mentioned
+in A.1 can probably be used: individual receiver may receive
+fire-and-forget messages localized according to its preferences. The sender
+may apply some local caching strategy for optimization: it may generate a
+message only once for each locale.
+
+A.3  S003   An ideal case for utilizing i18nContext to maintain
+remote-local transparency. The response message can be a 'fault' too. The
+response message must not alter the execution environment of the sender: no
+'container breach' on reply/fault reception.
+
+A.4  S004   Same as A.3 when we focus only on internationalization.
+
+A.5  S006   All the faults (Reasons) should be localized using i18nContext.
+
+A.6  S007   All the partial responses should be localized under the
+i18nContext established during the initial request.
+
+<toDO> For a multi-threaded receiver processing many SOAP requests at the
+same time, this use case needs careful investigation regarding the possible
+storage and restoration of i18nContext (and other contexts as well) for
+incremental asynchronous response generation. </toDO>
+
+A.7  S010   Usually positive acknowledgements are locale insensitive in
+nature, though some may think that the time zone element of the i18nContext
+can be used for time stamping the acknowledgement. Of course, if UTC time
+is mandated by the application semantics, the provider side may not have to
+use the time zone information of the i18nContext.
+
+Negative acknowledgements can contain some sort of 'Reasons' consisting of
+text messages. Any text message in an acknowledgement should be localized
+according to the i18nContext.
+
+A.8  S030   The scenario can be an interesting application of i18nContext.
+The third party intermediary contains business logic which are usually
+locale neutral in nature. However, in theory, some business logic may be
+locale (and time zone) sensitive in nature: string comparisons, price
+comparison (must be done in the same currency), etc. To be safe, the
+'intermediary' and all the 'sellers' should be deployed as RunAsCaller.
+
+A.9  S031   The presented use case may not need any internationalization
+consideration.
+
+A.10 S032   This caching can lead to extremely interesting applications of
+i18nContext for cached results which are locale and/or time zone sensitive
+in nature.
+
+(a) A simple but general strategy will be to deploy both the caching
+intermediary and the service provider as RunAsCaller. For the very first
+time, the response corresponding a locale is computed at the service
+provider, and later cached at the intermediary. The caching store can
+maintain a table of locale-vs.-result, which continues to grow over time.
+On a subsequent request the intermediary first looks at the caching store
+before forwarding the request to the service provider. If the caching store
+contains the desired localized form of the result, the request does not
+travel to the ultimate receiver.
+
+Alternatively, under certain circumstances where localization can be
+performed at the caching intermediary the following approach can also be
+adopted.
+
+(b) The ultimate receiver (service provider) on receiving the initial SOAP
+request may provide a structured locale-neutral object to the caching
+intermediary. The caching intermediary stores the structured object in the
+'caching store'. The intermediary deployed as RunAsCaller can now create
+the concrete response by invoking proper operations on the cached
+structured object using the propagated i18nContext. The intermediary can
+continue to cache localized results in its local store and use them for
+subsequent responses. For example, assume the first request is associated
+with Japanese locale. The caching intermediary (1) receives and stores the
+locale-neutral object from the ultimate receiver, (2) computes the response
+in Japanese locale, stores a representation of it in its local store, and
+(3) finally sends the SOAP response back to the initial sender (requester).
+If a second request arrives with Korean locale, the caching intermediary
+first performs step (2) in Korean locale before embarking on step (3). Now
+if a subsequent request is associated again Japanese locale, the
+intermediary skips step (2); it simply retrieves the result of Japanese
+computation before completing step (3).
+
+
+A.11 S035   Probably i18nContext has no bearing in this case.
+
+A.12 S036   If the time stamps values are in UTC (which will probably be
+the case), there is no need to access i18nContext.
+
+A.13 S037   Same as S032. The intermediary must check the expiration
+criterion.
+
+A.14 S040   Probably the most complex usage scenario regarding
+internationalization. Need detailed investigation especially regarding
+compensation spheres and compensating transactions. Interesting
+localization may have to performed during compensation.
+
+<toDo> Need to study the BPEL4WS spec. in detail and produce a few use
+cases especially regarding 'container breach', context storage, context
+retrieval, context switching, and of course compensation. </toDo>
+
+A.15 S061   Internationalization is not an issue here.
+
+A.16 S062   Internationalization is not an issue here.
+
+A.17 S0621  Internationalization is not an issue here.
+
+A.18 S063   Internationalization is not an issue here.
+
+A.19 S064   Internationalization is not an issue here.
+
+A.20 S065   Internationalization is not an issue here.
+
+A.21 S070   Another ideal scenario for i18nContext. The case is similar
+A.3.
+
+A.22 S071   Internationalization is not an issue here.
+
+A.23 S080   Internationalization and transaction are orthogonal to each
+other. See A.14 for long running transactions.
+
+A.24 S090   Should i18nContext be used to interpret non-XML attachments?
+
+A.25 S091   Similar to A.3 in principle. For consistent semantics and
+simpler programming model the inbound i18nContext must remain the same in
+all inbound message fragments. Should the SOAP receiver raise a fault in
+case it detects a change in inbound i18nContext during incremental
+reception and processing?
+
+A.26 S092   Probably internationalization is not an issue here.
+
+A.27 S200   If the event subscription process includes receivers
+internationalization preferences, the case is similar to that of A.2.
+
+A.28 S201         Internationalization is not an issue here.
+
+A.29 S300   Internationalization is not an issue here.
+
+A.30 S500   See A.32.
+
+A.31 S501   See A.32.
+
+A.32 S502   Service/operation level attributes/metadata should include the
+internationalization context management policies (RunAsCaller, etc.).  The
+policies should be available in UDDI (or similar registries). A Web service
+requester should be able to inspect the i18nContext management policies
+before choosing a Web service provider.  The default internationalization
+policy, if explicitly stated, determining the invocation
+internationalization context in the absence of an inbound i18nContext, may
+also appear in UDDI.
+
+<toDo> We need to precisely formulate the i18nContext management policies
+(and other related stuff) and their accessors in the domain of UDDI (and
+WSDL?). </toDo>
+
+A.33 S503   Internationalization is not an issue here.
+
+A.34 S504   Internationalization is not an issue here.
+
+A.35 S505   The description of the use case is rather vague. Not sure
+whether and how the envisioned 'automatic dynamic resolver' may use the
+internationalization capabilities (RunAsCaller, RunAsServer,
+RunAsSpecified) before selecting specific Web service operations to invoke.
+
+A.36 S510   Internationalization is definitely a QoS. The support for this
+particular QoS should be available explicitly in UDDI.
+
+Tex's concern (see the last two lines of Section 2.36.2): Suppose a Web
+service operation OP is advertised to execute under RunAsCaller i18nContext
+management policy. Assume a particular invocation of the operation is
+associated with xx_YY inbound locale, and the Web service provider do not
+have resources to localize computations under the requested xx_YY locale.
+What should be the behaviour of OP? Will it raise a fault or use some
+default locale?
+
+Depending on the importance of the computation performed by OP, any one of
+the above mentioned two strategies may be used.
+
+   If the requester can tolerate locale substitution (default locale for
+   xx_YY), OP can use the default locale.
+   If the requester must receive the result in the requested locale, OP can
+   raise an appropriate fault with the 'Reason' in the default locale?
+
+The behaviour of Web service operations deployed as RunAsCaller in case the
+requested locale can not be honoured should be specifiable externally at
+the deployment time. This particular deployment attribute should also be
+available at an appropriate place in the UDDI registry.
+
+<toDO> Need to work on exact formalization. </toDO>
+
+A.37 S600   Not sure about the term 'WSD definition'. If it refers to
+interface and similar stuff, internationalization is not an issue. However
+elements like 'wsil:abstract' may be localized in various languages for
+human interpretation. The inbound i18nContext can profitably be used in
+this scenario to receive localized versions of elements like
+'wsil:abstract'.
+
+A.38 S601   Internationalization is not an issue here.
+=========================================================
+
+
+B.  Web Services Internationalization Usage Scenario, dated February 18,
+2003 (http://www.w3.org/International/ws/ws-i18n-scenarios-edit/)
+------------------------------------------------------------------------------------------------
+
+B.1  S-003  In case we have both i18nContext as a SOAP header and also the
+'Accept-Language' HTTP header which one shall be honoured by the service
+provider? Shall we stipulate: first i18nContext in the SOAP header and in
+its absence the 'Accept-Language' header? After all we want to define the
+internationalization semantics of Web services independent of the carrier
+protocol (HTTP, SMTP, etc.).
+
+Also, why 'xml:lang' in SOAP fault and in general in SOAP responses? The
+'Reason' can contain region dependent stuff too.  Can we envision a more
+general tag something like 'xml:locale'?
+
+B.2  S-004  Clearly the suggested solution is impractical; in real life
+enterprise environments, it may not be possible to generate and transmit a
+'fault' containing 'Reason' in all available languages. This is an ideal
+case for the use of i18nContext. The service provider's invocation
+i18nContext should be used to generate the localized fault.
+
+In this context, it should be mentioned that the specification of 'fault'
+in the SOAP 1.2 specification is rather weak and incomplete.
+
+(a) Unlike the exception models of the modern programming environments like
+Java or C#, SOAP faults can not be nested.  The ability to nest faults
+allows the application developers to maintain clear separation between
+application-level fault details from low-level (say data access) fault
+details without loosing any valuable diagnostic information. SOAP 1.x
+should carefully consider the issue of defining nested/chained faults.
+
+(b) In a hop-by-hop SOAP processing model, the use of simple texts as a
+fault 'Reason' is inadequate for the purpose of distributed
+internationalization. The reverse chained nodes can all be configured under
+different locales.
+
+Even in a simple two node request-response SOAP scenario, some may consider
+the existing definition of SOAP fault to be inadequate. A Web service
+provider may log certain category of faults locally before transmission.
+Suppose a language negotiation mechanism as mentioned in the SOAP V1.2
+primer, Dec. 19, 2002 (Section 2.3) exists between a SOAP requester and
+service provider. Assume a fault is produced at an American server for
+processing a request from a Japanese requester. Using the language
+negotiation mechanism, the service provider can generate the fault in
+Japanese language. If the Japanese language faults are logged at the
+American server, the English speaking system administrator may have tough
+time in interpreting the system log. Probably SOAP faults should be defined
+to optionally contain a structured locale-neutral object. The structured
+object should have the 'on-the-fly' localization capability. One or more
+methods can be invoked on the structured object which can produce all the
+'displayable texts' in a locale of choice.
+
+B.3  S-006  Impractical like B.2. See also A.32.
+
+B.4  S-007  See B.2 and A.32.
+
+B.5  S-008  An ideal case for i18nContext.
+
+B.6  S-009  The description of the use case is not very clear; a diagram
+may help. Maybe the services and requesters should be labelled distinctly
+to avoid confusion. Some may think that for the way one-way
+'fire-and-forget' messaging, requesters can not receive any faults.  The
+reference (http://www.w3.org/TR/ws-desc-usecases/, Section 2.1.2) should be
+included to clarify the issue.
+
+Again, the inbound i18nContext from provider "A" should influence the
+language of the 'Reason' generated at "B".
+
+B.7  S-010  Can be viewed as the argument against using the Accept-Language
+HTTP header as the initial candidate for determining the inbound locale for
+SOAP-based messaging. SOAP i18nContext should ideally be totally
+independent of the carrier protocol.
+
+B.8  S-011  Again the description can be somewhat clearer. See B.6, and
+B.2. The i18nContext can be used to generate the 'Reason' text.
+
+B.9  S-012  See A.10
+
+B.10 S-013  The name of the section is somewhat misleading. Will something
+like 'Locale Sensitive Computation" be a better choice?
+
+The provider should be deployed as RunAscaller, and the invocation
+i18nContext should be used for the string comparison.
+
+B.11 S-014  We need to define the term 'Connection-Less'.
+
+B.12 S-015  Both "A" and "B" should use i18nContext. See A.3 too.
+
+B.13 S-016  The sentence: "For example, 2003-05-31 in Korea ... Japan"
+probably needs some clarification [also I think it should be '2003-05-31 in
+France']. Are we referring to time zone issue?
+
+B.14 S-017  Is it possible to bring this scenario under the general canopy
+of 'locale' and 'time zone' in place of 'currency' and 'location'?
+
+B.15 S-018  i18nContext is of no use in the first example. The 'currency'
+(can it be generalized to 'locale'?) tag is a part of data, and the SOAP
+receiver has to parse individual parts to interpret the price. The second
+example mentions: "It is possible ... SOAP header". I think the sentence
+needs more explanation or be completely omitted. In a clean Web service
+programming model all the meta information (here the 'default currency
+attribute') should be propagated as SOAP headers. We should not advocate a
+questionable programming model in our use case document.
+
+B.16 S-019  The inbound i18nContext (the caller i18nContext) can be used to
+interpret locale dependent inbound data.
+
+<toDo> Explore WSDL for the issue raised in this scenario. </toDo>
+
+B.17 S-020  The relevant section number of the WSA document should be
+provided. Is the use case somewhat similar to B.9? Again, caching data and
+faults in all possible languages is impractical. See also A.10.
+
+B.18 S-027  See B.4 and A.36.
+
+B.19 S-031  It may not be possible to advertise the internationalization
+capabilities to the minutest possible detail; the size of that XML document
+will be substantial. Can we decide on RunAsCaller type of thing, which at
+least promises to provide the capability to localize (approximately in some
+cases) in commonly considered locales. WSDL annotations can externalize the
+default behaviour too.
+
+
+

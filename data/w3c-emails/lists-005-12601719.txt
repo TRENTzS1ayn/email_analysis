@@ -1,0 +1,187 @@
+docno="lists-005-12601719"
+received="Sat Nov 18 18:51:22 2000"
+isoreceived="20001118235122"
+sent="Sat, 18 Nov 2000 15:52:27 -0800"
+isosent="20001118235227"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: Working collections"
+id="20001118155227.C21426@lyra.org"
+charset="us-ascii"
+inreplyto="200011182147.QAA17391&#64;tantalum.atria.com"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>
+Cc:ietf-dav-versioning@w3.org
+
+
+On Sat, Nov 18, 2000 at 04:47:56PM -0500, Geoffrey M. Clemm wrote:
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    We need to be able to do a CHECKOUT on a collection version so that we can
+>    perform operations within the collection and on the collection itself.
+>    In Subversion, I've been planning to do a CHECKOUT on a parent collection
+>    version resource, which will return a location such as:
+>        http://host.name/repo/$svn/wrk/100.3
+> 
+> We should first confirm that we agree on the semantics of a collection
+> version and a collection version selector, namely, that each member of
+> a collection version is a version history,  while each members of a
+> collection version selector is either an unversioned resource or a
+> version selector.
+
+Sounds fine to me.
+
+>...
+> By analogy with collection versions, the members could be version
+> histories.  By analogy with collection version selectors, the members
+> could be unversioned resources or other working resources.
+
+... or version selectors.
+
+Let's call the first one, Model A. And the second one Model B.
+
+> Or we
+> could make up completely different semantics for a working collection
+> that are distinct from those of either collection versions or
+> collection version selectors.  I'd like to avoid this third alternative,
+> since it is likely to cause additional complexity in what is already
+> the most complex part of the protocol.
+
+Okay. I can tentatively agree with that. (read: avoid Model C)
+
+>    I can then do the following:
+>        PUT http://host.name/repo/$svn/wrk/100.3/newfile.html
+>    or even:
+>        COPY http://host.name/repo/somedir/foo.c
+>        Destination: http://host.name/repo/$svn/wrk/100.3/foo.c
+> 
+> If working collections were like version selectors, then this
+> would be fine since then working collections could have 
+> unversioned members.
+> 
+> If working collections were like collection versions, then this
+> would be illegal since only version histories can be members.
+
+Agreed on both.
+
+>        (or a MOVE if the source's parent is checked out)
+> 
+> A MOVE is fine, if the MOVE was from another working collection,
+> but if the MOVE was from a non-versioned collection, then you
+> run into the same problems as PUT.
+
+If the MOVE source is:
+
+1) an unversioned resource: no problem under Model B. Illegal under Model A
+   since the source is not a version history.
+
+2) a version selector: same as (1), however the parent collection (if
+   versioned) must be checked out or auto-versioned.
+
+3) a working resource: same as (2)
+
+4) a version history: allowed under Model A, assuming the parent collection
+   is checked out or auto-versioned. Not allowed under Model B.
+
+
+Of these, I'd rather take the flexibility of Model B. I don't have to track
+down the darn version history just to satisfy a MOVE. I also find it a bit
+weird to move a *history*. I'm really trying to move a version selector for
+that history. Not to mention the fact that, typically, a version history is
+located in some server-controlled namespace; the semantics of that namespace
+would probably disallow a version history to be moved from it, or for a
+version history to exist outside of it (e.g. under the working resource).
+
+Concretely: Subversion has several server-defined namespaces. One each for
+activities, working resources, versions, and histories. The history
+resources cannot be moved out of their space. And since a checked-out
+collection (whether a checked-out version selector, or a working resource
+corresponding to a checked-out selector or version) exists *outside* of the
+history namespace, then it is illegal to move a version history.
+
+If any server uses server-defined namespaces for histories, then a MOVE
+would be impossible if you tried to enforce "working collections must
+contain version histories."
+
+>    The working resource for the collection is also handy for deleting or for
+>    replacing the collection:
+> 
+>        DELETE http://host.name/repo/$svn/wrk/100.3
+>        (note that this request also requires a checked-out parent)
+> 
+> This is fine.
+
+Note that Tim also pointed out that we probably would not delete the working
+collection itself, but delete the member from the parent collection. The
+above request is ambiguous with "do an UNCHECKOUT".
+
+I'm still a bit woozy on deletion of resources, both in WebDAV and DeltaV.
+In WebDAV, you lock and delete the target. In DeltaV, do we checkout the
+target to make sure we are allowed to delete it? (e.g. watch out for
+reserved checkouts and stuff)
+
+I'm tempted to just say "check out both of them, then delete relative to the
+parent collection".  (sigh... but checking out the target is probably
+redundant, then) ... Ideas, anyone?
+
+>        COPY http://host.name/repo/somedir/
+>        Destination: http://host.name/repo/$svn/wrk/100.3
+>        Overwrite: T
+> 
+> This wouldn't work, because deleting a working resource (as is done by
+> an Overwrite:T) cancels the checkout.  You would need to use the new
+> "update" value for the Overwrite header.
+
+Nits. You know what I meant, and the server really should, too. This is
+where people read the letter of the law too strictly and screw up clients
+because the client wasn't as anal as the server.
+
+But for discussion. Sure... let's assume that I used "update" in there.
+
+The point is that I need to check out the collection because I'm about to
+replace its contents.
+
+>    DELETE of a member is a CHECKOUT of two items: the thing to DELETE and the
+>    parent collection.
+> 
+> Only the parent collection needs to be checked-out in order to
+> DELETE a member of that collection.
+
+Yah, this was my rambling above. What about reserved checkouts and stuff for
+the member? e.g. is it possible to just delete the thing without having it
+checked out?
+
+>    Without being able to do a CHECKOUT on a collection, there wouldn't be a way
+>    to do any of the above.
+> 
+> You could just use a VERSION-CONTROL request to create a new version
+> selector whose target is the desired collection version.  Then you can
+> do all your operations on that version selector.  It is one extra round
+> trip, but if that really matters, we could easily add a "DAV:keep-checked-out"
+> option to the VERSION-CONTROL request.
+
+That feels *way* bogus. Use VERSION-CONTRL? And just how do I get that to
+participate within an activity? Or to MERGE it? etc
+
+> This would allow us to avoid
+> all the extra complexity that would result from having two ways to manipulate
+> versioned collections.
+
+I'm not seeing the complexity. Check out a collection version; you get a
+working collection; modify it at will; check it in.
+
+The working collection operates just the same as a checked-out collection
+version selector. And this is right: they're both representative of a
+checked-out [collection] resource. Seemed pretty obvious to me.
+
+Where's the problem? :-)
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

@@ -1,0 +1,201 @@
+docno="lists-025-0841712"
+received="Mon Apr 14 15:13:27 2003"
+isoreceived="20030414191327"
+sent="Mon, 14 Apr 2003 12:11:50 -0700"
+isosent="20030414191150"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Pi-Calculus Model question."
+id="3E9B07F6.5070607@intalio.com"
+charset="ISO-8859-1"
+inreplyto="4.3.2.7.2.20030414100503.02a305e8&#64;franklin.cisco.com"
+expires="-1"
+
+
+To: Ricky Ho<riho@cisco.com>
+CC:public-ws-chor@w3.org
+
+
+Ricky Ho wrote:
+
+> I'm thinking the 3-party scenario  P | Q | R.  Can there be two 
+> parties listening on the same channel ?
+
+Not at the same time. If you have two parties listening the model is not 
+deterministic and you can't predict how it will work.
+
+> By reading the example, I observe that
+> 1) All "send" operation can be reduced
+> 2) An "receive" operation can be reduced if it can find a concurrent 
+> matched "send" operation.
+>
+> So if there are multiple "receive" from more than one party, which one 
+> will be received ?  I expect multiple channel listening (at the same 
+> time) should NOT be allowed.  But I want to confirm with you the 
+> actual answer.
+
+Confirmed.
+
+> Lets introduce two more roles, "Airplane Shipper" and "Truck Shipper", 
+> each has its own process flow.
+>
+> There are two cases here.
+>
+> 1) Queue scenario
+> The seller send a "shipment request" to a channel.  Can both Shippers 
+> listening on this same channel but only one of them will successfully 
+> receive it ?  Lets say the seller doesn't care and both shippers are 
+> competing to get the shipment request.
+
+This is a different issue. In this case the channel is the queue and you 
+can have multiple consumers for the queue without changing the semantics 
+of the channel. In this particular case I assume that the shipper is the 
+process you communicate with. Whether it ends up being the airline 
+shipper implementation or the truck shipper implementation is 
+immaterial, you view both implementations as being equivalent and so you 
+in fact have only one "process" listening to that channel.
+
+This does require some level of abstraction, e.g. as David suggested by 
+defining message families. So the interaction is based on some abstract 
+specification that is equivalent for both implementations allowing for 
+one process to be defined, but there's enough flexibility to use 
+different messages depending on whether you end up talking to an airline 
+implementation of a truck implementation of the shipper process.
+
+> 2) Broadcast scenario
+> The seller send a "shipment request" to a channel.  Can both Shippers 
+> listening on this same channel and both receive it ?
+
+Yes. The broadcast scenario is based on message duplication. Both 
+shippers listen on different channels specific to their processes, which 
+may even be different processes (e.g. one doing the shipment and one 
+tracking a shipment request or auditing the business commitment). The 
+message is actually sent to both channels, but technically you will 
+simplify it by using a broadcast medium and so in the language you can 
+express that with a single send operation.
+
+
+> In this example, since only one shipper will get the shipment request 
+> while the other one will just wait but never gets it.  Is the 
+> composition process still reducible to 0 | 0 | 0 | 0 ?
+
+Yes.
+
+There are two types of processes. A guarded process like receive.0 
+cannot be reduced to 0 unless you actually receive the message. But a 
+replicated process like ! receive.0 can be started any time a message is 
+received. However, if no message is available, it will always reduce to 
+0. So:
+
+send:X | send:X | ! receive:X.doSomething.0
+
+will reduce to:
+
+doSomething.0 | doSomething.0 | ! receive:X.doSomething.0
+
+which will reduce to:
+
+0 | 0 | ! receive:X.doSomething.0
+
+which will end up reducing to:
+
+0
+
+> Does it match now if I change to ..
+>
+> Process placeorder
+>   Send order
+>   Choice
+>     Case 1
+>       Receive orderResponse
+>     Case 2
+>       Receive errorResponse
+>
+> Process acceptOrder
+>   Receive order
+>   switch
+>     case conditionX
+>       Send orderResponse
+>     default
+>       Send errorResponse
+>
+> If so, how does the "choice/receive" match with "switch/send" ? 
+
+
+Yes.
+
+At some state you have:
+
+  orderPlacement = ( receive:orderResponse + receive:errorResponse ) | ( 
+send:orderResponse + send:errorResponse)
+
+which can be rewritten as:
+
+  orderPlacement = ( receive:orderResponse | send:orderResponse ) + ( 
+receive:errorResponse | send:errorResponse )
+
+which reduces to:
+
+  orderPlacement = 0 + 0 = 0
+
+This is a simplification, you will use the more capable and complex 
+forms of reduction such as congruence and bi-simulation which I don't 
+want to go into, but essentially it ends up being the same.
+
+>>> 3) So far, each steps within a process is sequential.  Can a process 
+>>> have multiple steps in parallel ?  If so, can you give me an example 
+>>> ?  And how reduction will be done in this case ?
+>>
+>>
+>> Do you mean multiple different steps or multiple instances of the 
+>> same step?
+>>
+>> If you mean different steps than I've already shown that. Remember 
+>> that nothing interesting happens on its own, all the interesting 
+>> things happen concurrently. To receive a message someone also have to 
+>> send it. So the first example I gave contained two things that happen 
+>> in parallel and you can extend it to 3, 4, etc. However complex it 
+>> is, you can easily express it.
+>
+>
+> I mean multiple different steps but from the same process (party).  
+> For example, lets say the seller in parallel send one shipment request 
+> to the airplane shipper and another shipment request to the truck 
+> shipper.  And then he wait for both respond and then select one with a 
+> cheaper price before proceed to next step.  How do you represent the 
+> "synchronization" after two parallel steps ?
+
+How about:
+
+receive:response(one).recieve:response(two).doSomething(one,two).0
+
+Or you can use the join pattern which is not part of pi-c but reducible 
+to pi-c (and something a higher level language would offer):
+
+( receive:response(one) | recieve:response(two) ).doSomething(one,two).0
+
+>> If you mean the same step occuring n times in parallel, then #4 gives 
+>> an example for that.
+>
+>
+> #4 shows the same step occuring n times "sequentially" but not "in 
+> parallel".  Right ?
+
+Yep. But it's an easy twist to add the parallel to the until loop by 
+simply continuing to do something after the loop is repeated. There are 
+other possible cases, but this nitfy trick is interesting enough:
+
+parUntil = send:start(n) | ! ( 
+receive:start(x).0[x=0]send:start(x-1).doSomething.0)
+
+This particular construct will loop n times performing doSomething n 
+times in parallel.
+
+arkin
+
+>
+> Rgds, Ricky
+>
+
+
+

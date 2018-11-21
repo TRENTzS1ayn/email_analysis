@@ -1,0 +1,190 @@
+docno="lists-024-15206305"
+received="Wed Apr  2 17:22:29 2003"
+isoreceived="20030402222229"
+sent="Wed, 02 Apr 2003 14:21:12 -0800"
+isosent="20030402222112"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Progressive Concreteness of Choreography binding"
+id="3E8B6258.8090206@intalio.com"
+charset="ISO-8859-1"
+inreplyto="4.3.2.7.2.20030402104458.029c64e0&#64;franklin.cisco.com"
+expires="-1"
+
+
+To: Ricky Ho<riho@cisco.com>
+CC:public-ws-chor@w3.org
+
+
+I am in support of the use of properties, but I don't understand the 
+level of indirection or what it brings to the table.
+
+Some properties are interesting to express in the context of a 
+choreography. Rules that affect the flow (as given in this example), 
+partners that are communicated, time-outs that are communicated (as 
+opposed to pre-decided), etc.
+
+Let's say that service seller X decides to extract the property in a 
+very specific way that is different from how service seller Y extracts 
+it. Any buyer would have to understand the different ways in which it is 
+extracted in order to put that value in the message to begin with. So 
+there's another level of complexity here that affects all the buyers.
+
+It's much easier if you write the choreography such that all seller 
+services (X, Y, future ones) would extract that information in much the 
+same way, e.g. by referencing the abstract (not concrete) message. That 
+allows all buyers to build their side of the choreography in a generic 
+way because they understand the abstract requirements regardless of 
+which specific service they end up talking to.
+
+In practice, that's how I would write choreographies. Write only the 
+abstract parts that do not depend on the specific service you end up 
+using, so you can have one buyer that talks to any potential seller and 
+vice versa. If I follow that best practice, I don't see any value for 
+this level of indirection.
+
+Comments?
+
+arkin
+
+Ricky Ho wrote:
+
+>
+> Continuing our discussion of "abstract message".  I want to show an 
+> how we can start with a very abstract definition at the choreography 
+> and progressively add concrete binding to that.
+>
+> Lets define a orchestration flow that is independent of message type 
+> and only have the message properties concept.
+>
+> ABSTRACT PROCESS
+> ===================
+> At the very beginning, the process declares the "NAMES" of all 
+> messages that it may send or receive.  It also declares the "NAMES" 
+> and "TYPES" of message properties, but it doesn't say how the message 
+> properties is extracted from the message.
+>
+> Within the process flow, it uses only the named "message" and "message 
+> properties".
+>
+>
+> Orchestration POHandlingProcess {
+>     Partner declaration {
+>         purchaser;
+>         creditCheckProvider;
+>     }
+>
+>     Message declaration { // all are "typeless"
+>         PO;
+>         POConfirmation;
+>         PORejection;
+>         CreditCheckRequest;
+>         CreditCheckResponse;
+>     }
+>
+>     Message Property declaration { // all are "typed"
+>         float PO.dollarAmount
+>         Customer PO.cust
+>         Customer CreditCheckRequest.cust
+>         int CreditCheckResponse.rating
+>     }
+>
+>     Process {   
+>         receive "PO" from partner "purchaser"
+>         if ("PO.dollarAmount" > 100K) {
+>             assign "PO.cust" to "CreditCheckRequest.cust";
+>             send "CreditCheckRequest" to partner "creditCheckProvider";
+>             receive "CreditCheckResponse" from partner 
+> "creditCheckProvider";
+>             if ("CreditCheckResponse.rating" > 3) {
+>                 send "POConfirmation" to partner "purchaser"
+>             } else {
+>                 send "PORejection" to partner "purchaser"
+>             }
+>         }
+>         send "POConfirmation" to partner "purchaser"
+>     }
+> }
+>
+>
+> IMPLEMENTATION BINDING
+> ======================
+> The WSDL implementation binding basically map the partner into a 
+> particular WSDL PortType.  Then it maps each named message (defined in 
+> abstract process) into the WSDL PortType/Operation/Part (can be either 
+> the request or the response).  Finally, it defines the message 
+> properties in terms of XPATH which extract the data from the 
+> corresponding message.
+>
+>
+> Implementation Binding for "POHandlingProcess" {
+>     Partner binding {
+>         mySelf --> PortType POHandlingPT  // contains a one-way 
+> "submitPO" operation
+>         purchaser --> PortType POCallbackPT // contains 2 one-way 
+> "confirmPO", "rejectPO" operations
+>         creditCheckProvider --> CreditCheckPT // contains a 
+> request/reply "check" operation
+>     }
+>
+>     Message binding {
+>         PO --> From request of (PortType = "POHandlingPT", Operation = 
+> "submitPO", Part="po")
+>         POConfirmation --> To request of (PortType = "POCallbackPT", 
+> Operation = "confirmPO", Part="poConfirmation");
+>         PORejection --> To request of (PortType = "POCallbackPT", 
+> Operation = "rejectPO", Part="poRejection");
+>         CreditCheckRequest --> To request of (PortType = 
+> "CreditCheckPT", Operation = "check", Part="customerInfo");
+>         CreditCheckResponse --> From response of (PortType = 
+> "CreditCheckPT", Operation = "check", Part="Return");
+>     }
+>
+>     Message Property binding {
+>         PO.dollarAmount = XPATH(//totalAmount/@amount);
+>         Customer PO.cust = XPATH(//customer);
+>         Customer CreditCheckRequest.cust = XPATH(//customer);
+>         int CreditCheckResponse.rating = XPATH("//rank");
+>     }
+> }
+>
+>
+> PROTOCOL (ON-THE-WIRE-MESSAGE) BINDING
+> ======================================
+> This binding defines how the abstract message defined in WSDL is 
+> serialized on the wire, such as which parts goes to SOAP header and 
+> which goes to SOAP body.
+> WSDL binding covers this.
+>
+>
+> ADDRESS BINDING
+> ================
+> For dynamic address resolution, this defines the service provider 
+> endpoint resolution mechanism.  For static address resolution, this 
+> defines the actual service endpoint location.
+>
+>
+> Rgds,
+>
+> Ricky
+
+
+
+-- 
+"Those who can, do; those who can't, make screenshots"
+
+----------------------------------------------------------------------
+Assaf Arkin                                          arkin@intalio.com
+Intalio Inc.                                           www.intalio.com
+The Business Process Management Company                 (650) 577 4700
+
+
+This message is intended only for the use of the Addressee and
+may contain information that is PRIVILEGED and CONFIDENTIAL.
+If you are not the intended recipient, dissemination of this
+communication is prohibited. If you have received this communication
+in error, please erase all copies of the message and its attachments
+and notify us immediately.
+
+
+

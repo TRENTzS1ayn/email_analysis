@@ -1,0 +1,139 @@
+docno="lists-098-1296928"
+received="Sun Sep  2 17:40:06 2001"
+isoreceived="20010902214006"
+sent="Sun, 2 Sep 2001 17:40:04 -0400 (EDT)"
+isosent="20010902214004"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="soap rdfq client - snapshot"
+id="Pine.LNX.4.30.0109021738210.1320-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To: Glen Daniels<gdaniels@macromedia.com>
+cc:<www-archive@w3.org>
+
+
+
+Last from me; a snapshot of my test client with the deserialisation stuff
+I added. I'm totally in the dark on how all this is meant to work, thought
+I'd almost cracked it but seems not...
+
+Dan
+
+---------- Forwarded message ----------
+Date: Sun, 2 Sep 2001 23:41:53 +0100
+
+/* stolen from apache Axis examples by Doug and Glen */
+// http://lists.w3.org/Archives/Public/www-archive/2001Jul/0020.html
+// for perl equiv i'm trying to clone
+
+package org.w3c.inkling.soap;
+
+import java.net.*;
+import java.io.*;
+import java.util.*;
+
+import org.apache.axis.*;
+import org.apache.axis.utils.Debug ;
+import org.apache.axis.utils.Options ;
+import org.apache.axis.client.ServiceClient ;
+import org.apache.axis.transport.http.HTTPTransport ;
+import java.lang.reflect.Array;
+import org.apache.axis.Constants;
+import org.apache.axis.Message;
+import org.apache.axis.MessageContext;
+import org.apache.axis.message.*;
+import org.apache.axis.encoding.*;
+import org.apache.axis.server.AxisServer;
+import org.apache.axis.utils.QName;
+import org.xml.sax.InputSource;
+
+
+
+public class RDFQClient {
+
+    public static String query =  "SELECT ?x, ?l, ?c" +
+"FROM     http://xmlns.com/wordnet/1.6/Job "+
+"WHERE "+
+"  (web::type ?x rdfs::Class) "+
+"  (rdfs::label ?x ?l) "+
+"  (rdfs::description ?x ?c) "+
+"USING web FOR http://www.w3.org/1999/02/22-rdf-syntax-ns# "+
+       "rdfs FOR http://www.w3.org/2000/01/rdf-schema#";
+
+   public static String data = "http://xmlns.com/wordnet/1.6/Job";
+
+   public static String msg = "<SOAP-ENV:Envelope " +
+        "xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" " +
+        "xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\" > " +
+        "<SOAP-ENV:Body>\n" +
+        "<rq:squish xmlns:rq=\"http://rdfweb.org/RDF/RDFWeb/SOAPDemo\">\n" +
+        "<rq:query>" + query + "</rq:query>"+
+"<rq:data>"+ data +"</rq:data>"+
+        "</rq:squish>\n" +
+
+        "</SOAP-ENV:Body></SOAP-ENV:Envelope>\n";
+
+    /**
+     * Send a hardcoded message to the server, and print the response.
+     */
+    public static String doTest (String args[], String service) throws Exception {
+      Options      opts    = new Options( args );
+      String       url     = opts.getURL();
+      String       action  = "EchoService" ;
+
+        if (service != null) {
+            action = service;
+        }
+
+      Debug.setDebugLevel( opts.isFlagSet( 'd' ) );
+
+      args = opts.getRemainingArgs();
+      if ( args != null ) action = args[0];
+
+      ServiceClient client = new ServiceClient(new HTTPTransport());
+
+      url = "http://fireball.dyndns.org/cgi-bin/soap"; // danbri hack
+      action = "http://rdfweb.org/RDF/RDFWeb/SOAPDemo#squish";
+
+      client.set(HTTPTransport.URL, url);
+      client.set(HTTPTransport.ACTION, action);
+
+      Message        reqMsg      = new Message( msg );
+      Message        resMsg     = null ;
+
+      System.out.println( "Request:\n" + msg );
+      System.out.println( "Url: " + url );
+      System.out.println( "soap action is: " + action );
+      client.setRequestMessage( reqMsg );
+      client.invoke();
+
+      resMsg = client.getMessageContext().getResponseMessage();
+
+      System.out.println("XML serialization: "+ resMsg.getAsString());
+
+
+      SOAPEnvelope envelope = (SOAPEnvelope)resMsg.getAsSOAPEnvelope();
+
+      RPCElement body = (RPCElement)envelope.getFirstBody();
+      Vector arglist = body.getParams();
+      RPCParam param = (RPCParam) arglist.get(0);
+
+      System.out.println("Restoring object from xml...");
+      Object result = param.getValue();
+
+      System.out.println("result = " +result ) ;
+      return (String)resMsg.getAsString();
+    }
+
+  public static void main(String args[]) throws Exception{
+    doTest(args, null);
+  }
+  public static void mainWithService(String args[], String service) throws Exception{
+    doTest(args, service);
+  }
+}
+
+
+

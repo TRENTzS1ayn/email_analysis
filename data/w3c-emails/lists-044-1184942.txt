@@ -1,0 +1,130 @@
+docno="lists-044-1184942"
+received="Wed Nov 17 09:44:18 1999"
+isoreceived="19991117144418"
+sent="Wed, 17 Nov 1999 09:44:01 -0500"
+isosent="19991117144401"
+name="Joseph M. Reagle Jr."
+email="reagle@w3.org"
+subject="RE: Omitting Location and Transforms from SignedInfo"
+id="3.0.5.32.19991117094401.0092d4a0@localhost"
+charset="us-ascii"
+inreplyto="6B962A1EE646D31193270008C7A4BAB5381E9A&#64;mail.paymentnet.com"
+expires="-1"
+
+
+To:"John Boyer"<jboyer@uwi.com>
+Cc:"Greg Whitehead"<gwhitehead@signio.com>,"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+At 09:54 99/11/12 -0800, John Boyer wrote:
+ >This is quite problematic.  Our core processing rules state that we verify
+ >SignedInfo, then we verify the digest values of the ObjectReferences.  HOW
+ >IS CORE BEHAVIOR GOING TO DO THIS IF CORE BEHAVIOR DOESN'T KNOW 
+ >HOW TO
+ >RETRIEVE THE DATA?
+
+Just wanted to comment that I think this core behavior was a mistake. We've
+inextricably link the idea of resource validation (does the content when
+dereferenced at a URI and transformed appropriately) with signature
+validation (does the signed blob (SignInfo) when plugged into the specified
+digest and signature method with a key result in a SignatureValue.) We
+specified this core resource validation behaviour because people wanted to
+ensure the signature was over the actual content. We did this because we
+only allowed references and not the actual content. Consequently to force
+signature validation of the actual content we had to (1) include signer
+created validation rules in the ObjectReferences or (2) make that a default
+behaviour of SignedInfo. I didn't like (1) because I don't think we our
+trust model is well thought out; unfortunately (2) has led to a string of
+design decisions that involves us in resource resolution problems which are
+just as nasty ...
+
+Going back to the simple signature meaning, the signature provides
+integrity, authentication, and non-repudiability over some bucket of bytes.
+The main reason we defined something called SignedInfo is because we needed
+a bucket and a place to include C14N and Signature Method for security
+purposes.
+
+I see two main requirements people have:
+
+R1. Force validation over critical content (presently mandated as resource
+validation core behaviour.)
+R2. Do not force assertions of dereferencing/transforming the content to be
+bound to the signature.
+
+I see the following options:
+1. Keep status quo and use a URI that will properly dereference and
+transform the target without including that info in the signature.
+2. Permit transforms over SignedInfo. (Doesn't seem to be well liked.)
+3. Introduce "omit" tags in the SignedInfo (No we have two inconsistent ways
+of transforming content, previous discussion on this topic also is relevant.)
+4. Permit people to sign content directly.
+
+<!-- This SignedInfo includes the actual object which is processed via the
+     null canonicalization -->
+
+   <SignedInfo CanonicalizationMethod="http://www.w3.org/.../xml-c14n"
+               SignatureMethod="&dsig;dsaWithSHA-1"/>
+      <Object ID="1">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue> 
+         <Transforms IDREF="3"
+            <Transform Algorithm="&dsig;/xml"/> 
+         </Transforms>
+         <Inline ID="3">
+            <name xmlns="http://www.imc.org/vcard">
+               <first>Joseph</first>
+               <last>Reagle</last>
+            </name>
+         <Inline>
+      </Object>
+   </SignedInfo>
+
+(Or they can still sign things remotely.)
+
+<!-- This SignedInfo referenced one object which is decoded,
+     canonicalized, deriving the content IS bound to the signature.-->
+
+   <SignedInfo CanonicalizationMethod="&dsig;/xml-c14n"
+               SignatureMethod="&dsig;/dsaWithSHA-1"/>
+      <Object ID="2">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue> 
+         <Transforms>
+            <Decode Algorith="&dsig;/base64"/>
+            <Transform Algorithm="&dsig;/xslt"/> 
+         </Transforms>
+         <Target URI="http://www.mypage.com/hello.base64"/>
+      </Object>
+   </SignedInfo>
+
+5. Permit people to move the dereferencing/transformation outside SignedInfo
+(The Target Reference="..." means go to that reference to figure out how to
+derefence/transform the content.):
+
+<!-- This SignedInfo referenced one object which is decoded,
+     canonicalized, deriving the content IS NOT bound to the signature -->
+
+   <SignedInfo CanonicalizationMethod="&dsig;/xml-c14n"
+               SignatureMethod="&dsig;/dsaWithSHA-1"/>
+      <Object Name="2">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue> 
+         <Target Reference="4"/>
+      </Object>
+   </SignedInfo>
+   ...
+   <Object ID="4">
+      <Target URI="http://www.mypage.com/hello.base64"/>
+      <Transforms>
+         <Decode Algorith="&dsig;/base64"/>
+         <Transform Algorithm="&dsig;/xml"/> 
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue> 
+      </Transforms>
+   </Object>
+
+
+Did I miss anything or some other option?
+
+_________________________________________________________
+Joseph Reagle Jr.   
+Policy Analyst           mailto:reagle@w3.org
+XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

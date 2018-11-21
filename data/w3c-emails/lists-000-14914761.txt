@@ -1,0 +1,97 @@
+docno="lists-000-14914761"
+received="Fri Aug 11 11:46:38 2000"
+isoreceived="20000811154638"
+sent="Fri, 11 Aug 2000 11:45:01 -0400"
+isosent="20000811154501"
+name="Andy Quick"
+email="ac.quick@sympatico.ca"
+subject="Re: Line endings on/from other platforms not handled correctly?"
+id="002d01c003ab$4a58d300$d7fbacce@b1gbyj57"
+charset="iso-8859-1"
+inreplyto="l03130300b5a6dcf31960&#64;[17.219.108.18]"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+Dave,
+
+I propose the following modification to ReadChar (in tidy.c)
+so that '\r' alone is mapped to '\n':
+
+int ReadChar(StreamIn *in)
+{
+    ...
+    for (;;)
+    {
+        c = ReadCharFromStream(in);
+
+        if (c < 0)
+            return EndOfStream;
+
+        if (c == '\n')
+        {
+            in->curcol = 1;
+            in->curline++;
+            break;
+        }
+
+        /* PROPOSED CHANGE */
+        if (c == '\r')
+        {
+            c = ReadCharFromStream(in);
+            if (c != '\n')
+            {
+                UngetChar(c, in);
+                c = '\n';
+            }
+            in->curcol = 1;
+            in->curline++;
+            break;
+        }
+        /* END PROPOSED CHANGE */
+
+        if (c == '\t')
+        {
+            in->tabs = tabsize - ((in->curcol - 1) % tabsize) - 1;
+            in->curcol++;
+            c = ' ';
+            break;
+        }
+    ...
+}
+
+My testing indicates that this handles isolated '\r' as
+a lineend, and also handles "\r\n".  There is no change
+to isolated '\n' as a lineend.
+
+I will make the corresponding change to Java tidy if
+no one has any objections.
+
+Regards,
+
+Andy Quick
+----- Original Message ----- 
+From: Terry Teague <teague@mailandnews.com>
+To: <html-tidy@w3.org>
+Sent: Friday, July 28, 2000 3:43 AM
+Subject: Line endings on/from other platforms not handled correctly?
+
+
+> Dear Dave,
+> 
+> While I don't really expect you to maintain entirely portable
+> cross-platform code for Tidy, there appear to be some issues with line
+> endings on/from other platforms, that I wanted to make you aware of, and
+> get some feedback from others on the mailing list.
+> 
+> As you probably know the common line endings in use are :
+> 
+> UNIX : linefeed (0x0A)
+> DOS : carriage return+linefeed (0x0D0A)
+> Mac : carriage return (0x0D)
+> 
+[etc.]
+
+
+

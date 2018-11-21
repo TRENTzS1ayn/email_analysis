@@ -1,0 +1,186 @@
+docno="lists-095-15573975"
+received="Fri Aug 16 13:22:28 2002"
+isoreceived="20020816172228"
+sent="Fri, 16 Aug 2002 13:22:10 -0400"
+isosent="20020816172210"
+name="George Herson"
+email="gherson@snet.net"
+subject="Re: (newbie) Recompile necessary?"
+id="3D5D34C2.90303@snet.net"
+charset="us-ascii"
+inreplyto="Pine.GSO.4.21.0208021635540.26457-100000&#64;wgs.apps1.bellhow.com"
+expires="-1"
+
+
+To: daniel lance herrick<dan.herrick@pbs.proquest.com>
+CC:www-amaya@w3.org
+
+
+Daniel,
+
+You are right!  Xslt did the trick, thanks for the tip.  I can document a 
+program via Amaya, using all it's functionality (color, fonts, hyperlinks, CSS, 
+etc), and then only output the embedded source code, and run my program!  With 
+Amaya no weave step is necessary.  To show relationships etc, I can even use SVG 
+to draw on the embedded source code (though not that easily).
+
+After learning some xslt and compiling a version of PHP with Sablotron's 
+(apparently excellent) xslt processor, the extremely simple scripts below were 
+all that was needed.
+
+My questions so far are:
+
+1.) How do I stop Amaya from changing the trailing "/>" in the <meta> tag to ">" 
+in html docs?  Xslt requires strict xml input, so for empty elements, the 
+trailing "/" is always nec before the ">", as in:  <meta 
+http-equiv="Content-Type" content="text/html" />.  But every time I save in 
+Amaya's Formatted view, it removes that last slash.  When I removed the whole 
+line, Amaya re-added it.  When i tried instead adding </meta> after the line, 
+Amaya removed it.  My work around is to only save the doc in Source view (but 
+Amaya still isn't too happy about it, eg, she'll crash or show "0&@@?" in the 
+title bar instead of the doc's title).  The reason I don't simply tell Amaya I'd 
+like to save the document as xml is because I could not get <xsl:apply-templates 
+select> to select anything when the input doc was saved as xml.  E.g.,
+<xsl:template match="/">
+    random text
+    <xsl:apply-templates select="//span"/>
+</xsl:template>     outputs only "random text".  Changing <span> to <pre> or 
+<h5> didn't help.  As soon as i saved the input doc as html, however (by 
+removing the Amaya-inserted <?xml version="1.0" encoding="iso-8859-1"?> <html 
+xmlns="http://www.w3.org/1999/xhtml">), the select worked fine.  I repeated this 
+test to confirm.
+
+2.) Why is Amaya adding text to this line?:
+// if (eregi ("<title>(.*)</title>", $line, $out)) {
+
+becomes after saving:
+
+// if (eregi ("</span><title><span class="code">(.*)</span></title> Alot of 
+whitespace here <span class="code">", $line, $out)) {
+
+In the doc's header I had a style class named "code" that I renamed to 
+"span.code" but it didn't help.  So i simply deleted the line since it was 
+unneeded (this time).
+
+
+Thanks.
+
+File litprog.xsl:
+<xsl:stylesheet version="1.0"
+      xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+      xmlns="http://www.w3.org/TR/xhtml1/strict">
+<xsl:output method="text" indent="yes" encoding="UTF-8"/>
+
+<!-- Avoid outputting header: -->
+<xsl:template match="/html/head">
+</xsl:template>
+
+<xsl:template match="/html/body">
+    <!-- We're only interested in elements of the following type.
+         Nothing else is output. -->
+    <xsl:apply-templates select="/html/body/pre/span[@class='code']"/>
+</xsl:template>
+
+</xsl:stylesheet>
+
+File litprog.php:
+<?php
+// This script processes the given input file with the given xslt file.
+// This script is a mod of
+// http://www.php.net/manual/en/function.xslt-process.php's example 1. 8/5/02.
+
+// Allocate a new XSLT processor.
+$xh = xslt_create();
+
+// Define files.
+$input = '/home/httpd/html/orgtxt/Ideas & Projects/ping_my_domains.php.html';
+$transformer = 'litprog.xsl';
+$output = 'output.php';
+
+// Process the document.
+if( xslt_process( $xh, $input, $transformer, $output )) {
+     print "SUCCESS, $input was transformed by $transformer into $output";
+     print ", $output has the following contents\n<br>\n";
+     print "<pre>\n";
+     readfile( $output );
+     print "</pre>\n";
+} else {
+     print "Sorry, $input could not be transformed by $transformer into";
+     print "  $output.  The reason is: " . xslt_error($xh) . " and the ";
+     print "error code is " . xslt_errno($xh);
+}
+xslt_free($xh);
+?>
+
+These enable what i'd call "semi" literate programming because I can't vary the 
+order of the code chunks: they have to be sequential.  I believe I can remove 
+that restriction if I find it to be a problem.  Similarly, the mapping from 
+literate program to source code file is 1:1, but since Sablotron can handle 
+multiple output files, that restriction is probably also surmountable.
+
+I can explain parts of xslt i had to discover by trial and error if there's 
+interest.  I'll eventually post more info to my website, http://DatainFormation.com.
+
+regards,
+George Herson
+
+daniel lance herrick wrote:
+> This is an application for a DSSSL stylesheet or
+> an XSLT transformation. If you are writing
+> .litprog files that conform to xhtml (or another
+> doctype), and amaya intends to make only files
+> that parse correctly according to the doctype,
+> then either DSSSL or XSLT are the tools for using
+> the markup in the source file to produce a derived
+> presentation.
+> 
+> If you write the "to-be-written program" in DSSSL
+> the next step would be to add a suffix rule to
+> your Makefile, something like
+> 
+> .litprog.c:
+> openjade jade -E5 -G -d to-be-written-program.dsl ${@:.c=.litprog} >${@}
+> 
+> Then there is no need to change Amaya, the build step run by make will
+> run the preprocessor (your to-be-writen-program) to extract the code
+> from the .litprog file before running the c compiler to compile it.
+> 
+> (I suspect XSLT may be a smaller thing to learn than DSSSL, but DSSSL
+> is the one I've been working on because I was just handed a few
+> megabytes of SGML documents.)
+> 
+> dan
+> 
+> 
+> 
+> On Fri, 2 Aug 2002, George Herson wrote:
+> 
+> 
+>>hi,
+>>
+>>I'm happily using the Amaya 6.1 rpm.  I haven't gotten into Amaya's guts before 
+>>and would prefer not to try now so I want to make sure it's necessary to 
+>>recompile Amaya if I want to add some functionality to its Save command.
+>>
+>>http://www.w3.org/Amaya/User/AmayaArchi.html#L472 talks about how to "Modify 
+>>existing commands" but it refers to files I don't have, such as EDITOR.A and 
+>>HTML.A (because I'm using the rpm version i assume).
+>>
+>>The Save functionality I want to add is to have Amaya save files that have a 
+>>special extension (.litprog) in two versions, one as is and the other as plain 
+>>text source code. This is to enable literate programming: The plain text source 
+>>code file will be created by running at Save time a small, to-be-written program 
+>>that can recognize the code chunks in the html document and use the output order 
+>>I have defined for them.
+>>
+>>tips?
+>>
+>>thanks,
+>>George
+>>
+> 
+> 
+> 
+
+
+

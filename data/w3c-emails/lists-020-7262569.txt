@@ -1,0 +1,151 @@
+docno="lists-020-7262569"
+received="Thu Mar 11 14:11:27 2004"
+isoreceived="20040311191127"
+sent="11 Mar 2004 14:13:40 -0500"
+isosent="20040311191340"
+name="Mary Fernandez"
+email="mff@research.att.com"
+subject="Re: Formal semantics of step expressions"
+id="1079032420.1562.40.camel@squeak.research.att.com"
+inreplyto="200402261708.09078.stijn.vansummeren&#64;luc.ac.be"
+expires="-1"
+
+To: public comments<public-qt-comments@w3.org>,stijn.vansummeren@luc.ac.be
+Cc:www-ql@w3.org
+
+
+
+This is a last-call comment on the formal semantics document.
+
+The message to www-ql from Stijn Vansummeren below revealed 
+errors in the formal semantics
+of the child axis.  Suggested correction is below.
+==========================================================
+
+Hi Stijn,
+Sorry for the delay in answering your question.
+
+As usual, a simple question has revealed several bugs!
+Thanks, I think!
+
+Currently, the dynamic semantics of axes is defined in 
+"7.2.2.2 Dynamic semantics of axes"
+(http://www.w3.org/TR/2004/WD-xquery-semantics-20040220/#N20773)
+
+You'll notice that the definition of child:: simply returns the 
+ElementValue content of an element:
+
+                                    
+________________________________________________________________________
+               dynEnv |- axis Axis child:: of element ElementName {
+                    AttributeValue,ElementValue } => ElementValue
+
+This rule has several errors.  First, the content of an element
+always has two parts: a sequence of attribute values followed
+by a sequence of non-attribute nodes (i.e., element, text, comment, processing-instruction).
+
+The required corrections are:
+
+1. A production for attribute values:
+-------------------------------------
+AttributeValues    ::=    AttributeValue
+                     | (AttributeValues "," AttributeValues)
+                     | ("(" ")")
+
+2. A production for non-attribute element content:
+--------------------------------------------------
+ElementContent    ::=    ElementValue 
+                    | TextValue 
+                    | CommentValue 
+                    | ProcessingInstructionValue
+                    | (ElementContent "," Elementcontent)
+                    | ("(" ")")
+
+The FS document once had productions like these, but they have
+somehow disappeared.  In any case, given these productions, the correct
+rule for the child axis is: 
+                                    
+________________________________________________________________________
+               dynEnv |- axis Axis child:: of element ElementName {
+                    AttributeValues,ElementContent } => ElementContent
+
+3. Changes to examples in "2.2.2 Examples of values"
+----------------------------------------------------
+
+The examples in this section are out of date. 
+In particular, they do not reflect the semantics
+of elements in the data model, which _always_ contain
+other nodes, i.e., they _never_ contain atomic values.
+Older versions of the formal semantics, blurred this distinction,
+but the final document should not.
+
+The atomic-valued content of an element is a function
+of the element's text content and its type annotation
+(which is determined during validation).  So to illustrate,
+the second example in this section should be:
+
+"... After validation, this element is represented as:
+
+  element weight of type xs:integer {
+    attribute xsi:type of type xs:QName {
+      "xs:integer" of type xdt:untypedAtomic
+    },
+    text { "42" }
+  }
+
+And the typed value of this element is '42 of type xs:integer'
+and the typed value of the xsi:type attribute is '"xs:integer" of type xs:QName'.
+"
+Note that the content of the validated document is still 
+a text node, but its type annotation is now xs:integer.
+
+Now, finally, back to your original question.  Given the above rule, 
+
+axis child:: of 
+ element weight of type xs:integer {
+   text {"42" }
+ }
+
+==> text {"42"}
+
+Trivially, by the above rule and:
+
+fn:data(
+ element weight of type xs:integer {
+   text {"42" }
+ }
+)
+==> 42 of type xs:integer
+
+
+Thanks for reporting the problem.
+Mary
+
+
+> Could someone please enlighten me what the result of the following "axis ... 
+> of ..." judgement should be?
+> 
+> axis child::  of
+>      element weight of type xs:integer {
+>        42 of type xs:integer
+>      }
+>   => ?
+> 
+> My intuition is that this should be text {"42"}. If this is so, could someone 
+> please point me to the part of the formal semantics where this conversion is 
+> defined?
+> 
+> Thanks,
+> --Stijn Vansummeren
+> University of Limburg
+> Belgium
+
+
+-- 
+
+Mary Fernandez <mff@research.att.com>
+
+AT&T Labs - Research
+
+
+

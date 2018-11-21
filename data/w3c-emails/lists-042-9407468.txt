@@ -1,0 +1,122 @@
+docno="lists-042-9407468"
+received="Wed Oct 15 17:50:52 2003"
+isoreceived="20031015215052"
+sent="Wed, 15 Oct 2003 14:50:41 -0700"
+isosent="20031015215041"
+name="Dennis E. Hamilton"
+email="dennis.hamilton@acm.org"
+subject="RE: rfc2518bis DAV DTD (was Re: How to use DTDs, or not ...)"
+id="FFEPLLNFAHGBKNENFGPAIEGMDDAA.dennis.hamilton@acm.org"
+charset="US-ASCII"
+inreplyto="JIEGINCHMLABHJBIGKBCMEAFINAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+To:"Julian Reschke"<julian.reschke@gmx.de>,<w3c-dist-auth@w3.org>
+
+
+
+Hi Julian,
+
+1.Yes, I understand that this was spun off of a different question.  I came around to the 24.2 proposal because I started looking at bis-04 to get up to speed on what new wordings there might be on DTD and XML-related topics.  
+
+1.1I propose to keep the proposal of DTD approach for 24.2 separate from the one about in-line use of markup declarations in the 2518bis's descriptions of the DAV use of XML.
+
+1.2Probably the thing to do is to build such a DTD, play with it, and see if it is worth including in 24.2 (and also at some well-known URL where it will stay).  [Is the W3C support of WebDAV such that we could get space on the W3C server, or would ietf.org be more appropriate?  Or webdav.org?]
+
+---------
+
+2.I do want to point out an over-simplification that keeps creeping into this discussion.   
+
+2.1<!DOCTYPE>-required processing.  
+
+When a <!DOCTYPE ...> declaration is present, even a non-validating processor must do a lot of work.  It is definitely not the same as just parsing through the declaration and going on one's merry way.  There is the small matter of entity declarations and whether or not the receiving processor will read external sources for parameter entities and external XML entities (it being the receiver's option to do so).
+  
+And then there are attributes to be concerned about.  
+
+Also, the standalone attribute of the XML declaration can influence the non-validating behavior, although it doesn't reduce the amount of work that must be done.  
+
+There are some XML 1.0 errata that pertain to these discussions and to WebDAV use of XML, <http://www.w3.org/XML/xml-V10-2e-errata>: E61, E60, E58, E57, E55, E49, E48, E47, E45, E43, E42, E41, E39, E38, E36, E29, E25, E23, E22, E21, E20, E19, E16, E15, E14, E12, E8, and E7.  I have allowed for these in my comments.  A few pertain to non-validating behavior, attribute processing, etc.  There are also a number of others regarding Unicode and the correct specifications to use that I have omitted from the above list.
+
+2.2Entity References and Recursion.  
+
+The issue of recursive expansion of entity references is a red herring. Recursion, directly or indirectly, in processing a parsed entity reference is a violation of *well-formedness* and it is a bug for a processor not to reject its occurrence (since all ill-formed XML must be rejected by an XML processor).  This is clear in [REC-XML] section 4.1 Character and Entity References, <http://www.w3.org/TR/REC-xml#sec-references>.  Look at the syntax on Entity References and the notes entitled [WFC: No Recursion] for the two cases.  (A non-validating processor can fail to notice a case of recursion that a validating processor might detect, but that's only if the recursion depends on an external entity that is not read by the non-validating processor.)
+
+There are some technical nuances around when an entity reference is a parsed entity reference, but that doesn't seem to figure here.  The point is that all cases of recursive expansion are prohibited.
+
+It is still trivially possible to send a short XML document with internal DTD that results in a gigantic expansion, as noted in the discussion of security considerations for XML Media types (<http://www.ietf.org/rfc/rfc3023.txt>).  Extend this pattern to, say, cx32, and open the document in Internet Explorer:
+
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!-- XML-bloat-test.xml demonstrates exponential 
+     expansion of internal entities -->
+<!DOCTYPE doc 
+             [ <!ELEMENT doc (#PCDATA)>
+          <!ENTITY  c10 "0123456789 ">
+               <!ENTITY  cx2 "&c10;&c10;">
+               <!ENTITY  cx3 "&cx2;&cx2;">
+               <!ENTITY  cx4 "&cx3;&cx3;">
+               <!ENTITY  cx5 "&cx4;&cx4;">
+               <!ENTITY  cx6 "&cx5;&cx5;">
+               <!ENTITY  cx7 "&cx6;&cx6;">            
+                ] >                
+<doc>
+&cx7;
+</doc> 
+
+<!--      ** END OF XML-bloat-text.xml **      -->   
+
+
+2.3Attribute Declarations and Default Values.
+
+Any attribute declaration that is read by a non-validating processor must be honored.  This applies to normalization of attribute values based on their type.  If the attribute has a default value, the processor must supply that default value when the attribute is not explicitly present in the start tag of the element for which it is defined.
+
+Although it is not considered good practice to rely on default values and proper normalization for attributes whose declarations might *not* be read by a non-validating processor, any attribute declarations in an internal DTD must be read.
+
+The idea is that an XML processor delivers a processed stream of elements as if every defaulted attribute had been explicitly supplied, every recognized attribute is normalized as appropriate.  All parsed entities have their spacing rules applied, with internal entity references resolved.  The DTD is usually not delivered to the application.  The XML processor makes it unnecessary for the application to have to deal with the DTD under normal conditions.
+
+You can create an XML document with declared attributes and default values and observe this expansion by opening the XML document in Internet Explorer 6.0.  (There's an inconsistency in some defaultings of xmlns attributes, but other cases work.)
+
+[I am omitting all nuances related to what are called Notations, and how attributes of type ENTITY and ENTITIES work for non-validating processors.  That's not less to deal with.]
+
+-- Dennis
+
+
+-----Original Message-----
+From: Julian Reschke [mailto:julian.reschke@gmx.de]
+Sent: Wednesday, October 15, 2003 03:06
+To: dennis.hamilton@acm.org; w3c-dist-auth@w3.org
+Subject: RE: rfc2518bis DAV DTD (was Re: How to use DTDs, or not ...)
+
+
+Dennis,
+
+I appreciate the time you're spending thinking about this subject. The
+question that started this thread was what to do with the DTD notation that
+is used in current WebDAV specs and that disappeared in RFC2518bis. My
+position is that we should keep it and make sure that the spec clearly says
+what it means for developers.
+
+Other comments inline...
+
+[ ... ]
+
+> Dealing with a server that provides Document Type Declarations in
+> responses is something I don't want to think about.  In practice,
+> that borders on a hostile act, since it imposes processing on the
+> client and has the interpretation of the response be
+> unpredictable in some cases.  It raises the bar for universal
+> client processors.
+
+Nope. The spec should clearly state that messages must be processed in
+non-validating mode. In this case, it's really irrelevant whether a DOCTYPE
+is present (except for the well-known recursive entity substition problem).
+
+[ ... ]
+
+Julian
+
+
+--
+<green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+
+

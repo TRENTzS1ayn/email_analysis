@@ -1,0 +1,87 @@
+docno="lists-053-12626034"
+received="Mon Sep  8 07:52:24 2003"
+isoreceived="20030908115224"
+sent="Mon, 08 Sep 2003 12:08:04 +0100"
+isosent="20030908110804"
+name="Brian McBride"
+email="bwm@hplb.hpl.hp.com"
+subject="I18N Issue alternative: collapsing plain and xml literals"
+id="3F5C6314.5020408@hplb.hpl.hp.com"
+charset="us-ascii"
+expires="-1"
+
+
+To: rdf core<w3c-rdfcore-wg@w3.org>
+Cc: Martin Duerst<duerst@w3.org>,"Richard Ishida"<ishida@w3.org>, i18n<w3c-i18n-ig@w3.org>
+
+
+After discussing this informally over lunch, Danbri asked me to send it 
+to the list to make our consideration of it explicit.
+
+This is an alternative design for literals.  The  idea is to drop the 
+rdf:XMLLiteral datatype and allow plain literals to contain markup.  Two 
+test cases illustrate:
+
+<rdf:Description>
+   <eg:prop>foo &lt;br /&gt; bar</eg:prop>
+</rdf:Description
+
+parses to:
+
+_:a eg:prop "foo &lt;br /&gt; bar" .
+
+<rdf:Description>
+   <eg:prop rdf:parseType="Literal"><br /></eg:prop>
+</rdf:Description>
+
+parses to:
+
+_:a eg:prop "foo <br></br> bar" .
+
+The definition of a plain literal changes.  The lexical space of plain 
+literal becomes the lexical space of rdf:XMLLiteral, i.e. is restricted 
+to (the unicode representation of) canonicalised well formed balanced 
+xml markup.  The denotation of a plain literal remains - it is a 
+sequence of unicode characters - permitting string comparison for 
+equality testing.
+
+Advantages:
+
+I think this provides everything that Martin has been asking for:
+
+   - no discontinuity between plain and xml literals
+   - lang on mixed content
+   - no use of datatypes
+
+Disadvantages:
+
+- a bigger change than alternatives
+- builds XML into the core of the RDF model
+- breaks current implementations (but see below)
+
+Ameliorating the Disadvantages - implementation strategy
+
+The above design says that e.g. "<" is not in the lexical space of plain 
+literals, and many (all?) current implementations will store
+"<" in their representation of a graph.  The point to note is that 
+implementations are free to represent literals any way they please. 
+Thus "<" is just the way this implementation represents the literal "&lt;".
+
+The implementation does need to distinguish between markup and plain 
+text.  To do this, it adds a single bit to literals to indicate whether 
+they are stored in escaped or unescaped form.  The above example was in 
+unescaped form, which cannot represent markup.  To represent markup, the 
+literal must be be stored in escaped form.
+
+Literal comparison becomes more complex - literals stored in unescaped 
+form should first be escaped and then canonicalized.  Various 
+optimization strategies can be employed here.
+
+By this strategy, It may be possible to argue that this approach does 
+not break current implementations of plain literals.  It simply makes 
+clearer what xml literals are.
+
+Brian
+
+
+

@@ -1,0 +1,125 @@
+docno="lists-104-4351902"
+received="Tue Dec 18 08:24:38 2001"
+isoreceived="20011218132438"
+sent="Tue, 18 Dec 2001 05:23:31 -0800"
+isosent="20011218132331"
+name="Ray Whitmer"
+email="rayw@netscape.com"
+subject="Re: Entity references in Attr values"
+id="3C1F4353.6060503@netscape.com"
+charset="us-ascii"
+inreplyto="008601c18779$7a6645c0$6800000a&#64;brownell.org"
+expires="-1"
+
+
+To: David Brownell<david-b@pacbell.net>
+CC: Elliotte Rusty Harold<elharo@metalab.unc.edu>,www-dom@w3.org
+
+The infoset has an item for representing unexpanded general entity 
+references.  Following the lead of infoset, I would believe that even 
+parsers which always fully expand entity references should always insert 
+an empty EntityReference node where undefined entity references occur 
+(assuming that the mode of the parser does not cause the reference to 
+fail).  The XHTML specification requires, I believe, that such 
+unresolved references not be silently dropped, but be displayed.
+
+But I wish the infoset were clearer on this issue with respect to 
+attribute values.
+
+Although the name of the infoset item appears quite general, for 
+representing unexpanded entity references, it says "serves as a 
+placeholder by which an XML processor can indicate that it has not 
+expanded an external parsed entity", with a clear reference to the 
+definition of external entities.  External entities are not permitted in 
+attribute values in the first place (see table in 4.3 in XML 
+specification), so you should never have an unexpanded entity reference 
+in the first place in the attribute value under the theory that there is 
+never a reason not to expand internal entities.  And if you look at 
+infoset, there is in fact no way to insert one of these unexpanded 
+entity references into an attribute value, because it does not represent 
+attributes as hierarchies the way nodes are represented in the DOM.
+
+There are a couple of reasons that I think these assumptions are wrong 
+that you never have unexpanded entity references in attributes:
+
+1.  The document may reference a DTD, which a non-validating parser does 
+not wish to process which contains references to entities that, although 
+external to the document, are technically internal entities which may 
+appear in attribute values (or anywhere else).  Although such a document 
+is admittedly not a "standalone" XML document, it can easily happen that 
+you process such a document with a parser that does not read external 
+DTDs and produces an infoset.  It seems wrong in that case to just drop 
+the unexpanded entity references out of the document.
+
+2.  I believe it is high time for a real alternative to DTDs.
+
+There are alternative schema representations, and xinclude allows 
+inclusions.  The only thing missing is the ability to support entity 
+declarations in some other way.  Take specifications such as SOAP, where 
+it is frequently desirable to nest a document fragment, which may use 
+entity references, into a document of a completely different sort. 
+ Namespaces allow us to handle the tag naming problems, but if the 
+fragment is, for example, an XHTML fragment or even an XHTML document, 
+there is no way to nest the character entity declarations and any other 
+internal entity declarations the part may rely upon into the proper 
+scope for the embedded fragment or document without disrupting the 
+global scope of the document (which is one reason SOAP has outlawed 
+entity declarations altogether, making it not a true XML application in 
+my judgement).
+
+The natural way to define alternative entity resolution would be via an 
+infoset transform, as XInclude has been done.  If the infoset permitted 
+these unexpanded entity reference items to represent internal entities 
+as well as external entities, it becomes a trivial exercize to make a 
+specification for elements which make a scoped entity declaration that 
+is then eliminated as part of the transformation substituting 
+replacements for unexpanded entity references.  The only requirement is 
+that the unexpanded entity references be in the hierarchy.
+
+This would require infoset to adopt a representation of unexpanded 
+entity references in attribute values.  I would suggest two array, one 
+of the unexpanded entity references and another telling the offsets 
+where they occur within the attribute value which is represented as a 
+string in the infoset.  The current DOM representation would be an 
+adequate representation of that, although convenience indexed accessors 
+could be added to perfectly match the infoset if anyone thought it were 
+important.
+
+The only alternative seems to be to be to invent some different syntax 
+and processing for entities and make all older documents incompatible, 
+which I know no one has been willing to do.
+
+Anyone join me in making this suggestion formally to the XML WG (the 
+former, not the alternative)?
+
+Ray Whitmer
+rayw@netscape.com
+
+David Brownell wrote:
+
+>>What should a DOM implementation do when faced with something like this 
+>>when the replacement text for the geenral entity is not available  ... ?
+>>
+>
+>The Infoset would say that unexpanded (for any reason) entity refs
+>ought to have a distinct representation.   Some might be OK (not
+>expanded because defined in a PE that was not read), some would
+>be fatal errors (all PEs were read, it still wasn't defined) if the XML
+>REC were more sensible about handling undeclared entities.  (It
+>defines a boatload of exception cases with ambiguous English.)
+>
+>
+>>In particular what should getValue() return for the corresponding 
+>>Attr node?
+>>
+>
+>Considering that it's an error situation of some kind, and that both
+>the DOM (L2 anyway) and Infoset punted on how such errors are
+>to be reported, and the XML REC still has issues in specification
+>of entity handling ... why not try returning a random haiku? :)
+>
+>- Dave
+>
+
+
+

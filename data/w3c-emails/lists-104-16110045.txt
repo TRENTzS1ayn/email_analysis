@@ -1,0 +1,134 @@
+docno="lists-104-16110045"
+received="Wed Aug 27 10:11:38 2003"
+isoreceived="20030827141138"
+sent="Wed, 27 Aug 2003 15:04:40 +0100 (BST)"
+isosent="20030827140440"
+name="Gareth Reakes"
+email="gareth@decisionsoft.com"
+subject="Re: Draft Note on DOM Support for XPath 2.0"
+id="Pine.LNX.4.44.0308271459000.3777-100000@somme.dsl.local"
+charset="US-ASCII"
+inreplyto="Pine.LNX.4.53.0308260948250.31063&#64;shell2.xmission.com"
+expires="-1"
+
+To: Ray Whitmer<ray@xmission.com>
+Cc: Joseph Kesselman<keshlam@us.ibm.com>,"www-dom@w3.org"<www-dom@w3.org>
+
+
+
+Hi,
+
+> XPath2Sequence
+> 
+> and
+> 
+> XPath2Value
+
+
+Is XPath2Value the same as "item" in the specs? If so this sounds
+reasonable to me. I would place the convenience casting methods in this
+Item class.  Our item goes something like this (note I have promoted a
+method from one level lower in our hierarchy for simplicity)
+
+
+Item {
+
+   // not a casting method, but a serialisation method
+   asString(); 
+
+   //cast to anything
+   Item castAs(DOMString uri, DOMString name);
+
+   //self explanatory
+   boolean isNode();
+
+   //convenience methods to primitive types here
+   //we do not use these as we have classes representing the data types
+   //- these are derived from Item
+   ...
+};
+
+
+As to what this adds to the XPath2Result method, I would say 2 things:
+
+i) The ability the set the "context node" to an item (although we then 
+   need some way of constucting them)
+
+ii) The ability for implementors to provide a full hierarchy if they
+desire. We have all the classes available and can provide them. It does
+not make sense for us to limit this.
+
+
+> Even with XPath2, it seems to me it would force significant additional
+> allocation.  As written today, there is nothing in the API that forces
+> any additional allocations of objects defined by the API -- the same
+> result object can be used for the sequences and the values within the
+> sequences.  I do not consider this a big deal, but there have been a
+> number of implementers giving feedback who do care about it, which is
+> why the 1.0 result object looks like it does today.
+
+I don't see any more allocation for us. We would make our item implement 
+whatever interface was specified and just return a pointer to the 
+requested item from the sequence.
+
+> It also may force another level of indirection for users, which may
+> require the user to set up a variable to hold the resulting value object
+> while he accesses multiple firlds of it.   In Java, given the current
+> requirement to cast the result object, this heaps more indirection on
+> the user.
+
+
+//note - very rough code
+
+Access multiple fields using the XPath2Result way
+
+Access multiple fields using the XPath2Result way
+
+XPath2Result xp2r = (XPath2Result)doc.evaluate(...);
+
+while(xp2r.iterateNext()) {
+  String a = xp2r.asString();
+  boolean b = xp2r.asBoolean();
+}
+
+
+And the item way:
+
+XPath2Result xp2r = (XPath2Result)doc.evaluate(...);
+
+while(xp2r.iterateNext()) {
+  String a = xp2r.currentItem().asString();
+  boolean b = xp2r.currentItem().asBoolean();
+}
+
+
+Sure you have 2 extra method calls per iteration(one of which could be
+saved creating a variable) but I don't think it's that big of a cost. And
+realistically, how many times are you going to access multiple fields of
+the item in either case? I think the further indirection adds clarity to 
+the code.
+
+If people feel that this is still cumbersome then we could add a
+getCurrentItem to the XPath2Result interface. This may lead to some
+duplication in methods, but we could always make XPathValue (item) the
+base class for XPath2Result.
+
+
+> In ECMAScript, it makes it more difficult to access the
+> results in a single line, etc.  This was also previously a concern
+> with this approach.
+
+I am unfamiliar with ECMAScript and, if its not too much trouble, would 
+like to see an example.
+
+
+Gareth
+
+
+-- 
+Gareth Reakes, Head of Product Development  +44-1865-203192
+DecisionSoft Limited                        http://www.decisionsoft.com
+XML Development and Services
+
+
+

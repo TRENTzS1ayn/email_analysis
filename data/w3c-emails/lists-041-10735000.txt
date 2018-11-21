@@ -1,0 +1,99 @@
+docno="lists-041-10735000"
+received="Wed Sep 11 17:04:40 2002"
+isoreceived="20020911210440"
+sent="Wed, 11 Sep 2002 14:04:06 -0700"
+isosent="20020911210406"
+name="Babich, Alan"
+email="ABabich@filenet.com"
+subject="RE: Proposal: WebDAV and transactions"
+id="C3AF5E329E21D2119C4C00805F6FF58F08FE5E58@hq-expo2.filenet.com"
+inreplyto="Proposal: WebDAV and transactions"
+expires="-1"
+
+
+To:"'Roy T. Fielding'"<fielding@apache.org>,w3c-dist-auth@w3.org
+
+
+
+
+-----Original Message-----
+From: Roy T. Fielding [mailto:fielding@apache.org] 
+Sent: Wednesday, September 11, 2002 5:14 AM
+To: Eric Sedlar
+Cc: Babich, Alan; 'Julian Reschke'; Pill, Juergen; w3c-dist-auth@w3.org
+Subject: Re: Proposal: WebDAV and transactions
+
+...snip...
+
+>> In the spirit of that analogy, I
+>> am proposing that the entire transaction, conditional processing and all,
+>> should be invoked by one method call. That would do a lot to help protect
+>> the performance of the system.
+
+It would do nothing to help protect the performance of the system.
+There is no effective difference between a sequence of requests with
+time-outs per request and a batch request with time-outs per read.
+The server still has to accumulate requests in storage and is
+subject to the same service problems with stateful behavior.
+
+...snip...
+
+....Roy
+
+That's completely false. 
+
+Last first. The only way to eliminate state on the server that must be
+maintained between method calls ("stateful behavior") is to do the entire
+transaction during one method call. Period.
+
+Going over the network multiple times for multiple method calls clearly
+consumes more computing resources and elapsed time than making a single
+method call. There is more overhead on the client (which doesn't matter) and
+the server (which matters a lot). That's really obvious.
+
+But where client application programmers can really kill the performance of
+the entire system is by introducing the possibility of user think time into
+the middle of a transaction. That is only possible when the transaction can
+consist of multiple method calls: 
+
+Between the method calls, the resources changed have to be locked on the
+server. (Otherwise, you wouldn't have a transaction, because it would have
+the ACID properties.) If a resource that is needed is locked by another
+concurrent transaction, your transaction has to wait. If you wait, you have
+to worry about waiting forever. DBMS's typically solve that problem by doing
+deadlock analysis and picking a transaction to abort and rollback, if
+necessary. The method call can not return until the waiting, if any, is
+finished. Some remote systems don't do deadlock analysis -- they time out.
+Timing out has a terrible impact on performance if it happens more than
+rarely.
+
+Let me give you a real life example that actually happened to me. I was
+checking in at the gate on a flight and requesting a seat assignment. The
+attendant pulled up a screen showing the availability of the kind of seat I
+wanted. In the few seconds during which he said "Yes, we can satisfy your
+request" and I said "OK, do it", the seat disappeared, and he had to say,
+"Sorry, the assignment failed, try again.". The reason that happened is that
+there were two complete transactions involved, not one. The first
+transaction was a retrieval of the seat availability of the entire plane.
+The second was the update transaction. In between the transactions, another
+transaction got in there. 
+
+If you provide the ability to do the retrieval as the first part of the
+transaction (i.e., as a method call), all the seats on the airplane will
+have to stay locked while I make up my mind. Then throughput would be so
+terrible that it would be unacceptable. No one else in the country could get
+a seat assignment on that plane while I was deciding what to do. 
+
+Unfortunately, I know from plenty of personal experience that that is
+exactly the way most client application programmers will initially try to
+program it. Programming it that way will allow them to "shoot themselves in
+the foot". Not allowing that (by requiring that transactions be a single
+method call) will prevent the performance disaster (as well as eliminate
+stateful behavior on the server).
+
+In any case, it is completely false that there is no performance difference.
+
+Alan Babich
+
+
+

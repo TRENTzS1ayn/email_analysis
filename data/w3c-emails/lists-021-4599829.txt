@@ -1,0 +1,84 @@
+docno="lists-021-4599829"
+received="Wed Oct 30 16:45:02 2002"
+isoreceived="20021030214502"
+sent="Wed, 30 Oct 2002 15:40:09 -0500 (EST)"
+isosent="20021030204009"
+name="Alec Segal"
+email="alec.segal@verizon.com"
+subject="FW: fixes for TAP build on Solaris; TAP KB download is not working"
+id="IKEDLNJOAEOLPNIEAKIDIELGCKAA.alec.segal@verizon.com"
+charset="iso-8859-1"
+inreplyto="fixes for TAP build on Solaris; TAP KB download is not working"
+expires="-1"
+
+To:<public-rdf-tap@w3.org>
+
+
+
+I have built TAP for Sun Solaris 8 for SPARC.
+Here is what I have done to make it work.
+
+1. Use apache, not apache2
+2. Edited config.mk, in particular:
+
+LDSHARED=gcc -shared
+BUILDTYPE+=-g -Wall -pthreads
+APRLIBS= -lapr -lrt -lm -lsocket -lnsl -lresolv  -ldl -lpthread
+
+3. MemHash_Node_new was allocating memory not on the long's boundary,
+causing segmentation fault on SPARC during startup, during the database
+import from the data directory.
+
+ MemHash_Node_new(TAP_KB *kb, const char *oid)
+{
+    size_t size = sizeof(MemHash_Node) + strlen(oid) + 1;
+ /* as07: ak03 : Alignment fix!!! */
+    size = (size + sizeof(long) - 1) & ~(sizeof(long) -1);
+ /* end of fix*/
+    MemHash_Node *ret = (MemHash_Node *)
+        MemHash_calloc(kb, size);
+    strcpy(ret->name, oid);
+    return (MemHash_NodeHandle) MemHash_PtrToHandle(kb, ret);
+}
+
+That was enough to start enjoying Apache on my personal workstation.
+
+
+I found that issuiing an empty request from kbx crashes my local server:
+
+desc> use http://mysun.com:8080/data
+Using KB http://mysun.com:8080/data
+desc>
+desc> identify
+props>
+
+causes Segmentation Fault in TAP_Cursor_AddOutputFilter when it calls
+asp_pcalloc, because curs is NULL.
+
+A link to download the database
+http://tap.stanford.edu/data/tap.rdf
+returns an empty messsage, as if the file tap.rdf were missing.
+
+A download for the node Resource through the database browser skips a lot of
+information in the database and returns a broken XML. It generates unpaired
+tags  </0> in the attempt to refer to namespaces, as far as I understand.
+
+I am pushing for an ambitious project, using semantic web technologies, and
+trying to build a demo. The amount of data could be potentially very big.
+So far I am having fun with TAP. Thank you.
+Alec Segal
+
+
+
+
+
+
+
+
+application/octet-stream attachment: tap_kb_memhash.c
+
+application/octet-stream attachment: config.mk
+
+
+
+

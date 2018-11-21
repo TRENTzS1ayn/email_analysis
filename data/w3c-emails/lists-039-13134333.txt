@@ -1,0 +1,188 @@
+docno="lists-039-13134333"
+received="Fri Dec 31 14:37:17 1999"
+isoreceived="19991231193717"
+sent="Thu, 30 Dec 1999 23:41:03 -0500"
+isosent="19991231044103"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="Re: Locking URIs rather than Resources"
+id="85256858.006BBEFD.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+inreplyto="Locking URIs rather than Resources"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+
+Geoff,
+I didn't follow. Is y a lock-null resource in your example below? It seems
+according to your definition below that the URL lock scheme would have the
+same behavior as 2518. If y is a lock-null resource:
+  LOCK /x; Depth:0
+  LOCK /x/y
+
+  LOCK /x/y
+  LOCK /x; Depth:0
+In the first sequence, the LOCK /x/y request fails (assuming the lock token
+is not specified or the user is not the owner of the lock) because x is
+locked and y can't be created in x either as a name or resource with /x/y
+bound to it.
+
+The second sequence, both methods succeed because x isn't locked, so y can
+be created, lock-null or not. Now x can be locked with depth:0 because
+there are no conflicting locks. What am I missing? Or are you just saying
+that LOCK doesn't require a lock token? Why the special case? What happened
+to your proposal to remove lock-null resources?
+
+Now consider the case where y isn't a lock-null resource, but an existing
+resource. The first sequence could succeed without a lock-token on /x
+because locking /x/y doesn't change the state of /x in any way. The second
+sequence would also succeed. Is this what you meant?
+
+If we don't have lock-null resources, how will names be reserved? Don't
+worry about the issue?
+
+Now some locking questions. If LOCK applies to the name, not the resource,
+/x/y.htm is locked, and /b/c.htm is bound to the same resource as /x/y.htm,
+is /b/c.htm locked too? Probably not. A user not owning the lock on
+/x/y.htm could DELETE /b/c.htm since that URL isn't locked. What about LOCK
+/b/c.htm? Say some other user would like this URL to remain fixed, but
+doesn't want to change the contents of the resource. Would that fail due to
+a conflict with the lock on /x/y.htm? Probably should. Now what if a user
+not owning the lock does a PUT on /b/c.htm. According to the definition
+below, this would fail even though the URL isn't locked. So the user can do
+a delete, but not a put on /b/c.htm. Sounds a little confusing. Looks like
+the lock is on both the name and the resource in some way.
+
+
+
+
+
+"Geoffrey M. Clemm" <geoffrey.clemm@rational.com>@w3.org on 12/30/99
+10:26:21 PM
+
+Sent by:  w3c-dist-auth-request@w3.org
+
+
+To:   w3c-dist-auth@w3.org
+cc:
+
+Subject:  Re: Locking URIs rather than Resources
+
+
+
+I agree with all aspects of Yaron's interpretation of the "URL locking"
+proposal.  It illustrates the fact that in this proposal, a LOCK (and
+UNLOCK)
+request never fails due to the absence of a Lock-Token header.
+
+A benefit of this approach can be seen if you invert the order in which the
+locks are issued, namely, instead of:
+  LOCK /x; Depth:0
+  LOCK /x/y
+you request:
+  LOCK /x/y
+  LOCK /x; Depth:0
+
+In the current 2518 model, the first sequence would fail (for the reason
+cited by Yaron) while the second would succeed (I believe ... with 2518,
+you probably could make good arguments for both failure and success of the
+second sequence).
+
+In contrast, the proposed URI locking model treats these sequences
+simply and identically: they both succeed, and they both end up in the
+same state - with a Depth:0 lock on /x and a Depth:infinity lock on
+/x/y.  In this state, if you want to do a PUT to /x/y and /x/y does
+not identify a resource, you need both lock tokens (reasonably enough,
+since you are modifying the state of both /x and /x/y).
+
+Cheers,
+Geoff
+
+   From: "Yaron Goland (Exchange)" <yarong@Exchange.Microsoft.com>
+
+   Before I jump into the fray I want to make sure that I actually
+understand
+   the proposal. One sentence in particular gave me pause for thought.
+Geoff
+   stated that "...a LOCK request *never* requires a lock token". I though
+hard
+   about this, trying to understand exactly what it meant. Below I lay out
+my
+   thinking process so that if I have misunderstood the proposal my error
+can
+   be found and corrected.
+
+   Imagine user U takes out a depth 0 lock on collection C. Collection C
+has no
+   children. The ramification is that no one but U may add a new child to
+C.
+   User A then shows up and wants to create a new resource with the URL
+C/R.
+   Before creating the resource, however, A would like to first reserve the
+   name C/R. To this end A takes out a lock on C/R.
+
+   In the old system A's request would be rejected. The reason is that in
+the
+   old system locks are on resources. Therefore for A to lock the name C/R
+it
+   has to create some resource which 'owns' C/R and then lock that
+resource.
+   This is where lock-null resources came from. They are the 'stand-in'
+   resource who holds the name C/R until A is ready to transfer ownership
+of
+   the name to its final destination. However creating the lock-null
+resource
+   to hold C/R means that the lock-null resource would automatically become
+a
+   child of C. U, through its lock on C, has reserved the exclusive right
+to
+   create children of C. Therefore A's request to lock C/R is rejected
+because
+   the creation of the lock-null resource to hold the name C/R would
+violate
+   U's lock on C. (Is it just me or does the previous sound like an Abbott
+and
+   Castello routine? Castello: Who has the lock? Abbott: Who has the lock.
+   Castello: No, who has the lock?!? Abott: Exactly.)
+
+   But in the new proposal locks aren't on resources, they are on URIs.
+   Therefore when A locks C/R it is not locking a resource, it is locking a
+   name. Names aren't members of collections, resources are. Therefore A
+can
+   lock C/R without running afoul of U's lock on C because C/R, even though
+it
+   is locked, is still not a member of the collection. When A will run into
+   trouble is when it attempts, through a COPY, MOVE, PROPPATCH, PUT,
+MKCOL,
+   etc. to associate the URL C/R with a resource. By associating a resource
+   with C/R A will cause that resource to become a member of C. Of course U
+has
+   reserved the right to create new members of C, therefore A's request
+will be
+   rejected.
+
+   The result is that A can lock C/R without submitting a lock token.
+However
+   there isn't much A can do with the lock on C/R because doing anything to
+it
+   would require associating it with a resource, which U's lock prevents.
+
+   Geoff, did I get it right?
+
+                  Yaron
+
+   > From: Geoffrey M. Clemm [mailto:geoffrey.clemm@rational.com]
+   >
+   > A lock can be placed on a URL with a LOCK request.  This URL is called
+   > the "lock base".  If the lock is Depth:N, then a lock is induced on
+   > any URL that consists of the lock base extended by N or fewer
+   > segments.  Only an authorized holder of a lock token for a locked URL
+   > can modify either the state of the resource identified by the URL, or
+   > which resource is identified by the URL.  A URL MAY NOT be locked
+   > with two exclusive locks with the same locktype.
+
+
+

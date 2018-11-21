@@ -1,0 +1,159 @@
+docno="lists-001-2065454"
+received="Wed Nov 29 02:50:09 2000"
+isoreceived="20001129075009"
+sent="Tue, 28 Nov 2000 15:23:51 -0500 (EST)"
+isosent="20001128202351"
+name="Gregor N. Purdy"
+email="gregor@focusresearch.com"
+subject="Patch to add rudimentary custom entity capability"
+id="3A241277.554038EF@focusresearch.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Greetings.
+
+I was using tidy to process an XML file that used some custom entities.
+Since tidy wasn't aware of those entities, it refused to generate a
+tidied file. I did a little rooting around and modified the code just
+enough to produce the desired effect. There are some TODO comments in
+the code to point out where it is suboptimal. Nonetheless, I'm posting
+it here in case anyone else wants to make use of it or in case someone
+wants to tidy (ahem) it up for inclusion in the next release.
+
+Enjoy.
+
+-- Gregor N. Purdy
+gregor@focusresearch.com
+http://www.focusresearch.com/gregor/
+diff -Naur tidy4aug00/Overview.html tidy4aug00-gnp/Overview.html
+--- tidy4aug00/Overview.htmlFri Aug  4 12:21:05 2000
++++ tidy4aug00-gnp/Overview.htmlTue Nov 28 15:11:34 2000
+@@ -422,6 +422,13 @@
+ this feature is to allow Tidy to be applied to Cold Fusion
+ files.</p>
+ 
++<p>You can also teach Tidy about new entities by declaring them
++in the configuration file, the syntax is:</p>
++
++<pre>
++  new-entities: <em>entity1, entity2, entity3</em>
++</pre>
++
+ <p class="c7">I am working on ways to make it easy to customize
+ the permitted document syntax using <a
+ href="http://www.w3.org/People/Raggett/dtdgen/Docs/">assertion
+@@ -1053,6 +1060,14 @@
+ "slide1.html", "slide2.html" etc. The default is
+ <em>no</em>.</dd>
+ 
++<dt>new-entities: <em>entity1, entity2, entity3</em></dt>
++
++<dd>Use this to declare new entities. The option takes a space
++or comma separated list of entity names. There is no mechanism
++for specifying the values of the entities. Note that tidy still
++does not read custom entities from any internal document subset.
++</dd>
++
+ <dt>new-empty-tags: <em>tag1, tag2, tag3</em></dt>
+ 
+ <dd>Use this to declare new empty inline tags. The option takes a
+@@ -1115,6 +1130,7 @@
+   mprescripts, mtable, mtr, mtd, mth
+ new-blocklevel-tags: cfoutput, cfquery
+ new-empty-tags: cfelse
++new-entities: dollar
+ </pre>
+ 
+ <h3><a id="scripts" name="scripts">Using Tidy from
+diff -Naur tidy4aug00/config.c tidy4aug00-gnp/config.c
+--- tidy4aug00/config.cFri Aug  4 12:21:05 2000
++++ tidy4aug00-gnp/config.cTue Nov 28 15:00:51 2000
+@@ -104,6 +104,7 @@
+ static char *inline_tags;
+ static char *block_tags;
+ static char *empty_tags;
++static char *entities;
+ static char *pre_tags;
+ 
+ 
+@@ -182,6 +183,7 @@
+     {"new-blocklevel-tags", {(int *)&block_tags},   ParseTagNames},
+     {"new-empty-tags",  {(int *)&empty_tags},       ParseTagNames},
+     {"new-pre-tags",    {(int *)&pre_tags},         ParseTagNames},
++    {"new-entities",    {(int *)&entities},         ParseTagNames}, /* TODO: Really should get name+value */
+     {"char-encoding",   {(int *)&CharEncoding},     ParseCharEncoding},
+     {"doctype",         {(int *)&doctype_str},      ParseDocType},
+     {"fix-backslash",   {(int *)&FixBackslash},     ParseBool},
+@@ -663,6 +665,8 @@
+             DefineBlockTag(buf);
+         else if (location.string == &empty_tags)
+             DefineEmptyTag(buf);
++        else if (location.string == &entities)
++            DefineEntity(buf, ""); /* TODO: Really should get its value and pass it in */
+         else if (location.string == &pre_tags)
+             DefinePreTag(buf);
+ 
+diff -Naur tidy4aug00/entities.c tidy4aug00-gnp/entities.c
+--- tidy4aug00/entities.cFri Aug  4 12:21:05 2000
++++ tidy4aug00-gnp/entities.cTue Nov 28 15:01:43 2000
+@@ -357,6 +357,37 @@
+         install(ep->name, ep->code);
+ }
+ 
++void DefineEntity(char * name, char * value)
++{
++int code;
++int l;
++
++l = strlen(value);
++
++if (l == 0)
++{
++code = ' '; /* TODO: This is a bad hack to allow entities to be defined without values */
++}
++else if (l == 1)
++{
++code = value[0];
++}
++else
++{
++/* TODO: We really should handle general entities */
++if (value[0] != '&') return;
++
++/* TODO: We really should handle general entities */
++if (value[1] != '#') return;
++
++code = EntityCode(value);
++
++if (code == 0) return;
++}
++
++install(name, code);
++}
++
+ void FreeEntities(void)
+ {
+     struct nlist *prev, *next;
+diff -Naur tidy4aug00/release-notes.html tidy4aug00-gnp/release-notes.html
+--- tidy4aug00/release-notes.htmlFri Aug  4 12:21:05 2000
++++ tidy4aug00-gnp/release-notes.htmlTue Nov 28 15:07:27 2000
+@@ -73,6 +73,13 @@
+ current workload means that I don't get much time left to work on
+ HTML Tidy.</p>
+ 
++<h2>November 2000</h2>
++
++<p>Gregor N. Purdy &lt;gregor@focusresearch.com&gt made a quick
++hack to permit the definition of custom entities in the config
++file via the new-entities option. This is handy for tidying
++XML files.</p>
++
+ <h2>August 2000</h2>
+ 
+ <p>Ann Navarro comments that the "appears to" message is
+
+
+

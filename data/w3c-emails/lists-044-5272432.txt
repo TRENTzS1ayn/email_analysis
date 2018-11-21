@@ -1,0 +1,176 @@
+docno="lists-044-5272432"
+received="Thu May 11 23:47:26 2000"
+isoreceived="20000512034726"
+sent="Thu, 11 May 2000 23:48:52 -0400"
+isosent="20000512034852"
+name="Mariano P. Consens"
+email="mconsens@uwaterloo.ca"
+subject="RE: ID Conflict avoidance between multiple signature blocks"
+id="NDBBLNCOECHNGPEDNELJCECCCFAA.mconsens@uwaterloo.ca"
+charset="iso-8859-1"
+inreplyto="852568C0.007EB73F.00&#64;D51MTA04.pok.ibm.com"
+expires="-1"
+
+To:<tgindin@us.ibm.com>,"Joseph M. Reagle Jr."<reagle@w3.org>
+Cc:"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+
+
+
+The following discussion highlights the problems caused by signing elements
+with ID attributes (whose value is required to be unique by XML in the
+entire
+document scope), when new documents are created that combine existing
+signed fragments.
+This issue can be considered a more general version of the problem described
+in
+Tom Gindin's e-mail.
+
+Consider a fragment A occurring in one valid XML document (making use of
+Id's
+in an element app:a outside Signature, in a Reference, in KeyInfo, in
+SignatureProperties, as well as in URI and Target attributes referencing
+those
+Id's)
+
+<app:a Id=someContent> ... </app:a>
+<Signature>
+<SignedInfo>
+  <CanonicalizationMethod Algorithm="..."></CanonicalizationMethod>
+  <SignatureMethod Algorithm="..."></SignatureMethod>
+  <Reference Id=contentRef URI="#someContent">
+    <Transforms><Transform Algorithm="..."/></Transform></Transforms>
+    <DigestMethod Algorithm="..."></DigestMethod>
+    <DigestValue> ... </DigestValue>
+  </Reference>
+  <Reference URI="#Keys"> ... </Reference>
+  <Reference URI="#SigProps"> ... </Reference>
+</SignedInfo>
+<SignatureValue> ... </SignatureValue>
+<KeyInfo Id=Keys> ... </KeyInfo>
+<Object><SignatureProperties Id=SigProps>
+  <SignatureProperty Target="#contentRef"> ... </SignatureProperty>
+</SignatureProperties></Object>
+</Signature>
+
+And a similar fragment B (below) in another valid XML document, that has all
+the
+Id's conflicting with the ones in fragment A (to make it easier to highlight
+all the
+possible places where conflicts could occur)
+
+<app:b Id=someContent> ... </app:b>
+<Signature>
+<SignedInfo>
+  <CanonicalizationMethod Algorithm="..."></CanonicalizationMethod>
+  <SignatureMethod Algorithm="..."></SignatureMethod>
+  <Reference Id=contentRef URI="#someContent">
+    <Transforms><Transform Algorithm="..."/></Transform></Transforms>
+    <DigestMethod Algorithm="..."></DigestMethod>
+    <DigestValue> ... </DigestValue>
+  </Reference>
+  <Reference URI="#Keys"> ... </Reference>
+  <Reference URI="#SigProps"> ... </Reference>
+</SignedInfo>
+<SignatureValue> ... </SignatureValue>
+<KeyInfo Id=Keys> ... </KeyInfo>
+<Object><SignatureProperties Id=SigProps>
+  <SignatureProperty Target="#contentRef"> ... </SignatureProperty>
+</SignatureProperties></Object>
+</Signature>
+
+Finally, consider a new fragment C that is created by simply concatenating
+the
+two signed fragments A and B above.
+The document that contains fragment C is invalid because it violates the XML
+validity constraint ID (for the ID values someContent, contentRef, Keys, and
+SigProps).
+
+The goal is to be able to produce a valid XML document that includes a
+fragment
+similar to C that is the result of combining fragments A and B and where the
+original signatures and digests can be verified.
+This is a requirement for applications such as FSML eCheck documents,
+where fragments A and B could be two checks and fragment C a deposit
+containing the two checks (where you want the deposit to be one document
+without references to separate documents containing the checks A and B)
+
+Note that:
+- The Id's are all referenced from URI attributes with short form #Id
+- Eliminating the Id values before digesting and signing (to allow for
+later
+modification of the values to produce a valid version of C) also requires
+eliminating the corresponding URI's (which may not be acceptable to the
+application's security model)
+- Eliminating the Id and URI values before digesting and signing by using
+the existing Transformations facility is not possible for the contents of
+SignedInfo (for instance, it works for Id=someContent, but it does not work
+for URI=#someContent, nor for Id=contentRef)
+- This does not address eliminating other references to an Id value from
+attributes of type uri such as Target, or any other such reference in
+arbitrary application dependent attributes that are digested
+
+Dismissing the problem by requiring that globally unique Id values should be
+generated for fragments A and B ignores that:
+- The applications creating fragments A and B may not have expected to be
+used by a third application creating the fragment C
+- Even if all fragments are created by the same application (or
+applications
+that may be aware of each other), a globally unique Id may be an
+undesirable burden (and could produce unreadable and/or long Id values)
+
+The conclusion is that the usage of Id's within fragments that are going to
+be
+digested and/or signed precludes combining those fragments later in a valid
+document where signatures and digests can be verified.
+
+A proposed solution to this problem will be sent in a follow up message.
+
+Regardless of any specific solution being accepted by the group, I would
+suggest
+to include in the text of the specification a mention of this issue, to make
+the
+reader aware of the potential drawback of using ID attributes within XML
+Signature applications.
+
+Mariano.
+
+  --------------------------------------------------------------------
+  Mariano P. Consens                    Department of Computer Science
+  e-mail: mconsens@uwaterloo.ca         University of Waterloo
+  phone: (519) 888-4567 x-3023          Waterloo, Ontario, N2L 3G1
+  fax: (519) 885-1208                   CANADA
+  --------------------------------------------------------------------
+
+
+> -----Original Message-----
+> From: w3c-ietf-xmldsig-request@w3.org
+> [mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of tgindin@us.ibm.com
+> Sent: April 13, 2000 7:04 PM
+> To: Joseph M. Reagle Jr.
+> Cc: IETF/W3C XML-DSig WG
+> Subject: ID Conflict avoidance between multiple signature blocks
+>
+>
+>      There is one potential problem caused by the requirement that
+> SignatureProperty blocks have document-wide ID's in order to be
+> referenced.
+> When multiple signers are creating Signature's, it is possible for them to
+> have a collision in the ID between signature properties produced by
+> essentially similar code on their separate machines.  This problem can be
+> avoided between signatures with no extra data because most elements of
+> Signature do not have to have an ID.  However, neither Object nor Manifest
+> can be referenced within the signature if they do not have one.  Since the
+> various signature blocks probably don't get to see each other until after
+> the signatures have been completed, they must assign their identities in
+> ignorance of whatever the other may be using.  It may be best to assign a
+> root for all these labels either to a random value or by the digest of the
+> signer's certificate, and form ID's by concatenating programmer-friendly
+> strings to that.  The root could be assigned to Signature or SignedInfo.
+>
+>           Tom Gindin
+>
+>
+>
+
+
+

@@ -1,0 +1,95 @@
+docno="lists-100-15656501"
+received="Fri Jun  1 02:10:03 2001"
+isoreceived="20010601061003"
+sent="Fri, 1 Jun 2001 00:09:21 -0600 "
+isosent="20010601060921"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: First pass at generated schema for DOM 1 + HTML"
+id="B2C1451A181BD411B88A00E018C1C19C08ACC7@thor.aeathtl.com"
+charset="iso-8859-1"
+inreplyto="First pass at generated schema for DOM 1 + HTML"
+expires="-1"
+
+
+To:"'www-dom-ts@w3.org'"<www-dom-ts@w3.org>
+
+[mb] Please forward details on how this would happen.  I am reading
+it as the transformation that generates the code would have to read
+both the instance test definitions and the DOM spec, look up for each
+method what the returnType should be, and then generate the code.
+On the other hand, if we specify them in the schema def, they will
+be visible in the instance, and accessible to the transformation
+directly
+without having to go elsewhere.
+
+Something like:
+
+<xsl:transform>
+<xsl:key name="methods" match="document('domdef.xml')//method" use="@name"/>
+<xsl:key name="attributes" match="document('domdef.xml')//attribute" use="@name"/>
+
+<!--  specific constructs for all language elements -->
+<xsl:template match="assign">
+</xsl:template>
+
+<!--  if this gets executed then it must either be a DOM method or an error -->
+<xsl:template match="*">
+   <xsl:variable name="method" select="key('methods',name())"/>
+   <xsl:choose>
+      <xsl:when test="not($method)">
+          <xsl:variable name="attribute" select="key('attributes',name())"/>
+          <xsl:choose>
+              <xsl:when test="not($attribute)">
+          <xsl:message terminate="yes"><xsl:value-of select="name()"/> not recognized.</xsl:message>
+               </xsl:when>
+....
+          </xsl:choose>
+      </xsl:when>
+      <!--  defined in only one location  -->
+      <xsl:when test="count($method) = 1">
+          <xsl:call-template name="produce-method">
+              <xsl:with-param name=method" select="$method"/>
+          </xsl:call-template>
+      </xsl:when>
+      <!--  defined in multiple locations, pick one base on interface attribute  -->
+      <xsl:otherwise>
+          <xsl:call-template name="produce-method">
+              <xsl:with-param name="method" select="$method[parent::interface/@name=@interface"/>
+          </xsl:call-template>
+      </xsl:otherwise>
+   </xsl:choose>
+</xsl:template>
+
+The produce-method (or produce-attribute) would be passed the appropriate element from the DOM definition, so it would have the return type, the attribute order and type, etc.
+
+What I would expect we would do is to write a transform that extracts just the interface definitions from the DOM specs to produce the file that I called domdef.xml.  However that is not essential.
+
+>NOTE:  I don't want to proceed with more than one transformation.
+>According to the minutes, NIST has responsibility for the 
+Java transformation.  If you plan on writing one as well, 
+>let's discuss it, and try to avoid creating a mess
+>with the transformation.  I would much prefer the 
+>divide-and-conquer method to the
+>everybody try everything and try to reconcile things in the end.
+
+Definitely, I have a mental model of what the transforms for most elements would look like, though nothing coded.  I think I could at
+least get a starting template put together while you are working
+on translating test definitions.
+
+>[mb] Sorry, that's what I get for working without a net (the DOM spec).
+>Just glancing
+>through, I've picked up the following where the spec says No Return
+>Value:
+
+>normalize, appendData, deleteData, insertData, replaceData,
+>setAttribute,
+>setAttributeNS --
+
+I've checked the last schema and those elements do not have
+var attributes.  They may have had them a couple of
+iterations ago due to the typo that I mentioned previously, 
+but they don't appear to have it now.
+
+
+

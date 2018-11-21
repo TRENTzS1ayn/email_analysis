@@ -1,0 +1,105 @@
+docno="lists-009-12052911"
+received="Tue Nov 14 12:32:37 1995"
+isoreceived="19951114173237"
+sent="Tue, 14 Nov 95 11:31:51 PST"
+isosent="19951114193151"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: using opaque strings to determine uniqueness"
+id="9511141931.AA04522@acetes.pa.dec.com"
+inreplyto="Pine.SGI.3.91.951114091046.12134B100000&#64;fully.organic.com"
+expires="1"
+
+
+To: Brian Behlendorf<brian@organic.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Brian Behlendorf writes:
+    While this sounds good in theory, I believe there are situations where 
+    this breaks down. 
+    
+    Time    Action
+    
+    T+0:    client A connects through proxy1.bigISP.com to a server which 
+    contains a document which changes hourly, and has a CID of "X".
+    T+1h:   client B connects through proxy2.bigISP.com to the same server,
+    and gets the hourly-changing document which now has a CID of "Y".
+    T+1h1m: client B "refreshes" the page by doing an IMS request, but this
+    time goes through proxy1.bigISP.com, either because of round-robin
+    DNS or some sort of client load-balancing[*].
+    client B says "send me the document, unless it has the CID of 'Y'"
+    proxy1.bigISP.com sees its CID is "X", not "Y", and sends the OLD
+    DOCUMENT.
+
+    Now, you can say that the server is negligent for not adding "Expires" 
+    headers, but at any rate this works now with true If-Modified-Since.
+
+Hey folks, we're writing the spec, we should be able to require servers
+(and proxies) to play by the rules.
+
+If you recall, I suggested that an object without an explicit Expires:
+header attached must always be validated by a proxy.  There are three
+cases:
+Expires: missing
+validation required on every fetch from any cache
+Expires: "never"
+validation never required (immutable documents)
+Expires: <some timestamp>
+validation not required until <timestamp>, but
+always required after that.
+
+The failure in your example could only happen if either
+(1) The server sets an explicit expiration date that is
+too far in the future
+or
+(2) the caches are not obeying the spec.
+
+I should also point out that the client should NOT be phrasing
+its request as:
+"send me the document, unless it has the CID of 'Y'"
+but rather it should be saying (i.e., the protocol should define
+the requst as meaning):
+send me the document UNLESS my copy with CID=Y is valid
+this puts the burden on the proxy to validate the client's copy,
+rather than on the client to know by magic if CID=Y is still valid.
+
+    And my general gut feeling is that when you design protocols they
+    should map to users and application builder's metaphors as closely
+    as possible - just asking "is this document different" is *much*
+    different than asking "is this document more recent".
+
+My feeling is that when we design protocols, they ought to
+operate correctly.  If our users are naive about the foundations
+of caching in distributed systems (something that even computer
+scientists took several decades to understand), we should make
+the caches transparent to them, not try to adopt some metaphor
+that doesn't actually work.  Remember the solar system prior
+to Copernicus?  It got extremely complicated to do astronomy
+because the "users" were stuck in a geo-centric metaphor.
+
+So users should not normally be placed in the position of having
+to ask for "more recent documents".  The HTTP protocol, servers,
+proxies, and clients should present a valid view of an object
+whenever a user asks to see it.  Of course, we know that implementors
+are only human, and implementations will have bugs.  That's what
+the "reload" key is for, but it shouldn't be used nearly as often
+as we do today.  That's definitely a bug.
+    
+    That said, I think what we need for doing conditional requests is a 
+    general grammar to which we can apply file attributes.  Something like
+    
+But this implies that the clients and servers share a deep understanding
+of the attributes of the objects.  What about objects that don't have
+"modification times"?  What other attributes could be both useful and
+generally supported?  I'm as much of a fan of file attributes as anyone
+(after all, I did my PhD dissertation on the topic), but I don't think
+we should be pushing HTTP in that direction.  HTTP is not a file
+access protocol.
+
+And if someone does come up with another use for attributes, are these
+really the right thing to use for cache validation?  I think not.
+
+-Jeff
+
+
+

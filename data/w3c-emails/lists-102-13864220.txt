@@ -1,0 +1,181 @@
+docno="lists-102-13864220"
+received="Sun Jan 24 20:57:38 1999"
+isoreceived="19990125015738"
+sent="Sun, 24 Jan 1999 17:55:33 -0800"
+isosent="19990125015533"
+name="Keith Bernstein"
+email="keith.bernstein@Eng.Sun.COM"
+subject="DOM II Event Bubbling: DOM-based vs. &quot;view&quot;-based"
+id="36ABCF15.FBEA4BE8@eng.sun.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:"w3c-dom, LIST"<www-dom@w3.org>
+
+The DOM II spec defines event bubbling as bubbling up through the DOM
+tree, not the user-visible "view" tree. I don't believe this is correct,
+though Microsoft's IE behaves this way, so the DOM II rec. likely
+won't/can't/shouldn't change. In any case, I thought I would explain why
+I feel bubbling through the DOM hierarchy is incorrect.
+
+Not using the user-visible "view" hierarchy to "bubble" events is a
+mistake, because if it's not used, then if the visible "view" of one
+element[node] overlayed the "view" of a *sibling* (for example), when
+the mouse was pressed, if the top-most element didn't handle it, the
+sibling below it would never get a shot at it because it would next go
+to the *DOM-parent* of the clicked element. Event dispatching is all
+about getting a user action (e.g. a mouseclick) to the "right"
+widget/element, which, for the user, is some element which is visually
+under the mouse (regardless of its position in the DOM hierarchy) not
+its DOM parent (which could be on the other side of the screen from the
+clicked-on child element).
+
+Yes, the DOM doesn't know about user actions, but nevertheless, it does
+take a starting node, and that starting node is based on where the
+"visual view" is when the mouse is pressed, so why shouldn't subsequent
+nodes' "view" positions be used to bubble the event?
+
+True the DOM doesn't know about user-views of elements etc., but
+whatever external [to the DOM] party does, should traverse that view
+structure, bubbling the event through the DOM nodes associated with the
+view-element hierarchy.
+
+In the "typical" case, using the DOM hierarchy works because layout
+engines use the DOM hierarchy (mostly) as the basis for their layout
+arrangment. But there are other cases.
+
+Imagine, for example, that the "lower" element is a custom button, and
+the "overlayed element" is an icon on the button (and both have been
+placed with absolute positioning). If that were the case, clicking the
+button's image would not cause the button's action method to be called,
+because the button is a sibling, not a parent.
+
+As I said above, Microsoft's IE behaves the way the DOM II spec defines
+bubbling, so deviations would cause incompatibilities, making this more
+of a theoretical point than a practical one, since we are stuck with the
+current situation.
+
+Here is very small JavaScript example (only works in IE) which shows why
+DOM-based event bubbling can do the "wrong" thing, and why view-based
+bubbling, by definition, always does the right thing:
+
+
+<!-- ***************  NOTE: THIS CODE WILL ONLY WORK UNDER IE [it
+modifies the IE-only "event" object  **************************-->
+
+<HTML>
+
+<HEAD>
+
+<TITLE>IE-only JavaScript Event Bubbling Tester</TITLE>
+
+<SCRIPT LANGUAGE="JavaScript">
+
+
+
+function showMessage(messageString, cancelBubble) {
+
+    document.widgets.outputField.value = messageString;
+    if (cancelBubble) {
+event.cancelBubble=true;
+    }
+
+}
+
+
+
+</SCRIPT>
+
+</HEAD>
+
+<BODY>
+
+<H1>IE-only JavaScript Event Bubbling Tester</H1>
+
+(this test only works under IE because it modifies the IE-only "event"
+object)
+
+<FORM NAME="widgets">
+
+    Event Info:
+
+    <INPUT TYPE=text NAME=outputField SIZE=30 readonly>
+
+</FORM>
+
+<TABLE WIDTH=10 BORDER=0 CELLPADDING=0 CELLSPACING=0>
+
+    <TR>
+
+<TD WIDTH=10>
+
+    <P style="background-color: red"
+
+    ONMOUSEDOWN="showMessage('MOUSEDOWN in Red Paragraph', false)"
+
+    ONMOUSEUP="showMessage('MOUSEUP in Red Paragraph', false)">
+
+Blue text with red background,
+
+    <IMG SRC="" style="background-color: blue" NAME="blue" ALIGN=RIGHT
+WIDTH=100 HEIGHT=100 BORDER=0
+
+ONMOUSEDOWN="showMessage('MOUSEDOWN in Blue Image', true)"
+
+ONMOUSEUP="showMessage( 'MOUSEUP in Blue Image', true)">
+
+    <IMG SRC="" style="background-color: green" NAME="green"
+ALIGN=LEFT WIDTH=50 HEIGHT=50 BORDER=0
+<!-- NOTE THAT THERE IS NO MOUSE HANDLER HERE, SO MOUSECLICKS ON THE
+GREEN IMAGE SHOULD "bubble up" -->
+
+which wraps to below the two images.
+
+    </P>
+
+</TD>
+
+    </TR>
+
+</TABLE>
+
+<P>
+In this example, you'll notice that there are a two <B>sibling</B>
+images... a blue one and a green one. The formatting causes the green
+image to actually appear on top of the blue image.
+</P>
+<P>
+The red background paragraph has a mouse handler which cancels bubbling,
+so any text in the "Event Info:" area from the red background's mouse
+handler is guaranteed to be from clicks on either that paragraph, or one
+of its "children".
+</P>
+<P>
+The blue image has a mouse handler which cancels bubbling, so any text
+in the "Event Info:" area from the blue image's mouse handler is
+guaranteed to be from clicks on that image, or one of its "children".
+</P>
+<P>
+The green image has no mouse handler, so any clicks it gets should get
+"bubbled" to its parent. So when the green image is clicked, any text in
+the "Event Info:" is gauranteed to come from one of its <B>parents</B>.
+</P>
+<P>
+You'll notice that when the green image is clicked, the red paragraph's
+event handler is invoked, rather than the blue image's event handler,
+even though based on the visual layout and overlapping of the elements,
+the blue image's event handler should really be called.
+</P>
+<P>
+Imagine, for example, that the blue image is a custom button, and the
+green image is an icon on the button (and both have been placed with
+absolute positioning). If that were the case, clicking the button's
+image would not cause the button to be depressed.
+</P>
+</BODY>
+
+</HTML>
+
+
+

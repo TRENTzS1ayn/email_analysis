@@ -1,0 +1,132 @@
+docno="lists-102-10146732"
+received="Tue Oct 20 13:14:57 1998"
+isoreceived="19981020171457"
+sent="Tue, 20 Oct 1998 18:10:15 +0100"
+isosent="19981020171015"
+name="Miles Sabin"
+email="msabin@cromwellmedia.co.uk"
+subject="Re: An observation about &quot;live&quot; NodeLists"
+id="c=US%a=_%p=Cromwell_Media%l=ODIN-981020171015Z-24762@odin.cromwellmedia.co.uk"
+inreplyto="An observation about &quot;live&quot; NodeLists"
+expires="-1"
+
+
+To:"'DOM list'"<www-dom@w3.org>
+
+As requested ... some elaboration on my slightly
+cryptic comments.
+
+Other than the absence of nested classes, this is the
+the same as the technique mentioned by Ray.
+
+Joe Keshlam wrote,
+> Since Java's GC-based, making the Nodes aware of the
+> NodeLists means the NodeList objects have to persist as
+> long as the Nodes they're based on do; there's no 
+> architected way to tell the DOM that they're no longer
+> needed.
+
+This isn't quite true, tho' it might as well be.
+
+Nodes don't have to be aware of the object which is
+returned to the user ... they only have to be aware of the
+entity that maintains the NodeList state, and that can be
+a separate object, breaking the cycle between the Node and
+the user-level NodeList. So, instead of,
+
+     user-level
+      NodeList
+     reference
+         |
+         |
+         V
+   |-----------|                         |-----------|
+   |           |*------------------------|           |
+   |  NodeList |                         |   Node    |
+   |    Impl   |------------------------*|           |
+   |-----------|                         |-----------|
+
+we have,
+
+   |-----------|      |-----------|      |-----------|
+   |           |*-----|           |*-----|           |
+   |  NodeList |      |  NodeList |      |   Node    | 
+   |   Handle  |      |    Body   |-----*|           |
+   |-----------|      |-----------|      |-----------|
+
+
+The handle object returned to the user will be GC'ed when
+there are no user-level references to it, and its finalize()
+method can invoke a method telling the body object to
+detach itself from its node.
+
+For example,
+
+  
+  // Handle class, instances of which are returned
+  // to DOM users
+  public class NodeListHandle
+    implements NodeList
+  {
+    private NodeListBody itsBody;
+
+    public NodeListHandle(NodeListBody body)
+    {
+      itsBody = body;
+    }
+
+    public void finalize()
+    {
+      itsBody.destroy();
+    }
+
+    public Node item(int index)
+    {
+      return itsBody.item(index);
+    }
+
+    // etc.
+  }
+
+  // Body class, instances of which are referred to
+  // by corresponding handle and Node.  
+  class NodeListBody
+  {
+    private Node itsNode;
+
+    public NodeListBody(Node node)
+    {
+      itsNode = node;
+    }
+
+    public void destroy()
+    {
+      itsNode.deregisterNodeList(this);
+    }
+
+    public Node item(int index)
+    {
+      // whatever
+    }
+
+    // etc.
+  }
+
+This doesn't help much tho', because we're still at the
+mercy of Java GC ... we've no way of knowing when the handle's
+finalize() method will be called, other than by explicitly
+invoking GC, which is probably not a good idea.
+
+Cheers,
+
+
+Miles
+
+-- 
+Miles Sabin                          Cromwell Media
+Internet Systems Architect           5/6 Glenthorne Mews
++44 (0)181 410 2230                  London, W6 0LJ
+msabin@cromwellmedia.co.uk           England
+
+
+

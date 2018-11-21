@@ -1,0 +1,283 @@
+docno="lists-046-2859764"
+received="Mon Jan 28 11:07:38 2002"
+isoreceived="20020128160738"
+sent="Mon, 28 Jan 2002 17:11:16 +0100"
+isosent="20020128161116"
+name="Karl Scheibelhofer"
+email="Karl.Scheibelhofer@iaik.at"
+subject="RE: History: Question on C14N list of nodes instead of subtrees"
+id="004201c1a816$6a720a10$64981b81@iaik.at"
+charset="iso-8859-1"
+inreplyto="200201232028.PAA20575&#64;tux.w3.org"
+expires="-1"
+
+To:<reagle@w3.org>,"'John Boyer'"<JBoyer@PureEdge.com>,"'merlin'"<merlin@baltimore.ie>
+Cc:<w3c-ietf-xmldsig@w3.org>
+
+
+hi all,
+
+because it was my mail and problem, i want to share my further
+experience on this topic. 
+as mentioned we use Xalan to evalutate XPath expressions. even if we
+cached all possible Xalan objects and reused them, we could not achieve
+an acceptable performance. the signature creation/verification took
+several seconds for an XML signature with three references using a XPath
+filter; one for the signed content, one for the key info and one for
+signed properties.
+thus, i decided to implement the necessary subset of XPointer using
+Xalan. this subset implementation is quite small, ~200 lines of code and
+accepts simple XPointers of the form 
+"xmlns(aida=http://www.iaik.at/aida)
+xpointer(./ancestor::aida:eDocument[1]/... ". with this implementation
+the performance raises dramatically, because it evaluates the XPath
+expression in the XPointer only once resulting in the final node-set to
+be serialized. with this XPointer, the signing/verification takes only a
+fraction of a second.
+i agree that if you have a tuned version of an XPath engine, you might
+get a much better performance, but it will never be the same, because
+the filter always needs to check each node of the document; i.e. its
+won't ever perform better than O(n), where n is the numebr of nodes in
+the document. for XPointer you should get O(log n), because you just
+step down the document tree until you reach the subtree's root.
+
+as a consequence of my experience with XPath filters of the form
+
+      <dsig:Reference URI="">
+        <dsig:Transforms>
+          <dsig:Transform
+Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+            <dsig:XPath xmlns:aida="http://www.iaik.at/aida"
+ 
+xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">count(here()/ancestor::a
+ida:eDocument[1]/child::aida:signedContent[1]/descendant-or-self::node()
+...
+
+and XPointers of the form
+
+<dsig:Reference
+URI="#xmlns(aida=http://www.iaik.at/aida)%20xpointer(./ancestor...
+
+, i would never use the Xpath filter version.
+
+i recommend to use XPointers instead of XPath filters wherever possible.
+
+regards
+
+  Karl Scheibelhofer
+
+--
+
+Karl Scheibelhofer, <mailto:Karl.Scheibelhofer@iaik.at>
+Institute for Applied Information Processing and Communications (IAIK)
+at Graz University of Technology, Austria, http://www.iaik.at and
+http://jcewww.iaik.at
+Phone: (+43) (316) 873-5540
+
+> -----Original Message-----
+> From: w3c-ietf-xmldsig-request@w3.org 
+> [mailto:w3c-ietf-xmldsig-request@w3.org] On Behalf Of Joseph Reagle
+> Sent: Wednesday, January 23, 2002 9:28 PM
+> To: John Boyer; merlin
+> Cc: w3c-ietf-xmldsig@w3.org
+> Subject: History: Question on C14N list of nodes instead of subtrees
+> 
+> 
+> A bit of archeology ... I've been corresponding with someone about 
+> performance and dependence on XPtr recently and brought up 
+> message [1]. I 
+> characterized (perhaps mistakenly) the issue as follows, but 
+> this sort of 
+> begs the question of why did we "burst/flatten" our nodelist 
+> in the first 
+> place? Was it so we could easily create subsets as a list of 
+> nodes (making 
+> the "node in subset test" easy?), so that we could easily 
+> remove comments?
+> 
+> ---- Summary Characterization ----
+> 
+> 1. When the signature is in the document being signed 
+> (enveloped) it has to 
+> except itself from the document: a signature can't contain 
+> itself (paradox). 2. One approach is to use XPath to throw 
+> out all the dsig element from the 
+> document and then sign it. BUT what if I'm an enveloped 
+> signature in a 
+> document that has *other* signatures that I want to sign. I 
+> need a way to 
+> say "only throw out the Signatutre element containing *me*" 
+> There's no easy 
+> way to do that so we invented the here() XPath function -- 
+> which is also in 
+> XPtr now.
+> ?http://www.w3.org/TR/xmldsig-core/#function-here
+> 3. The example is someone noting that when someone takes the 
+> enveloped-signature-in-a-document and embeds *that* document 
+> into another 
+> document, the here() expression and processing gets even 
+> heavier! (4. Also note that in our use of XPath we have lists 
+> of XPath nodes 
+> (flattened/burst), not trees. So if we have an XPath element 
+> node *that's* 
+> all it is. "because XPointer typically indicates a subtree of an XML 
+> document's parse tree using just the element node at the root of the 
+> subtree, whereas Canonical XML treats a node-set as a set of 
+> nodes in which 
+> absence of descendant nodes results in absence of their 
+> representative text 
+> from the canonical form." 
+> ? http://www.w3.org/TR/xmldsig-core/#sec-Same-Document
+> )
+> 5. The result is our expression gets really ugly (cause we 
+> need to always 
+> ask for (//. | //@* | //namespace::*) and the processing from 
+> the XPath is 
+> *very* slow: parsing the tree and doing counts. Merlin was 
+> indicating that 
+> in XPointer, the expression would look ?prettier (since it 
+> points to a 
+> subtree, not just a flat node list) and I'm wondering about 
+> the performance 
+> of the XPointer here. Now that I think about it here() probably isn't 
+> something you'd want in a simple profile, but having it be 
+> there and have 
+> it be implemented by fast implementations could've been of 
+> use to us -- or 
+> could in a future version of xmldsig....
+> 
+> ----- Old Email ----
+> 
+> [1] 
+> http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2001AprJu
+> n/0081.html
+> 
+> Subject: Re: Problem: referring to a complete sub-tree using XPath
+> Date: Wed, 25 Apr 2001 09:48:53 +0100
+> From: merlin <merlin@baltimore.ie>
+> To: "Karl Scheibelhofer" <Karl.Scheibelhofer@iaik.at>
+> Cc: "XMLSigWG" <w3c-ietf-xmldsig@w3.org>
+> 
+> Hi Karl,
+> 
+> XPointer is the tool for this job, not XPath. It can do this 
+> reference in a single path evaluation. The xmldsig standard 
+> supports full same-document XPointer references; it is simply 
+> an issue of implementing it ;}
+> 
+> Merlin
+> 
+> r/Karl.Scheibelhofer@iaik.at/2001.04.19/12:57:45
+> 
+> >Hi,
+> >
+> >i use XPath in a reference to select a element of the same 
+> document and
+> >?all its descendants, attributes,... - simply the subtree with the
+> >?specific element as its root.
+> >i already have a XPath that works. however, its awfully 
+> slow, because 
+> >its quite long for this simple task it perfoms.
+> >
+> >here a short example
+> >
+> ><?xml version="1.0" encoding="UTF-8"?>
+> ><aida:eDocument xmlns:aida="http://www.iaik.at/aida"
+> >xmlns:xsi="http://www.w3.org/2000/10/XMLSchema-instance"
+> >xsi:schemaLocation="http://www.iaik.at/aida eDocument.xsd">
+> >? <aida:signedContent>
+> >? ? <personnel 
+> xmlns:xsi="http://www.w3.org/2000/10/XMLSchema-instance"
+> >xsi:noNamespaceSchemaLocation="personal.xsd">
+> >? ? ? <person contr="false" id="Big.Boss">
+> >? ? ? ? <name>
+> >? ? ? ? ? <family>Boss</family>
+> >? ? ? ? ? <given>Big</given>
+> >? ? ? ? </name>
+> >? ? ? ? <email>chief@foo.com</email>
+> >? ? ? ? <link subordinates="one.worker two.worker three.worker 
+> >four.worker five.worker"/>
+> >? ? ? </person>
+> >???????... (omitted some data)
+> >? ? </personnel>
+> >? </aida:signedContent>
+> >? <dsig:Signature Id="eDocumentSignature-1" 
+> >xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+> >? ? <dsig:SignedInfo>
+> >? ? ? <dsig:CanonicalizationMethod 
+> >Algorithm="http://www.w3.org/TR/2000/WD-xml-c14n-20000907"/>
+> >? ? ? <dsig:SignatureMethod 
+> >Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>
+> >? ? ? <dsig:Reference URI="">
+> >? ? ? ? <dsig:Transforms>
+> >? ? ? ? ? <dsig:Transform 
+> >Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+> >? ? ? ? ? ? <dsig:XPath xmlns:aida="http://www.iaik.at/aida"
+> >xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">count((here()
+> /ancestor:
+> >:ai
+> >da
+> >
+> >:eDocument[1]/child::aida:signedContent[1]//. |
+> >
+> >here()/ancestor::aida:eDocument[1]/child::aida:signedContent[
+> 1]//@* | 
+> >here()/ancestor::aida:eDocument[1]/child::aida:signedContent[
+> 1]//namesp
+> >ace
+> >:: *) | self::node()) =
+> >count((here()/ancestor::aida:eDocument[1]/child::aida:signedC
+> ontent[1]//.
+> >?| 
+> here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1]//@* |
+> >?
+> here()/ancestor::aida:eDocument[1]/child::aida:signedContent[1
+> ]//namespac
+> >e:: *))</dsig:XPath>
+> >? ? ? ? ? </dsig:Transform>
+> >? ? ? ? </dsig:Transforms>
+> >? ? ? ? <dsig:DigestMethod
+> >Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+> >? ? ? ? 
+> <dsig:DigestValue>ssbkbDM6VCUTYyzXMK06RKcbFHQ=</dsig:DigestValue>
+> >? ? ? </dsig:Reference>
+> >? ? </dsig:SignedInfo>
+> >
+> ><dsig:SignatureValue>PFkUqjNCq9Ujyl/K/5c62vyEeExIVNFwrrH2ZuxL
+> bmXjH9dQOF
+> >rVw
+> >Po dMb1xUY1Y 
+> >?8iHpAcl8Z6xP3mMCK60ROtVCcDRS2v0ydULhJ+IZFjotIgwtGECy9lxZy4LDkeUJ
+> >?RIvtzlDHBnp5jMb1+iLO1aTvkBzNLWbrAGo+rbqely4=</dsig:SignatureValue>
+> >?<dsig:KeyInfo>
+> >? ? ? <dsig:X509Data>
+> >? ? ? ? <dsig:X509Certificate>MIIC .... (omitted some data)
+> ></dsig:X509Certificate>
+> >? ? ? </dsig:X509Data>
+> >? ? </dsig:KeyInfo>
+> >? </dsig:Signature>
+> ></aida:eDocument>
+> >
+> >i need the here() functionality to ensure that the signature even
+> >?verifies, if i embed the whole document into another xml 
+> document. the 
+> >long XPath the you see in the example just selects the 
+> ><aida:signedContent> element with everything contained within this
+> >?element. does anyone know a simpler XPath that does the 
+> same job? the
+> >?performance of this is unacceptable: up to some minutes if i have a
+> >?medium XML document in the signed content running without 
+> JIT. (i use
+> >?Xerces 1.3.0 [with some patches])
+> >i did not want to use IDs, to be able to arbitrary include signed
+> >?documents into other documents.
+> >
+> >regards,
+> >
+> >? Karl Scheibelhofer
+> 
+> 
+> 
+
+
+

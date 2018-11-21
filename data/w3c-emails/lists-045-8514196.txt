@@ -1,0 +1,126 @@
+docno="lists-045-8514196"
+received="Mon Jan 29 22:00:04 2001"
+isoreceived="20010130030004"
+sent="Mon, 29 Jan 2001 18:25:42 -0800"
+isosent="20010130022542"
+name="Brian LaMacchia"
+email="bal@microsoft.com"
+subject="RE: KeyInfo Extensibility poll"
+id="0C682B70CE37BC4EADED9D375809768A0D0512@red-msg-04.redmond.corp.microsoft.com"
+inreplyto="KeyInfo Extensibility poll"
+expires="-1"
+
+
+To:"'Joseph M. Reagle Jr.'"<reagle@w3.org>
+Cc:"'merlin'"<merlin@baltimore.ie>,"'Donald E. Eastlake 3rd'"<lde008@dma.isg.mot.com>,"'w3c-ietf-xmldsig@w3.org'"<w3c-ietf-xmldsig@w3.org>
+
+I still believe this approach will lead to backward-compatibility problems
+and/or bloat.  Consider the following scenario:
+
+1) I ship a "V1 DSIG client" that conforms to the spec with Option 1.  I
+care about X509Data, say, so I explicitly support parsing the X509Data
+sub-element of KeyInfo, and I accept exactly the elements specified in our
+schema for X509Data.  (Assume my client isn't Schema-aware, since that's not
+required for DSIG -- let's say I hard-code support for the known X509Data
+sub-elements.)
+
+2) Some time after we ship V1, PKIX comes out with their own KeyInfo
+element, call it <PKIX:PKIXData>.  There are a couple possible cases:
+a) PKIX:PKIXData is a subtype of X509Data that extends X509Data
+b) PKIX:PKIXData is not a subtype of X509Data but does contain
+subelement that are substantially similar to subelements on X509Data
+c) PKIX:PKIXData is not a subtype of X509Data and does not contain
+any subelement that is substantially similar to a subelement of X509Data
+
+3) Some other clients ("V2 clients") ship that understand the new
+PKIX:PKIXData, and I ship a signature generator that can insert
+PKIX:PKIXData subelements in KeyInfo.  I now want to be able to generate
+backwards-compatible <KeyInfo>...</KeyInfo> blocks -- blocks that can be
+parsed by both my old V1 clients as well as the new "V2" clients that
+explicitly understand PKIX:PKIXData.  What I have to do depends on whether
+we're in case (a), (b) or (c) above:
+
+Case (a):  PKIX:PKIXData is a subtype of X509Data that extends X509Data
+-----------------------------------------------------------------------
+In this case, I am forced to include in <KeyInfo> *both* an <X509Data>
+element and a <PKIX:PKIXData> element.  My V1 client only understands
+<X509Data>, it can't handle the Schema subtyping relationship so it doesn't
+know that it can find the X509Data fields it wants in PKIX:PKIXData.  I want
+to take advantage of the new fetures available in PKIX:PKIXData for V2
+clients, so I send across a PKIX:PKIXData element too.  I end up duplicating
+the *entire contents of X509Data* inside the PKIX:PKIXData element.  This is
+sub-optimal because I now end up including the same certificate twice in a
+single <KeyInfo> block, for example.
+
+Case (b): PKIX:PKIXData is not a subtype of X509Data but does contain
+subelements that are substantially similar to subelements on X509Data
+---------------------------------------------------------------------
+This is basically the same as Case (a); I must include both <X509Data> and
+<PKIX:PKIXData> for backwards-compatibility, and thus I'll end up
+duplicating data again (all the substantially-similar subelements).
+
+Case (c): PKIX:PKIXData is not a subtype of X509Data and does not contain
+any subelement that is substantially similar to a subelement of X509Data
+---------------------------------------------------------------------
+This case doesn't present any problem of duplicated data, because the two
+data types are declared to be distinct.  Since there is no overlap in
+content between X509Data and PKIX:PKIXData, we include both of them under
+KeyInfo and there's no bloat.  But there's also no subtyping, and any
+relationship between X509Data and PKIX:PKIXData must be expressed by other
+out-of-band means.
+
+None of these options are appealing -- we either get bloat from having to
+duplicate information or we lose the relationship information implied by
+subtyping.  By allowing extensibility through either Option 2 or Option 3 we
+get no bloat *and* we preserve some form of type-relatedness.
+
+The situation would be different, of course, if every DSIG implementation
+was Schema-aware, or if we don't care about backward-compatibility in the
+future, but I don't believe either of those options are viable.
+
+--bal
+
+-----Original Message-----
+From: Joseph M. Reagle Jr. [mailto:reagle@w3.org]
+Sent: Monday, January 29, 2001 1:27 PM
+To: Brian LaMacchia
+Cc: 'merlin'; 'Donald E. Eastlake 3rd'; 'w3c-ietf-xmldsig@w3.org'
+Subject: RE: KeyInfo Extensibility poll 
+
+[...snip...]
+
+>One of my main objections with option 1, which I raised previously during
+>the flap over the exact structure of X509Data, is that the XMLDSIG WG
+should
+>not be in the position of specifying a fixed, non-extensible Scheme for
+data
+>types that are "owned" by another WG.
+
+We own our namespace; they own there's.
+
+>If this WG is not willing to support extensibility within the "best-guess"
+>structures we have created to foster use of the output of the other WGs, I
+>humbly suggest that our best, safest course of action would be to remove
+the
+>X509Data, SPKIData and PGPData sections in their entirety from the draft
+and
+>let each of the other WGs issue RFCs that specify sub-elements of KeyInfo
+>that best represent their own work product.
+
+The nice thing is that they can do exactly this without dropping out 
+"best-guess" approximations because other WGs will do their work in their 
+own namespace. Actually, my interest in not having extensibility at the type
+
+level (PGP, X509, SPKI) is to encourage other WGs to do a better job at the 
+schema class level, instead of hacking on extensions to ours at the instance
+
+level.
+
+__
+Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature
+W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+
+
+

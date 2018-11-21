@@ -1,0 +1,201 @@
+docno="lists-020-5287878"
+received="Tue Jun  8 23:40:09 2004"
+isoreceived="20040609034009"
+sent="Tue, 8 Jun 2004 23:39:36 -0400"
+isosent="20040609033936"
+name="Henry Zongaro"
+email="zongaro@ca.ibm.com"
+subject="RE: [Serial] I18N WG last call comments"
+id="OF6D7A780F.52DCFC3A-ON85256EA6.004E8478-85256EAE.001417A8@ca.ibm.com"
+charset="US-ASCII"
+inreplyto="4.2.0.58.J.20040521171456.05dc6120&#64;localhost"
+expires="-1"
+
+To: Martin Duerst<duerst@w3.org>
+Cc:"Michael Kay"<mhk@mhk.me.uk>,public-qt-comments@w3.org,w3c-i18n-ig@w3.org
+
+
+
+Hi, Martin.
+
+     In [1], you wrote:
+
+Martin Duerst wrote on 2004-05-24 05:31:53 AM:
+> At 17:52 04/05/06 +0100, Michael Kay wrote:
+> >The places where XSLT/XQuery use space as a default separator are all
+> >associated with converting a typed value to the string value of a node, 
+and
+> >are therefore closely associated with this XML Schema convention for
+> >representing lists. Of course we can't totally control how the facility 
+is
+> >used, but we do provide a string-join function that allows any 
+separator to
+> >be used in the lexical representation of a sequence, so we are not 
+imposing
+> >any constraints on users.
+> 
+> Would it be possible for you to write the following three examples:
+> 
+> - An example (such as above with "red", "green", "blue", but with the
+>    actual code) where these are e.g. NMTOKENS, and where the 
+serialization
+>    with spaces makes sense.
+
+Assume the following input document, where the type of the colors 
+attribute is xs:NMTOKENS.
+
+<elem colors="red   green  blue"/>
+
+and the following stylesheet:
+
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                version="2.0">
+  <xsl:template match="/">
+    <xsl:sequence select="data(elem/@colors)"/>
+  </xsl:template>
+</xsl:stylesheet>
+
+The result of serialization will be the following external general parsed 
+entity.
+
+<?xml version="1.0" encoding="UTF-8"?>red green blue
+
+That entity might be subsequently referenced in the content of an element 
+that has the simple type xs:NMTOKENS.  If the PSVI that results is used to 
+construct an instance of the XPath/XQuery Data Model, the typed valued of 
+the element would be a sequence of three values of type xs:NMTOKEN; 
+without the spaces, the typed value would be a sequence of a single value 
+of type xs:NMTOKEN:  "redgreenblue".
+
+
+Compare that with the result of the following stylesheet, where the rules 
+for evaluating an attribute value template (section 5.5 of the last call 
+draft of XSLT 2.0) state that each atomized value in the sequence that 
+results from evaluating each XPath expression will be converted to a 
+string, and separated by a space:
+
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                version="2.0">
+  <xsl:template match="/">
+    <elem colors="{data(elem/@colors)}"/>
+  </xsl:template>
+</xsl:stylesheet>
+
+Result:
+
+<?xml version="1.0" encoding="UTF-8"?><elem colors="red green blue"/>
+
+Again, if that serialized entity is assessed against a schema in which the 
+colors attribute has type xs:NMTOKENS, the typed value of the attribute 
+will be a sequence of three values of type xs:NMTOKEN.
+
+
+Similarly, the result of the following stylesheet, where the rules for 
+constructing complex content (section 5.6.1 of XSLT 2.0) describe how a 
+text node is created from the sequence of atomic values that results from 
+evaluating the xsl:sequence instruction:
+
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                version="2.0">
+  <xsl:template match="/">
+    <elem><xsl:sequence select="data(elem/@colors)"/></elem>
+  </xsl:template>
+</xsl:stylesheet>
+
+Result:
+
+<elem>red green blue</elem>
+
+> - An example with e.g. strings used as intermediate text in a formating-
+>    like operation (a la printf in C), where inserting spaces would 
+happen,
+>    but would not be desired.
+
+Is this the kind of example you're looking for?  I've used an XPath 
+expression to perform a simple date formatting operation, constructing the 
+result as a sequence of strings.
+
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+                xmlns:hz="http://www.example.org"
+                xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                version="2.0"
+                exclude-result-prefixes="hz xs">
+  <xsl:function name="hz:format">
+    <xsl:param name="date" as="xs:date"/>
+    <xsl:param name="format" as="xs:string"/>
+
+    <xsl:sequence
+       select="
+         for $c in
+           (for $i in (1 to string-length($format))
+            return substring($format, $i, 1))
+         return
+           if ($c = 'y') then
+             get-year-from-date($date)
+           else if ($c = 'd') then
+             get-day-from-date($date)
+           else if ($c = 'm') then
+             get-month-from-date($date)
+           else if ($c = 'M') then
+             ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+             [get-month-from-date($date)]
+           else
+             $c"/>
+  </xsl:function>
+
+  <xsl:template match="/">
+    <doc>
+      <v1>
+       <xsl:sequence
+         select="hz:format(xs:date('2004-12-21'), 'y-m-d')"/>
+      </v1>
+      <v2>
+       <xsl:sequence
+         select="hz:format(xs:date('2004-12-31'), 'M d, y')"/>
+      </v2>
+    </doc>
+  </xsl:template>
+</xsl:stylesheet>
+
+This stylesheet will produce the following result, which is probably not 
+what was intended.
+
+<doc><v1>2004 - 12 - 21</v1><v2>Dec   31 ,   2004</v2></doc>
+
+> - The previous example with the above 'string-join' function used to
+>    avoid the problems with spaces.
+
+If I change the definition of hz:format to add in a reference to 
+string-join, specifying '' as the separator,
+
+  <xsl:function name="hz:format-date">
+    <xsl:param name="date" as="xs:date"/>
+    <xsl:param name="format" as="xs:string"/>
+
+    <xsl:sequence
+      select="string-join(
+                for $c in
+                  (for $i in (1 to string-length($format))
+                     return substring($format, $i, 1))
+                return
+                  ...
+              , '')"/>
+  </xsl:function>
+
+the result will be:
+
+<doc><v1>2004-12-21</v1><v2>Dec 31, 2004</v2></doc>
+
+Thanks,
+
+Henry
+[1] 
+http://lists.w3.org/Archives/Public/public-qt-comments/2004May/0053.html
+------------------------------------------------------------------
+Henry Zongaro      Xalan development
+IBM SWS Toronto Lab   T/L 969-6044;  Phone +1 905 413-6044
+mailto:zongaro@ca.ibm.com
+
+
+

@@ -1,0 +1,201 @@
+docno="lists-103-0696561"
+received="Mon Oct 25 16:25:08 1999"
+isoreceived="19991025202508"
+sent="Mon, 25 Oct 1999 14:24:47 -0600 (MDT)"
+isosent="19991025202447"
+name="Ray D. Whitmer"
+email="rayw@imall.com"
+subject="Re: Any reason that the Level 2 interfaces have the EXACT SAME NAME  a s the Level 1 interfaces?"
+id="Pine.GSO.4.05.9910251037060.11974-100000@sol.imall.com"
+charset="US-ASCII"
+inreplyto="28910F983996D2118B320060082E970E7E6BCB&#64;mail.develop.com"
+expires="-1"
+
+To:"Box, Don"<dbox@develop.com>
+cc:"'www-dom@w3.org'"<www-dom@w3.org>, Philippe Le Hegaret<plh@w3.org>
+
+
+On Sun, 24 Oct 1999, Box, Don wrote:
+
+>This makes it extremely hard to write Java code that:
+>
+>a) Allows users to link in their own XML parser that implements org.w3c.*
+
+I believe the Java spec has a very robust class activation 
+mechanism.  Even if a class was compiled against a level 2 
+interface, it can run against a level 1 implementation as 
+long as it calls no level 2 methods.
+
+Users may still easily compile against level 1 interface 
+classes if they desire, and run against either level 1 or
+level 2 implementations.  Java does not resort to linking.  
+
+>b) Mixes Level 1 and Level 2 XML parsers in the same VM.
+
+I believe the Java spec allows free intermixing of 
+implementations and applications where the interface 
+against which they were compiled does not necessarily 
+match the one found in the VM where they run.  The worst 
+that happens if a user attempts to call a method that an 
+implementation did not supply is that an exception is 
+thrown at that point.  As long as the Java spec is correctly 
+implemented.  Level 1 applications will simply always work 
+against the level 2 implementation, and level 2 applications 
+can easily perform one-time checks to make certain the desired 
+functionality is there.  The highest-level version of the
+apis just needs to appear first in the class path.
+
+jdk 1.1 from Sun had some problems -- not just this one :-), 
+but jdk 1.2 from Sun is correctly implemented, and I have 
+proven to myself experimentally that you can freely intermix 
+implementations and applications of level 1 and level 2 DOM 
+in the same VM in all cases.  If you can prove otherwise,
+please supply the example.
+
+>Yes, I know about DOMImplementation.supports, but I am sorry, this is a
+>hack. I strongly suggest you hoist the new Level 2 methods into new
+>interrfaces that extend the Level 1 versions. This could be done as simply
+>as spawning off another package name, as follows:
+
+Certain optional extensions to DOM have been defined as new interfaces 
+in Java. I feel that these cases are different from the common basic ones 
+you are objecting to which are done by simple extension to the 
+existing interface.
+
+Java, JavaScript, and certain other languages go to great lengths to 
+give the user a more-unified non-fragile object model.  There are other 
+language bindings where new interfaces is the best way to go, but even 
+these languages should encourage users to use the supports method to 
+get a less-fragmented and more-timely picture of the underlying 
+support supplied by the implementation.
+
+I like Java for the dynamic object model that C++ never provided.  
+You don't help a Java API by fragmenting it.  Lots of interfaces on a 
+single object produces a decaying vtable, and the more you have, 
+the more you destroy rather than help the type safety and approach a 
+model where you look up every method before you call it.  Over time, 
+there will be more levels of DOM, I believe, which would cause further 
+fragmentation if that model were used -- and it would be bad enough
+just for level 2.
+
+Take, for example, the new functionality of namespaces, which will
+be used literally in every loop and traversal of the hierarchy (at
+least in all my use cases).  Do you really want to be forced to
+test and type cast every node returned by a level 1 traversal method
+just to check the namespace?  Or force implementations to 
+seperately support level 1 and level 2 interfaces with all the 
+methods duplicated?  The alternatives to simply extending the existing 
+interfaces are very ugly and would make me doubt whether I want 
+to use the result in Java.  Why bother, when Java solves the problem
+much more elegantly.  You find similar cases in the JDK 1.2 where 
+new methods are simply added to an existing 1.1 base and it hurts 
+nothing.
+
+Yet with all the problems it would cause, the fragmented interfaces 
+still cannot even guarantee, for example, that level 2 nodes will 
+only have level 2 nodes as children, or that a tree has the necessary
+functionality that the creator of the tree needed.  It would be quite 
+frustrating to execute a lengthy set of manipulations on a document 
+only to discover on the last manipulation that an object, which may 
+not have existed until that point, didn't support a critical interface 
+that was essential to complete the processing.
+
+The "supports" concept and a contract guaranteed by the spec rather 
+than by a fragmented collection of interfaces seems superior because 
+it defines a more usable concept of an implementation's support level 
+-- one that happened by design in the spec rather than happening from 
+a set of unclear relationships between interfaces.
+
+If an application waits until it needs to to call the method to see 
+whether it happens through random good fortune to exist, a failure to
+find the right interface is often no-more catastrophic than the 
+exception that Java would throw.  There is a supports method on every 
+node you can use immediately before you try to call the method.  But 
+there is a better technique which can tell you in advance and save 
+lots of typecasting and checking later.
+
+>This allows me to do the more Java-esque test for extended functionality:
+>
+>public void f(org.w3c.dom.Attr attr)
+>{
+>    if (attr instanceof org.w3c.dom.level2.Attr) {
+>  // use level 2 functionality here
+>    }
+>    else
+>    {
+>   // fall back on Level 1 functionality here
+>    }
+>}
+
+This example is not what I would call good practice, if it occurs
+commonly.  Any place dynamic type checking amd type casting occurs in 
+my code, I am suspicious that the object model is broken.  I find this 
+example a strong case against using new interfaces everywhere, because
+it appears to be such a common case.
+
+While DOM does occasionally rely on typecasting, by and large, 
+Node has enough methods to avoid typecasting in the common cases.
+
+Also, neither level 1 nor level 2 of the DOM guarantees that you 
+know what type of object you have by asking instanceof.  That
+is why the nodeType getter is available on the node.  That you
+find "instanceof" more Java-esque doesn't mean it will be reliable
+since there is nothing in the spec that says a particular object might
+not, for example, implement a CDataSection, a Text, and a Comment, 
+all simultaneously.  Implementations are free to do that, and have
+been free to do that since level 1.
+
+Using supports, an application can make a single test once and know 
+for the whole rest of the document whether the hierarchy had level 2 
+or level 1 nodes in it, and simply call the methods without 
+typecasting.
+
+>For someone implementing a Level 2 parser, one can simply ignore the level 1
+>names as folows:
+>
+>import org.w3c.dom.level2.Element;
+>public class MyElement implements Element
+>{
+>// implement union of Level 1 and Level 2 methods
+>}
+>
+>
+>I really really feel this is an important issue. I have personally written
+>code that loads multiple XML parsers and in the face of Level 1 and Level 2
+>parsers, I see trouble. It is also not that far fetched to come up with
+>scenarios where this can happen (a web server that loads independently
+>developed servlets that each use a different XML parser).
+
+Those on the working group also find that this is a very important 
+issue and spent a lot of time exploring alternatives before deciding 
+to extend the APIs in the way they have been extended and are anxious
+to receive feedback.
+
+The alternative you seem to suggest here of replicating the interfaces and 
+thereby making each object implement two versions of every level 1 routine 
+was thought to be too heavyweight -- actually you haven't made it clear
+in this last example whether you inherit the level 2 interface from the
+level 1 interface forcing typecasting everywhere a level 1 interface is
+returned by a level 1 method, or whether you force a completely seperate
+level 2 implementation, forcing lots of redundant code and mangling of 
+names to allow two versions of a method that took all the same arguments to
+returning either a level 1 or a level 2 version of an object, or whether
+you solve that problem by breaking typecasting between implementations.
+
+I find your one example does not support the apparent premise that using 
+"supports" is somehow a hack and typecasting for every new function is the 
+preferred way to go.  I suspect I'd start using Smalltalk or JavaScript 
+instead of Java before I'd personally accept that premise, because I find 
+having to cast on nearly every line of an application to be useless and 
+broken.
+
+Any language binding for which the multiple interfaces approach is the best
+way to extend DOM is perfectly correct to take that approach.  Perhaps you 
+can give more compelling examples of why you feel that Java should take 
+that approach, or clarify something?
+
+Ray Whitmer
+ray@imall.com
+
+
+

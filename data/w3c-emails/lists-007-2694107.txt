@@ -1,0 +1,77 @@
+docno="lists-007-2694107"
+received="Fri Jan 25 05:54:05 2002"
+isoreceived="20020125105405"
+sent="Fri, 25 Jan 2002 10:45:45 +0000"
+isosent="20020125104545"
+name="Tim Ellison"
+email="Tim_Ellison@uk.ibm.com"
+subject="Re: Checkout, put, checkin"
+id="OF413E1888.F38DD62D-ON80256B4C.0039C775@portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="Checkout, put, checkin"
+expires="-1"
+
+To:"IETF DAV"<ietf-dav-versioning@w3.org>
+
+
+"Elodie Tasia" <e.tasia@ever-team.com> wrote:
+
+> There's something I find strange for a long time about the 
+chekout-put-checkin
+> mechanism :
+> first, you CHECKOUT the resource you want to modify (OK... but you GET 
+it it
+> the same time I suppose... no ?)
+> then, you PUT the modified resource (arg ! that, I can't imagine it : 
+where is
+> this new resource, since it may not overwrite the old one ?)
+> and then you CHECKIN the resource, so that the server records it as a 
+new version...
+> 
+>  seem maybe very stupid, but I don't care ;o)
+
+A reasonable question...
+
+there is nothing in the CHECKOUT / CHECKIN cycle to prevent the 'lost 
+update' problem that is addressed by locks.  You can think of CHECKOUT and 
+CHECKIN as state-changes on the resource mutability 'bit'.  Where there is 
+likely to be contention on a resource, the steps to modify a checked-in 
+version-controlled resource safely will be:
+
+(1) LOCK  /foo
+    locks it so nobody can modify it's content & dead properties.  Since 
+the resource is checked in, it cannot be modified anyway, but the lock is 
+now in place so that you can...
+
+(2) CHECKOUT /foo
+    the checkout marks it as mutable, but since it is locked, the resource 
+content and dead properties can only be modified by clients holding the 
+lock token.  This ensures that nobody else will modify the resource and 
+you will overwrite their changes (or vice versa).
+
+(3) GET /foo
+    PROPFIND /foo
+    yes, if the updated contents or properties are based on the current 
+values, then you will likely be GETting and PROPFINDing them first.
+
+(4) PUT /foo
+    PROPPATCH /foo
+    Now you can modify the resource, passing in the token to indicate you 
+have the lock on that resource.
+
+(5) CHECKIN /foo
+    Finally, when you have the resource in a state that you want to commit 
+to version history, you can check it back in -- which marks it immutable 
+again.
+
+(6) UNLOCK /foo
+    Discard the lock to free it up for others to get in and do their 
+changes.  If others had started the update sequence during your update, 
+they will be stuck at step (1) trying to acquire the lock, and once you 
+have completed this step they will be free to continue.
+
+Regards,
+Tim
+
+
+

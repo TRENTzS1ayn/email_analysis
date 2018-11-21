@@ -1,0 +1,143 @@
+docno="lists-101-14643920"
+received="Wed Jun 18 09:00:54 2003"
+isoreceived="20030618130054"
+sent="Wed, 18 Jun 2003 12:50:33 +0000"
+isosent="20030618125033"
+name="Andrew Clover"
+email="and-w3@doxdesk.com"
+subject="Making TS work in Python (and an L2 suite bug)"
+id="20030618125033.GA18541@doxdesk.com"
+charset="us-ascii"
+inreplyto="3EE7D60A.4010403&#64;houston.rr.com"
+expires="-1"
+
+To:www-dom-ts@w3.org
+Cc:carnold@houston.rr.com
+
+
+
+Curt Arnold <carnold@houston.rr.com> wrote in www-dom list <www-dom@w3.org>:
+
+> If you'd like to take a shot at manually coverting some of the generated 
+> Java or Javascript tests, I'd be willing to create a variant of the 
+> existing stylesheets to produce Python tests.
+
+OK, here's what you'll need to know to produce a Python transformation.
+
+Variables do not have to be declared. Unless a <var> specifies an initial
+value it can be completely ignored.
+
+String and integer literals are the same as ECMAScript. List literals can
+be written as '['...value...','...value...']'.
+
+null literals are 'None'. Boolean literals are 'True' and 'False', but if you
+want to be compatible with Python 2.1 you'll want to use '1' and '0' instead.
+If may be easiest just to add something like:
+
+  null= None
+  true= None is None
+  false= None is not None
+
+at the start of each test, then you can use null/true/false in expressions
+as normal.
+
+method calls are the same as Java and ECMA:
+
+  document.createElementNS(None, "foo")
+
+property access is direct, not through getters/setters:
+
+  root= document.documentElement
+  textNode.data= "foo"
+
+Equality comparison uses the usual '=='/'!=' operator. Same-object comparison
+uses the 'is'/'is not' operator. Checking whether an instance implements an
+interface can't really be done; you can check whether something is a subclass
+instance using isinstance but that's all.
+
+Addition is the usual '+' operator. Logical negation is the 'not' unary
+operator. Appending to a list can be done with the append method:
+
+  comments.append(commentNode)
+
+and getting the length of a list is done using the len() function:
+
+  ncomments= len(comments)
+
+There's no standard for loading documents (until L3 L/S), some sort of
+factory stuff will be needed for <load>, eg.
+
+  from xml.dom import minidom
+  factory= minidom.parse
+  ...
+  import os.path
+  document= factory(os.path.join("files", "staff.xml"))
+
+<for-each> comes out as:
+
+  for membervar in collection:
+    ...indented loop body...
+
+<if><else/></if> comes out as:
+
+  if condition:
+    ...indented body...
+  else:
+    ...
+
+The indent level must be consistent. Don't know if that might be a problem
+with XSLT.
+
+Exceptions are caught using:
+
+  try:
+     ...
+  except:
+     ...
+
+You can't really tell whether the exception that was thrown was a
+DOMException or something else as DOMException is not bound to anything
+in particular. You could try:
+
+  exception= None
+  try:
+    ...
+  except Exception, e:
+    if hasattr(e, code):
+      exception= e.code
+    else:
+      raise
+
+to pass non-DOM errors through.
+
+I think that covers everthing TSML needs.
+
+I've knocked up a quick and (very) dirty Python TSML interpreter which can
+run most L1 and L2 Core tests, to check my own imp; you're welcome to a copy
+if it'd help.
+
+Anyway, the imp passes L1 modulo the setting-a-readonly-node's-nodeValue-
+when-it-is-defined-as-null tests, where I simply cannot agree with the TS's
+strange interpretation of the spec. It's currently making its way through
+L2, not helped by me having downloaded an old version of the suite which is
+full of bugs. Looking at CVS I see at least this one remains, in
+namednodemapsetnameditemns10:
+
+  <getNamedItemNS var="entity" obj="entities" namespaceURI="null"
+  localName='"ent1"'/>
+  ...same for notation...
+
+Entities and notations shouldn't be gettable by NS methods as their
+localNames are null. Hence the entity variable gets set to null, and an imp
+is entitled to throw an implementation-dependant exception (re L1 SE 1.2)
+instead of a HierarchyRequestErr.
+
+I note the native-Java expressions seem to have gone, though, hurrah.
+
+-- 
+Andrew Clover
+mailto:and@doxdesk.com
+http://www.doxdesk.com/
+
+
+

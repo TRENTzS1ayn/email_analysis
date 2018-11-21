@@ -1,0 +1,108 @@
+docno="lists-006-10575830"
+received="Thu Jul 12 07:34:15 2001"
+isoreceived="20010712113415"
+sent="Thu, 12 Jul 2001 12:34:12 +0100"
+isosent="20010712113412"
+name="Tim Ellison"
+email="Tim_Ellison@uk.ibm.com"
+subject="Re: auto-checkout and auto-checkin"
+id="OF79FA609B.6EEA0C1E-ON80256A87.003BA2F2@portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="auto-checkout and auto-checkin"
+expires="-1"
+
+To:"DeltaV"<ietf-dav-versioning@w3.org>
+
+
+
+> I used to think I understood what the auto checkin/checkout
+> stuff did, and meant.  Now I think I don't.  The latest
+> changes to that section of the spec
+> (might have been a while ago) actually made it harder to handle.
+>
+> 1.  If I read the definition of auto-checkout, it's pretty
+> clear the checkout is triggered by a modification request,
+> but whether the trigger happens is dependent on the _state_
+> of the resource.
+
+Right, in particular whether the resource is checked-in or not and whether
+it is locked or not.
+
+> Thus "unlocked-update" means "if the resource is unlocked when
+> the trigger event happens, do a checkout".  But then the
+> definition of auto-checkin is not the same.  I would have
+> thought "unlocked-update" meant "when the resource is unlocked
+> do a checkin", but that's different than the definition of
+> auto-checkout.
+
+Auto-checkin means that *if* the resource was auto-checked-out then it
+should also be auto-checked-in after the modification request (trigger)
+subject to its locked state.
+
+If the DAV:auto-checkin value is DAV:unlocked-update that likely means that
+the client has locked the resource and is performing multiple modification
+requests on it.  Rather than capture each modification as a version, the
+modifications are grouped by the lifetime of the lock.  Once the lock is
+removed (explicitly or by timeout) the group of changes are captured as a
+version by an auto-checkin (again, it must have been auto-checked-out
+though).
+If the resource was not locked when it was modified a new version will be
+captured for each modification request.
+
+The scenarios for DAV:auto-checkin with a value DAV:locked-update are less
+likely.  Either the resource was locked when it was auto-checked-out and
+every modification request should result in a version, or the resource was
+unlocked when it was auto-checked-out and it should be captured as a
+version when locked and subsequently modified.
+
+> At any rate, whether the tags mean the same
+> thing in both properties is one problem, but what both tags mean
+> for auto-checkin is the real problem.  The missing piece of
+> information for auto-checkin is what requests TRIGGER the
+> auto-checkin behaviour.
+
+It is still the modification request.  So imagine an unlocked version
+controlled resource with values
+DAV:auto-checkout -> DAV:unlocked-update
+DAV:auto-checkin -> DAV:locked-update
+
+Client issues:         Server does:        Version-controlled resource:
+                                           checked-in, unlocked
+PUT                    CHECKOUT            checked-out, unlocked
+                       PUT
+LOCK                   LOCK                checked-out, locked
+PUT                    PUT
+                       CHECKIN             checked-in, locked
+UNLOCK                 UNLOCK              checked-in, unlocked
+
+(Why would you do that?)
+
+> 2.  Is it really reasonable for a server to have unlocked-update,
+> but NOT locked-update?  Currently the spec allows either value,
+> both or neither.  This is a total of four states the client must
+> understand.  One can be eliminated.
+
+I agree that there are combinations that don't make much sense.
+
+> 3.  Is it really reasonable for a server to have auto-checkin
+> behaviour but no auto-checkout behaviour?  E.g. have a auto-
+> checkin with "unlocked-update" but auto-checkout shows nothing?
+> If it's not reasonable, then 3 additional states  can be
+> eliminated without the client having to worry about them.
+
+Auto-checkin means nothing without auto-checkout.
+
+> On the whole, I preferred the automatic checkin/checkout stuff
+> the way I remember it - there was less combinatorial confusion,
+> there were no unreasonable settings, and the explanations were
+> clearer.
+
+It was simpler, but some folk complained that their use case was not
+satisfied by it.  I recall the "make the lifetime of the check-out the same
+as that of the lock" as a reasonable request, but the others I forget.
+
+Regards,
+Tim
+
+
+

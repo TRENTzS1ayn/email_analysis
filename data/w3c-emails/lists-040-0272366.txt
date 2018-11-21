@@ -1,0 +1,162 @@
+docno="lists-040-0272366"
+received="Mon Jan 31 13:30:47 2000"
+isoreceived="20000131183047"
+sent="Mon, 31 Jan 2000 13:30:22 -0500"
+isosent="20000131183022"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="Re: RFC-2518 LOCK-TOKEN: header"
+id="85256877.0065A3AF.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+inreplyto="RFC-2518 LOCK-TOKEN: header"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+
+I agree with everything Geoff says, but I still think lock-tokens alone
+aren't enough. Geoff says lock-tokens should be associated with clients.
+But the only way this can be done is if clients don't reuse some other
+client's lock token, or arbitrarily unlock them and get their own lock
+token. If all clients were well-behaved and only:
+    - used lock tokens the obtained from LOCK to update resources
+    - except on rare and well coordincate instances, only unlock resources
+they locked
+    - never used shared locks
+then this would work. Do we want locks to be purly advisory like this? I
+would be willing to consider it. I've just been working on the assumption
+that we wanted the server to do more.
+
+But I still think there is a problem. In Geoff's scheme, lock-tokens are
+now associated (essentially and by convention) with the client that took
+out the lock. But there's no way in HTTP for the client to identify itself,
+and therefore no way for the server to remember what client took out the
+lock. That's why the server can't ensure only the client that got the lock
+can update the resource, not just any client that might have the lock
+token. So again, there's no way for the client to determine what lock
+tokens it took out (i.e., owns) through a DAV:lockdiscovery. We're back to
+having clients have to persist their lock tokens someplace else. I was
+hoping to avoid this by at least using a DAV:principal in the
+DAV:activelock to find the locks a particular principal owns.
+
+
+
+
+
+
+"Geoffrey M. Clemm" <geoffrey.clemm@rational.com>@w3.org on 01/31/2000
+10:37:24 AM
+
+Sent by:  w3c-dist-auth-request@w3.org
+
+
+To:   w3c-dist-auth@w3.org
+cc:
+
+Subject:  Re: RFC-2518 LOCK-TOKEN: header
+
+
+
+   From: jamsden@us.ibm.com
+
+   <geoff>
+   ... if clients aren't going to restrict themselves to using
+   the lock tokens that they created via LOCK, but will grab any
+   lock-token that was created by their principal, then there is no
+   reason to have the complexity of lock-tokens in the protocol.
+   </geoff>
+
+   <jra>
+   We're getting there. The reason for associating the lock token with a
+   principal is to give that principal the flexibility of running
+concurrent
+   clients that may update the same resource.
+
+A principal can run concurrent clients that may update the same resource,
+whether or not a lock token is associated with a principal.
+
+   Since not all these clients
+   actually locked the resource but got the lock token some other way, they
+   are aware that there might be other clients that have the same lock
+token
+   and can warn the principal before using the lock token to update a
+locked
+   resource.
+
+So every time such a client does a PUT/PROPPATCH to a "locked" resource,
+it pops up a warning message saying "this might overwrite updates pending
+in other clients working on your behalf, but I have no idea whether it
+does or not because we use each others' lock tokens".  This is not a
+behavior for which I would deliberately design a protocol.
+
+Alternatively, the clients could be written to first UNLOCK a resource that
+was locked by some other client, and then that other client (whether it
+belonged to you or some other principal) would know this has occurred as
+soon as it tries to make its next update, and could then notify that other
+client's user that a merge conflict has occurred because someone
+UNLOCK'ed your lock.
+
+   ...
+   3. Multiple clients run by the same principal would have to get there
+own
+   possibly exclusive write locks which would limit data availability by a
+   single principal who likely knows what they are doing at the moment, and
+if
+   it is safe to proceed with an update. For example, the principal may be
+   running many concurrent clients, but only one of them is active at a
+time.
+   The others are all waiting for input.
+
+As a side note, "shared locks" are just, well, to be blunt, silly.
+RFC2518 says you can take out a shared lock if you are a "principal
+with appropriate access".  But if you are a principal with appropriate
+access, you should just UNLOCK the resource and take out your own
+exclusive lock on it.  This gives you all the benefits of "shared
+locks", without losing the overwrite protection of exclusive locks.
+Perhaps "silly" is a bit harsh ... or perhaps it is not harsh enough (:-).
+
+Now as for the limiting data availability, how does the need to first
+UNLOCK a locked-by-another client resource limit data availability?
+Your client confirms (by asking you) that you really want to "steal" the
+resource from another client (using the DAV:owner field to give a more
+informative message), then UNLOCKs the resource, and then LOCKs
+the resource to get its own locktoken.
+
+I believe that you are try to get ACL behavior out of locktokens ...
+I'd prefer to use ACL's to get ACL behavior (:-).  An ACL lets
+you control which principals have write access to a resource (to prevent
+damage from "hostile" principals), while locktokens lets cooperating
+clients avoid merge conflicts.  An ACL is resource based and associated
+with principals; a locktoken is URL-based and associated with clients.
+
+   So I think associating the lock token with a principal is a reasonable
+and
+   useful compromise. It doesn't give absolute and complete overwrite
+   protection for multiple current clients run by the same principal, but
+it
+   does guarantee overwrite protection between principals.
+
+Associating a lock token with a principal is both too strong (it prevents
+another principal with the same or higher access rights from authoring
+that resource) and is too weak (it doesn't help avoid merge conflicts
+between clients acting on behalf of the same client).
+
+If this approach were consistent with our future direction (associating
+ACL's with resources), I'd be more willing to accept it, but it isn't.
+Requiring that only a principal that issued a LOCK can cancel that LOCK
+will conflict with any attempts to allow a wider "trust" group for
+that operation.
+
+   Note that GULP R8 is consistent with associating principals with lock
+   tokens.
+
+Yes, that has been fixed (:-).  All mention of a "principal" has been
+removed from R8.
+
+Cheers,
+Geoff
+
+
+

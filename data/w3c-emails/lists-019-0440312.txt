@@ -1,0 +1,122 @@
+docno="lists-019-0440312"
+received="Thu May  8 05:54:45 2003"
+isoreceived="20030508095445"
+sent="Thu, 08 May 2003 11:53:33 +0200"
+isosent="20030508095333"
+name="Tobias Reif"
+email="tobiasreif@pinkjuice.com"
+subject="creating sequences: defaults, surprises, syntax and semantics"
+id="3EBA291D.8050005@pinkjuice.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+
+Contary to what the grandiose-sounding subject line suggests, this is 
+neither an exhaustive description of the issue, nor a complete solution. 
+It's just an impression I got while working with the current draft for 
+XSLT 2.
+
+1. Why do I get a string for my sequence?
+
+I needed to send a sequence of strings to a template.
+
+This worked
+
+   ...
+   <xsl:call-template name="elements">
+     <xsl:with-param name="choices" select="('div', 'p', 'span')"/>
+   ..
+
+Those didn't
+
+   <xsl:with-param name="choices"/>
+     <xsl:sequence select="('div', 'p', 'span')"/>
+   </xsl:with-param>
+
+   <xsl:with-param name="choices"/>
+     <xsl:copy-of select="('div', 'p', 'span')"/>
+   </xsl:with-param>
+
+Why? I was surprised and confused.
+(look below for why the former example didn't fully cut it in this case)
+
+Mike explained to me that the enclosing instruction turns the sequence 
+into a string.
+
+This is counter-intuitive IMHO: if I supply a sequence, and there is no 
+"as" attribute, then I think it's a confusing surprise that I get a 
+string instead of a sequence.
+
+So I need to write
+
+   <xsl:with-param name="choices" as="xs:string*"/>
+     <xsl:sequence select="'div', 'p', 'span'"/>
+   </xsl:with-param>
+
+or alternatively (copy-of, optional parentheses around sequence)
+
+   <xsl:with-param name="choices" as="xs:string*"/>
+     <xsl:copy-of select="('div', 'p', 'span')"/>
+    </xsl:with-param>
+
+and when assigning a sequence to a variable, I'd do
+
+   <xsl:variable name="choices" as="xs:string*"/>
+     <xsl:sequence select="'div', 'p', 'span'"/>
+   </xsl:variable>
+
+If I omit the "as" attribute and supply a sequence I get a string; not 
+what I want.
+If I want to get a sequence for my sequence, I need to specify 
+as="xs:string*".
+I think it would be much more clear if the default behaviour would be to 
+return a sequence for a sequence,
+just as in
+   <xsl:with-param name="choices" select="('div', 'p', 'span')"/>)
+.
+
+When I write
+
+  ...
+  <xsl:variable name="out">
+    <xsl:choose>
+      <xsl:when test="$in='phrase'">
+        <xsl:sequence select="('span','p','div')"/>
+      </xsl:when>
+      <xsl:when test="$in='div'">
+        <xsl:sequence select="('div','p','span')"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:copy-of select="('baar', 'blamm')"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:variable>
+
+   ...
+   <xsl:call-template name="elements">
+     <xsl:with-param name="choices" select="$out"/>
+   ..
+
+I'd like the have a sequence assigned to the variable and send to the 
+called template, not a string. *If* I would like to turn the sequence 
+into something else, I would say so by adding an "as" attribute.
+
+The issue lies in an area where ease of use an intuitiveness of XSLT 2 
+can be improved. AFAIK a nice solution would probably involve breaking 
+XSLT 1.0 backwards compatibility, but I think it would be worth it.
+
+2. A question:
+
+Can a sequence consist of numbers, strings, etc, mixed? (Didn't yet read 
+through all ten specs :)
+
+Tobi
+
+-- 
+http://www.pinkjuice.com/
+
+
+

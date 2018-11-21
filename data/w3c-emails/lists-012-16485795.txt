@@ -1,0 +1,155 @@
+docno="lists-012-16485795"
+received="Thu Apr 12 21:07:24 2001"
+isoreceived="20010413010724"
+sent="Thu, 12 Apr 2001 16:03:22 0400"
+isosent="20010412200322"
+name="Patrick McManus"
+email="mcmanus@appliedtheory.com"
+subject="Re: Proposal (I-D) for extending HTTP to support out-oforder responses"
+id="20010412160322.A12494@AppliedTheory.com"
+charset="usascii"
+inreplyto="200104111846.LAA05896&#64;wera.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg@hplb.hpl.hp.com
+
+
+
+> I'm just looking for comments on whether the protocol makes sense
+> (and, in particular, whether it might lead to screwups by caching
+> proxies that don't comply with the HTTP specifications).
+
+2 thoughts, the first is just a throw-away:
+
+1 - HTTP is stateless. indeed 2616 in its intro describes itself this
+    way.. this is a pretty fundamental change, even as an optional
+    extension.. so the intro should probably discuss it. that's all.
+
+2 - This isn't a safety/correctness thing, but it seems like its a bit of
+  a problem to effective usage..
+
+given: 1] non-safe methods like POST or PUT are more likely  to be
+          barrier-requests than GETs
+ 
+       2] POSTs and PUTs can have large request bodies with
+       significant upload latencies
+
+       3] large request bodies benefit from the expect/100-continue
+       mechanism
+
+       4] real networks often have symmetric up and down capactiy that
+       its a big win to leverage by overlapping.
+
+I'm thinking about the expect/continue mechanism and how the execution
+of a resource by a big POST or PUT is likely to be a sequence point
+(and thus a barrier request). the time spent uploading the data would
+do well to be overlapped with any outstanding responses even if it
+can't be executed until outstanding requests have been processed.. but
+if we mark it a sequence point we can't do that because the server
+can't say 100-continue until all of the outstanding requests have been
+satisfied.. it'd be nice to be able to separate the out-of-order
+properties of the 100 with that of the final response so that a "start
+sending" signal could be given OOO but the resource itself not
+executed OOO. Obviously this requires some server side buffering, and
+if it's not willing to do that it could simply do the 100 in-order.
+
+the obvious way to do this seems to be to associate an attribute with
+100-continue.. say ERID that works similarly to RID, but applies only
+to the 100 response, not the final one.
+
+hopefully the following case played out 3 ways will help illustrate:
+
+assume we've got a POST(d) that takes 6 units to send, and 5 responses
+that take 4(a), 5(b.cgi), 2(c), and 2(d), 3(e) to send. throw in the
+kicker that b.cgi takes 5 units of time to calculate its response and
+d takes 2 units to process the big post.
+
+first, the we'll do the easy case where d is not a request-barrier.
+
+
+Time    Upstream    Downstream
+-------------    -----------
+1        GET /a, RID: 1       
+2        GET /b.cgi, RID: 2                 200 - RID : 1 (1/4)
+3        GET /c, RID: 3    200 - RID : 1 (2/4)
+4        POST /d, RID:4, Expect:..    200 - RID : 1 (3/4)
+5    200 - RID : 1 (4/4)
+6    100 - RID : 4 (1/1)
+7POST/d, RID: 4 body (1/6)    200 - RID : 3 (1/2)
+8POST/d, RID: 4 body (2/6)    200 - RID : 3 (2/2)
+9POST/d, RID: 4 body (3/6)    200 - RID : 2 (1/5)
+10POST/d, RID: 4 body (4/6)    200 - RID : 2 (2/5)
+11POST/d, RID: 4 body (5/6)    200 - RID : 2 (3/5)
+12POST/d, RID: 4 body (6/6)    200 - RID : 2 (4/5)
+13GET /e, RID: 5    200 - RID : 2 (5/5)
+14    200 - RID : 5 (1/3)
+15    200 - RID : 5 (2/3)
+16    200 - RID : 5 (3/3)
+17    200 - RID : 4 (1/2)
+18    200 - RID : 4 (2/2)
+
+18 units.. pretty cool.. 
+
+but now, what if /d (the post) is a request barrier under mogul-00?
+
+Time    Upstream    Downstream
+-------------    -----------
+1        GET /a, RID: 1       
+2        GET /b.cgi, RID: 2                 200 - RID : 1 (1/4)
+3        GET /c, RID: 3    200 - RID : 1 (2/4)
+4        POST /d,  Expect:..    200 - RID : 1 (3/4)
+5    200 - RID : 1 (4/4)
+6    200 - RID : 3 (1/2)
+7    200 - RID : 3 (2/2)
+8    200 - RID : 2 (1/5)
+9    200 - RID : 2 (2/5)
+10    200 - RID : 2 (3/5)
+11    200 - RID : 2 (4/5)
+12    200 - RID : 2 (5/5)
+13    100 continue
+14       POST/d, body (1/6)
+15       POST/d, body (2/6)
+16       POST/d, body (3/6)
+17       POST/d, body (4/6)
+18       POST/d, body (5/6)
+19       POST/d, body (6/6)
+20 GET /e, RID: 5    [wait - processing d]
+21     [wait - processing d]
+22    200   (1/2) 
+23    200   (2/2) 
+24    200 - RID : 5 (1/3)
+25    200 - RID : 5 (1/3)
+26    200 - RID : 5 (1/3)
+
+26 units.. not as cool.. but what if the 100-continue could be out of
+order, without making the final response out of order?
+
+Time    Upstream    Downstream
+-------------    -----------
+1        GET /a RID: 1       
+2        GET /b.cgi, RID: 2                 200 - RID : 1 (1/4)
+3        GET /c, RID: 3    200 - RID : 1 (2/4)
+4        POST /d, Expect: 100-c..; ERID=E1  200 - RID : 1 (3/4)
+5    200 - RID : 1 (4/4)
+6    100 - ERID : E1 (1/1)
+7POST/d, RID: 4 body (1/6)    200 - RID : 3 (1/2)
+8POST/d, RID: 4 body (2/6)    200 - RID : 3 (2/2)
+9POST/d, RID: 4 body (3/6)    200 - RID : 2 (1/5)
+10POST/d, RID: 4 body (4/6)    200 - RID : 2 (2/5)
+11POST/d, RID: 4 body (5/6)    200 - RID : 2 (3/5)
+12POST/d, RID: 4 body (6/6)    200 - RID : 2 (4/5)
+13GET /e, RID: 5    200 - RID : 2 (5/5)
+14    [ wait - processing d]
+15    200 (1/2)
+16    200 (1/2)
+17    200 - RID : 5 (1/3)
+18    200 - RID : 5 (2/3)
+19    200 - RID : 5 (3/3)
+
+19 units!
+
+-Patrick
+
+
+

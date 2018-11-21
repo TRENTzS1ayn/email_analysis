@@ -1,0 +1,91 @@
+docno="lists-103-5904331"
+received="Fri Mar  3 14:20:50 2000"
+isoreceived="20000303192050"
+sent="Fri, 3 Mar 2000 14:20:19 -0500"
+isosent="20000303192019"
+name="keshlam@us.ibm.com"
+email="keshlam@us.ibm.com"
+subject="Re: Namespace treatment"
+id="85256897.006A388A.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="Namespace treatment"
+expires="-1"
+
+To:"www-dom@w3.org"<www-dom@w3.org>
+
+
+>There is a peculiar asymmetry in the way the DOM models namespaces. It
+>is said, for example, that a given element node (as any node) is bound
+>to a namespace. This although it is not the node which stands in a
+>relation to a namespace, but the node's name. Why was it deemed
+>necessary to close this transitive relation in the model?
+
+It's really an early-binding/late-binding issue. We could have bound the
+URI to the name, and said that every time you try to get the namespace URI,
+we would resolve it in the context of the namespace declaration attributes
+at and above that node. This might have been more elegant, but would
+definitely have involved more computation.
+
+Also, it's unclear that's the right behavior. What if you move a node from
+one point to another, and thereby into a context where the same prefix is
+bound to a different URI? It's "the same node object", so one can argue
+that its behavior shouldn't change -- and that therefore it should stay in
+the original namespace. (This is more important if you have a DOM which
+subclasses nodes based on which namespace they belong to -- we aren't sure
+whether anyone will do that, but we didn't want to rule it out.)
+
+We really did consider trying to define things such that the behavior would
+always be consistent with writing out to XML text, making a change at that
+level, and reading it back in. But our conclusion was that the DOM
+represents the infoset -- the data model of the XML document's contents,
+rather than its syntax -- and that the early-binding approach was most
+practical for most DOM applications. Complications only arise if you really
+want to change a node's namespace URI (in which case we feel you should
+create a new node, since the URI is part of the node's identity in the same
+sense that localname is), or at serialization time (see below).
+
+>Any "namespace" attributes
+>are superfluous. They could well be trashed upon element modification
+>and generated (with caching if so desired) as requested.
+
+True. Note that the Infoset says that the namespace declarations are not
+really attributes, and some folks did argue that they shouldn't appear in
+the DOM at all. But we wanted to allow Level 1 "pseudo-namespace" code to
+continue working with Level 2 DOMs, and that meant retaining the
+declarations.
+
+>Why normalize? ever?
+
+Valid question. But there were requests -- e.g. from those who (like
+Deiter) don't like the look of attributes with qualified-name collisions --
+for such a mechanism. Since the Load/Save chapter of Level 3 is going to
+have to deal with that anyway, our current guess is that exposing it as a
+separate method ought to be easy. If it isn't, we'll have to do a more
+serious cost/benefit analysis.
+
+>>     In Level 2, that normalization task is left as an exercise for
+>> the reader,
+> poor soul...
+
+In fact, I expect that most folks will use a serializer that was packaged
+with their parser... so this is mostly an exercise for the experts, who
+probably have a pretty good handle on how to deal with it.
+
+Shouldn't be bad. During the tree-walk, if you see a prefix-to-URI binding
+that isn't currently declared, issue a declaration at that node (or, in the
+case of an Attr, at the owningNode -- yes, this requires a tiny bit of
+lookahead). While you're at it, you can reconcile any Attr qualified-name
+conflicts. There's room to get more sophisticated about it but that
+just-do-it-locally approach will work, and the fancier you get the more
+likely someone will quibble about how your style doesn't match theirs.
+<grin/> At the other extreme, you can discard _all_ the existing
+declarations and create new ones at the top of the document, with entirely
+synthetic prefixes... but the prefixes might be meaningful to a human
+reading the document (xsl:, for example), and DTD validation breaks down if
+you don't use the prefixes the DTD expects (comment withheld).
+
+______________________________________
+Joe Kesselman  / IBM Research
+
+
+

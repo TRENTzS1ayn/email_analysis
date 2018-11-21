@@ -1,0 +1,89 @@
+docno="lists-011-11152575"
+received="Tue Nov 18 17:22:27 1997"
+isoreceived="19971118222227"
+sent="Tue, 18 Nov 97 17:16:00 PST"
+isosent="19971119011600"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Parameters for transfercodings?"
+id="9711190116.AA01262@acetes.pa.dec.com"
+inreplyto="3.0.3.32.19971117165339.00ad3600&#64;localhost"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+I expect to get flamed for this message, but I sort of promised someone
+that I would make the attempt.
+
+Some of the potentially-useful transfer-coding algorithms are
+inherently parameterizable.  For example, "gzip" has 9 different
+compression levels (trading off compression ratio for speed).
+"compress" has a range of possible settings (I'm not quite sure how
+many).  In both cases, once the sender has chosen a setting, the
+recipient should be able to decompress the result, but HTTP provides no
+mechanism for the client to suggest the preferred setting.
+
+Somewhat more exotic, but hardly without practical merit, is the
+possibility of using pre-agreed compression dictionaries to further
+reduce the size of the transferred compressed form.  The idea is that
+it should take fewer bytes to send the name of the appropriate
+dictionary than to transmit its contents.  However, in this case, the
+sender needs a way to name the dictionary used in the message.
+
+One of my friends in the data compression community has been beating me
+up about this for a while, and I've fought him off by saying "well,
+it's too late to change Accept-Encoding because that would break too
+many existing implementations."  But I don't think the same excuse
+applies for Accept-Transfer/Transfer-Encoding, so I am stuck with
+making the following proposal :-).
+
+Suppose, therefore, that we change this syntax in section 3.6
+(Transfer Codings) from
+
+                   transfer-coding   = "chunked" | transfer-extension
+                   transfer-extension      = token
+
+to
+
+                   transfer-coding   = "chunked" | transfer-extension
+                   transfer-extension  = token | token token-params
+   
+   token-params = *( ";" token-param-name [ "=" 
+                                    token-param-value ] )
+
+   token-param-name = token
+   token-param-value = token | quoted-string
+
+If I got the BNF right (don't count on it!) then this would lead
+to examples like
+
+Accept-Transfer: gzip_p;level="3", compress_p;bits="9-11"
+
+and
+
+Transfer-Encoding: fooflate;dict="http://dicts.net/37"
+
+The specific definition of the parameter names and values would be
+part of the specification for a given tranfer-coding (which is
+why my examples do not use the already-defined transfer-codings).
+
+By construction, the BNF does not allow parameters to be used
+with "chunked", and I do not believe that any other transfer-coding
+values are used in current implementations ... so this should
+be compatible with existing implementations.
+
+Also, this BNF leads to the possibility of
+
+Accept-Transfer: gzip_p;level="3";q=0.5, compress_p;bits="9-11"
+
+because of the qvalues allowed with Accept-Transfer, but I don't
+think the parsing problem is too difficult ... although we might
+want to say
+
+The token-param-name MUST NOT be "q".
+
+-Jeff
+
+
+

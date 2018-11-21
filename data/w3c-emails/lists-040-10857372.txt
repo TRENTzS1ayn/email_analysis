@@ -1,0 +1,141 @@
+docno="lists-040-10857372"
+received="Fri Mar  2 18:07:53 2001"
+isoreceived="20010302230753"
+sent="Fri, 2 Mar 2001 15:08:14 -0800"
+isosent="20010302230814"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: unlock question"
+id="20010302150814.N2297@lyra.org"
+charset="us-ascii"
+inreplyto="p04330100b6c596ea200c&#64;[153.32.35.102]"
+expires="-1"
+
+To: Dan Brotsky<dbrotsky@Adobe.COM>
+Cc:w3c-dist-auth@w3.org
+
+
+On Fri, Mar 02, 2001 at 11:12:23AM -0800, Dan Brotsky wrote:
+> At 2:49 PM -0800 3/1/01, Greg Stein wrote:
+> >  > >mod_dav returns 400 (Bad Request) whether the resource has other 
+> >locks on it
+> >>  >or not. The client should have submitted an UNLOCK with a proper 
+> >>lock token.
+> >>  >
+> >>  >Cheers,
+> >>  >-g
+> >>
+> >>  Greg,
+> >>
+> >>  Why not 412?  I thought servers were always supposed to return 412 to
+> >>  requests that provided invalid state preconditions?
+> >
+> >The Lock-Token: header is not a precondition. It is an input parameter to
+> >the UNLOCK method.
+> 
+> Sorry I wasn't clear enough.  I wasn't contesting that 400 is a valid 
+> response.  I was trying to ask you for your design rationale in 
+> choosing to return 400 rather than 412.
+
+As I explained :-) ... The lock token is an input parameter to the UNLOCK
+method. If you don't supply a valid token, then you've sent in a bad
+request.
+
+The If: header is used to specify a precondition for the operation. If the
+precondition specified by the If: fails, then you get a 412.
+
+UNLOCK operations use the Lock-Token as the parameter, not an If: header. If
+it *did* use the If: header, then how could you know which locktoken to
+unlock if multiple were present? What if you wanted to assert a different
+locktoken than the one that you're intending to unlock? Thus, the Lock-Token
+is required for UNLOCK, and the If: header is just that: an assertion.
+
+Based on all that, an UNLOCK with an unknown locktoken (well, unknown on
+that resource) will generate a 400.
+
+If the UNLOCK contains an If: header, and the assertion(s) in the If: header
+fail, then you'll get a 412. If the If: header fails *and* you have a bad
+locktoken, then you'll get either a 400 or a 412 based on various internal
+conditions (specifically: a 400 if the resource has no locks, a 412 if the
+resource has locks but the If: assertion(s) fail).
+
+> One of the problems I have with the spec is that it's very vague 
+> about specific error responses in some situations, and very precise 
+> in others, with no apparent rationale.  For example, it specifically 
+> says that 412 must be returned when the server can't honor the type 
+> of lock request a client makes, but says nothing about which error 
+> should be returned in the case of a missing (or incorrect) token with 
+> unlock.  In general, it's a lot easier to write clients if known 
+> modes of failure that relate to the semantics of the request get 
+> specific error returns.
+
+Agreed.
+
+> In this particular case, the spec is very clear in section 7.6 that 
+> all methods which "interact with" (interpreted as "change") a 
+> write-locked resource must include an IF header specifying the lock 
+> token.
+
+I can understand how it can be read that way, but disagree with it. I don't
+see an UNLOCK as changing the resource. The UNLOCK will alter some live
+properties, but live props are defined as changeable at any time, so I don't
+see them as "part of" the resource.
+
+> If the lock token is missing, they are to get a 412 (since 
+> it's an IF).
+
+Not entirely true. The If: header doesn't have to make an assertion on the
+resource identified by the Request-URI. The locktoken present in the If:
+header might not be on the requested resource, it might be on something else
+altogether. Thus, the If: header could pass, but none of the locktokens
+mentioned in the If: header are present on the requested resource.
+
+> Unfortunately, the example for UNLOCK does not show any 
+> such IF header, so presumably the LOCK-TOKEN header is supposed to be 
+> doing double duty here (both specifying what to unlock and specifying 
+> the required precondition for every "interacting" method).
+
+The Lock-Token is not specifying a precondition. It is specifying a
+parameter to the UNLOCK method. Only the If: header specifies preconditions
+to the execution of a method.
+
+If the parameter is invalid, then you get a 400.
+
+>...
+> Note that there's a separate issue here for servers that support 
+> non-exclusive locks and also support write locks.  The issue is that 
+> both LOCK and UNLOCK are clearly "interacting methods" in the sense 
+> of section 7.6,
+
+I wouldn't say "clearly" :-)
+
+> but UNLOCK is not shown to need an IF header.  If a 
+> server issues a write lock on a resource that has some other kind of 
+> non-exclusive lock on it, then it ought to reject an unlock for that 
+> other kind of lock if the UNLOCK call doesn't specify an IF header 
+> with the token of the write lock.
+
+The locks do not interact like that. You cannot install a lock that prevents
+another lock from being removed. Locks are about preventing change to the
+body and to (dead and some live) properties.
+
+>...
+> 1. Does UNLOCK require IF header specifying applicable write lock token?
+
+Adding an issue is certainly fine, but I'd answer this with "no".
+
+> 2. UNLOCK should return 412 if valid lock token is not supplied as 
+> UNLOCK-TOKEN.
+
+I disagree. I believe the current behavior in mod_dav is correct, but am
+certainly willing to listen to why it may be wrong. See above for my
+reasoning about the current behavior.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

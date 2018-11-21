@@ -1,0 +1,97 @@
+docno="lists-010-4568279"
+received="Tue Jul  9 15:36:34 1996"
+isoreceived="19960709193634"
+sent="Tue, 9 Jul 1996 14:55:36 0700"
+isosent="19960709215536"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="multihost virtual sites for HTTP 1.2"
+id="c=US%a=_%p=msft%l=RED-77-MSG-960709215536Z17122@abash1.microsoft.com"
+expires="1"
+
+
+To:"'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'"<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+With the Host: header in HTTP/1.1 it is possible to efficiently and
+easily make a single host act as many "virtual" Web sites.
+
+What I'd like to see in HTTP/1.2 is the ability to easily and
+efficiently make multiple hosts act like a single virtual Web site, so
+that one can build huge web sites.
+
+For example,
+http://www.megasoft.com/
+could be the root of the whole, HUGE, publically accessible corporate
+web of the MegaSoft Corp. The mapping of this corporate web onto
+physical Web Servers should be flixible and mutable over time -- as the
+site grows, more servers need to be added; and as the content changes,
+the load on various pieces will change too, necessitating rebalancing
+the content across the servers, even if more aren't needed.
+
+It is _almost_ possible to do this in HTTP/1.1 today. The 302 (Moved
+Temporarily) response can be used to automatically redirect someone who
+did a GET on
+http://www.megasoft.com/very/long/resource/path/because/its/a/big/site.
+html
+to
+http://server42.megasoft.com/its/a/big/site.html
+by including a Location: header with that URL, where, say, server42 is
+set up to handle all requests that start with
+http://www.megasoft.com/very/long/path/because/
+(said setup being a server implementation issue, not a protocol issue)
+so that the GET is transparently redirected to server42.
+
+I said "almost" above, because the 302 is only allowed by the 1.1 spec
+to work automatically for GET and HEAD requests "since this might change
+the conditions under which the request was issued". For other requests,
+the user has to be prompted first. In order to make a multi-host virtual
+site, this needs to be automatic for all requests.
+
+Another factor that makes it an "almost" is that even if 302 was alow to
+work automatically for all requests, it wouldn't be efficient enough to
+scale well -- every request would come in to www.megasoft.com's server
+to be redirected. This would both load www.megasoft.com, and cause the
+client to suffer an extra round trip. (The 302s can have an Expires: to
+allow them to be cached, and that would help, but there would be an
+awful lot of them.) The way to make it efficient is to somehow note that
+the 302 applies to _all_ the resources with a particular prefix, and
+only cache this one thing.
+
+A third factor is that, in order to scale, it is sometimes necessary to
+replicate the content on multiple servers. However, 302 responses can
+only contain one URI (and hence server) in the Location: header returned
+to specify where the redirect is to go. (Arguably, there is a way to do
+this with the DNS, so I'm flexible on this.)
+
+I would like to add an option response header that says that it is OK to
+redirect all requests with a certain prefix of the Request-URI to a list
+of other places. (It's a new response header instead of a new status
+code for backwards compatibility. Old clients will just ignore it and
+prompt on methods other than GET and HEAD).
+
+A possible syntax:
+Referral= "Referral" ":" prefix 1#referral-URI
+prefix  = absoluteURI
+referral= absoluteURI
+
+The prefix has to be a prefix of the original Request-URI -- this
+prevents spoofing.
+The response to this is to take everything after the prefix in the
+original requestURI, append it to one of the referrals to get a new URI,
+and retry the request using the new URI. If there is a Cache-Control or
+Expires header, then it can be cached, and used for subsequent requests
+for resources that have the same prefix -- thus getting the client
+directly to the correct server without an extra round trip.
+
+This proposal is nothing more than the application to HTTP of the tried
+and true referral mechanisms of distributed directory and file systems.
+
+Comments?
+----------------------------------------------------
+Paul J. Leach            Email: paulle@microsoft.com
+Microsoft                Phone: 1-206-882-8080
+1 Microsoft Way          Fax:   1-206-936-7329
+Redmond, WA 98052
+
+
+

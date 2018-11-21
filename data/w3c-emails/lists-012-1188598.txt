@@ -1,0 +1,155 @@
+docno="lists-012-1188598"
+received="Tue Mar 24 11:14:09 1998"
+isoreceived="19980324161409"
+sent="Tue, 24 Mar 98 11:10:24 PST"
+isosent="19980324191024"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Comments on revision 03 of &quot; Hypertext Transfer Protocol &ndash;&ndash;HTTP/1.1 &quot;"
+id="9803241910.AA24513@acetes.pa.dec.com"
+inreplyto="s5164ffe.090&#64;MAILBOX.ECON.AG.GOV"
+expires="1"
+
+
+To: Daniel Hellerstein<danielh@mailbox.econ.ag.gov>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+    ) The importance of chunked coding -- add a note to 19.6
+    
+      The default of persistent connections has major  implications for the
+      delivery of dynamic  documents,especially when compared to  http 
+       1.0. Although this is discussed in the draft, I  believe that it
+should be strongly emphasiszd. In  particular, a paragraph should be
+added to 19.6.1 (or  19.6.2). For example:
+    
+       "Given that persistent connections are the http/1.1  default, special
+       care must be taken when  dynamically generating output, especially   
+       when  earlier portions of content are sent to the client  as they are
+       generated (say, to prevent automatic or  human time-outs). In this
+       (and other) cases, there  may  be no way of knowing the final length
+of   content, hence a content-length header can not be  added.
+Hence, either the connection must be closed after transmittal of
+content, or chunked coding  must be used. 
+    
+I'm not sure it is necessary to state this in the spec.  Any implementor
+who does the wrong thing will find out quickly enough.
+
+    II) "Chunked" in the TE header -- clarify  description
+    
+      It is somewhat odd that:
+i) Given that (section 3.6.1, and reiterated in 
+    step 3 of 14.39)
+    "All HTTP/1.1 applications MUST be able to   recieve and
+     decode the "chunked" transfer    coding..."
+       ii) Also in (section 3.6.1, and reiterated in 14.39 and
+   14.40)
+   "A server using chunked transfer-coding in a    response MUST
+    NOT use the trailer for other   header fields than ... unless the
+   "chunked"    transfer-coding is present ..in the TE field).
+    
+ Since 1.1 apps (such as http/1.1 servers) must  understand     
+ "chunked", then point ii seems to mean  (informally):
+  "the use of "chunked" in the TE field tells an http/1.1 server that
+  header fields other then Content-MD5   and Authentication-Info
+ (and Content-Length)   may be included in the trailer".
+    
+Assuming I'm not misreading, it might be useful to 
+include this comment (or an appropriately formal
+version).
+    
+I think your confusion is the result of the history behind this
+design.  Originally (RFC2068) only a few fields could be placed
+in the footer:
+      applications MUST NOT send
+   header fields in the footer which are not explicitly defined as being
+   appropriate for the footer, such as Content-MD5 or future extensions
+   to HTTP for digital signatures or other facilities.
+
+This means that an RFC2068-compliant client might not be expecting
+arbitrary fields in the footer.  We had a lengthy discussion on the
+mailing list about the right way to resolve this, and this led to
+the current design, in which the Trailer header field is used to
+indicate which (other) header fields are included in a trailer.
+       
+    III) Pipelining -- does order of execution matter?
+    
+      Section 8.1.2.2 states:
+"A server MUST send it's responses to those  requests in the  same
+       order that the request were recieved."
+    
+      Does this imply that there should be no parallelism when  processing
+       piplined requests: that request A should  be completely answered
+      before request B is   considered. Or, is parallel resolution of these
+      requests permitted, so long as order of return is   serial (and follows
+       the order of requests).
+      
+You're right, this paragraph could be ambiguous:
+
+  A client that supports persistent connections MAY "pipeline" its
+  requests (i.e., send multiple requests without waiting for each
+  response). A server MUST send its responses to those requests in the
+  same order that the requests were received.
+
+It should say something like:
+
+  A client that supports persistent connections MAY "pipeline" its
+  requests (i.e., send multiple requests without waiting for each
+  response). A server MUST send its responses to a series of requests
+  on a single transport connection in the same order that the requests
+  were received.
+
+We never intended to impose an ordering between requests on different
+connections.
+    
+    IV) Closing connections 
+    
+Section 8.1.4 states:
+    
+i) "When a client or server wishes to time-out, it   SHOULD issue a
+   graceful close on the transport   connection".
+    
+Does this imply some sort of action at the http level? 
+That is, should a 4xx (or 5xx) response be sent? 
+
+No, this is about the transport connection.  Since some people believe
+that other transport protocols besides TCP might be used, there was
+some pressure to avoid specific discussions about TCP here.
+
+There's another Internet-Draft (draft-ietf-http-connection-00.txt)
+that covers this in more detail.  Perhaps this should be revived
+and moved forward as an IETF Informational document?
+
+Anyway, the implication of the statement you quoted is basically
+"close the TCP connection, don't RESET it."
+    
+ii) "Servers SHOULD NOT close a connection in the   middle of
+   transmitting a  response,  unless a network or client failure is 
+   suspected".
+    
+Does that disallow a "total time per connection" server setting? 
+Even if an otherwise legitimate request is taking hours to resolve? 
+    
+The "total time per connection" setting is allowed, because this
+is normally used to detect "network or client failure".  It would
+be foolish to implement such a timer that isn't restarted on the
+reception of each new request (on a persistent connection).
+    
+      *In 13.1.1, point 2, it is written:
+   "In the default case, this means it meets the least restrictive
+    freshness requirement..."
+       Shouldn't that be "most restrictive".
+    
+Nope.  This was also the subject of intense debate, several years
+ago.  The basic philosophy is that a client is allowed to loosen
+the requirement imposed by the server, or vice versa.  Note that
+the sentence you quoted from finishes by saying "if the origin
+server so specifies, it is the freshness requirement of the origin
+server alone."  I.e., the origin server CAN prevent the client
+from loosening the freshness requirement.
+
+-Jeff
+
+   
+
+
+

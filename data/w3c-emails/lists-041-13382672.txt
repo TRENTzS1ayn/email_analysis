@@ -1,0 +1,234 @@
+docno="lists-041-13382672"
+received="Thu Oct 10 12:47:24 2002"
+isoreceived="20021010164724"
+sent="Thu, 10 Oct 2002 12:46:50 -0400"
+isosent="20021010164650"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Interop issue: Proposal for fixing lock token provision"
+id="E4F2D33B98DF7E4880884B9F0E6FDEE2973C05@SUS-MA1IT01"
+inreplyto="Interop issue: Proposal for fixing lock token provision"
+expires="-1"
+
+
+To:"'Webdav WG'"<w3c-dist-auth@w3c.org>
+
+   From: Jason Crawford [mailto:nn683849@smallcue.com]
+
+   On Wednesday, 10/09/2002 at 08:28 AST, "Clemm, Geoff" wrote:
+
+   > if the server can tell just by scanning the If header that it
+   > doesn't apply to the GET, then it can skip the If header.  For
+   > example, if the If is a tagged list, and the tag did not identify
+   > the request-URL, since a GET only applies to the request-URL, it
+   > can ignore that If header.
+
+   Wow.  I wouldn't have expected this as an answer.  It sounds like
+   the purpose of the If: header becomes for the server to verify what
+   it wants to.
+
+That's certainly not what I meant to imply.  Let's try a
+specific scenario.  A client does a "GET /coll/foo.html", with
+a tagged list If header.  My server scans the If header,
+and determines that none of the tags match "/coll/foo.html".
+By section 9.4.2:
+
+"If none of the resource productions match the current resource then
+the header MUST be ignored."
+
+So my server correctly ignores the If header, i.e. it ignores what
+2518 requires it to ignore.  There is of course some wiggle room
+around the term "match the current resource", but I believe that "the
+current resource" and "match" is reasonably clear for the GET method
+(i.e. write locks are ignored, and the only resource being read is the
+one identified by the request-URL).
+
+   That seems like a signficant change in philosophy from 2518.  2518
+   seems to spend a lot of time talking about If: header and all it's
+   details but not about how it's used to submit lock tokens.  It's
+   use for lock token submission seems to simply be an afterthought.
+
+I completely agree that we need to clarify exactly how the If header
+should be used to submit lock tokens (in particular, to maximize
+interoperability with existing servers).
+
+   It even says the following when it begins to talk about the If;
+   header.
+
+      The If header is intended to have similar functionality to the
+      If-Match header defined in section 14.24 of [RFC2616].  However
+      the If header is intended for use with any URI which represents
+      state information, referred to as a state token, about a
+      resource as well as ETags.  A typical example of a state token
+      is a lock token, and lock tokens are the only state tokens
+      defined in this specification.
+
+   And I've taken this opening statement, and the fact that it never
+   talks about lock token submission in this section, to mean that the
+   primary purpose of the If: header was for a client to verify
+   various aspects of server state (like If-Match) before doing an
+   operation.  I'm not saying that you're wrong to want to specify
+   what you just have, but it seems to me that you are suggesting is a
+   change in purpose/philosophy because the client can no longer
+   really fully use it for verifying server state.  I want to bring
+   attention to that to be sure that's what you really want.
+
+Did my example above clarify that I was just talking about the
+defined semantics of a tagged list?
+
+   I'm going to stray a bit and say a bit about 2518 and say what I've
+   said above in a different way...
+
+   Above I outlined what I thought the *primary* purpose of the If:
+   header was in 2518.   But there are stray comments in the 2518
+   that make the If; header's purpose confused.  We've fixed one
+   of those in 2518bis.  But 2518bis still has the statement that the
+   server will only check the assertions on the URL's it chooses.
+   With that statement, the semantics and purpose of the If; header 
+   gets confusing.   It's like the server saying, 
+      "you can ask me questions, but I'll only answer the one's 
+      I want, and I'll only cooperate with your request if you ask 
+      all the questions I want you to ask me."
+   It (2518) just doesn't make sense.  It makes it hard for us
+   and readers to figure out how to fill in gaps in the spec.  There
+   is no guiding philosophy and purpose.  It's difficult to build on 
+   that.
+
+This probably should go in a separate thread, since I believe what you
+are questioning is the fact that 2518 says that in a tagged list
+production, the conditions are only checked if the request is "applied
+to" the resource identified by the tag.  This means we need to
+carefully define what resources a given method "applies" to, so that
+we can get consistent behavior across different servers.
+
+One simple alternative is to declare that "all methods apply to
+all resources" (for the purpose of the If header), which then 
+would force a server to verify every tag list in the If header.
+
+Just for interests sake, would any existing clients break if
+a server implemented the If header in this way?  Does anyone
+have an important use case where they want to submit If header
+entries that they expect/want the server to ignore if the
+current request is not "applied" to those resources?
+
+   The proposal by Lisa and the interop folks, which I tried to
+   clearly guess at and describe, does fix this.  It provides
+   a clear purpose and semantics for the headers.  And it does 
+   a good job achieving compatibility.
+
+If by "fix this", you mean clarify how to submit tokens, I agree, but
+I think that it is easy to clarify this without creating a new header.
+And I totally disagree that the new-header proposal does a good job of
+achieving compatibility (with existing clients and servers).
+
+   As an alternative to that proposal, I think it's possible that 
+   you can achieve much of that by saying that the client can 
+   submit assertions against whatever resource it likes in 
+   the If: header, and the server will evaluate all of the If: header, 
+   and the server does also require that the client ask a few 
+   particular questions against particular resources.  It's not 
+   as simple as Lisa's solution, but it's at least an improvement 
+   over 2518. 
+
+Note that this does change the If header semantics defined in 2518
+(which pretty clearly imply that a request does not "apply" to all
+resources), but if this semantic change is not a problem for existing
+clients and servers (e.g. if they don't really use the tagged list
+form of the If anyway), then it is fine with me.
+
+   But if you say that the server only evalutes some of what the
+   client submits, then you might as well abandon what appeared to be
+   the primary purpose of the If: header in 2518.  If we do that, we
+   should be aware the we're doing that and make sure we're
+   comfortable with that.
+
+It appeared to me that the section 9.4.2 of 2518 intended that a
+server only apply a subset (possibly empty) of the If header, namely,
+the subset for the resources to which the method is being "applied".
+So I'd turn it around, and say, if we are changing the semantics
+of the If header so that it applies to all tagged lists, then we
+need to be aware that we are doing that and comfortable with doing so.
+
+   >    >    And what is "modifying"? A PUT/PROPPATCH to an ordinary 
+   >    >    resouce modifies it. 
+   >    > 
+   >    > Yes, in this case, I think we can clearly state that only the 
+   >    > lock on the resource specified by the request-URL must be 
+   >    > submitted. 
+   > 
+   >    The request URL?  I guess that's okay.  I had actually
+   >    proposed the root of the lock rather than the request URL.  I
+   >    think lower in this note you also said it should be the root
+   >    of the lock.
+   > 
+   > Parsing problem (:-).  I meant: "the lock on (the resource
+   > specified by the request-URL) must be submitted", not "(the lock
+   > on the resource) specified by the request-URL must be submitted".
+
+   I think you didn't understand my question... 
+
+   A (depth) lock can lock many resources.
+
+Agreed.
+
+   Which locked resource/URL
+   should be specified when submitting the lock token? 
+
+You submit the lock-root of the lock as the tag.
+
+   You've
+   suggested both (1) the root and (2) the request resource.
+
+No, I've only suggested (1).  The sequence is:
+- find the resource that the request-URL is mapped to.
+- find the lock on that resource.
+- submit the lock token with the lock-root of that lock as the tag.
+
+So there are two URL's here ... the request-URL, and the
+lock-root URL.  With a depth lock, the two URLs can be different.
+
+Note that there is a somewhat subtle point here; namely, for If header
+purposes, one of the resources to which an "update" operation
+"applies" will always be the resource identified by the lock-root of
+any lock on the resource.
+
+   Another option is to just submit it on the resource whose being
+   locked poses an impediment, but there can be zillions of those in
+   the case of operations like the 2518-style DELETE in the presence
+   of depth locks.  That leaves the first two options and I think only
+   (1) can work universally.
+
+I agree.
+
+   > I could go either way, but I'd probably be inclined to not say 
+   > anything special about the NOT.  This means that putting a NOT 
+   > around a lock token is guaranteed to fail (i.e. because either it 
+   > is locked with that token, so the NOT fails, or it is not locked 
+   > with that token, so it is an invalid lock token, and it fails). 
+   > Alternatively, we could say that it is only a submission of the 
+   > lock token if it does not appear in a NOT, but all that buys the 
+   > client is the ability to have a request succeed only if the 
+   > resource is not locked by a particular lock token, which seems 
+   > like a pretty pointless semantics to support.  But I'm happy 
+   > to do it either way. 
+
+   I suspect that's the best approach. 
+
+   So I'd say...
+
+   All of the If; header is evaluated, and the token(s) in question
+   must be "mentioned".  And I suspect we need resolve on what
+   resource it should be mentioned.  I'm voting for the resource that
+   is the root of the lock.
+
+It sounds like we are in violent agreement that the lock-root
+URL should be the tag for the If clause that mentions a particular
+lock token.  It also sounds like we still need to spend some time
+discussing what resources a method "applies" to, for If header
+purposes.
+
+Cheers,
+Geoff
+
+
+

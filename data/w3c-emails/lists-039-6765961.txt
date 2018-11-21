@@ -1,0 +1,155 @@
+docno="lists-039-6765961"
+received="Wed Aug 18 09:30:57 1999"
+isoreceived="19990818133057"
+sent="Wed, 18 Aug 1999 09:29:24 -0400"
+isosent="19990818132924"
+name="jamsden@us.ibm.com"
+email="jamsden@us.ibm.com"
+subject="Re: LOCK Scenarios"
+id="852567D1.004A398E.00@d54mta03.raleigh.ibm.com"
+charset="us-ascii"
+inreplyto="LOCK Scenarios"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+
+
+
+
+<JC>
+A couple misunderstandings here.
+
+1) I think Judith suggested that you were suggesting that
+depth and singleton locks at the destination be treated
+differently. At least that was my initial reading.  I've
+not found evidence of you saying this though.  As it turns
+out it looks like she missed the point of the distinction
+between your expectations and Kevin's.  I think the
+point is not singleton vs. depth... or singleton vs
+inherited.  The point is whether
+a LOCK that is rooted (singleton or not) at the destination
+URI survives.
+<jra>
+depth only applies to the parent of the destination resource when determining if
+the new destination gets the lock or not. I do not even consider the resource
+type or what kind of lock it has with respect to the COPY or MOVE operation
+because it doesn't matter, this lock is not retained. However, if the new parent
+collection is depth infinity locked, the destination will inherit the lock
+(regardless of what lock the deleted resource might have had), and if the
+destination is also a collection, it will have a depth infinity lock too. Just
+like it would if you had created the collection with MKCOL or a resource with
+PUT.
+</jra>
+  BTW, I propose we use the phrases, "rooted at the URI"
+vs "inherited at the URI/resource" when talking about
+these locks.  As far as vocabulary goes, there are also
+a few other cases that need vocabulary.  I'll save that
+for a seperate note.
+<jra>
+I don't know what either of these phrases mean. A resource is locked or
+unlocked. A resource inherites any depth infinity lock of its parent collection,
+no matter how it became a member of that collection.
+</jra>
+
+2) It sounds like you also think that having support for
+retaining a lock rooted on URI below a deleted URI is too
+messy  to support.  If so, we agree.
+That's why I made the proposal
+above.  It eliminates everything that I'd consider a
+"special case".  It does still leave the issue of if
+the destination URI remains locked.  And lets the client
+decide that.  I
+think this is more of a feature than a special case to
+handle.  The client simply declares if he wants to retain
+the lock or not when he issues the DELETE.  Depending on
+the implementation, the server might even find it *easier*
+to support the keeping of the lock.  (AKA no code at all.)
+But the proposal would be for the server to support both
+behaviors at the DELETE request URI.
+<jra>
+I don't think the destination URL retains the lock of the resource that used to
+be at that destination unless it just happens to have the same depth infinity
+locked parent collection. But this would be a new lock with the timeout reset.
+</jra>
+
+3) 8.10.5 says a DELETE destroys a lock at the destination.
+I think this is not optimal.  A scenario is...  /a/b  exists
+and is a resource... not a collection.  We want to replace it
+with a new resource that is a collection.  But the spec says
+that MKCOL can not replace am existing resource (or
+collection).  It requires that a delete be performed first.
+Now if one wants to accomplish this atomically (with
+LOCKS), right now one has several choices.
+      a) LOCK /a/.  It would probably be a depth 0 lock since
+  there would be no point in locking at depth except possibly
+  to prevent someone from tossing in another lock immediately
+  after in the /a/b/... tree.    But if they did chose to use
+  a depth lock, they'd also risk being unable to get the lock
+  if someone for example has a conflicting lock somehwere in
+  a /a/c/ tree.  It's a trade off. Depth or not, the other
+  disadvantage of it is that they are also locking out any
+  operations on /a/.  The point is that if they decide to lock
+  /a/, they are locking more than they need to and may
+  interfere with other principles... or be blocked themselves.
+      b) LOCK /a/b.  But unfortunately with the current spec,
+  the initial DELETE will destroy the lock.  So this isn't
+  really a choice unless we want to reissue the lock... to
+  create a null lock which is better, but still risks problems
+  if another entity beats us to the punch.  It's a race condition.
+
+Now if we altered 8.10.5 to allow support for not deleting the
+lock, we could act surgically to insure that we get exactly the
+safe atomic behavior we want.  (Ignoring a tangential caveat.)
+We lock /a/b possibly at depth.  Do the delete specifying that
+we want the lock retained.  Then do the MKCOL /a/b/ and any
+other operations we require.  When done, release the lock. Once
+again ignoring an unspecified caveat, we know that as soon as
+we get the lock that we're going to be able to acomplish what
+we set out to do without another principle interfering.
+
+If we don't want this, then I think we need to evaluate why we
+support lock-null resources.  I'd think the arguments for each
+of these are the same.
+<jra>
+There are a large number of situations in authoring environments where
+transaction semantics are required. WebDAV doesn't (yet) support transactions,
+and I don't think we should attempt to come up with a lot of special cases (like
+lock-null resources) supported by the protocol to overcome this important
+missing function. Rather let's propose an extension that does support
+transactions. Might be pretty hard with a stateless server though.
+</jra>
+
+
+
+BTW, my final comment above has prompted me to check into the
+history of destination lock deletion and lock-null resources...
+
+
+http://lists.w3.org/Archives/Public/w3c-dist-auth/1998OctDec/0245.html
+
+Here Yaron's solution to atomicity in COPY.  It's not to support locks
+on the destination.  It's to simply change the spec to say COPY should
+be implemented atomically.  No explanation.  Just his recomendation.
+Sounds reasonable.
+
+
+
+http://lists.w3.org/Archives/Public/w3c-dist-auth/1996OctDec/0041.html
+
+There was a time where deleting a resource didn't necessarily delete its lock.
+   Nov 96.
+
+
+http://lists.w3.org/Archives/Public/w3c-dist-auth/1997AprJun/0135.html
+
+But deleting the destination lock was in there April 97.  I could find
+no explanation for the change.  It looks like they/Yaron decided to start
+from scratch and this was the result. -- I believe this is also where
+lock-null resources came in.  No earlier references to this.  No documentated
+rationale behind it.  Yaron?
+
+
+

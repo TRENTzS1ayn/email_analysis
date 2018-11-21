@@ -1,0 +1,98 @@
+docno="lists-039-15168037"
+received="Fri Jan 14 08:52:24 2000"
+isoreceived="20000114135224"
+sent="Fri, 14 Jan 2000 08:52:21 -0500"
+isosent="20000114135221"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: a Grand Unified Locking Proposal (GULP, or perhaps, GULP! :-)"
+id="10001141352.AA23127@tantalum"
+inreplyto="007401bf5e07$4771de10$9a114498&#64;us.oracle.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+   From: "Eric Sedlar" <esedlar@us.oracle.com>
+
+   You want to avoid having name and resource locks as separate entities, so
+   you basically say that a name lock (as in my proposal) locks the resource it
+   is bound to, if any.
+
+Yes.
+
+   If the lock is exclusive, you can't lock any other
+   name applied to that resource.  For example, if I have /a/foo.html and
+   /b/foo.html both identifying the same resource, if I exclusive lock
+   /a/foo.html, I can't protect the name "/b/foo.html" since I can't lock it.
+
+You cannot apply an exclusive lock of the same type to /b/foo.html,
+but if you just wanted to protect the name /b/foo.html, you could
+request a lock of a different type on /b/foo.html (exclusivity is
+lock-type specific).
+
+Alternatively, if your server only supports one kind of lock type, you
+could lock /b/foo.html/dummy-namespace-lock, which would have a similar effect
+(and does not conflict with the exclusive lock already on /b/foo.html.
+
+   Since the LOCK protocol request currently doesn't distinguish between name
+   and resource locks, you couldn't lock /b/foo.html anyway (which is why you
+   are ok with the restriction above), since the protocol request would try to
+   lock the resource identified by /b/foo.html as well as the name.
+
+GULP does not distinguish between "locking the resource" and "locking the
+name", although it does distinguish "a lock whose target is X/." and 
+"a lock whose target is ."
+
+   However, it does seem like there will be reasons to protect the namespace in
+   this way, and I think you are paying a price for reducing the number of
+   locks.
+
+If you wanted to introduce a "namespace lock", you could do so with the
+standard lock extension mechanism (i.e. allow both "write" and "namespace"
+locks), but that is different from saying there are two different kinds
+of locks in the underlying locking model.
+
+   > - If an exclusive lock identifies a resource, no other lock of that type
+   can
+   > identify that resource.
+
+Note that I have modified this statement to read:
+
+- If a resource has an exclusive lock, that resource cannot be locked
+with another locks with the same type and target but a different
+token.
+
+This ties the semantics to the lock state of a single resource, rather
+than using the vaguer concept of "the resource identified by a lock".
+
+   Here's a scenario: it seems like if application A has an exclusive lock on
+   /a/foo.html (say because it is planning on updating the resource to create a
+   new version, and it wants to prevent lost updates) and application B wants
+   to only read /b/foo.html and protect the namespace so that it can find it
+   again later, application B cannot create a shared lock on /b/foo.html,
+   correct?
+
+They can add a lock with a different type from the exclusive lock,
+or if there are no other lock types available, they can do the "dummy lock"
+approach of locking "/b/foo.html/dummy-namespace-lock".
+
+   The problem is that application A will not actually update the
+   resource that app B is working with--it will just create a new revision.
+   (Although this may affect the revision selected by app B).  Is this an issue
+   your versioned locks deal with?
+
+Versioning is (of course :-) somewhat trickier.  A lock in the presence of
+versioning isn't so much concerned with locking the state of a resource
+(the majority of the visible resources will be checked-in revisions, and
+couldn't be modified even if you wanted to), but rather is concerned with
+locking the target selection (so that you don't end up effectively getting
+a namespace or state change because new revisions are selected).  This
+issue (as you suggest) is addressed with the "revision selection freezing"
+I've proposed for the versioning protocol.
+
+Cheers,
+Geoff
+
+
+

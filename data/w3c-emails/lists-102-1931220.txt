@@ -1,0 +1,147 @@
+docno="lists-102-1931220"
+received="Thu Dec  4 10:29:59 1997"
+isoreceived="19971204152959"
+sent="Thu, 04 Dec 1997 10:31:12 -0500"
+isosent="19971204153112"
+name="Joe Lapp"
+email="jlapp@acm.org"
+subject="Having both core access and XML-only access"
+id="3.0.3.32.19971204103112.00979470@pop.access.digex.net"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+I'm wondering if there might be a way to have the best of both worlds.
+Some applications would use DOM to work with possibly invalid XML
+documents but still treat the documents as XML.  Other applications
+might use DOM in a manner such that DOM ensures that the document is
+always valid.  In this latter case the implementor of the DOM
+interface(s) might walk the document through a series of invalid states,
+but externally the document will only be seen in its valid form.  In
+this posting I suggest why we might want to do this, how it might be
+done, and what in part it might look like.
+
+The application that can work with an invalid XML document might be able
+to use DOM facilities to test the validity of the document, but the
+application would be responsible for leaving the document in a valid
+state.  These kinds of applications might be editors that can take human
+coded documents.  I'm guessing that this class of application will
+always require human interaction in order to make a document valid.  If
+the document is invalid, there may not be enough information in the
+document to correct the problem by automatic means.
+
+The application that works only with valid XML documents would rely on
+the DOM facilities to enforce validity.  Through these facilities DOM
+could only load valid documents and the application can only create or
+change documents in ways that leave them valid.  Such a DOM facility
+would centralize knowledge of what it means to be valid XML and of how
+to validate against a DTD.  It would not be possible for an application
+using these facilities to pass off an XML document to another application
+unless that document were valid.  This reduces the intelligence required
+of receiving applications and improves the robustness of the system.
+Robustness would be centralized in the component of one vendor instead of
+being distributed across the components of many vendors.
+
+The challenge is in creating DOM interfaces that enable us to satisfy
+both needs.  It seems to me that one way to accomplish this is to ensure
+that the DOM XML interfaces are complete and independent of the DOM core
+interfaces.  Two kinds of servers could be created: one kind would expose
+both the DOM core and the DOM XML interfaces, and the other kind would
+only expose the DOM XML interfaces.
+
+In the first server, the implementation of the DOM XML interfaces would
+not be able to keep state information for the document element outside
+of the DOM core.  This way, whenever a client changes the document
+through the core, the XML interfaces will operate on the document
+containing those changes.  The client would be required to bring the
+document into a valid state before using the XML interfaces, since the
+XML interfaces would have to throw exceptions upon encountering an
+invalid underlying document.  The one exception might be a DOM XML
+operation that tests the validity of the underlying document and that
+may provide the client with information about how the document is
+invalid.  Once the client brings the document into a valid state, the
+client might simplify many of its manipulation chores by working directly
+through the XML interfaces.  The client might only use the core when it
+first loads a raw document and when it imports documents into the
+current document.
+
+In the second server, the client interacts with the document only through
+interfaces that ensure the document's validity.  The core interfaces
+would not be available.  The XML interfaces would throw exceptions upon
+detecting an invalid underlying document.  It becomes impossible for a
+client to create an invalid document through these interfaces.  As an
+extra benefit, we completely free the server from constraints on
+implementation.  The server could retain the document using DOM core, or
+the server could do something completely different.  The implementation
+may be a relational database or some hyperlinked data structure.  This
+frees the server to create especially efficient document access.
+
+Gavin mentioned a performance issue involved with interfaces that always
+ensure the validity of the underlying document.  He said that it would
+probably be too big a hit to always require that every operation check
+the document's validity.  There are two points I'd like to make along
+this line.  The first is that to perform the check on every operation
+may not be as big a hit as we might expect.  The server knows that the
+document is valid prior to the operation, and it has control over the
+operation itself, so the server need only focus on creating a valid
+change to the document.  There is no need for the server to "check"
+anything other than the client's new contribution.
+
+The second point about the performance problem is that we may not need
+to perform any kind of validity "check" on a per-operation basis.  Even
+assuming that the document is not constrained by multi-user concurrency
+issues, transaction notation could be used to solve the problem.  The
+server would only validate on transaction boundaries.  Moreover, the
+server could cache knowledge of all operations performed during the
+transaction and upon reaching a transaction boundary validate only the
+deltas applied to the document.  By validating deltas we retain the
+efficiency of the minimal checking we could have done on a per-operation
+basis.  Where validation is necessarily resource-intensive, with
+transactions we reduce the frequency of using these resources.
+
+However, I'd like to make another point: I think an XML interface that
+always leaves the document in a valid state will require that changes
+be made through transactions.  I could only find one feature of the
+current XML standard that would require this: #REQUIRED IDREFs.  It
+seems to me that the only way to create a cyclic chain of required
+IDREFs and end up with a valid document is to create all of the IDREFs
+all in one transaction.  If the first element you wish to add requires
+a reference to another element, and that other element cannot exist
+without an IDREF to the first element (possibly indirectly through a
+series of other elements), then the only single operation that yields
+a valid document is an operation that creates all of the elements that
+exist in the cyclic chain all at once.  Having transactions in these
+interfaces will also future-proof us against unanticipated extensions
+to the XML standard, where such extensions affect our ability to
+transform one valid document into another valid document using only
+primitive operations.
+
+(Note: There is a way to get around the #REQUIRED IDREF chain problem
+without transactions, but it requires that we produce a document that
+is *semantically* invalid, although it would be valid by the XML
+definition of validity.  We could point the IDREF to the incorrect
+element momentarily and then later change it to point to the correct
+element.  This introduces the possibility for client error and would
+be entirely unacceptable in a multi-user system or even a multi-thread
+system, since different users or threads may end up working with false
+information.)
+
+So, it seems to me that we can have our cake and eat it too.  We can
+have DOM interfaces that will function on well-formed but invalid XML
+documents (for example), and we can have DOM interfaces that only
+operate on valid XML documents.  The first use of DOM will allow us
+to create editor-like applications, and the second use of DOM will
+allow us to create robust distributed applications, where responsibility
+for ensuring the integrity of documents can be centrally maintained.
+Moreover, by introducing transactions into the DOM XML interfaces, we
+minimize the penalties of validity checking and ensure that DOM can
+evolve gracefully in step with changes in the XML specification.
+--
+Joe Lapp (Java Apps Developer/Consultant)
+Unite for Java! - http://www.javalobby.org
+jlapp@acm.org
+
+
+

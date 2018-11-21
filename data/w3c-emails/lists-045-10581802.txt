@@ -1,0 +1,97 @@
+docno="lists-045-10581802"
+received="Thu Jul 12 08:20:01 2001"
+isoreceived="20010712122001"
+sent="Thu, 12 Jul 2001 22:19:56 +1000"
+isosent="20010712121956"
+name="Thomas Maslen"
+email="maslen@dstc.edu.au"
+subject="ID/DTD/c14n/dsig mischief?"
+id="200107121219.f6CCJm427660@piglet.dstc.edu.au"
+expires="-1"
+
+
+To:w3c-ietf-xmldsig@w3.org
+
+[ Has this been done to death before?  I looked in the archives and didn't
+  see this exactly, but if I missed it can someone steer me toward it? ]
+
+Canonical XML makes use of information that may have started life in a DTD
+(e.g. entity declarations and attribute types) but does not directly
+include the DTD in the c14n output.
+
+Section 1.3 of the Canonical XML Recommendation discusses cases where this
+may lead to (possibly false) negatives, i.e. discarding or changing the DTD 
+can produce different c14n results, which when used in dsig will lead to 
+digest mismatches.  In particular, the second-last paragraph discusses the
+effect on attributes whose type is ID.
+
+I'm wondering about the converse -- cases that can lead to false positives, 
+i.e. changing the DTD doesn't change the pile of bits that comes out of c14n 
+(so, when used in dsig, the digest will still match and the signature will 
+still verify), but the document now means something different.
+
+The example that I have in mind uses attributes whose type is ID, and it
+goes something like this...  say I'm a disgruntled screenwriter, and for the 
+next episode of the soap that I'm working on I produce a plot outline like
+this:
+
+<!DOCTYPE Soap [
+  <!ELEMENT Character ... >
+  <!ATTLIST Character
+      name     ID    #REQUIRED
+      nickname CDATA #IMPLIED
+  >
+]>
+
+<Soap>
+  <Characters>
+    <Character name="alice"> ... </Character>
+    <Character name="bob">   ... </Character>
+    ...
+    <Character name="susan" nickname="alice"> ... </Character>
+    <Character name="tim"   nickname="bob"  > ... </Character>
+  </Characters>
+  <Actions>
+    <Kill killer="#alice" victim="#bob" />
+            <!-- (Uses URI fragments but could also use IDREF attributes) -->
+  </Actions>
+</Soap>
+
+and get sign-off from the series producer.  (For concreteness, say he signs
+the entire document using an enveloped signature, and puts the signature
+just before the closing "</Soap>").
+
+Now I modify the ATTLIST declaration, changing the ID attribute from "name"
+to "nickname", and end up with
+
+<!DOCTYPE Soap [
+  <!ELEMENT Character ... >
+  <!ATTLIST Character
+      name     CDATA #REQUIRED
+      nickname ID    #IMPLIED
+  >
+]>
+
+<Soap>
+  <Characters>
+    <Character name="alice"> ... </Character>
+    <Character name="bob">   ... </Character>
+    ...
+    <Character name="susan" nickname="alice"> ... </Character>
+    <Character name="tim"   nickname="bob"  > ... </Character>
+  </Characters>
+  <Actions>
+    <Kill killer="#alice" victim="#bob" />
+            <!-- (Uses URI fragments but could also use IDREF attributes) -->
+  </Actions>
+  <Signature xmlns="..."> ... </Signature>
+</Soap>
+
+This still verifies, but now Tim dies instead of Bob, which isn't the 
+outcome that the series producer thought he was signing.
+
+Thomas Maslen
+DSTC
+
+
+

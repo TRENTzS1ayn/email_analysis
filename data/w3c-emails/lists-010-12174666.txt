@@ -1,0 +1,92 @@
+docno="lists-010-12174666"
+received="Mon Nov 25 19:06:07 1996"
+isoreceived="19961126000607"
+sent="Mon, 25 Nov 1996 22:01:25 0500"
+isosent="19961126030125"
+name="Henrik Frystyk Nielsen"
+email="frystyk@w3.org"
+subject="Re: Calculating Age Question"
+id="3.0.32.19961125220059.007bac70@pop.w3.org"
+charset="usascii"
+inreplyto="Calculating Age Question"
+expires="1"
+
+
+To: Paul Hethmon<phethmon@utk.edu>,  HTTP-WG<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+At 08:46 PM 11/25/96 EST, Paul Hethmon wrote:
+>I don't mean to bring this up for discusion, rather clarification. 
+>In going through the mailing list archives and over draft 07, I  
+>wanted to be sure I understood the calculations of the Age value 
+>correctly.
+
+I have included how I implement it libwww 5.0a which is available from
+
+http://www.w3.org/pub/WWW/Library/
+
+The function is part of the HTCache.c module.
+
+Hope this helps,
+
+Henrik
+
+-----------------------------------------------------------------
+
+/*
+**  Calculate the corrected_initial_age of the object. We use the time
+**  when this function is called as the response_time as this is when
+**  we have received the complete response. This may cause a delay if
+**  the reponse header is very big but should not cause any incorrect
+**  behavior.
+*/
+PRIVATE BOOL calculate_time (HTCache * me, HTRequest * request,
+                             HTResponse * response)
+{
+    if (me && request) {
+        HTParentAnchor * anchor = HTRequest_anchor(request);
+        time_t date = HTAnchor_date(anchor);
+        me->response_time = time(NULL);
+        me->expires = HTAnchor_expires(anchor);
+        {
+            time_t apparent_age = HTMAX(0, me->response_time - date);
+            time_t corrected_received_age = HTMAX(apparent_age,
+HTAnchor_age(anchor));
+            time_t response_delay = me->response_time -
+HTRequest_date(request);
+            me->corrected_initial_age = corrected_received_age +
+response_delay;
+        }
+
+        /*
+        **  Estimate an expires time using the max-age and expires time. If we
+        **  don't have an explicit expires time then set it to 10% of the LM
+        **  date. If no LM date is available then use 24 hours.
+        */
+        {
+            time_t freshness_lifetime = HTResponse_maxAge(response);
+            if (freshness_lifetime < 0) {
+                if (me->expires < 0) {
+                    time_t lm = HTAnchor_lastModified(anchor);
+                    if (lm < 0)
+                        freshness_lifetime = 24*3600;           /* 24 hours */
+                    else 
+                        freshness_lifetime = (date - lm) / 10;
+                } else
+                    freshness_lifetime = me->expires - date;
+            }
+            me->freshness_lifetime = HTMAX(0, freshness_lifetime);
+        }
+        if (CACHE_TRACE) {
+            HTTrace("Cache....... Received Age %d, corrected %d, freshness
+lifetime %d\n",
+                    HTAnchor_age(anchor),
+                    me->corrected_initial_age,
+                    me->freshness_lifetime);
+        }
+        return YES;
+    }
+    return NO;
+}
+
+
+

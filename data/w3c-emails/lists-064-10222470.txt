@@ -1,0 +1,199 @@
+docno="lists-064-10222470"
+received="Tue Jul  3 12:02:48 2001"
+isoreceived="20010703160248"
+sent="Tue, 03 Jul 2001 18:02:25 +0200"
+isosent="20010703160225"
+name="Daniel Dardailler"
+email="danield@w3.org"
+subject="Re: Minutes from 2 July 2001 ERT (and ~AU) telecon"
+id="200107031602.f63G2P204716@zidane.inria.fr"
+inreplyto="Minutes from 2 July 2001 ERT (and ~AU) telecon"
+expires="-1"
+
+
+To: Wendy A Chisholm<wendy@w3.org>
+cc:w3c-wai-er-ig@w3.org,w3c-wai-au@w3.org
+
+
+> - Action DD send perl script for WART to list
+
+Wendy, all the perl cgi are at 
+ www19.w3.org:/usr/etc/apache/cgi-bin/rep?.cgi
+
+Here's the final script that sends the email to the archive
+
+=======================
+
+#!/usr/local/bin/perl
+
+use CGI ':standard';
+use utils;
+
+
+$cc='';
+if (ValidEmail (param('webmaster_email')))
+  {
+    $destinataire=param('webmaster_email') ;
+    $already_archived = 0 ;
+  }
+else
+  {
+     $destinataire='wai-report-db@w3.org';
+     $cc='wai-report@w3.org';
+     $already_archived = 1 ;
+  }
+
+if (ValidEmail (param('reporter_email')))
+  {
+    $cc && ($cc="${cc},".(param('reporter_email'))) ;
+    $cc=param('reporter_email') unless $cc ;
+    if ($already_archived == 0)
+      {
+        $cc=$cc.",wai-report-db\@w3.org,wai-report\@w3.org" ;
+      }
+  }
+else
+  {
+    if ($already_archived == 0)
+      {
+        $cc="wai-report-db\@w3.org,wai-report\@w3.org" ;
+      }
+  }
+
+$subject="WAI Report on ".(param('url'));
+
+#Read information about checkpoints from database.
+readchkdb("techdb");
+
+#open (FILE,"|/usr/ucb/mail -s \'$subject\' -c $cc $destinataire");
+open (FILE, "|/usr/lib/sendmail -fwai-report-bounces\@w3.org -oi -t");
+print FILE "From:  wai-report\@w3.org\n";
+print FILE "To: $destinataire\n";
+print FILE "Cc: $cc \n";
+print FILE "Subject: $subject \n";
+print FILE "Hello,\
+\
+This message comes to you from the W3C WAI (World Wide Web Consortium\
+Web Accessibility Initiative) report tool at http://www.w3.org/WAI/report.\
+\
+URL: ", param('url'), "\
+Date: ", param('urldate'), "\
+\
+Your web site has been found to have to one or more accessibility problems.\
+This is not an automatic evaluation. This message is the result of an \
+individual\'s review of your page or site (refer to the cc: field). This\
+person experienced difficulty accessing your page either due to a disability\
+(visual, auditory, physical, or cognitive) or due to device limitations\
+(poor connection bandwidth, no support for graphics or support turned off,\
+a voice interface such as a webphone, etc.). Please consider their comments\
+below.\
+\
+";
+
+if ((param('browser') ne "Irrelevant") || param('other_browser')) {
+     print FILE "with: " ;
+     if (param('other_browser')) {
+        print FILE param('other_browser') ;
+     } else {
+        print FILE param('browser') ;
+     }
+     print FILE "\n\n" ;
+};
+
+
+if (param('alt') || param('sside') || param('frame') || param('frameset') || pa\
+ram('table') || param('meta') || param('applet') || param('struct') || param('h\
+tml') || param('blink') || param('misuse') || param('link') || param('longdesc'\
+) || param('av') || param('ascii') || param('color') || param('text') || param(\
+'other_kind')) {
+print FILE "The reviewer found the following accessibility problems with your\
+page or site. Each item is followed by a link to relevant information\
+in the Web Content Accessibility Guidelines 1.0 (that you can find at\
+http://www.w3.org/TR/WAI-WEBCONTENT):\n\n";
+} else {
+print FILE "    No specific items mentioned.\n";
+}
+
+open(INPUT, "messages.en") || die "$PROG: cannot open file messages.en\n";
+while (<INPUT>) {
+  my ($key, $checkpoint, $text) = split (/\;\;/,$_);
+  if (param("$key")) {
+   print FILE "     $text          (Refer to Checkpoint ", checknb($checkpoint)\
+, ")\n";
+  }
+}
+close(INPUT);
+
+ if (param('other_kind')) {
+  print FILE  "     Other:\n", param('other_kind'), "\n";
+}
+
+
+
+if (param('non_visual')||param('non_audio')||param('non_mobile')||param('non_co\
+gnitive')) {
+print FILE  "\nAdditional subjective comments from the reporter: ";
+if (param('non_visual'))    { print FILE "\n    ", param('non_visual');}
+if (param('non_audio'))     { print FILE "\n    ", param('non_audio');}
+if (param('non_mobile'))    { print FILE "\n    ", param('non_mobile');}
+if (param('non_cognitive')) { print FILE "\n    ", param('non_cognitive');}
+}
+
+print FILE  "\n\nYour name and the url of your page, along with the names of ot\
+her\
+page reviewed using this tool, have been entered in a W3C WAI database\
+that we maintain (currently implemented as an archived mailing list\
+visible at http://lists.w3.org/Archives/Public/wai-report-db).\
+\
+Please take the time to review this report and take action\
+on the problems reported. If you have questions, please notify us\
+at mailto:wai-report\@w3.org, so that we can re-evaluate your page.\
+\
+Note. These comments were made by someone who visited your Web\
+site who may not be affiliated with W3C or the WAI. For this reason,\
+WAI does not take responsibility for the accuracy of this report nor\
+the comments made in the report. For more information about the W3C\
+Web Accessibility Initiative please visit http://www.w3.org/WAI.\
+\
+Regards,\
+";
+
+if (param('reporter_name')) {
+  print FILE "\nFrom ", param('reporter_name');
+  print FILE "\nusing the W3C WAI Accessibility Initiative Report Tool\n";
+} else {
+if (param('reporter_email')) {
+  print FILE "\nFrom ", param('reporter_email');
+  print FILE "\nusing the W3C WAI Accessibility Initiative Report Tool\n";
+} else {
+  print FILE "\nFrom an anonymous reporter";
+  print FILE "\nusing the W3C WAI Accessibility Initiative Report Tool\n\n";
+  }
+}
+
+close FILE;
+
+use CGI;
+$query = new CGI;
+print $query->header;
+print $query->start_html("Results of Registration Submission");
+print $query->start_html ('Web Accessibility Report Result ');
+
+print "<A TITLE=\"W3C Home\" HREF=\"http://www.w3.org/\"><IMG ALT=\"W3C logo\" \
+B
+ORDER=0 SRC=\"http://www.w3.org/Icons/w3c_home\"></A>" ;
+print "<A TITLE=\"WAI Home\" HREF=\"http://www.w3.org/WAI/\"><IMG ALT=\"Web  Ac\
+c
+essibility Initiative (WAI) logo\" BORDER=0 SRC=\"http://www.w3.org/Icons/WWW/w\
+a
+i\"></A>";
+print h1 ('Web Accessibility Report Result');
+print p,
+"Thanks for your time.<P>Your message has been sent to $destinataire, $cc",p,"P\
+lease consider submitting <A HREF=\"http://www.w3.org/WAI/report\">another WAI \
+Report</A>.";
+
+print $query->end_html;
+
+
+

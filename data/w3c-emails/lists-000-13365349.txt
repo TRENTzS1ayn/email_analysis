@@ -1,0 +1,286 @@
+docno="lists-000-13365349"
+received="Tue Jul 11 23:32:14 2000"
+isoreceived="20000712033214"
+sent="Wed, 12 Jul 2000 15:32:06 +1200 (NZST)"
+isosent="20000712033206"
+name="Richard A. O'Keefe"
+email="ok@atlas.otago.ac.nz"
+subject="tidy08jul00 dumps core with &lt;elt att&quot;val&quot; ...&gt;"
+id="200007120332.PAA22151@atlas.otago.ac.nz"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Someone sent me a web page about the team that programs the space shuttle.
+Given that the topic is a group working hard to produce *perfect* code, it
+is ironic that this page (NOT produced by that group, needless to say) is
+riddled with HTML problems.  I decided to try
+tidy -e writestuff.html
+HTML Tidy surprised me by dumping code.  Basically, it's due to the fact
+that when Tidy meets <element attribute"value" ... (note the missing = sign)
+the attribute value that's returned is not the right value nor yet an empty
+string, it is a NULL pointer.  With the libraries I'm using,
+vfprintf(fp, "....%s....", (args containing NULL)) dumps core.
+
+Here's a stripped down version of the file that gets Tidy into trouble.
+
+<html>
+<head>
+<title>They Write the Right Stuff</title>
+ <META NAME = "generator" CONTENT = "REFLEX v3.0 Online Publishing System">
+</head>
+<BODY>
+<table>
+<tr>
+<td width="135" height="74" colspan="2" valign="top">
+<P ALIGN="right"><A
+href="/cgi-bin/autorespond/recommend.cgi?/online/06/writestuff.html">
+Send This Page</A>
+<A href="/cgi-bin/autorespond/recommend.cgi?/online/06/writestuff.html">
+Adsmart Network ad</A>
+</td> 
+</tr>
+<tr>
+<td width="135" height="15" colspan="2" valign="top">&nbsp;</td>
+</tr> 
+<tr>
+<td width"37" height="74" valign="top">transparent gif</td>
+<td width"98" height="74" valign="top">javascript muck</td>
+</tr> 
+</table>
+</BODY>
+</HTML>    
+<P>
+
+No, I'm not kidding about the <P> at the end after the </HTML>.
+Note the last two <td> elements.
+
+Here's what Tidy says about this.
+
+f% tidy -e dummy.html
+
+Tidy (vers 8th July 2000) Parsing "dummy.html"
+line 8 column 1 - Warning: <table> lacks "summary" attribute
+line 22 column 1 - Warning: <td> unknown attribute value "Segmentation Fault
+ (core dumped)
+
+This is such really c****y HTML that it's not surprising HTML Tidy hasn't
+run into this problem before, but I give you my word it's real HTML, and
+it's precisely _because_ it's c****y that I'd like to clean it before
+passing it on to someone else (the content is interesting, after all).
+
+While trying to figure out a patch, I noticed that when ParseAttribute()
+finds a <, it first checks for <% (asp) or <? (php), and if it found
+neither, it reports UNEXPECTED_GT.  Surely it should be LT, not GT?
+The message talks about a *missing* GT.
+
+More seriously, since <TAG<TAG> is technically legal SGML if your SGML
+declaration allows it, HTML Tidy goes on to complain that the following
+element name is an unknown attribute.  Here's an example.
+
+f% cat >dimmy.html
+<HTML<HEAD<TITLE>FOO</TITLE>
+<BODY<P>BAR</BODY</HTML>
+% tidy dimmy.html
+
+Tidy (vers 8th July 2000) Parsing "dimmy.html"
+line 1 column 1 - Error: <html> missing '>' for end of tag
+line 1 column 1 - Warning: unknown attribute "head"
+line 1 column 12 - Warning: inserting missing 'title' element
+line 1 column 21 - Warning: discarding unexpected </title>
+line 2 column 2 - Warning: unknown attribute "p"
+line 2 column 2 - Warning: <body> isn't allowed in <body> elements
+...
+
+The bug here is that having read the character (H) after the <,
+Tidy needs to push back *two* characters (<H), but only pushes ONE.
+
+While trying to fix this, I discovered that
+EndOfInput(lxr) returns feof(lxr->in->file)
+which doesn't check for pushed-back characters (it'd be nice if this
+called a function inside the tidy.c file where StreamIn is mostly managed).
+
+My patched version of Tidy now reports
+Tidy (vers 8th July 2000) Parsing "dimmy.html"
+line 1 column 1 - Error: <html> missing '>' for end of tag
+line 1 column 7 - Error: <head> missing '>' for end of tag
+line 2 column 1 - Error: <body> missing '>' for end of tag
+
+
+
+
+
+
+
+The first part of the problem is that HTML Tidy apparently thinks the
+attribute name is width"37", and is flummoxed by seeing "height" when
+it expects
+
+Returning to <td width"37", it appears that HTML Tidy is perfectly happy
+to include quotation marks as part of attribute names.  Since that's
+_never_ legal in SGML or XML, something ought to be done when a quotation
+mark turns up in a name.  There's a comment about this in lexer.c:
+     /* what should be done about non-namechar characters? */
+     /* currently these are incorporated into the attr name */
+At least for quotation marks, I suggest that the answer is STOP!
+
+With that and a couple of other patches, my patched copy of Tidy now
+reports
+
+Tidy (vers 8th July 2000) Parsing "dummy.html"
+line 7 column 1 - Warning: <table> lacks "summary" attribute
+line 21 column 1 - Warning: <td> missing '=' before value
+line 22 column 1 - Warning: <td> missing '=' before value
+line 27 column 1 - Warning: content occurs after end of body
+line 28 column 1 - Warning: trimming empty <p>
+
+I needed to touch four files.
+Here's the result of sccs diffs html.h localize.c tidy.c lexer.c
+------------------------------cut here------------------------------
+------- html.h -------
+259,260c259,260
+<     Bool pushed;
+<     int c;
+---
+>     int pushed;   /* 0 .. 2 characters may be pushed back */
+>     int c[2];   /* the pushed-back characters */
+625a626
+> #define MISSING_EQUAL_SIGN      12
+
+------- localize.c -------
+229c229
+<             lexer->errors++;;
+---
+>             lexer->errors++;
+258a259,264
+>         else if (code == MISSING_EQUAL_SIGN)
+> {
+>             tidy_out(lexer->errout, "Warning: ");
+>             ReportTag(lexer, node);
+>             tidy_out(lexer->errout, " missing '=' before value");
+>         }
+268c274
+<         lexer->errors++;;
+---
+>         lexer->errors++;
+
+------- tidy.c -------
+188,189c188,190
+<     in->pushed = no;
+<     in->c = '\0';
+---
+>     in->pushed = 0;
+>     in->c[0] = '\0';
+>     in->c[1] = '\0';
+321,324c322,325
+<     if (in->pushed)
+<     {
+<         in->pushed = no;
+<         c =  in->c;
+---
+>     if (in->pushed != 0) {
+>         c = in->c[0];
+> in->c[0] = in->c[1];
+> in->pushed--;
+405a407,422
+> void UngetTwo(int c0, int c1, StreamIn *in)
+> {
+>     /* This should only be used when two characters have been read */
+>     /* so in->pushed should be 0 */
+>     assert(in->pushed == 0);
+>     in->c[0] = c0;
+>     in->c[1] = c1;
+>     in->pushed = 2;
+> 
+>     if (c1 == '\n') --in->curline;
+>     if (c0 == '\n') --in->curline;
+> 
+>     /* Is this right? */
+>     in->curcol = in->lastcol;
+> }
+> 
+408,409c425,428
+<     in->pushed = yes;
+<     in->c = c;
+---
+>     assert(in->pushed <= 1);
+>     in->c[1] = in->c[0];
+>     in->c[0] = c;
+>     in->pushed++;
+411,412c430
+<     if (c == '\n')
+<         --(in->curline);
+---
+>     if (c == '\n') --in->curline;
+
+------- lexer.c -------
+193c193
+<     return  (feof(lexer->in->file));
+---
+>     return  lexer->in->pushed == 0 && feof(lexer->in->file);
+1762c1762
+<                 while (c != '>')
+---
+>                 while (c != '>' && c != '<')
+1775c1775,1779
+< 
+---
+>                 if (c == '<')
+>                 {
+>     /* should issue a warning here */
+>     UngetChar(c, lexer->in);
+> }
+1790c1794
+<                     if (c == '/')
+---
+>                     if (c == '/' || c == '<')
+2295c2299
+<             UngetChar(c, lexer->in);
+---
+>             UngetTwo('<', c, lexer->in);
+2324c2328,2330
+<         if (c == '=' || c == '>')
+---
+>         if (c == '=' || c == '>'
+>          || c == '"' || c == '\''
+>          || c == '<' || c == EndOfStream)
+2330,2335d2335
+<         if (c == '<' || c == EndOfStream)
+<         {
+<             UngetChar(c, lexer->in);
+<             break;
+<         }
+< 
+2463,2468c2463,2474
+< /*
+<   c should be '=' if there is a value
+<   other legal possibilities are white
+<   space, '/' and '>'
+< */
+< 
+---
+>  /*
+>    The only legal possibilities for c are = (when there is a value)
+>    or / or > (when there is not).  However, some HTML file omit the
+>    = sign, and browsers can appearently cope with that, so when c
+>    is a quotation mark, we put it back, complain bitterly, and then
+>    pretend we saw an equal sign.
+>  */
+>     if (c == '"' || c == '\'')
+>     {
+>         UngetChar(c, lexer->in);
+>         ReportAttrError(lexer, lexer->token, null, MISSING_EQUAL_SIGN);
+>     } else
+2545a2552
+> fprintf(stderr, "At < inside ParseValue\n");
+
+------------------------------cut here------------------------------
+
+With those changes, HTML Tidy now gets to the end of writestuff.html
+without crashing.  And oh, the c*** it finds along the way!  There's
+one problem left:  the output doesn't look anywhere near as good in
+a browser as the input.  Oh well...
+
+
+

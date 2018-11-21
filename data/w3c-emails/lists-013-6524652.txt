@@ -1,0 +1,171 @@
+docno="lists-013-6524652"
+received="Tue Apr 20 22:39:19 2004"
+isoreceived="20040421023919"
+sent="Tue, 20 Apr 2004 22:39:02 0400"
+isosent="20040421023902"
+name="Scott Lawrence"
+email="scott@skrb.org"
+subject="Re: Using OPTIONS for optional feature discovery &ndash;&ndash; advice"
+id="1082515141.16857.255.camel@localhost.localdomain"
+inreplyto="2EF558A2-9332-11D8-A6A2000A95B2BB72&#64;osafoundation.org"
+expires="1"
+
+To: Lisa Dusseault<lisa@osafoundation.org>
+Cc:ietf-http-wg@w3.org
+
+
+
+On Tue, 2004-04-20 at 21:21, Lisa Dusseault wrote:
+> I am working on the next version of the HTTP PATCH method proposal:
+> http://www.ietf.org/internet-drafts/draft-dusseault-http-patch-00.txt
+> 
+> We've had some discussions amongst WebDAV people of the best way for 
+> clients to discover server feature support.  In this case, the client 
+> wants to discover:
+>   - if the server supports PATCH at all
+>   - if so, what delta or diff formats can be used on this resource.
+> 
+> For that purpose, is a new header on OPTIONS still considered to be the 
+> way to go?  Can a server omit this header on responses to OPTIONS * if 
+> it only supports the feature in part of its namespace?  (E.g. if a java 
+> servlet supplies support for this feature only in the namespace hosted 
+> by that servlet)
+
+
+
+00>            Partial Document Changes (PATCH Method) for HTTP
+00>                     draft-dusseault-http-patch-00
+
+00> 1. Introduction
+00>...
+00>   Note that byte ranges are already used in HTTP to do partial
+00>   downloads (GET method).   However, they are not defined for uploads,
+00>   and there are some missing pieces for uploads. For example, the HTTP
+00>   specification has no way for the server to send errors if the byte
+00>   range in a PUT is invalid. Byte ranges could be made to work in this
+00>   specification but they're not the only way to do partial
+00>   modifications.  Since reliable and tested patch algorithms already
+00>   exist, those are preferred.
+
+Just a comment here... the Range mechanism can (theoretically at least)
+operate on units other than bytes, and can do multiple ranges.  I
+think that it could be used for the sort of thing you envision, but I
+agree that a patch-like mechanism is probably more robust.
+
+00> 2.1 PATCH Method
+00>...
+00>   PATCH bodies are not cachable.  A cache MAY mark the resource
+00>   identified in the Request-URI as stale if it sees a successful
+00>   response to the PATCH request.
+
+I think that what you want to say here is that PATCH _request_ bodies
+MUST NOT be cached.  Whether or not the response can be cached depends
+on the nature of the response, and the server has available ways to
+control whether or not it can be cached.
+
+00>   The PATCH request MUST have a body.  [...]
+00>                                        The PATCH request MUST also use
+00>   one of the standard HTTP/1.1 mechanisms that let the server know when
+00>   the request body is done. The PATCH request body length MUST NOT be
+00>   indicated only by closing the connection when the body is complete,
+00>   because an incomplete PATCH body could conceivably corrupt the target
+00>   resource.
+
+That is confusing, and needn't be said at all - it's never valid to
+terminate a _request_ body by closing the connection - only a response
+body.
+
+00> 2.4 Advertising Support in OPTIONS: Patch header
+
+00>   The server advertises its support for the features described here
+00>   with an OPTIONS response header, sent on OPTIONS requests for any
+00>   resource.  The Patch header on any OPTIONS response indicates that
+00>   the server supports the PATCH method and at least one delta format.
+00>   When the OPTIONS request addresses a specific modifiable resource,
+00>   the Patch header in the response indicates which delta formats may be
+00>   used for this specific resource.  When an OPTIONS request addresses
+00>   the server as a whole (Request-URI = "*") the Delta header in the
+                                                    ^^^^^ - Patch?
+00>   response indicates the union of all delta formats supported by the
+00>   server.                             ^^^^^-patch?
+
+There is already a way to advertise support for a method - the 'Allow'
+header (rfc2616#14.7), which may be sent on any response.  For an
+'OPTIONS' request whose request-uri was '*', the Allow header can
+refer only to the server as a whole, which doesn't tell you whether or
+not a method in the Allow header will be acceptable for any particular
+URI (just as you describe above); for that you need to probe the URI
+that you're interested in, either with OPTIONS or some other method.
+In a WebDAV context, where multiple requests for the same resource are
+common, I would think that there would often be an opportunity to
+piggyback this on something else.
+
+I'd also suggest that for clarity you use 'Accept-Patch' as the
+response header to indicate what patch types are supported by the
+server.
+
+So your first example:
+
+00>   OPTIONS request and response indicating Patch support
+
+00>       [request]
+
+00>       OPTIONS * HTTP/1.1
+00>       Host: www.example.com
+
+00>       [response]
+
+00>       HTTP/1.1 200 OK
+00>       Patch: application/gdiff, text/xcap+xml
+
+should, I think, be:
+
+          [request]
+
+          OPTIONS * HTTP/1.1
+          Host: www.example.com
+
+          [response]
+
+          HTTP/1.1 200 OK
+          Allow: PATCH, ...
+          Accept-Patch: application/gdiff, text/xcap+xml
+
+and a specific use case:
+
+      [request]
+
+          OPTIONS /foo/bar.xml HTTP/1.1
+          Host: www.example.com
+
+      [response]
+
+          HTTP/1.1 200 OK
+          Allow: PATCH, GET, HEAD, PUT, OPTIONS, TRACE
+          Accept-Patch: text/xcap+xml
+
+and a PUT example showing that the capability can be passed with
+another response:
+
+      [request]
+
+          PUT /foo/bar.xml HTTP/1.1
+          Host: www.example.com
+
+      [response]
+
+          HTTP/1.1 201 Created
+          Allow: PATCH, GET, HEAD, PUT, OPTIONS, TRACE
+          Accept-Patch: text/xcap+xml
+          Etag: "xi30qkd0a"
+
+
+
+-- 
+Scott Lawrence        
+  Pingtel Corp.   
+  sip:slawrence {at} pingtel.com  
+  +1.781.938.5306 x162
+
+
+

@@ -1,0 +1,254 @@
+docno="lists-012-13676979"
+received="Thu May  4 06:43:37 2000"
+isoreceived="20000504104337"
+sent="Wed, 03 May 2000 22:42:42 0700"
+isosent="20000504054242"
+name="Julien Pierre"
+email="jpierre@netscape.com"
+subject="Re: draft-ietf-tls-httpupgrade reissued"
+id="39110DD2.A35FEEFD@netscape.com"
+charset="usascii"
+inreplyto="001701bf5852$b07feec0$954768c0&#64;oyster.agranat.com"
+expires="1"
+
+
+To: Scott Lawrence<lawrence@agranat.com>
+CC: IETF HTTP List<http-wg@hplb.hpl.hp.com>
+
+Hi,
+
+I know this is an old messsage, but I must ask : has anybody tried to
+implement this TLS upgrade draft ? Or is anybody contemplating it ?
+I would certainly like to get the benefits of secure software virtual
+servers, but I have concerns about this draft.
+
+At first, as a server implementer, the proposal in this draft looks good,
+and quite straightforward to implement . All I have to do is parse the
+clear-text TLS upgrade request from the client, find the right keys and
+certs for the virtual host requested, and upgrade the existing connection to
+TLS. Also, I can force a connection upon the client if an ACL is set. This
+is nothing major and looks clean.
+
+However, upon further examination, there are logistical and security
+problems with doing a TLS upgrade. Here are a few.
+
+1) It is a fact that many server products out there use confidential data,
+like application session keys, or other confidential state information, as
+part of the URI.
+
+Section 8.1 states :
+"servers may apply resource access rules such as 'the FORM on this page must
+be served and submitted using TLS'
+
+Even if a server enforces such a restriction, the URI will already be
+compromised as part of the TLS upgrade process, because it is transmitted in
+clear by the client before the server instructs it to upgrade to TLS.
+
+2) Nowadays, web users know if they have an http link that the connection is
+not secure, and that if it's https it is secure (SSL). It's possible by
+looking at the source for an HTML form to determine ahead of time if the
+data you will submit will go out in clear or not. The new upgrade draft
+makes it unpredictable, by its use of regular http URLs.
+
+With the new draft, there may be http:// link on a web form, for example to
+submit (POST) confidential data, made with the assumption that the server
+has an ACL requiring a TLS upgrade and therefore that the connection will be
+secured.
+
+A current-generation HTTP client will create a request with the form data
+from the user, and submit it in clear text to the server, compromising the
+data even before the server gets a chance to deny it by requesting a TLS
+upgrade with an HTTP 426 return code. This compromises security in order to
+retain compatibility with existing HTTP clients. I do not think it is an
+acceptable compromise.
+
+3) Section 8.1 states :
+
+"8.1 Implications for the https: URI Scheme
+
+   While nothing in this memo affects the definition of the 'https' URI
+   scheme, widespread adoption of this mechanism for HyperText content
+   could use 'http' to identify both secure and non-secure resources.
+
+   The choice of what security characteristics are required on the
+   connection is left to the client and server.  This allows either
+   party to use any information available in making this determination.
+   For example, user agents may rely on user preference settings or
+   information about the security of the network such as 'TLS required
+   on all POST operations not on my local net', or servers may apply
+   resource access rules such as 'the FORM on this page must be served
+   and submitted using TLS'. "
+
+When it comes to security, I don't think ambiguity is a good thing, and it
+is not good to leave it entirely
+"up to the client and server" to determine what security characteristics are
+needed for the connection.
+I think the draft should define at least one standard way to tell clients
+that an upgrade is in order before connection establishment.
+
+Take the HTML form example described in my second remark.
+
+What is a new HTTP client aware of the TLS upgrade draft supposed to do when
+submitting such an HTML form ? Should it always try first thing to upgrade
+the connection to any HTTP server to TLS, before issuing any meaningful
+request (containing URI and maybe also POST data) ?
+
+That would certainly work technically and ensure best possible security, but
+it would be a major waste of bandwidth in 99% of the cases since current
+servers will not understand the upgrade request and reject it. Many existing
+servers don't support keep-alive and will even close the connection,
+introducing extra latency due to the need to reconnect.
+
+It may also be a waste of CPU for both the server and client, since perhaps
+the connection didn't really need to be secure, but ended up as TLS because
+of the way the client negotiated the upgrade for every server, and the
+server just accepted it.
+
+I think a key problem even for a next-generation HTTP client that is aware
+of the upgrade mechanism in this draft, and would be able to perform the
+upgrade to TLS - is that the original HTML form fails to specify that the
+client should not POST the data in clear, but must request upgrade to TLS.
+
+There needs to be a way to inform the client to request security prior to
+the establishment of the connection. I think something still needs to be
+specified in the URL to let the client know ahead of time that security is
+required for the connection. It cannot be a regular https:// URL since that
+will not allow the server to differentiate the virtual host for which the
+data is intended. I believe a clean way to do it is to instead have a
+distinct protocol name in the URL.
+
+Perhaps there should be other ways to specify it than a protocol name, and
+perhaps it doesn't belong in the HTML and not HTTP specification, but I
+think that this is a major hole in the draft. Certainly, a new protocol name
+means that some clients will not be able to follow some links on new servers
+that require a TLS step up, but I think it is acceptable in the name of
+uncompromised security.
+
+
+I believe there is another approach to solving this problem of tying secure
+virtual servers to IP addresses. It is completely different than the
+proposal in this draft, and does not address the issues of using dual ports
+for non-secure and TLS, but I believe is is still relevant.
+
+Instead of trying to define a mechanism to upgrade the connection from
+non-secure to secure, the virtual host negotiation could be made a standard
+part of the SSL/TLS protocols. I think that makes sense since these
+protocols exchange certificates which are tied to the virtual host names.
+This is how I would envision it would work :
+
+Let's take two virtual hosts, say secure.sun.com and secure.netscape.com .
+They both resolve to the same IP address.
+
+A client wants to connect to https://secure.sun.com . The server happens to
+present its public key with the certificate for secure.netscape.com . At
+that point, the client normally brings a pop-up dialog saying that the
+certificate doesn't match the host requested - which was secure.sun.com ,
+then asks the user if he wants to continue, and the user usually stops the
+connection.
+
+Instead, the client would by default agree to communicate with the server on
+the current SSL/TLS socket, specifically to issue a "virtual host change"
+request for secure.sun.com .
+
+The server would then realize that it also knows the key and cert for
+secure.sun.com, and would be given the opportunity to renegotiate the SSL
+connection with the client, this time presenting secure.sun.com's public key
+and certificate. The client could then verify that certificate and accept
+it, and the whole process would be transparent for the user.
+
+As you will note, this process requires two full SSL/TLS handshakes, so it
+is more expensive in CPU. But that can be optimized. The secure virtual
+server could have a unique public key, with several certificates signing
+that same key - one certificate for each virtual host. It would then only
+have to transmit the certificate for secure.sun.com, without having to
+transmit a different public key. This second certificate would satisfy the
+client, and would be much faster since it would save a second full
+handshake. As part of TLS, this process would be generically applicable to
+any other type of TCP client/server application with TLS, not specifically
+tied to HTTP.
+
+If you have made it this far, I'm now waiting for all your objections, so go
+ahead and shoot !
+
+Scott Lawrence wrote:
+
+> The secretariat didn't forward this announcement to this list, so I
+> will.
+>
+> The only change from version -04 is the addition of the standard
+> boilerplate and references  regarding the keywords (MUST, SHOULD,
+> MAY, etc).
+>
+> A New Internet-Draft is available from the on-line Internet-Drafts
+> directories.
+> This draft is a work item of the Transport Layer Security Working
+> Group of the IETF.
+>
+>         Title           : Upgrading to TLS Within HTTP/1.1
+>         Author(s)       : R. Khare, S. Lawrence
+>         Filename        : draft-ietf-tls-http-upgrade-05.txt
+>         Pages           : 13
+>         Date            : 05-Jan-00
+>
+> This memo explains how to use the Upgrade mechanism in HTTP/1.1 to
+> initiate Transport Layer Security (TLS) over an existing TCP
+> connection. This allows unsecured and secured HTTP traffic to share
+> the same well known port (in this case, http: at 80 rather than
+> https: at 443). It also enables 'virtual hosting,' so a single HTTP
+> + TLS server can disambiguate traffic intended for several hostnames
+> at a single IP address.
+> Since HTTP/1.1[1] defines Upgrade as a hop-by-hop mechanism, this
+> memo also documents the HTTP CONNECT method for establishing
+> end-to-end tunnels across HTTP proxies. Finally, this memo
+> establishes new IANA registries for public HTTP status codes, as
+> well as public or private Upgrade product tokens.
+>
+> A URL for this Internet-Draft is:
+> http://www.ietf.org/internet-drafts/draft-ietf-tls-http-upgrade-05.t
+> xt
+>
+> Internet-Drafts are also available by anonymous FTP. Login with the
+> username
+> "anonymous" and a password of your e-mail address. After logging in,
+> type "cd internet-drafts" and then
+>         "get draft-ietf-tls-http-upgrade-05.txt".
+>
+> A list of Internet-Drafts directories can be found in
+> http://www.ietf.org/shadow.html
+> or ftp://ftp.ietf.org/ietf/1shadow-sites.txt
+>
+> Internet-Drafts can also be obtained by e-mail.
+>
+> Send a message to:
+>         mailserv@ietf.org.
+> In the body type:
+>         "FILE /internet-drafts/draft-ietf-tls-http-upgrade-05.txt".
+>
+> NOTE:   The mail server at ietf.org can return the document in
+>         MIME-encoded form by using the "mpack" utility.  To use this
+>         feature, insert the command "ENCODING mime" before the "FILE"
+>         command.  To decode the response(s), you will need "munpack" or
+>         a MIME-compliant mail reader.  Different MIME-compliant mail
+> readers
+>         exhibit different behavior, especially when dealing with
+>         "multipart" MIME messages (i.e. documents which have been split
+>         up into multiple messages), so check your local documentation on
+>         how to manipulate these messages.
+>
+> --
+> Scott Lawrence      Director of R & D        <lawrence@agranat.com>
+> Agranat Systems   Embedded Web Technology   http://www.agranat.com/
+
+--
+for a good time, try kill -9 -1
+
+
+
+
+
+
+application/x-pkcs7-signature attachment: S/MIME Cryptographic Signature
+
+
+
+

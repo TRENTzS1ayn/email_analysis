@@ -1,0 +1,209 @@
+docno="lists-011-4310350"
+received="Thu Jul 17 14:46:10 1997"
+isoreceived="19970717184610"
+sent="Thu, 17 Jul 97 14:27:51 MDT"
+isosent="19970717202751"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: STATUS100 Re: Proposed resolution"
+id="9707172127.AA15536@acetes.pa.dec.com"
+inreplyto="199707171433.KAA08872&#64;devnix.agranat.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Responses to comments from Scott Lawrence:
+
+      An observation: I find it interesting that the set of rules to limit
+      use of 100 Continue seems to require such a long specification,
+      given that the original mechanism was so simple...
+
+H. L. Mencken once said "For every complex problem, there is a solution
+that is simple, neat, and wrong."
+
+Anyway, a lot of the lengthening that I added was to address the
+complaints about ambiguity in the previous draft.
+    
+        Requirements for HTTP/1.1 or later origin servers:
+        o  Upon receiving a request which includes an "Expect" request-header
+           field with the "100-continue" expectation, an origin server must
+           either respond with 100 (Continue) status and continue to read
+           from the input stream, or respond with an error status. If it
+           responds with an error status, it MAY close the transport (TCP)
+           connection or it MAY continue to read and discard the rest of the
+           request. It MUST NOT perform the requested method if it returns
+           an error status.
+    
+  I would reword this to reflect that the 100 Continue response MUST
+  be sent after the request _headers_ have been recieved, since the
+  'request' includes the body.
+
+You're right that it needs a re-wording (and one "must" should be
+a "MUST"), but I don't think that the requirement is exactly that
+the server MUST wait for the entire set of request headers.  It
+could, for example, decide to send the 100 Continue as soon as it
+sees the Expect header, if it has no intention of rejecting the
+request based on other headers.
+
+How about:
+   o  Upon receiving a request which includes an "Expect" request-header
+      field with the "100-continue" expectation, an origin server MUST
+      either respond with 100 (Continue) status and continue to read
+      from the input stream, or respond with an error status.  The
+      origin server MUST NOT wait for the request body before sending
+      the 100 (Continue) response.  If it
+      responds with an error status, it MAY close the transport (TCP)
+      connection or it MAY continue to read and discard the rest of the
+      request. It MUST NOT perform the requested method if it returns
+      an error status.
+
+Note that since the decision between sending 100 (Continue) or 
+some error status could take the server an arbitrary amount of
+time, so we can't actually say how soon after receiving the request
+headers the server must send a response.
+    
+        o  An origin server SHOULD NOT send a 100 (Continue) response if
+           the request message does not include an "Expect" request-header
+           field with the "100-continue" expectation, and MUST NOT send a
+           100 (Continue) response if such a request comes from an HTTP/1.0
+           (or earlier) client.
+    
+        o  An origin server SHOULD NOT send a 100 (Continue) response if
+           has already received some or all of the request body for the
+           corresponding request.
+    
+   I don't see the point of these two SHOULD NOTs, since the client
+   MUST be prepared to accept an unexpected 100 response anyway.
+
+We do have an obligation to limit the number of unnecessary bits that
+travel over the Internet.  One might argue that adding
+HTTP/1.1 100 Continue<CR><LF><CR><LF>
+to every response to a PUT or POST is insignificant, or one
+might argue the contrary.  Anyway, the second rule seems innocuous
+(since if the server is receiving the request body, manifestly
+the client isn't waiting for the 100 Continue).  The first rule
+might cause some delays for existing clients that wait for
+100 Continue, if there are any.
+
+      Arguing against these rules:
+    
+- As noted elsewhere, existing 1.1 servers (yes, there are some)
+  won't have been coded to include these restrictions (since the
+  Expect header was only suggested a couple of weeks ago).
+    
+We shouldn't unnecessarily break any deployed systems.  On the other
+hand, the use of words such as SHOULD NOT will ultimately be used to
+determine whether an implementation complies with the HTTP/1.1
+standard, and since that standard does not yet exist in its final
+form, it's unlikely that any existing "1.1" server could actually
+meet the final-standard rules for conditional compliance, anyway.
+
+- I think that it is poor design to encourage look-ahead in the
+  data stream to determine whether or not body has been received.
+    
+The language does not specifically require the server to look ahead
+into the data stream.  However, if the server has actually read some
+of the request body, I see no harm in encouraging efficient use of
+the Internet.
+
+    ...
+        o  If an origin server receives a request that does not include an
+           "Expect" request-header field with the "100-continue"
+           expectation, and the request includes a request body, and the
+           server responds with an error status before reading the entire
+           request body from the transport connection, then the server
+           SHOULD NOT close the transport connection until it has read the
+           entire request, or until the client closes the connection.
+           Otherwise, the client may not reliably receive the response
+           message.
+    
+   Does this amount to a rule for the purpose of avoiding bugs in some
+   TCP implementations?  I can live with this rule since it is not a
+   MUST.
+
+Yes.  I'd appreciate it if Henrik Frystyk or Jim Gettys could review
+this rule, since I included it based on my understanding of their
+implementation experience and suggestions.
+    
+        For compatibility with RFC 2068, a server MAY send a 100 (Continue)
+        status in response to an HTTP/1.1 PUT or POST request that does not
+        include an "Expect" request-header field with the "100-continue"
+        expectation.  This exception, the purpose of which is to minimize
+        any client processing delays associated with an undeclared wait for
+        100 (Continue) status, applies only to HTTP/1.1 requests, and not to
+        requests with any other HTTP-version value.
+    
+   I think that making this a special case allowed _only_ for HTTP/1.1
+   is going too far.  We already have the requirement that 100 Continue
+   must be accepted by the client anyway.  We're talking about as few
+   as 'HTTP/1.1 100CRLF" - 14 bytes - 23 if you send the ' Continue'.
+   What justification is there for the complexity of this restriction?
+
+See above.  But I agree with you that this is a judgement call.
+I'm just worried that we may not need to send these extra bytes,
+and we have the chance now to discourage 23*N extra bytes over
+the Internet for many years to come (where N is a large number!)
+
+What do other people think?
+    
+   Furthermore, I think that the above rule, which is stated using
+   'MAY', is really a 'MUST NOT':
+ 
+     A server using any revision of HTTP later than HTTP/1.1 MUST NOT
+     send a 100 (Continue) status in response to an HTTP/1.1 PUT or
+     POST request that does not include an "Expect" request-header
+     field with the "100-continue" expectation.
+
+I don't think the HTTP/1.1 spec can actually define the behavior
+of an implementation of a later version of HTTP, without also
+at least defining that behavior for an implementation of HTTP/1.1.
+This is basically what you said, I think:
+   I don't believe that this rule on future versions of the protocol
+   meets that test.
+but part of my proposal which you are paraphrasing here doesn't
+have the same problem.  (Perhaps, though, I need to change
+"Requirements for HTTP/1.1 or later XXX" to "Requirements for
+HTTP/1.1 XXX".)
+
+At any rate, your proposed change doesn't address the RFC2068
+compatibility issue, which is that *existing* clients might
+be waiting for 100 (Continue) without having sent the Expect
+header.  (Unless you are assuming that all such deployed clients
+are gone by the time that HTTP/1.2 arrives.)
+ 
+     Requirements for HTTP/1.1 or later proxies:
+  ...
+     o  If the proxy knows that the version of the next-hop server is
+HTTP/1.0 or lower, it MUST NOT forward the request, and it MUST
+respond with a 419 (Expectation Failed) status.
+ 
+   How is the client to know that repeating the request using HTTP/1.0 could
+   resolve this situation?  Should clients always back off to 1.0 if
+   they receive a 419?
+
+If you send "Expect: 100-continue" and you get a 419 (Expectation
+failed) response, then you know that there is no guarantee that
+you will get a 100 (Continue) response before you send the request
+body, no longer how long you wait.
+
+At this point, the user-agent has two choices:
+(1) fall back to the HTTP/1.0-like behavior (this is NOT
+the same thing as falling back to HTTP/1.0), i.e., send
+the request body without waiting.
+(2) tell the user that the request cannot be accomplished.
+
+My guess is that, in reality, relatively few (if any) general-purpose
+applications are actually going to require "Expect: 100-continue" in
+the first place, and so this is really only an issue for applications
+in which the need for server pre-confirmation is actually significant.
+When we write the HTTP/1.1 spec, we can't presume to decide for these
+applications whether it is semantically necessary to get the server's
+pre-confirmation (i.e., 100 response).  All we can do is to give them
+a relatively unambiguous signal about whether it will be available
+or not.  The application implementor has to make the final decision.
+
+-Jeff
+
+
+

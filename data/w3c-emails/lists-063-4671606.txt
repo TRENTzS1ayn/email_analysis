@@ -1,0 +1,173 @@
+docno="lists-063-4671606"
+received="Fri Feb 26 08:45:58 1999"
+isoreceived="19990226134558"
+sent="Fri, 26 Feb 1999 13:45:53 +0000"
+isosent="19990226134553"
+name="Silas S. Brown"
+email="ssb22@cam.ac.uk"
+subject="RE: Betsie / Gateway comparison"
+id="E10GNaS-0005IF-01@green.csi.cam.ac.uk"
+inreplyto="41ED4776F432D211ACBD0000F8EF7D7A86EAF8&#64;w12wcedxu01.wc.bbc.co.uk"
+expires="-1"
+
+To: Wayne Myers-Education<wayne.myers@bbc.co.uk>
+CC:w3c-wai-er-ig@w3.org
+
+
+Hi, thanks for your message.  I agree there certainly is a limit to what 
+a gateway can do (take those stupid pages that are 100% gif files, for 
+example); my development of the access gateway has been largely steered 
+by my own browsing - if I want to see page X, and the gateway won't do 
+it, then I look at the HTML and try and work out a way of making it 
+better.  Same for browsers - recently (for various stupid reasons I 
+won't go into) I was forced to use NCSA Mosaic for a while, and it 
+turned out it couldn't display in a large font unless it was headings, 
+so I hacked out an option to make everything a heading.  It's not very 
+good but it worked.
+
+If Betsie is being used as a repair tool then it's probably not a good 
+idea to implement lots of stuff like that - it encourages bad HTML.  One 
+problem is that webmasters might stick Betsie up and assume that this 
+somehow magically makes everything right.  One interesting extension 
+would be to get it to log any obvious mistakes it finds and can't deal 
+with (images without ALT, etc).  I won't get the gateway to do this 
+because it has a slightly different purpose - it's supposed to help with
+other people's sites, not your own.  (I did think of getting it to 
+automatically send an email complaining about lack of ALT tags to 
+webmaster@wherever, but I thought that this could easily get out of 
+control.)
+
+[TD instead of /A]
+> And... yes, but it's not a common idiom, it's a common error. Mind you, it
+> would be good if Betsie could fix that too.
+
+Especially since it occurs several times on the BBC's site (or maybe 
+it would be better to log these things).  I found out about it because
+MetaCrawler uses it - it was incredibly unhelpful to have a page of 
+search results all as one link.
+
+> > Also, the link is to a graphics file, which Betsie is unaware of and 
+> > tries to redirect through itself.
+> 
+> Um.. doh! Again! Hadn't thought of that. (Not that it happens often).
+
+A very common thing is to do
+<A HREF="bigfile.gif"><IMG SRC="smallfile.gif"></A>
+(ie. click on the image for a larger view)
+
+It's not just images - it's things like .tar.gz etc as well.  If you 
+look at the top of tagstuff.c++, there is a list of extensions that the 
+gateway avoids, if that's any help.  (// is a comment by the way)
+
+> There's
+> another bug you missed, in fact, which is that you can point Betsie at
+> herself and she doesn't mind, and you can keep doing that until your browser
+> crashes with an over-long URL. This has to be fixed too. (My strong
+> suspicion is that you've already sorted that one out in yours.)
+
+It's not too difficult - you make sure every page you generate contains 
+a funny string (eg. a bunch of random letters in a comment), and if, 
+when reading a page, you find that funny string, you give up.
+
+In my gateway I made all my variables (eg. URL to look at) begin with 
+ssb22A.  This makes it easy to submit forms through the gateway, since 
+you can tack on the form parameters to my parameters and it will be OK.  
+(In Betsie this is less of a problem since it only ever takes a URL 
+anyway and no extra parameters, but if you want to introduce parameters 
+then you'll have this problem.)  Then, when parsing a form, if I saw 
+ssb22A, I'd give up.  This made sure the gateway couldn't go through 
+itself.
+
+Recently, however, I actually removed this feature.  The reason for this 
+was someone here at Cambridge University putting up a web page which, 
+when I looked at it though the gateway, caused the gateway to complain 
+of a reference to itself.  I looked at the HTML and found this comment:
+
+<!-- Stop Silas from reading my page -->
+
+The obvious implication is that, if you use this method, it is possible 
+for someone to write a page that deliberately excludes all gateway 
+users.  I also had a problem when I wanted to get one instance of the 
+gateway to fetch a page from another, in order to try and get around a 
+routing loop in the UK's Joint Academic Network last weekend.
+
+So I changed the program (although you probably still have the old 
+version).  Now, instead of using ssb22A, it just uses A (although it 
+still understands the old syntax so people's bookmarks still work), and 
+if it finds something already beginning with A, it prefixes it with an 
+"escape sequence" type thing.  Then, when you submit through the 
+gateway, it removes one level of escape sequences.
+
+So now it's possible to follow a gateway'd link and end up nested.  And 
+it would be no good to just check to see if it's referring to itself, 
+because you could get a gateway on machine A to go through one on 
+machine B, which in turn goes back through A.  One thing you could do is 
+check the user agent - I set my user agent to Access_gateway and I could 
+easily throw an error message if someone tries to get pages from the 
+gateway through itself (or another one).  But at the moment I haven't 
+done anything, because this corner of the Internet is always having 
+problems and I find the "forwarding around black holes" kind-of useful!  
+(Could just do with one in France or Germany to avoid the transatlantic 
+link that keeps going down....)
+
+BTW One idea you might like is to add this in the head of all pages 
+returned by Betsie:
+
+<META NAME="robots" CONTENT="noindex,nofollow">
+
+because there's absolutely no point in robots taking up your processor 
+time.  Some robots will still follow through, most notably spam email 
+collectors; have a look at spamhate.c++ to see how I deal with them.  
+(Does anyone know if Mercator is a real browser, by the way?)
+
+> In terms of multiple passes through the page, though, they're not countless,
+
+Not yet!  Betsie's speed is fine at the moment; I'm just thinking of 
+what would happen if you tried to implement all the options in the 
+gateway in Perl.
+
+I agree Perl encourages you to write this way, because of all of this 
+regular expression stuff.  I tend to think state-based, ie. "If you see 
+this, go into a state where you're ignoring stuff until you see this", 
+and that way I can do all the removal in the same pass.  C++ does help 
+because it lets you have objects - I make a Tag an object with methods, 
+and this helps a lot with processing individual tags.
+
+> Meanwhile, as pages get larger the Betsie version of the page seems to
+> actually increase in download speed
+
+Hmm, interesting!  Could this be because Betsie is removing some of the 
+stuff (especially images)?  With my gateway I find it's usually slower 
+than direct browsing (especially if the gateway is going through the 
+proxy we're made to use, which is rather slow); I don't start sending 
+stuff immediately because a lot of web servers don't support it - they 
+collect all the stuff together and send it themselves, with 
+Content-Length attached.  (And the server on my machine doesn't even do 
+that - it expects you to work out the Content-Length, and if you don't, 
+the browser hangs because it uses the keep-alive protocol.)  If the 
+server's going to collect all the stuff then I might as well hang on to 
+it myself, and this allows doing such things as erasing half-finished 
+pages when an unrecoverable error happens.  (There's nothing worse than 
+an error message deeply embedded in a page)
+
+I find that the slowest part of the whole process (now I've optimised 
+the program itself) is waiting for the remote computer to respond while 
+getting the page.  But I do want to make sure my program adds as little 
+overhead as possible.
+
+[java]
+> Um.. oh. It's quite possible that I'm wrong then, but I couldn't get it to
+> work.
+
+What URL did you test it on?  All I do is make sure the class file etc 
+is specified as an absolute URL.
+
+Regards
+
+-- Silas S Brown, St John's College Cambridge UK http://epona.ucam.org/~ssb22/
+
+"Better is the end afterward of a matter than its beginning" - Ecclesiastes
+ 7:8
+
+
+

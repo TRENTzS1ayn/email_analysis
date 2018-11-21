@@ -1,0 +1,311 @@
+docno="lists-051-13382729"
+received="Mon Sep 23 05:18:59 2002"
+isoreceived="20020923091859"
+sent="Mon, 23 Sep 2002 12:17:31 +0300"
+isosent="20020923091731"
+name="Patrick Stickler"
+email="patrick.stickler@nokia.com"
+subject="Re: Abstract data model update - discussion"
+id="004301c262e2$0c2fb7e0$d74416ac@NOE.Nokia.com"
+charset="iso-8859-1"
+inreplyto="200209211251.22405.jjc&#64;hpl.hp.com"
+expires="-1"
+
+
+To:"ext Jeremy Carroll"<jjc@hpl.hp.com>,<w3c-rdfcore-wg@w3.org>
+
+
+
+
+[Patrick Stickler, Nokia/Finland, (+358 50) 483 9453, patrick.stickler@nokia.com]
+
+
+----- Original Message ----- 
+From: "ext Jeremy Carroll" <jjc@hpl.hp.com>
+To: <w3c-rdfcore-wg@w3.org>
+Sent: 21 September, 2002 13:51
+Subject: Abstract data model update - discussion
+
+
+> 
+> 
+> well I started thinking about my action to update the abstract data model.
+> When I get round to it, there are some choices I need to make that well 
+> inevitably be controversial.
+> 
+> This message is to raise those issues for discussion now.
+> 
+> Issue 1
+> ======
+> Can XML Literals be datatyped?
+> In RDF/XML is this legal:
+> 
+> <rdf:Description>
+>   <eg:prop rdf:datatype="&eg;foo" rdf:parseType="Literal">
+>   the value <em>ha</em>
+>  </eg:prop>
+> </rdf:Description>
+> 
+> I am intending to disallow this.
+
+Fair enough. I still thing that datatyping XML literals with
+complex datatypes would not be a problem, and likely helpful
+(and more consistent) but we can always add it later...
+
+It's not critical to do it now.
+
+> Issue 2
+> ======
+> Does the literal label of a datatyped literal include the lang tag?
+> I am intended to allow this - bowing to pressure from Patrick and Pat (against 
+> my better? judgment), but note that then without the xsd engine, RDF alone 
+> cannot conclude that american Jenny and Italian Ginevra have the same age.
+> 
+> <rdf:RDF xml:lang="it">
+> <rdf:Description  rdf:ID="Ginevra">
+>   <eg:name>Ginevra</eg:name>
+>   <eg:age rdf:datatype="&xsd;int">10</eg:age>
+> </rdf:Description>
+> </rdf:RDF>
+> 
+> <rdf:RDF xml:lang="en-us">
+> <rdf:Description  rdf:ID="Jenny">
+>   <eg:name>Jenny</eg:name>
+>   <eg:age rdf:datatype="&xsd;int">10</eg:age>
+> </rdf:Description>
+> </rdf:RDF>
+
+Actually, RDF alone, without any further knowledge of XML Schema
+datatypes, *can* determine that Ginevra and Jenny both have
+the same age, since the RDF MT will know that xml:lang does not
+participate in the L2V mapping and that since both typed literal
+nodes define the same exact pairing (xsd:int, "10") then the RDF MT
+can conclude that they denote the same value (whatever that value
+is).
+
+Now, if we had "10" in the first case and "010" in the second case,
+then no, RDF alone could not determine equality or inequality.
+
+As for the name values, I'm presuming that there is an implicit
+datatype for these of xsd:string, in which case, these will never
+equate to the same as far as the datatyping is concerned.
+
+Some extra-RDF application layer may be able to examine pairs of
+language qualified names and decide if they are in some way
+"equivalent" (e.g. per common translation practices, etc.) but
+insofar as xsd:string is concerned, different lexical forms map
+to different values, irregardless of any other relationships,
+such as language translation, etc.
+
+So there's really no problem here.
+
+> Issue 3
+> ======
+> How untidy is the graph?
+> Options range from saying nothing (so that there maybe multiple occurrences of 
+> conceptually tidy nodes [e.g. URI labelled ones] with the same label - this 
+> then leaves Pat to do the necessary tidying); to an extreme syntactic version 
+> of WG decisions in which URI and datatyped literal nodes are tidied and 
+> untyped literal nodes are untidy.
+> I think I prefer the latter for the following reasons:
+> - the WG (and the community) has a general tendency to prefer syntactic 
+> expression of semantic truths where possible (hence the damp squib of my 
+> attempt to separate syntactic and semantic tidiness)
+
+I like the option of treating inline literals the same as typed literals,
+by using a systemID (similar to that used as a nodeID for blank nodes)
+to denote the implicit datatype, and then saying that
+all nodes are tidy by label. This captures the semantic untidyness in 
+the unique systemID of the implicitly typed literal and makes the issue
+of syntactic tidyness simple -- everything is tidy.
+
+Thus:
+
+    <rdf:Description rdf:about="#Jenny">
+       <age>10</age>
+    </rdf:Description>
+    <rdf:Description rdf:about="#Judy">
+       <age>25</age>
+    </rdf:Description>
+
+gives us
+
+   <#Jenny> <#age> _:x"10" .
+   <#Judy>  <#age> _:y"25" .
+
+and later, if there is a range assertion for the age property,
+we can apply a MT closure rule such that
+
+IF the graph contains the triples:
+   ddd rdf:type rdfs:Datatype .
+   ppp rdfs:range ddd .
+   sss ppp _:x"LLL" .
+THEN
+   I(_:x"LLL") = I(ddd"LLL") 
+
+This is outlined in greater detail in section C.2 of Part 2 of the 
+restructured document. 
+
+> Issue 4:
+> =======
+> Can an untyped literal be the object of two triples?
+> I intend to answer "NO". (Strict untidiness of untyped literals).
+
+I agree.
+
+> Such *strictly* untidy literals do not need to be named in N-triples and 
+> leaves implementors with less to do. Also permitting untyped literals to 
+> occur as the object of multiple statments reintroduces the serilization 
+> problems that we have seen with bNodes (fixed for bNodes with rdf:nodeID - 
+> which doesn't immediatly generalize because of the empty property element 
+> production).
+> 
+> A test case is:
+> 
+> <rdf:RDF xml:base="http://example/">
+>   <rdf:Description rdf:about="#subj">
+>     <eg:prop rdf:ID="reify">literal</eg:prop>
+>   </rdf:Description>
+> </rdf:RDF>
+> 
+> does entail
+> 
+> <rdf:RDFxml:base="http://example/">
+>   <rdf:Statement rdf:about="#reify">
+>     <rdf:object>literal</rdf:object>
+>   </rdf:Statement>
+>   <rdf:Description rdf:about="#subj">
+>     <eg:prop>literal</eg:prop>
+>   </rdf:Description>
+> </rdf:RDF>
+> 
+> but neither entails
+> 
+> <rdf:RDFxml:base="http://example/">
+>   <rdf:Statement rdf:about="#reify">
+>     <rdf:object rdf:nodeID="blank"/>
+>   </rdf:Statement>
+>   <rdf:Description rdf:about="#subj">
+>     <eg:prop rdf:nodeID="blank"/>
+>   </rdf:Description>
+> </rdf:RDF>
+> 
+> 
+> that is the untyped literal node created for the reification is a different 
+> literal node than that created for the triple itself.
+
+I don't see why this is necessary. Already, parsers have to ensure
+that the systemID of a blank node in a statement correspond to the
+label of the same node in the reification. I see no reason why inline
+literals need be treated differently, or pose any additional burden.
+
+I.e. inline literals are just bnodes with some extra stuff in the label.
+
+All the machinery is there to deal with bnodes, just extend it to address
+inline literals, preserving the extra label content.
+
+If the label of the inline literal in the triple is _:x"LLL" then so should
+the label of the inline literal in the reification.
+
+> If the object is a typed literal or a uriref node then the usual tidiness 
+> rules would have resulted in the entailment above.
+
+True.
+
+> Issue 5
+> ======
+> reacting to xml:lang=""
+> I intend to make the lang component of a literal compulsory, defaulting to "".
+> (I suggest ntriple does not need to include an empty lang tag)
+> 
+> Issue 6
+> ======
+> Are RDF XML Literals tidy or untidy.
+> They are untyped inline literals, so I will make them untidy.
+> However we haven't formally decided that.
+> Test case 
+> 
+> 
+> <rdf:RDFxml:base="http://example/">
+>   <rdf:Description rdf:about="#s1">
+>     <eg:prop1>literal</eg:prop1>
+>   </rdf:Description>
+>   <rdf:Description rdf:about="#s2">
+>     <eg:prop2>literal</eg:prop2>
+>   </rdf:Description>
+> </rdf:RDF>
+
+Did you mean to include parseType="Literal" for
+prop1 and prop2 above?
+
+> does not entail
+> 
+> <rdf:RDFxml:base="http://example/">
+>   <rdf:Description rdf:about="#s1">
+>     <eg:prop1 rdf:nodeID="b" />
+>   </rdf:Description>
+>   <rdf:Description rdf:about="#s2">
+>     <eg:prop2 rdf:nodeID="b" />
+>   </rdf:Description>
+> </rdf:RDF>
+
+I prefer this, but N-Triples will probably need some tweaking
+to make the boundary between the systemID and XML flag distinct,
+possibly choosing some other syntactic term as the XML flag, 
+which does not begin with a name character, e.g. '!' as in
+
+   _:x!"<x>yz</x>"-en
+
+> 
+> 
+> SUMMARY
+> =========
+> 
+> Thus I am imaging that a literal in ntriple will need to show:
+> 
+> A lang tag (if not "")
+> A string
+> Either "xml" or a datatype URI or nothing.
+> 
+> It will not need to show 
+> - both xml and a datatype at the same time
+> - both a literal and a node identifier at the same time
+> - any sort of unknown datatype (datatypes are always URIrefs).
+
+How will you capture the untidyness of inline literals in N-Triples
+without systemIDs/nodeIDs? 
+
+Having simply the literal without a unique nodeID suggests to me
+syntactic tidyness for non-explicitly-typed literals. And since
+there is already confusion about the syntactic/semantic tidyness
+or untidyness of inline literals, having a pedantically explicit
+untidy syntactic representation will help avoid any further
+confusion.
+
+Also, as has been pointed out in the case of reification, we
+really do need to indicate which exact inline literal node is
+being refered to in the reification, and that means that each
+occurrence of an inline literal needs a unique label, and the
+obvious way to do that IMO is to use a systemID in place of
+a URIref to denote the implied datatype.
+
+So, we'd have (in N-Triples):
+
+   inline literal                              _:a"foo"
+   inline literal with xml:lang                _:b"foo"-en
+   typed literal                     <&xsd;string>"foo"
+   typed literal with xml:lang       <&xsd;string>"foo"-en
+   xml literal                                _:c!"<h1>foo</h1>"
+   xml literal with xml:lang                  _:d!"<h1>foo</h1>"-en
+
+and if we choose to do so:
+
+   typed xml literal                 <&xhtml;h1>!"<h1>foo</h1>"
+   typed xml literal with xml:lang   <&xhtml;h1>!"<h1>foo</h1>"-en
+
+Cheers,
+
+Patrick
+
+
+

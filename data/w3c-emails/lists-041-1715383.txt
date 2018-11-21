@@ -1,0 +1,134 @@
+docno="lists-041-1715383"
+received="Sun Apr 21 06:04:34 2002"
+isoreceived="20020421100434"
+sent="Sun, 21 Apr 2002 12:03:57 +0200"
+isosent="20020421100357"
+name="Julian Reschke"
+email="julian.reschke@gmx.de"
+subject="RE: need clarification about COPY to locked resource response cod e"
+id="JIEGINCHMLABHJBIGKBCKEBOEHAA.julian.reschke@gmx.de"
+charset="us-ascii"
+inreplyto="39FEE6DB-550B-11D6-8B11-00039384827E&#64;greenbytes.de"
+expires="-1"
+
+To:"Stefan Eissing"<stefan.eissing@greenbytes.de>,"Clemm, Geoff"<gclemm@rational.com>
+Cc:"WebDAV"<w3c-dist-auth@w3.org>
+
+
+> From: w3c-dist-auth-request@w3.org
+> [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Stefan Eissing
+> Sent: Sunday, April 21, 2002 11:36 AM
+> To: Clemm, Geoff
+> Cc: WebDAV
+> Subject: Re: need clarification about COPY to locked resource response
+> cod e
+>
+>
+>
+> Am Sonntag den, 21. April 2002, um 03:10, schrieb Clemm, Geoff:
+>
+> >    From: Stefan Eissing [mailto:stefan.eissing@greenbytes.de]
+> >
+> >    Am Freitag den, 19. April 2002, um 10:12, schrieb Julian Reschke:
+> >
+> >> In a future WebDAV protocol that supports enhanced error
+> >> reporting a la
+> >> RFC3253, I'd probably suggest:
+> >>
+> >> 409 CONFLICT
+> >> ....
+> >> <error xmlns='DAV:'><destination-URI-is-locked/></error>
+> >
+> >    I don't like this for the simple reason that clients need hardcoded
+> >    information about each DAV:error _and_ they need to know how to
+> >    handle HTTP status codes.
+> >
+> > I don't see the problem.  Either the client does not care about
+> > the reason for the error (in which case it just ignores the
+> > DAV:error value), or it does care, in which case it needs the
+> > explanation provided by the DAV:error value.  The advantage of
+> > having both is that you have a simple error code for simple clients,
+> > and a more comprehensive error code for more sophisticated clients.
+>
+> One cannot not disagree with this. However, in Julian's example
+> error responses like 403 and others are replaced with a general
+> 409 and some DAV:error in the response body.
+
+Nope :-) Status codes *other* than 403 *or* 409 are replaces.
+
+> What you are talking about is keeping a 403 response and _adding_
+> a response body with a more detailed explanation in DAV:error. That
+> is perfectly fine with me.
+>
+> >    So I would prefer to use existing HTTP
+> >    status codes over new DAV:errors.
+> >
+> > You can't pack sufficient information into the few bits provided
+> > by the HTTP status codes, without having the error codes mean subtly
+> > different things for different methods (the unfortunate path
+> > initiated by 2518, but avoided by 3253).
+>
+> I have to elaborate. Instead of a response plain vanilla
+> HTTP/1.1 403 LOCKED
+
+That would be 423 LOCKED or 403 FORBIDDEN.
+
+> or Julian's
+> HTTP/1.1 409 CONFLICT
+> <DAV:error><DAV:destination-parent-locked/></DAV:error>
+>
+> I would prefer
+> HTTP/1.1 207 MultiStatus
+> <DAV:multistatus>
+>    <DAV:response><DAV:href>http://host/destination/parent</DAV:href>
+>    <DAV:status>HTTP/1.1 403 LOCKED</DAV:status>
+>    </DAV:response>
+>    ...
+> </DAV:multistatus>
+>
+> The problem with this is that for COPY/MOVE, a server would have
+> to list all non-copied resources as well in the multistatus. Something
+> to be avoided when a precondition for a operation failed.
+>
+> So, the best of both worlds would maybe be:
+> HTTP/1.1 403 LOCKED
+> <DAV:error>
+>    <DAV:href>http://host/destination/parent</DAV:href>
+>    <DAV:status>HTTP/1.1 403 LOCKED</DAV:status>
+> </DAV:error>
+
+Actually, I'd prefer to change/clarify multistatus error reporting to:
+
+- MUST contain response elements for each source resource that wasn't
+moved/copied/deleted as specified (however keeping the current optimization
+for 424 on ancestors)
+
+- MAY contain response elements for targets that caused the failure.
+
+So we would get something like:
+
+<multistatus xmlns="DAV:">
+   <response>
+      <href>source</href>
+      <status>HTTP/1.1 403 Conflict</status>
+
+<responsedescription><error><destination-locked/></error></responsedescripti
+on>
+   </response>
+   <response>
+      <href>http://host/destination/parent</href>
+      <status>HTTP/1.1 423 LOCKED</status>
+   </response>
+   ...
+</multistatus>
+
+The benefit being that a client that "blindly" searches for source URIs will
+find something. However, a smarter client can extract the additional piece
+of information that's available after all.
+
+
+It might be woth thinking to also add some kind of linkage between the two
+response elements.
+
+
+

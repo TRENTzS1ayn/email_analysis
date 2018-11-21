@@ -1,0 +1,164 @@
+docno="lists-036-14844243"
+received="Thu Feb 19 22:38:26 2004"
+isoreceived="20040220033826"
+sent="Fri, 20 Feb 2004 03:38:24 +0000"
+isosent="20040220033824"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: More test cases to be confirmed"
+id="20040220033824.GA3603~@nicemice.net"
+charset="us-ascii"
+inreplyto="5.1.0.14.2.20040219145229.00b8c838&#64;127.0.0.1"
+expires="-1"
+
+To:uri@w3.org
+
+
+
+Graham Klyne <gk@ninebynine.org> wrote:
+
+> (3)
+> Base:   "foo:a"
+> Ref:    "../b/c"
+> Result: "foo:/b/c"
+> (based on bullet 2 of section 5.2.4)
+> 
+> I think it would be more consistent (and it's also what software I wrote in 
+> the past does) in this case to return:
+> 
+> Result: "foo:../b/c"
+
+For what it's worth, RFC-2396 allows either result (and also allows the
+implemention to balk).  See section 5.2 item 6g:
+
+      g) If the resulting buffer string still begins with one or
+         more complete path segments of "..", then the reference is
+         considered to be in error.  Implementations may handle this
+         error by retaining these components in the resolved path (i.e.,
+         treating them as part of the final URI), by removing them from
+         the resolved path (i.e., discarding relative levels above the
+         root), or by avoiding traversal of the reference.
+
+Apparently the intention of the new draft is to revoke this
+indeterminacy and settle on a single behavior (discard initial ".."),
+but of course there will be existing implementations that made a
+different choice.  Discarding initial ".." is consistent with typical
+Unix behavior: /../../../etc/passwd is equivalent to /etc/passwd on most
+Unix-like platforms.
+
+> (4)
+> Base:   "foo:a"
+> Ref:    "./b/c"
+> Result: "foo:b/c"
+> 
+> This is not strictly according to RFC2396bis, which I think would have
+> the value returned be:
+> 
+> Result: "foo:/b/c"
+> 
+> I think "./b/c" should be treated as equivalent to "b/c"
+
+I agree that the current draft would have the result be "foo:/b/c", and
+I fully agree that "./b/c" should be treated as equivalent to "b/c",
+especially since we need to use this equivalence when a segment contains
+a colon.  Here's a motivating example:
+
+The document foo:a wants to link to the document foo:b:c/d.  It can't
+use the relative reference "b:c/d" because the b: looks like a scheme.
+If it uses the absolute reference "foo:b:c/d" then it won't be easily
+movable to another scheme (like foos, the secure version of foo).  What
+it really wants to use is "./b:c/d" (as suggested in RFC-2396), but
+the current draft will resolve that to "foo:/b:c/d", which is not the
+target.
+
+I think the problem is in remove_dot_segments.
+
+Here's another surprising result of that algorithm:
+
+Base:   "foo:a/b"
+Ref:    "../c"
+Result: "foo:/c"
+
+I would expect the result "foo:c", because "../c" is supposed to
+be a sibling of my parent, and the parent of foo:a/b is foo:a, and
+intuitively foo:c is a sibling of foo:a, but foo:/c is not.  The
+RFC-2396 algorithm would produce "foo:c", but admittedly that algorithm
+was intended only for base paths that begin with slash.
+
+Another surprising result:
+
+Base:   "foo:a"
+Ref:    "foo:."
+Result: "foo:."
+
+I would expect the result "foo:" (empty path).
+
+Similarly:
+
+Base:   "foo:a"
+Ref:    "foo:.."
+Result: "foo:.."
+
+These last two cases are the only cases where remove_dot_segments fails
+to live up to its name.
+
+Not surprisingly, the strange cases all involve base paths that don't
+begin with slash, which was never considered in RFC-2396.
+
+A slash at the beginnig of a path is not like the other slashes, because
+usually it is not there by choice, but is obligated to be present to
+separate the first segment from the authority.  The remove_dot_segments
+procedure needs to preserve the separator: it's not safe for the output
+path to begin with a non-slash unless the input path begins with a
+non-slash.
+
+Since the initial slash is so unique, maybe it makes sense to handle it
+separately: remove the initial slash (if there is one), then remove the
+dot segments, the restore the initial slash (if there was one).  This
+would be easy to understand and remember (so people wouldn't have to
+always go back and look at the pseudocode), and would obviously preserve
+the separator, and would free the guts of the algorithm from having
+to worry about both kinds of paths (those that begin with a slash and
+those that begin with a segment), it could be designed for just one kind
+(paths that begin with a segment).
+
+Consider this for remove_dot_segments:
+
+ 1) initialize the input buffer
+ 2) initialize the output buffer to the empty string
+ 3) if the input buffer begins with a slash then delete it and set a
+    flag F, otherwise clear F
+ 4) while the input buffer is not empty, loop:
+     a) delete the beginning of the input buffer up to and including the
+        first slash (or to the end if there is no slash), and remember
+        the deleted text in a variable S
+     b) if S is neither "." nor "./" nor ".." nor "../" then append S to
+        the end of the output buffer
+     c) if S is ".." or "../" then delete everything after the
+        second-last last slash in the output buffer (or everything if
+        there are fewer than two slashes)
+ 5) if F is set then insert a slash at the start of the output buffer
+ 6) return the output buffer
+
+I think this agrees with the current draft (and RFC-2396) for inputs
+that begin with a slash (someone please check that), and behaves more
+like we expect for inputs that don't begin with a slash.  It drops
+leading ".." segments, but doesn't insert an initial slash if the
+input didn't have one, so that /foo/../../../bar becomes /bar (same as
+/foo/../bar), but foo/../../../bar becomes bar (same as foo/../bar).
+
+By the way, there is an ambiguity in the draft:
+
+   1. If the input buffer begins with a prefix of "/./" or "/.", where
+      "." is a complete path segment, then replace that prefix with "/"
+
+Suppose the input buffer is "/./foo".  It begins with a prefix of "/./"
+and it begins with a prefix of "/.", so which prefix do I replace with
+"/"? The intention was presumably longest-match-wins, but that is not
+stated.
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

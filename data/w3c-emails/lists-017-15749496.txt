@@ -1,0 +1,235 @@
+docno="lists-017-15749496"
+received="Tue Dec 10 18:46:37 2002"
+isoreceived="20021210234637"
+sent="Wed, 11 Dec 2002 00:46:21 +0100"
+isosent="20021210234621"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="RE: Issue-0079: String-value vs. string-value of the typedvalue"
+id="DFF2AC9E3583D511A21F0008C7E621060453DE97@daemsg02.softwareag.de"
+charset="iso-88591"
+inreplyto="Issue-0079: String-value vs. string-value of the typedvalue"
+expires="1"
+
+
+To: David Holmes<dholmes@tibco.com>,"'public-qt-comments@w3.org'"<public-qt-comments@w3.org>
+
+
+
+
+> -----Original Message-----
+> From: David Holmes [mailto:dholmes@tibco.com] 
+> Sent: 10 December 2002 20:21
+> To: 'public-qt-comments@w3.org'
+> Subject: Re: Issue-0079: String-value vs. string-value of the 
+> typed-value
+> 
+<snip/>
+> 
+> 0079: String-value vs. string-value of the typed value 
+> =====================================
+> 
+> Before addressing the issues above, and Jeni's message, I 
+> would like to identify three value spaces then walk through 
+> some simple examples to see how they are related.  The value 
+> spaces (meanings in parenthesis) are:
+> 
+> i) Lexical-value (serialized form)
+> ii) String-value (xs:string that results from some 
+> XPath/XQuery function).
+> iii) Typed-value (atomic-value*)
+> 
+> The first case I will consider is an XML source without type 
+> information (i.e. parsed without a schema).  In this case, 
+> attribute values will have the type annotation 
+> xs:anySimpleType and are essentially opaque.  The string 
+> value is the same as the lexical value.
+
+OK. <snip/>
+> 
+> Now consider the case of an XML source with type information 
+> and what happens to an xs:decimal("01") and an 
+> xs;QName("foo:bar") (forgive the constructor hand-waving and 
+> assume that both types are fully parsed and expanded 
+> respectively).  The lexical values are clearly not open to 
+> dispute being "01" and "foo:bar".  The typed values are 1 and 
+> the uri/local-name pair (uri corresponding to foo, baz).  The 
+> string value (as defined by XPath
+> 1.0) is "1" for the xs:decimal and undefined for the 
+> xs:QName.  
+
+Did you mean "as defined by XPath 2.0"? In 1.0, clearly, the string values
+are "01" and "foo:bar". In 2.0, as currently defined, they are the same, but
+this is the subject of issue 079.
+
+This is obviously a rather controversial issue, there has been a lot of
+discontent expressed on the xsl-list with the suggestion that information
+(such as trailing zeros) might be lost as a result of data typing. Some
+people see data typing and schemas as purely a validation mechanism, and
+resent any idea that a schema should cause the value as written to be
+canonicalized in some way. I'm not saying these people are right or wrong,
+just that there's definitely an open issue here and whatever we decide is
+going to leave some people dissatisfied.
+
+> The point I would like to make here is that 
+> string-value is only tenuously connected to the lexical value
+
+That's one point of view: it tends to be the "data" point of view, whereas
+the "document" point of view leans the other way.
+
+<snip/>
+ 
+> First, using the example of an 
+> xs:double (and to address one of Jeni's
+> points) what is the string value of the following content?:
+> 
+> <value xsi:type="xs:double">32</value>
+> 
+> Unfortunately for Jeni, XPath 2.0 defines it to be "3.2E1".
+
+No, the current definition in the XPath data model is that the string value
+of an element node is the concatenation of the contents of the text nodes.
+ 
+<snip/>
+> 
+> Addressing another of Jeni's examples - the case of mixed content:
+> 
+> <foo xsi:type="fooType">
+>    blah <bar>blah</bar> blah
+> </foo>
+> 
+> The string value of the foo element *can* be obtained from 
+> it's typed value
+> - it's not an error. Here I'll assert that the typed value of 
+> <foo> is the sequence obtained by concatonating the typed 
+> value of all the child nodes (atomization of the child node 
+> sequence).
+
+Again, that's one possible definition of the typed value, but it's not the
+one in the current data model. You hit a problem here if the tree is more
+than two levels deep, because sequences can't contain sequences. Do you want
+the tree to be flattened, losing the hierarchic structure? This seems
+dubious.
+
+<snip/>
+> 
+> I would also suggest that text nodes be allowed to return a 
+> type other than xs:anySimpleType.  The normalization rules 
+> for text nodes make it possible to think of text nodes as 
+> typed values which are bound to elements or documents.
+
+Text nodes appear either in simple content or in mixed content. In simple
+content you never need concern yourself with text nodes, because you can use
+the typed value of the containing element: unless you are actually
+interested in embedded comments and processing instructions. In mixed
+content, text nodes clearly can't have any sensible type other than string.
+So I'm not sure what you're trying to achieve. 
+ 
+> However, text nodes don't have type annotations.  I strongly 
+> believe that allowing text nodes to return typed-values other 
+> than simple types will be key to making the Data Model spec 
+> feasible to implement. Without it, a data model would have to 
+> perform endless calculations and caching as the user 
+> alternates between the typed view and the text-node view.  I 
+> would also almost go so far as to say that the 
+> dm:string-value accessor on the Data Model is redundant 
+> because it can be calculated from the typed value, but for 
+> performance reasons with untyped data it probably should be retained.
+
+In XSLT, we get enough complaints from people that we throw away entity
+references and CDATA sections when they try to do an identity
+transformation. If we convert 1234.00 to 1234.0 just because the schema says
+the type is xs:decimal, we are certainly going to have some unhappy users,
+and quite possibly some failing applications. In XQuery too, the feedback
+from our (Tamino) users is that they want to retain a high degree of
+fidelity in the documents they store: if they wanted to store conventional
+structured data, they wouldn't be using an XML database. So my own
+preference is that we should keep the lexical value and treat the typed
+value as being derived from it.
+> 
+> <xsl:value-of> and <xsl:text> don't create strings! 
+> ====================================
+> 
+> Having these instructions generate strings as opposed to 
+> typed values makes it impossible to correctly emit an 
+> xs:QName.
+
+This is currently true, though I think we can probably find a solution to
+this requirement.
+
+> The correct approach here is for these 
+> instructions to first create a sequence through their 
+> appropriate sequence constructors (select attribute or 
+> "content-constructor") which is then atomized to create a 
+> typed value.
+
+This debate was one the working group (or rather, the two working groups
+together) had in great detail. It's difficult to summarize the debate and
+the reasons for choosing what was dubbed "Alternative 1" in a few lines.
+Alternative 1 was that tree construction should always construct lexical
+values, and type annotations should only be restored by applying schema
+validation (this is the current situation in XQuery, though XSLT has relaxed
+this to allow simple type annotations to be specified at node construction
+time). Alternative 3 allowed an arbitrary sequence to be written to a node,
+including heterogeneous sequences such as a sequence of arbitrary strings,
+which in general cannot be serialized and reparsed losslessly. Alternative 2
+had various flavours which attempted to identify cases where the type of the
+sequence could be retained without creating instances of the data model that
+could never arise from parsing real XML. None of the flavours of Alternative
+2 worked, so we ended up (with considerable reluctance) adopting alternative
+1.
+
+
+> That typed value then creates a text node or a 
+> series of atomic values depending upon the output context 
+> (for XSLT this context is usually a Data Model node, but the 
+> creation of sequences is possible).  These instructions are 
+> also converging and probably should share the same syntax 
+> (excepting the actual tag name. Both should have optional 
+> select expressions or sequence(content) constructors like 
+> xsl:variable.  
+
+I don't see that much would be gained by merging xsl:value-of and xsl:text
+at this stage of the game, though a single instruction that served the
+purposes of both might have been a good idea originally.
+
+
+> Implementations must deal with separators 
+> carefully but the approach is conceptually simple - rendering 
+> should be delayed as long as possible because serialization 
+> of an atomic value is, in general, context dependent.
+
+What makes it non-simple is that many sequence values that we allow in our
+data model could never be obtained by parsing an actual XML document and
+validating it with a schema. We made the decision, which I think is the
+right one, that it should not be possible to construct such trees
+programmatically. This ensures that the data model is round-trippable to
+serialized XML.
+
+> In 
+> general I believe that conceptual simplifications occur in 
+> the XSLT specification if the Data Model concept of sequences 
+> and typed-values are embraced as being the first-class 
+> citizens and intermediate string values and fragments are 
+> shunned as being a bottleneck for type-enabling XSLT.  I also 
+> believe that this can be done in a way that minimises 
+> backwards compatibility issues (even though these are a 
+> *should* in the RFC) and above all in a way that makes sense 
+> of the string-value concept.
+> 
+
+I think it's entirely possible that the language could be described
+consistently in the way you advocate. It certainly isn't obvious that this
+would make it simpler, and it would certainly take it further away from the
+expectations of many document-oriented XML and XSLT users, who are currently
+generating a lot of noise trying to push us in the opposite direction (that
+is, returning to the roots of XML as a language for annotating text using
+markup).
+
+Thanks for your comments. There are no easy answers!
+
+Michael Kay
+Software AG
+
+
+

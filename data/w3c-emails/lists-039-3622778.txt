@@ -1,0 +1,156 @@
+docno="lists-039-3622778"
+received="Sun Feb 14 17:28:12 1999"
+isoreceived="19990214222812"
+sent="Sun, 14 Feb 1999 14:28:08 -0800"
+isosent="19990214222808"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Why Multi-Status is a 2xx Response"
+id="3FF8121C9B6DD111812100805F31FC0D08792F04@RED-MSG-59"
+expires="-1"
+
+
+To:"'Joe Orton'"<jeo101@york.ac.uk>,jamsden@us.ibm.com
+Cc:w3c-dist-auth@w3.org
+
+Before we dive into this we need to get some terms defined. There are two
+different kinds of responses discussed below. Response line codes and body
+response codes. For example:
+
+   HTTP/1.1 207 Multi-Status
+   Content-Type: text/xml; charset="utf-8"
+   Content-Length: xxxx
+
+   <?xml version="1.0" encoding="utf-8" ?>
+   <D:multistatus xmlns:D="DAV:"
+   xmlns:Z="http://www.w3.com/standards/z39.50">
+     <D:response>
+          <D:href>http://www.foo.com/bar.html</D:href>
+          <D:propstat>
+               <D:prop><Z:Authors/></D:prop>
+               <D:status>HTTP/1.1 424 Failed Dependency</D:status>
+          </D:propstat>
+     </D:response>
+   </D:multistatus>
+
+In the previous the response line code, the code returned in the HTTP
+response line, is 207. The body response code, one of many possible codes
+included in the body of a Multi-Status response, is 424. Now, back to the
+show.
+
+So I send a PROPFIND request to a resource and get back a 207 Multi-Status
+response line code filled with 4xx body response codes telling me that the
+properties I was looking for aren't defined, I'm not authorized, etc. So why
+did I get back a 2xx response line code? The method clearly failed.
+
+So I sent a PROPPATCH request to a resource and get back a 207 Multi-Status
+response line code telling me that one of the changes didn't work so all the
+changes were aborted. Why did I get back a 2xx response line code? The
+method clearly failed.
+
+So I sent a COPY/MOVE/DELETE with a Depth: Infinity header and got back a
+207 Multi-Status response line code telling me that absolutely nothing got
+COPYied, MOVEd, or DELETEd. Why did I get back a 2xx response line code? The
+method clearly failed!
+
+When Multi-Status was first defined the authors considered having a 2xx
+response line code and a 4xx response line code for Multi-Status. So if I
+send in a PROPFIND and the resulting Multi-Status comes back with nothing
+but 2xx body response codes inside of it then I would use the 2xx response
+line code. If I send in a PROPFIND and the resulting Multi-Status comes back
+with nothing but 4xx body response codes inside of it then I would use the
+4xx response line code. But what happens if the PROPFIND comes back with
+nothing but 5xx body response codes? Do I need a 5xx response line code
+Multi-Status? What about 3xx body response codes?
+
+However the key case was as follows: I send a PROPFIND request asking for
+three properties. One property came back with a 200 O.k. body response code.
+One property came back with a 403 Forbidden body response code. The last
+property came back with a 500 Server Error body response code. What response
+line code should be used?
+
+Initially the authors thought that in a mixed case one should just use a 4xx
+response line code. But no one could come up with a compelling reason why a
+mixed case should be called a failure instead of a success. In fact, no one
+could come up with a case where it mattered if a mixed response was returned
+using a 2xx, 4xx or 5xx response line code. In fact, no one could come up
+with a reason to have multiple Multi-Status responses. The response line
+code just wasn't that useful.
+
+Response line codes in HTTP serve two purposes. The primary purpose is to
+provide exact information regarding the result of a request. If that was
+their only purpose then there wouldn't be error classes (e.g. 1xx, 2xx, 3xx,
+4xx and 5xx response line codes). The reason error classes were introduced
+is to allow a client to do something intelligent in case the client doesn't
+recognize a response code.
+
+In the case of Multi-Status the error class isn't terribly relevant. Baring
+implementation error it isn't possible to get a 207 unless you were
+expecting it. PROPFIND and PROPPATCH both require understanding
+Multi-Status, as does COPY/MOVE/DELETE if a Depth header is used. Thus we
+never have to worry about someone receiving a 207 without being able to
+understand it. If you got a 207 it can only be because you made a request
+whose definition requires you to understand 207.
+
+While this logic is sound it ignores the bigger picture. Future generations
+are quite likely to use 207 and equally like to muck things up and use it in
+a context where someone receiving it may not have expected it. However they
+will expect to be able to rely on the response class and the response class
+fails them here because it will always be 207 even if everything inside of
+it is a failure.
+
+In the end however, the mixed error case refused to admit a sensible
+solution. So rather than mucking up the protocol with a large number of
+response line codes with arcane rules specifying their use we decided to
+keep matters simple and return a single response line code.
+
+> -----Original Message-----
+> From: Joe Orton [mailto:jeo101@york.ac.uk]
+> Sent: Friday, January 22, 1999 11:12 AM
+> To: jamsden@us.ibm.com
+> Cc: w3c-dist-auth@w3.org
+> Subject: Re: Multistatus responses
+> 
+> 
+> 
+> > It is my understanding that methods only return a 
+> multistatus when they
+> > effect multiple resources.
+> 
+> PROPPATCH uses 207 responses for methods on single resources, I think?
+> 
+> > So for example, you could DELETE a collection and get a 
+> multistatus if
+> > it failed indicating which resource in the collection couldn't be
+> > deleted. If the DELETE failed because the collection itself 
+> was locked,
+> > then you could also return a single status as the members were
+> > unaffected.
+> 
+> Yes, so if it failed, why not return a 4xx class response 
+> which is what
+> 4xx class responses are for? The 'degree' to which it failed 
+> (i.e., which
+> resources couldn't be deleted) is indicated only by the 
+> response body, but
+> the bottom line is that the request did NOT succeed, which is what 2xx
+> responses are for.
+> 
+> I'm not trying to suggest that multistatus responses should 
+> be scrapped,
+> only that they should not have a fixed status code.
+> 
+> Regads,
+> 
+> joe
+> 
+> -- 
+> Joe Orton
+> jeo101@york.ac.uk ... joe@orton.demon.co.uk
+> http://www.orton.demon.co.uk/
+> 
+> 
+> 
+
+
+

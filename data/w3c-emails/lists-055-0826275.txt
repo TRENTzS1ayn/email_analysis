@@ -1,0 +1,117 @@
+docno="lists-055-0826275"
+received="Tue Sep 24 12:33:53 1996"
+isoreceived="19960924163353"
+sent="Tue, 24 Sep 96 10:51:11 CDT"
+isosent="19960924155111"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.CC.UIC.EDU"
+subject="Re: questions about element declarations"
+id="199609241633.MAA04665@www10.w3.org"
+inreplyto="Mon, 23 Sep 1996 22:37:30 -0400"
+expires="-1"
+
+
+To:"W. Eliot Kimber"<kimber@passage.com>, W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+On Mon, 23 Sep 1996 22:37:30 -0400 Eliot Kimber said:
+>At 07:31 PM 9/23/96 CDT, Michael Sperberg-McQueen wrote:
+>> ...
+>>* Should XML forbid use of the '&' connector in content models
+>>(11.2.4.1)?
+>
+>How much does AND complicate validation? I've seen some statements to
+>the effect that it complicates it quite a bit, but I have no way to
+>evaluate these claims.
+>
+>I think AND expresses a useful semantic, so I would say keep it
+>unless the validation cost is too high.
+
+These are the issues as I understand them; I hope those with better
+training than mine will expand on this topic and correct my errors.
+
+If AND is not allowed, then a validating parser can construct a
+finite-state automaton for checking the input, using a very simple
+method.  If the content model is deterministic, the FSA will be
+deterministic, and the checking can run very fast using very simple
+code.  (Full discussion of this process and the underlying math in some
+technical reports by Anne Brueggemann-Klein, then of Freiburg, in 1991.)
+
+If AND is allowed, there are essentially three implementation
+approaches:
+  - translate the AND group into an equivalent regular expression
+  - use a mechanism based on a finite-state automaton, but augmented
+    to handle certain simple operations when certain arcs are traversed
+  - use some other ad hoc technique
+
+Translating the AND group into a regular expression is fine when the AND
+group has only a few children.  When there are five tokens in the group,
+however, the corresponding regular expression will have 120 SEQ groups,
+and 600 states; a ten-element AND group produces 3.6 million SEQ groups
+and 36 million states.  I doubt many implementors are willing to bet
+that they'll never see a 10-element AND group.
+
+It's possible to represent an AND group as a starred OR-group, if you
+augment the FSA with simple actions, so that arcs leaving individual
+items in the AND group set a bit saying their item has been visited, and
+arcs leaving the AND group as a whole check to make sure that all
+elements in the AND group have been visited; it gets slightly hairy when
+you have star or plus operators on the AND group, but I think it's
+possible -- but it's complicated enough to be significantly slower than
+the simple FSA.
+
+There are, I am sure, other ad hoc techniques people use.  It's
+possible, for example, to retain the parse tree for the content model
+and interpret it directly as a way of handling validation; this takes
+less analysis and setup while parsing the DTD, but looks to be much
+slower in actual use (at least, the way I prototyped it).
+
+Eliot is right that AND is a very concise way of specifying certain
+requirements, where it applies.  Since removing AND does not actually
+change the expressive power of the DTD language, however, anyone who
+urgently needs it can get the required effect without it.
+
+It seems to me on the whole that removing AND makes it much simpler to
+write validation code; some other people seem to agree.  On the whole, I
+lean toward removing it:  big gain, very little loss in clarity or
+flexibility, no loss at all in expressive power.
+
+>>* Should XML allow nondeterministic content models (11.2.4.3)?
+>
+>Again, how much does this complicate validation? I'm not ambiguity
+>expert, but could the problem be solved simply by stipulating that a
+>token is always matched to the first place in the content model it
+>can match, without lookahead?
+
+The computer scientists should probably speak up on this one.
+
+One reason for removing the restriction is not that it complicates
+validation but that it needlessly restricts the languages that can be
+defined by content models.  As discussed this summer on c.t.s., the
+determinism rules make it impossible to define a content model
+equivalent to ((a, b)*, a?).  But this regular expression is certainly
+parseable without lookahead; as Arjun Ray pointed out on c.t.s., it's an
+LL(1) language.
+
+If the rules about determinism help make simpler implementations
+possible, let's discuss the tradeoffs between that simplification and
+the loss of expressive power they entail.  But I confess that I don't
+see that the restriction really simplifies implementation of a
+validating parser that much -- or conversely that lifting the
+restriction really makes life harder for validating parsers.  I could be
+wrong; it wouldn't be the first time.  But I'd like to understand what
+advantages are seen in the restriction.
+
+One could also argue against lifting this restriction on the ground that
+the restriction isn't hard to live with, and it's better to deviate from
+8879 as little as possible.  That's a fair political argument, and one
+I'm amenable to. But evaluating it requires a dispassionate examination
+of the technical issues first.  This particular change does not, in any
+case, have any effect whatever on our ability to generate, for any given
+XML instance, a valid SGML prolog that will cause an SGML parser to
+produce the same ESIS as an XML parser, which is, I think, the level of
+compatibility that matters most.
+
+-C. M. Sperberg-McQueen
+
+
+

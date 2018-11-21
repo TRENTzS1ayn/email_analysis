@@ -1,0 +1,191 @@
+docno="lists-097-8949318"
+received="Fri Aug 24 18:34:24 2001"
+isoreceived="20010824223424"
+sent="Fri, 24 Aug 2001 17:34:19 -0500"
+isosent="20010824223419"
+name="Aaron Swartz"
+email="aswartz@upclink.com"
+subject="scribey threading additions 2.0"
+id="200108242237.f7OMbU104690@theinfo.org"
+charset="us-ascii"
+expires="-1"
+
+
+Cc: www-archive+scribe@w3.org
+To: Dan Connolly<connolly@w3.org>
+
+$ cvs diff -u
+? httpAsync.pyc
+? ircAsync.pyc
+cvs server: Diffing .
+Index: ircAsync.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/ircAsync.py,v
+retrieving revision 1.8
+diff -u -r1.8 ircAsync.py
+--- ircAsync.py 2001/08/24 05:50:52     1.8
++++ ircAsync.py 2001/08/24 22:30:29
+@@ -24,10 +24,8 @@
+  import string, re
+  import socket
+  import asyncore, asynchat
++import threading, Queue
+
+-
+-
+-
+  #RFC 2811: Internet Relay Chat: Client Protocol
+  #2.3 Messages
+  # http://www.valinor.sorcery.net/docs/rfc2812/2.3-messages.html
+@@ -72,6 +70,7 @@
+          self._startChannels = ['#test']
+          self._dispatch = []
+          self._doc = []
++        threading.Thread(target=doStuff).start()
+
+      def makeConn(self, host, port):
+          self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+@@ -122,7 +121,7 @@
+
+          self.rxdMsg(args, text, origin)
+
+-    def bind(self, thunk, command, textPat=None, doc=None):
++    def bind(self, thunk, command, textPat=None, doc=None, 
+threadSafe=0):
+          """
+          thunk is the routine to bind; it's called ala
+            thunk(matchObj or None, origin, args, text)
+@@ -134,7 +133,7 @@
+
+          if type(textPat) is type(""): textPat = re.compile(textPat)
+
+-        self._dispatch.append((command, textPat, thunk))
++        self._dispatch.append((command, textPat, thunk, threadSafe))
+
+          if doc: self._doc = self._doc + doc
+
+@@ -142,19 +141,27 @@
+          if args[0] == PING:
+              self.todo([PONG, text])
+
+-        for cmd, pat, thunk in self._dispatch:
++        for cmd, pat, thunk, threadSafe in self._dispatch:
+              if args[0] == cmd:
+                  if pat:
+                      #debug('dispatching on...', pat)
+                      m = pat.search(text)
+                      if m:
+-                        thunk(m, origin, args, text)
++                        if threadSafe:
++                            thunk(m, origin, args, text)
++                        else:
++                            if stuffToDo.qsize(): 
+self.tell(replyTo(self.nick, origin, args), "Hold on a sec...")
++                            stuffToDo.put([thunk, m, origin, 
+args, text])
+                  else:
+-                    thunk(None, origin, args, text)
++                    if threadSafe:
++                        thunk(None, origin, args, text)
++                    else:
++                        if stuffToDo.qsize(): 
+self.tell(replyTo(self.nick, origin, args), "Hold on a sec...")
++                        stuffToDo.put([thunk, m, origin, args, text])
+
+      def startChannels(self, chans):
+          self._startChannels = chans
+-        self.bind(self._welcomeJoin, RPL_WELCOME)
++        self.bind(self._welcomeJoin, RPL_WELCOME, threadSafe=1)
+
+      def _welcomeJoin(self, m, origin, args, text):
+          for chan in self._startChannels:
+@@ -168,6 +175,12 @@
+          """send a NOTICE to dest, a channel or user"""
+          self.todo([NOTICE, dest], text)
+
++stuffToDo = Queue.Queue()
++def doStuff():
++    while 1:
++        d = stuffToDo.get()
++        apply(d[0], d[1:]) # do it
++
+  def actionFmt(str):
+      return "\001ACTION" + str + "\001"
+
+@@ -222,11 +235,11 @@
+
+      def spam(m, origin, args, text, c=c):
+          c.tell(args[1], "spam, spam, eggs, and spam!")
+-    c.bind(spam, PRIVMSG, r"spam\?")
++    c.bind(spam, PRIVMSG, r"spam\?", threadSafe=1)
+
+      def bye(m, origin, args, text, c=c):
+          c.todo([QUIT], "bye bye!")
+-    c.bind(bye, PRIVMSG, r"bye bye bot")
++    c.bind(bye, PRIVMSG, r"bye bye bot", threadSafe=1)
+
+      c.makeConn(hostName, port)
+      asyncore.loop()
+Index: rdfn3chat.py
+===================================================================
+RCS file: /sources/public/2000/scribe-bot/rdfn3chat.py,v
+retrieving revision 1.11
+diff -u -r1.11 rdfn3chat.py
+--- rdfn3chat.py        2001/08/24 06:28:02     1.11
++++ rdfn3chat.py        2001/08/24 22:30:31
+@@ -43,13 +43,12 @@
+  # Semantic Web Application Platform (swap) stuff
+  # http://www.w3.org/2000/10/swap/
+  # http://dev.w3.org/cvsweb/2000/10/swap/
+-sys.path.append("/home/connolly/w3ccvs/WWW/2000/10/swap") #@@
++sys.path.append("/Users/aaronsw/Projects/cwm/swap") #@@
+  import cwm, notation3, sax2rdf
+
+  import ircAsync, httpAsync
+  from ircAsync import debug
+
+-
+  class T(ircAsync.T):
+      def __init__(self):
+          ircAsync.T.__init__(self)
+@@ -66,9 +65,9 @@
+          self._userid = None
+          self._password = None
+
+-        self.bind(self.doHelp, ircAsync.PRIVMSG, "help")
++        self.bind(self.doHelp, ircAsync.PRIVMSG, "help", threadSafe=1)
+
+-        self.bind(self.doInvite, ircAsync.INVITE)
++        self.bind(self.doInvite, ircAsync.INVITE, threadSafe=1)
+
+
+      def start(self,
+@@ -97,7 +96,7 @@
+          self.bind(self.doPart, ircAsync.PRIVMSG,
+                    r"^%s, *part *([^ ]+)? *!$" % self.nick,
+                    ["%s, part _address_ !" % self.nick,
+-                   "to dismiss me from a channel"])
++                   "to dismiss me from a channel"], threadSafe=1)
+
+
+          self.bind(self.doLoad, ircAsync.PRIVMSG,
+@@ -254,7 +253,7 @@
+          if not addr:
+              self.tell(replyTo, "huh? load _what_?")
+              return
+-
++
+          p = sax2rdf.RDFXMLParser(self._kb, addr)
+          try:
+              p.load(addr)
+@@ -336,6 +335,7 @@
+
+          self.notice(replyTo, "%i new statements in %i iterations." %
+                      (grandtotal, iterations))
++
+
+  def main(argv):
+      if len(argv) < 7:
+
+
+

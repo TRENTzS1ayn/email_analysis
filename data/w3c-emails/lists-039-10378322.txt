@@ -1,0 +1,213 @@
+docno="lists-039-10378322"
+received="Sat Oct 16 21:09:27 1999"
+isoreceived="19991017010927"
+sent="Sat, 16 Oct 1999 21:13:20 -0400"
+isosent="19991017011320"
+name="ccjason@us.ibm.com"
+email="ccjason@us.ibm.com"
+subject="Re: Simplifying RFC-2518 Locking: A proposal"
+id="8525680D.0006571C.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="Simplifying RFC-2518 Locking: A proposal"
+expires="-1"
+
+To:jamsden@us.ibm.com
+cc:w3c-dist-auth@w3.org
+
+
+
+
+  I would resist the second extension. My server currently does not associate
+  anything with the lock token except the locked resource. In particular, it
+  doesn't remember the URL used to lock the resource,
+
+Hey, it's just a little matter of coding. :-) It sounds like the server would
+need to maintain a   lock + URI  ->  new URI mapping or something
+like that.  There really wouldn't be any point in storing it with resource.
+That mapping table would need to be global (at least to the workspace).  It
+would need an entry for every URI locked by a depth lock if we plan to
+remap each of those independently.
+
+Issues...
+
+i1) I suspect Geoff didn't mean it, but I think he said (by using the
+ word "identify") that the server "tells" the client where the resource
+ has moved to.  (If this is not what Geoff meant... skip to (i2).)
+ This can be a bad thing.
+ The server should internally redirect the request to the resource at it's new
+location.
+ The reason it's bad is that by the time the client accesses that new location
+ it couild have moved again.  That means the client has to go back to the
+ original URI to to ask where it has moved again.  So this means the
+ client has to chase down the resource.  It's a potential race condition and
+ the client can never safely use the second location/URI in a request.  It
+ always has to remember the first location.  -- Now this could be improved
+(client view) if
+ Geoff says    that a resource doesn't just remember the original location of
+ the resource... but also subsequent.  (This was what Geoff proposed a few
+ weeks ago.)   We'd need to define this more clearly but it might work.  BTW
+ this second alteration by itself doesn't save the client from chasing down
+ the resource... but if we can define a useful deterministic behavior, it
+ allows the client to only remember the most recent URI that he was given.
+ This second change would also allow one to use a lock obtained via lock
+ discovery.
+i2) This proposal breaks our model whereby all webdav resources have parents
+ at their analagous parent URI.  This would not be the case here unless
+ URI protection were added.  That is... a whole tree of URI's could be
+ locked, but if someone does a MOVE above the root of that URI at which
+ the lock request was originally directed, then there will be a gap in the
+ parentage tree.  --  I personally don't care about this, but a lot of folks
+ went through a ton of time defining and refining how webdav resources must
+ have a parent at their parent URI.  A ton.  They must feel this is a valuable
+ feature.  -- Also a lesser namespace incongruity like this was also the reason
+ that it was claimed that lock null resources are a pain for the client.  If
+ that was to believed there... it should be a consideration here.
+i3) Because this model doesn't protect a URI, it isn't just possible to move
+ a locked resource from the namespace... it's also possible to delete it
+ from the namespace and thus removing all apparent URI's for it.  Redirection
+ won't work then.  Perhaps internal redirection would still though.
+i4) For depth locks, we'd need to define behaivor.   Given /a/b/c and a
+ depth lock placed on /a/b/.  It's pretty clear what the redirection does
+ for an access to /a/b/.  But what about /a/b/c?  Does it refer to the
+ resource that was originally at that location?  Or does it refer to the
+ current "c" member of the collection that was orginally at /a/b/.
+i5) We'd have to work out when the redirection is triggered.  It's probably
+ not sufficient to say it's triggered when there is no resource at a
+ URI.  It would need to also deal with the situation where a different
+ resource is now at that location.  But that does create another
+ ambiguity rlated to (i4).  Ah... it's a bit of a mess.  I'm not going to
+ get into it here.
+
+
+   and there is no special case
+   URL mapping that would somehow add lock tokens to namespace resolution
+   calculations, some of which happen outside my server's domain.
+
+???  wakarimasen (I don't understand.)
+
+
+  It seems like if
+  we have to do this, we're still missing something. I think the solution is
+that
+  if the user is conserned about someone moving his locked resource, then he
+  should lock the parent collection. That's what locking collections is for, to
+  control the namespace.
+
+Lacking URI protection, he'd also lock all the collections to the root.
+
+
+  Alternatively, we can fail any move whose souce is
+  locked, and the requesting principal either doesn't own the lock, or didn't
+  specify the lock token.
+
+This sounds like a version of URI protection.  The version where all URI's of
+a lock are protected.
+It actually sounds fine/benign the way you describe it, but in an earlier
+thread Geoff and I determined that this can be expensive.  (It might have
+been an offline thread between the AdvColl folks.) I have to
+admit... it really does sound attractive here though.  :-)
+
+
+  The confusion here is that PUT and DELETE are resource
+  methods that effect their parent collection as a side effect. It would be
+better
+  to have some addMember/removeMember methods on a collection to do this. The
+  problems result form the behavior being in the wrong place. But this is
+  inherited from HTTP which didn't have collections, so we'll have to work
+around
+  it.
+
+What PUT and DELETE problem are you refering to that is
+related to this discussion?
+
+
+  Now, while we're on a role, how about getting rid of those pesky lock tokens!
+  The only thing they seem to do is let a particular principle who is running
+  concurrent authoring applications that might be updating the same resources
+  detect the possibility of overwrite conflicts by distinguishing which
+  application got the lock token by doing the LOCK, and which one got it from
+some
+  other mechanism (like IPC or the user typed it in). The application that
+  directly got the lock could proceed with its operation while the others could
+  put up a warning indicating there might be some other application that could
+be
+  updating the resource at the same time, and you might want to think about
+  whether you want to do this operation now or not. (Now there's a warning for
+  you). It took me quite a while to figure this out, and I may not have it right
+  yet, but that's my interpretation of the spec.
+
+I think you got that right... the part about determining which application got
+the token via the primary mechanism isn't right, but it doesn't affect what you
+say below.
+
+  Note that clients don't have to
+  do anything with the lock token except hang on to them and send them back when
+  needed.
+
+I guess so.  I don't know else they might do that you are suggesting is avoided.
+
+  The above is just a suggested convention.
+
+You're losing me.  :-)
+
+
+  Not also that having a lock
+  token doesn't give any other principle any privilege as you must own a lock
+  token to be able to use it.
+
+Right.  You can't get past a lock by stealing a lock token... unless you appear
+to be the principal that took out the lock in the first place.
+
+
+  I submit the problem being solved is not worth the
+  protocol complexity and client inconvence (having to retain all those lock
+  tokens). Note also that other systems either associate the lock with the
+process
+  id (which we can't do in an HTTP server), or let the user be responsible for
+  concurrent process he might have started up. I'd be happy that.
+
+I think you're essentially saying that when one authenticates, there should be a
+way to distinguish between the applications using the same ID... or perhaps that
+they really should use different ID"s.  The use of distinct ID's or session ID's
+has been discussed before.  (Yaron and I had an exchange on this about two years
+ago... but I can't find the posting.)   Yaron shot down that proposal.
+
+
+Reasons for tokens rather than just principles
+  1)    Reduces the dependency on a clients
+        generating unique and unpredictable session identifiers.
+        (Puts control in the server's hands.)
+  2)    Still allows the same principal to share a capability
+        between his left and right hands if it deems it
+        appropriate.  (puts some control in the lock owner's
+        hands.)
+   2.1) It's never stated, but I suspect they might have also
+        envisioned using this as a the basis of capabilities
+        passing system that wasn't dependent on authentication.
+  3)    It allows for the possibility of multiple locks per
+        resource by the same principal... without chaos.
+   3.1) It's a convenient way for UNLOCK to specify the lock
+        it is removing.
+  4)    It allows for URI remapping schemes like Geoff's.
+  5)    The original authors seemed to feel it was important
+        that the client at times to provide verification that it
+        knows what locks are located where.  This actually
+        becomes essential if we don't protect URI's or remap
+        them.  (if-match headers don't support guids yet.)
+
+
+
+I think it's an interesting coincidence that you seem to have suggested the
+possible removal of lock tokens.  I was actually mulling over another
+possibility.  Removal of locks altogether.  It was inspired by recent arguments
+against URI protection and lock null resources... which both are intended to
+protect the namespace.  I eventually decided that locks are still a good thing
+even without URI protection (which I still advocate) and LNRs.  Locks do more
+than just prevent the lost update problem.
+
+Later,
+
+J.
+
+
+

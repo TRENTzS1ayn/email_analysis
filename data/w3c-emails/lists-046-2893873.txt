@@ -1,0 +1,236 @@
+docno="lists-046-2893873"
+received="Mon Jan 28 13:13:12 2002"
+isoreceived="20020128181312"
+sent="Mon, 28 Jan 2002 19:17:12 +0100"
+isosent="20020128181712"
+name="Karl Scheibelhofer"
+email="Karl.Scheibelhofer@iaik.at"
+subject="RE: History: Question on C14N list of nodes instead of subtrees"
+id="006601c1a828$02086f70$64981b81@iaik.at"
+charset="us-ascii"
+inreplyto="200201281657.LAA06805&#64;tux.w3.org"
+expires="-1"
+
+To:<reagle@w3.org>,"'John Boyer'"<JBoyer@PureEdge.com>,"'merlin'"<merlin@baltimore.ie>
+Cc:<w3c-ietf-xmldsig@w3.org>
+
+
+hi,
+
+> -----Original Message-----
+> From: Joseph Reagle [mailto:reagle@w3.org] 
+> Sent: Monday, January 28, 2002 5:57 PM
+> To: Karl Scheibelhofer; 'John Boyer'; 'merlin'
+> Cc: w3c-ietf-xmldsig@w3.org
+> Subject: Re: History: Question on C14N list of nodes instead 
+> of subtrees
+> 
+> 
+> On Monday 28 January 2002 11:11, Karl Scheibelhofer wrote:
+> > an acceptable performance. the signature creation/verification took 
+> > several seconds for an XML signature with three references using a 
+> > XPath filter; one for the signed content, one for the key 
+> info and one 
+> > for signed properties.
+> 
+> Karl, thanks for this info. I have a few questions.
+> 
+> 1. With your present implementation when you sign these three 
+> things, do 
+> you then create 3 references each with an XPointer to the 
+> subtree? 2. It's clear we can get very good performance for 
+
+yes, i use three references in each signature. those look like this:
+
+<dsig:Reference
+URI="#xmlns(aida=http://www.iaik.at/aida)%20xpointer(./ancestor::aida:eD
+ocument%5b1%5d/child::aida:signedContent%5b1%5d//.%20%7c%20./ancestor::a
+ida:eDocument%5b1%5d/child::aida:signedContent%5b1%5d//@*%20%7c%20./ance
+stor::aida:eDocument%5b1%5d/child::aida:signedContent%5b1%5d//namespace:
+:*)">
+  <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"
+/> 
+  <dsig:DigestValue>mcuOT6V2eWo9ICkbvq6xmzxrHms=</dsig:DigestValue> 
+</dsig:Reference>
+<dsig:Reference
+URI="#xmlns(dsig=http://www.w3.org/2000/09/xmldsig%23)%20xpointer(./ance
+stor::dsig:Signature%5b1%5d/child::dsig:KeyInfo//.%20%7c%20./ancestor::d
+sig:Signature%5b1%5d/child::dsig:KeyInfo//@*%20%7c%20./ancestor::dsig:Si
+gnature%5b1%5d/child::dsig:KeyInfo//namespace::*)">
+  <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"
+/> 
+  <dsig:DigestValue>UhXve8omImcO6KWQyqxsMYd5cf4=</dsig:DigestValue> 
+</dsig:Reference>
+<dsig:Reference
+URI="#xmlns(aida=http://www.iaik.at/aida)%20xmlns(dsig=http://www.w3.org
+/2000/09/xmldsig%23)%20xpointer(./ancestor::dsig:Signature%5b1%5d/child:
+:dsig:Object/child::aida:properties/child::aida:signedProperties//.%20%7
+c%20./ancestor::dsig:Signature%5b1%5d/child::dsig:Object/child::aida:pro
+perties/child::aida:signedProperties//@*%20%7c%20./ancestor::dsig:Signat
+ure%5b1%5d/child::dsig:Object/child::aida:properties/child::aida:signedP
+roperties//namespace::*)">
+  <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"
+/> 
+  <dsig:DigestValue>N1kdDD7WdDyy24BoEInCSfRs04s=</dsig:DigestValue> 
+</dsig:Reference>
+
+each of them selects a complete subtree with all attribute and namespace
+nodes.
+
+the structure of such a singed document looks like this
+
+<aida:eDocument xmlns:aida="http://www.iaik.at/aida" ...>
+
+  <aida:signedContent> ... arbitrary well-formed XML ...
+</aida:signedContent>
+
+  <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+    <dsig:SignedInfo> ... (the three XPointer references go here) ...
+</dsig:SignedInfo>
+    <dsig:SignatureValue></dsig:SignatureValue>
+    <dsig:KeyInfo>...</dsig:KeyInfo>
+    <dsig:Object>
+      <aida:properties xmlns:aida="http://www.iaik.at/aida">
+        <aida:signedProperties>...</aida:signedProperties>
+        <aida:unsignedProperties>...</aida:unsignedProperties>
+      </aida:properties>
+    </dsig:Object>
+  </dsig:Signature>
+
+  <dsig:Signature xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+    <dsig:SignedInfo> ... (the three XPointer references go here) ...
+</dsig:SignedInfo>
+    <dsig:SignatureValue></dsig:SignatureValue>
+    <dsig:KeyInfo>...</dsig:KeyInfo>
+    <dsig:Object>
+      <aida:properties xmlns:aida="http://www.iaik.at/aida">
+        <aida:signedProperties>...</aida:signedProperties>
+        <aida:unsignedProperties>...</aida:unsignedProperties>
+      </aida:properties>
+    </dsig:Object>
+  </dsig:Signature>
+
+  ...
+
+</aida:eDocument>
+
+this structure/XPointer combination has the advantage that it allows an
+arbitrary number of parallel signatures. each of these parallel
+signatures uses the same XPointer references, because the XPointers are
+relative. beeing relative additionally allows embedding the complete
+aida:eDocument into the aida:signedContent of antoher aida:eDocument,
+and that without breaking any existing signatures. thus, the structure
+supprots parallel and embedded signatures always using the same XPointer
+expressions. 
+
+> subtree selection. Have 
+> any of your scenario' required omission filters? If so, how 
+> would you think 
+> they be best addressed in the future (e.g., 1.1) 
+
+most use cases only need a simple subtree-selection mechanism, which
+selects a complete subtree with all attributes and namespece nodes. if
+you carefully design you system, you do not even need anything else.
+of course, one can create super-funky-complex signing schemes, but who
+really needs these things when you can realize it with a simple
+solution?
+
+> A. Presently we say be careful with XPointers in URIs because of 
+> implementation issues: XPointer is not widely implemented, 
+> not yet REC, and 
+> we don't quite trust consistent application interpretations 
+> of fragment 
+> identifiers. Should we relax the discouragement of XPointer? (I'd be 
+> concerned about its lack of wide-spread implementation and 
+> status, but is 
+> the fragment interpretation not a problem in your 
+
+an earlier version of the Xerces parser had problems handling XPointers
+in URIs, but it was simple to fix. anyway, if they would have
+implemented their URI class according to the URI specification, it
+wouldn't have been a problem at all.
+i did not see a complete XPointer implementation yet. i searched for one
+last year, when i needed XPointer first. i did not find one easily, so i
+cxonsidered to implement this part of XPointer which 'makes sense'; i.e.
+just the XPath related stuff, but not any of these features like
+selecting parts of text, ranges, .... these features might be of use for
+text-processing systems but not really for data-processing systems which
+use XML to encode structured data.
+
+referencing elements by IDs, i would discourage. if you use IDs, you
+cannot extract signed content from one document and combine it with
+other signed parts into a new document. you might get ID clashes, which
+you cannot fix, because the IDs are covered by the signatures. one would
+break the signatures in renameing the IDs.
+
+i would not discourage XPointer in general. it is similar as for other
+standards. a fraction of this standard is useful for the majority of its
+users, but a good portion is "i am wondering who really needs this".
+
+> experience?) B. Specify a new XPath transform that is at 
+> least very fast for subtree 
+> selection and hopefully faster for omission filters -- I'm 
+> not sure how to 
+> do the latter yet.
+
+if you design a new transform, i would recommend to specify one which
+allows to specify a complete sub-tree with all attributes and namespace
+nodes. i guess this is the most important type of reference required.
+
+omission filters, i do not use any longer. i jsut used them to exclude
+the own signature during signing, but with the type of XPointer
+references i use now, i do not need this omission filter any longer.
+i think i could live without this omission filters, because i cannot
+imagine a reasonable other use-case for them. who needs a filter like
+"just sign all attributes which's name is ..."?
+
+> 3. Since the enveloped signature transform is specified via an XPath 
+> expression (though it is not required to be the  means of 
+> implementing it) 
+> how do you implement that and how is its performance?
+
+the signature is never part of the signed document. consequently, i
+structure my documents that this is really the case. this means, the
+signature is never the descendant of any of its signed elements. in my
+use-case the signature is a sibling of the signed content, if it is
+inside the same document. and if the signature is detached, there is no
+problem anyway.
+putting all singed data into the Object element of a signature and then
+signing the complete document excluding the signature itself, is "not a
+nice design" putting it mildly.
+
+
+to sum up: using XPointers instead of XPath filters was a good decision
+with hindsight. using an uncritical subset of XPointer, this which is
+just a different notation for XPath expressions, is really woth the
+effort. the effort to implement this subset of XPointer that you really
+need is little, if you already have a XPath preocessor. this was one
+Java class with ~200 lines of code in my case.
+
+
+i hope this helps
+
+regards
+
+  Karl Scheibelhofer
+
+--
+
+Karl Scheibelhofer, <mailto:Karl.Scheibelhofer@iaik.at>
+Institute for Applied Information Processing and Communications (IAIK)
+at Graz University of Technology, Austria, http://www.iaik.at and
+http://jcewww.iaik.at
+Phone: (+43) (316) 873-5540
+
+> 
+> -- 
+> 
+> Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+> W3C Policy Analyst                mailto:reagle@w3.org
+> IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature/
+> W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+> 
+> 
+
+
+

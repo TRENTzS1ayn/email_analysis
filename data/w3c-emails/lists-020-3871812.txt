@@ -1,0 +1,126 @@
+docno="lists-020-3871812"
+received="Sun Jan 25 16:47:10 2004"
+isoreceived="20040125214710"
+sent="Sun, 25 Jan 2004 22:43:40 +0100"
+isosent="20040125214340"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="Re: [XSLT 2.0] OB04, 5.6.3 Namespace Fixup, QNames in content"
+id="37B64F4BA60E9E4FB9F60929E05980242877F6@DAEMSG03.eur.ad.sag"
+charset="us-ascii"
+inreplyto="[XSLT 2.0] OB04, 5.6.3 Namespace Fixup, QNames in content"
+expires="-1"
+
+
+To:<public-qt-comments@w3.org>,<obecker@informatik.hu-berlin.de>
+
+
+Oliver Becker raised this comment {OB04, qt-2004Jan0008-01} at
+
+http://lists.w3.org/Archives/Public/public-qt-comments/2004Jan/0008.html
+
+The Working Group examined this comment on 2004-01-20.
+
+Although we felt that the immediate question was reasonably easy to
+answer, we found that the comment raised some very interesting issues
+and that the language is currently underspecified in this area.
+
+Please note that my previous personal response is inaccurate and should
+be ignored.
+
+The comment raises the question of how namespace fixup handles QNames in
+(element or attribute) content.
+
+The comment refers to the 5th bullet of the namespace fixup section
+(5.6.3), which states: "If an element is annotated with the type
+xs:QName, or a type derived from xs:QName, or if it has an attribute
+with such a type annotation, then that element must have a namespace
+node whose string value is the same as the namespace URI of that QName
+value, and whose name is the same as the prefix used in the lexical
+representation of the QName (if the lexical representation is
+unprefixed, the namespace node must be unnamed)."
+
+It's not clear what is meant here by "the lexical representation of the
+QName". An attribute node in the data model has a typed value and a
+string value, and as is stated in section 6.3.2 of the data model spec,
+the string value is derived from the typed value; there are explicit
+rules showing how this is done in the case of a QName value. This makes
+it clear that the prefix in the string value of the attribute is
+obtained by looking at the namespace nodes, which means that the
+namespace fixup section is wrong to suggest that the namespace nodes can
+be constructed from knowledge of the string value. It appears therefore
+that the text "and whose name is the same as the prefix used in the
+lexical representation of the QName (if the lexical representation is
+unprefixed, the namespace node must be unnamed)" should be deleted: the
+only constraint is that the element owning the attribute must have a
+namespace node for the namespace used in the QName value.
+
+Note that there are two cases to consider: the case where the
+element/attribute is already annotated as a QName at the time namespace
+fixup occurs, and the case where namespace fixup precedes validation. In
+the example given by Oliver, either situation could arise depending on
+the value of default-validation in the xsl:stylesheet element. If
+validation-default is "preserve", "lax", or "strict", then the
+attributes being copied might already be annotated as QNames. If
+validation is "strip", then this is not the case.
+
+If the attribute is annotated as a QName, then the namespace fixup rules
+(revised as above) will ensure that a namespace node is allocated for
+the namespace URI used in the QName value, with an arbitrary
+system-selected prefix. As with element and attribute names, the system
+can try to re-use existing prefixes where possible, but in the case of a
+clash, which occurs in this example, it must invent new prefixes. During
+serialization, the typed value of the attribute (an expanded QName) will
+be replaced with the string value of the attribute, which involves
+searching the namespace nodes for the containing element to locate a
+suitable prefix.
+
+If a QName-valued attribute is copied with validation="strip", then at
+the time namespace fixup occurs, the attribute is not annotated as a
+QName, and therefore namespace fixup makes no attempt to create a
+namespace node. If a containing element is subsequently validated, and
+the schema definition of the attribute requires its value to be a QName,
+then validation will fail if the namespace is undeclared. In this
+situation, it is the user's responsibility to create a suitable
+namespace node, as illustrated in the first example in section 11.6.
+
+We then took a more careful look at the definition of what it means to
+validate an attribute node. This is something which is not directly
+defined in XML Schema. We define a process (at the end of section
+19.2.1) for validating an element (which conceptually serializes the
+element, then builds an infoset, then invokes the schema-defined rules
+to validate this infoset), but there is no corresponding process for
+attributes. We had previously thought that attribute validation is
+sufficiently simple (it's much the same operation as "castable as") that
+we could get away with this; but for validation of QNames, it appears
+this is not the case. We need to define an analogous process for
+attributes as follows:
+
+1. Add the attribute to a newly constructed element (whose name is of no
+consequence).
+
+2. Validate this element against a conceptual element declaration that
+defines an element with empty content allowing this attribute to be
+present
+
+This process will always fail if the attribute is declared as a QName,
+because there will never be a namespace declaration for the relevant
+prefix. This means that to get an attribute annotated as a QName, you
+must always perform validation at the level of some containing element
+node, in which the relevant namespace is in scope.
+
+Thank you for your comment, Oliver: it was thought-provoking, as always.
+Apart from the two definitive changes outlined above, I will try to
+ensure that some of this analysis finds its way into examples and notes
+where appropriate.
+
+Could you please confirm that the changes outlined above constitute an
+acceptable response to your comment?
+
+Regards,
+
+Michael Kay
+  
+
+
+

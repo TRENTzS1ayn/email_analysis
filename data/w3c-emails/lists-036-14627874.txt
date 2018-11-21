@@ -1,0 +1,93 @@
+docno="lists-036-14627874"
+received="Mon Feb 16 21:23:22 2004"
+isoreceived="20040217022322"
+sent="Mon, 16 Feb 2004 21:22:54 -0500"
+isosent="20040217022254"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: Host header"
+id="4.2.0.58.J.20040216212247.05748990@localhost"
+charset="us-ascii"
+inreplyto="Host header"
+expires="-1"
+
+
+To:uri@w3.org
+
+
+
+
+
+Stefan Eissing <stefan.eissing@greenbytes.de> wrote:
+
+ > how does the escaping/punying of hostnames affect the HTTP host
+ > header?  As an implementor of HTTP client code, I wonder in which
+ > format I have to send the header value.
+ >
+ > At the moment I would just use the hostname as it appears in the URI.
+
+I think the HTTP spec (RFC-2616) is clear on this point:
+
+   3.2.1 General Syntax
+
+     For definitive information on URL syntax and semantics, see "Uniform
+     Resource Identifiers (URI):  Generic Syntax and Semantics,"
+     RFC 2396...  This specification adopts the definitions of ...
+     "host", ... from that specification.
+
+   3.2.2 http URL
+
+     http_URL = "http:" "//" host [ ":" port ] [ abs_path [ "?" query ]]
+
+   14.23 Host
+
+     Host = "Host" ":" host [ ":" port ] ; Section 3.2.2
+
+The host in the Host: field is the very same token as the host in the
+URL.  Therefore it is correct to simply literally copy the host from
+the URL into the host field.  RFC-2396 does not permit percent-escapes
+in host.  If the new URI spec defines a new syntax that allows
+percent-escapes in host, will that retroactively alter the HTTP spec?  I
+don't know, but either way, it's still the same token in the Host: field
+and the URL.  If percent-escapes become valid in the URL host, they also
+become valid in the Host: host.  In any case, a simple copy from the URL
+to the Host: field conforms to the HTTP spec.
+
+If your application wants to actively support IDNs (as opposed to merely
+letting them pass through in blissful ignorance), then it needs to
+follow the additional rules of IDNA (RFC-3490), one of which is that
+domain names being put into IDN-unaware slots need to be in ASCII form.
+Since the HTTP Host: field is IDN-unaware, you'd need to apply ToASCII
+to the host name before constructing the Host: field.
+
+This brings up in interesting failure mode that could arise if
+percent-escapes are allowed in host.  Suppose an IDN-unaware browser
+tries to follow an href to http://jos%C3%A9.net/.  Suppose it gets past
+the first failure opportunity by decoding the percent-escapes before
+calling the host resolver.  Let's even suppose that the host resolver is
+IDN-aware and somehow knows that the query is UTF-8, and can therefore
+perform ToASCII on the application's behalf without being asked (I'm
+not sure that's wise, but let's just suppose that's what happens).  The
+lookup will succeed, and the application will connect to the server, and
+issue the request:
+
+GET / HTTP/1.1
+Host: jos%C3%A9.net
+
+At this point, the server, which is also IDN-unaware, fails to recognize
+the virtual server.
+
+It's not unreasonable to suppose that the server is IDN-unaware.  IDNA
+was designed so that I could register xn--jos-dma.net, and use any
+existing web hosting service to host xn--jos-dma.net, and the hosting
+service need not know or care that xn--jos-dma.net is an IDN.
+
+If the original href had used the ACE form rather than a percent-encoded
+UTF-8 form, all three opportunities for failure would have been
+eliminated.
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

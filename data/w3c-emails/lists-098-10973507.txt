@@ -1,0 +1,255 @@
+docno="lists-098-10973507"
+received="Sun Mar 31 21:17:51 2002"
+isoreceived="20020401021751"
+sent="Sun, 31 Mar 2002 21:17:52 -0500 (EST)"
+isosent="20020401021752"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="annotea soap/squish: algea stuff"
+id="Pine.LNX.4.30.0203312116140.26349-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To:<www-archive@w3.org>
+
+
+
+
+---------- Forwarded message ----------
+Date: Sun, 31 Mar 2002 21:14:02 -0500
+From: Dan Brickley <danbri@w3.org>
+To: danbri@w3.org
+
+#!/usr/bin/perl
+#
+##
+## a Squish/Algae RDF query convertor
+##
+## also shows how to use Perllib RDF query API
+## optionally converting from Squish format first
+##
+## bugs: - not fully packaged as a Perl module
+##       - doesn't use Squish WHERE clause to set datasource
+##
+## usage: see ./sqtest.pl --data=../../samples/data.rdf
+##
+## by danbri@w3.org (algae bit based on code from eric@w3.org)
+## may 2001
+
+##
+## todo: fix syntax / rules for USING clause
+## currently we risk screwing up if namespace is abbreviated with
+## names like 'for', 'as', 'and'. This is a Squish syntax issue really.
+
+BEGIN {unshift@INC,('../../..','../..');}
+use strict;
+
+package RDF::RDFWeb::SquishAlgae;
+
+use W3C::Rdf::RdfApp;
+use W3C::Util::Exception;
+
+require Exporter;
+use vars qw(@ISA @EXPORT_OK);
+
+@RDF::RDFWeb::SquishAlgae::ISA = qw(W3C::Rdf::RdfApp Exporter);
+@EXPORT_OK = qw();
+
+
+# Constructor method
+
+sub new {
+  my $this = shift;
+  my $class = ref($this) || $this;
+  my $self = $class->SUPER::new();
+  bless $self, $class;
+  return $self;
+}
+
+my $PRINT_TRIPLES=0;
+
+# todo: add a representation of the result set a la Perl DBI
+
+1;
+
+
+sub doalgae  {
+  my $self= shift;
+  my $datafile = shift;
+  my $aquery = shift;
+
+  # this stuff replaced by code of erics below
+  open(OUT,">>/tmp/soap-query") ;
+  #collect '( ?x ?l ?c    )
+  $aquery =~ m/collect \'\((.*)\)/;
+  my $vars = $1;
+  $vars =~ s/\?//g;
+  my @varnames = split(/\s+/,$vars);
+  $self->{'varnames'}=\@varnames;
+  print OUT "DOALGY: vars= $vars\n";
+  close OUT;
+
+  # print "DOALGAE: got data: $datafile query: $aquery\n";
+#  my $db = $self->{'dbmodname'} || "\"W3C::Rdf::RdfDB\" (\"name:local:/ephemoral\")";
+  my $db = "\"W3C::Rdf::ObjectDB\" (\"properties:/home/annotest/perl/modules/Conf/rdf.prop\" \"name:http://iggy.w3.org/danbri/\")";
+#  my $db2 = new W3C::Rdf::ObjectDB(-properties => /home/annotest/perl/modules/Conf/rdf.prop);
+  # print "doalgy: using dbmodname='$db'\n";
+  # /home/annotest/perl/modules/Conf/rdf.prop
+
+  my @JOB=("-d".$db,$datafile,"-a".$aquery);
+  ## this is how eric's query engine gets called
+  ##
+  eval {
+      my $tester = $self;
+      $tester->execute(\@JOB);
+  }; if ($@) {if ($@) {if (my $ex = &catch('W3C::Util::Exception')) {
+      die $ex->toString;
+  #    die $@.' at line '.$tester->{XML_PARSER}->getLineNumber.' column '.$tester->{XML_PARSER}->getColumnNumber;
+  } else {die $@;}}}
+  return ( @{ $self->{'resultset'} } );
+}
+
+
+## This is Eric's stuff. I don't know this API well.
+##
+sub render {
+    my ($self) = @_;
+
+    my @vn = @{$self->{'varnames'}};
+    #open(OUT,">>/tmp/query");
+    #print OUT "vars...", join (' ; ',@vn),"\n";
+    #close OUT;
+    #todo: the arrayref '$selects' below contains out vars too
+
+    my $attrib = $self->{RDF_PARSER}->getRootAttribution;
+    my $sysID = $self->{RDF_PARSER}->getSystemId;
+
+    if ($attrib && $PRINT_TRIPLES) {
+print join ("\n", $self->{RDF_DB}->expandStatements(undef, ':', $self->{NAMESPACE_HANDLER},
+    {-attributions => [$attrib],
+     -sourceOnly => $self->{ARGS}{-sourceOnly}}));
+    }
+
+    my $queryHandler = $self->{RDF_DB}->getAlgaeInterface;
+    $queryHandler->setParserEnv($self);
+
+    foreach my $query (@{$self->{ARGS}{-algae}}) {
+my ($nodes2, $selects, $messages) = $queryHandler->algae($query, $sysID, {-uniqueResults => 1});
+
+#print join ("\n", @$messages)."\n";
+#print 'algae "'.$query."\" -> \n".join ("\n", map {'('.join (' ', map {scalar $_->show} @$_).')'} @$nodes2)."\n";
+#print 'Algae query: '.$query , "\n";
+
+        my $rows=$nodes2;
+        my @resultset;
+        my $count=0;
+        my $ret;
+open(LOG_RET, ">>/tmp/log_ret");
+#        foreach my $row (@$rows) {
+my $iRows = @$rows;
+print LOG_RET "$iRows rows\n";
+        foreach (my $iRow = 0; $iRow < $iRows; $iRow++) {
+    my $row = $rows->[$iRow];
+    my $proofs = $rows->[$iRow];
+          my %record;
+  for (my $colNo = 0; $colNo < @$row; $colNo++) {
+            $ret='';
+    my $varName = $selects->[$colNo];
+    my $column = $row->[$colNo];
+    $ret .= ' ' if ($colNo > 0);
+    if ($column->isa('W3C::Rdf::Uri')) {
+$ret .=  $column->getUri ;
+    } elsif ($column->isa('W3C::Rdf::String')) {
+$ret .= '"'.$column->getString.'"';
+    } elsif ($column->isa('W3C::Rdf::GenId')) {
+$ret .= '"'.$column->getId.'"';
+    } else {
+&throw(new W3C::Util::Exception(-message => "don't know how to serialize \"$column\""));
+    }
+          chomp $colNo;
+  $colNo =~ s/\s+//;
+#          $record{ $vn[ $colNo ] } = $ret;
+          $record{ $varName } = $ret;
+    print LOG_RET "$ret\n\n";
+  }# cols
+          push @resultset, \%record;
+        }# rows
+      $self->{'resultset'}=\@resultset; # store other stuff too?
+      }
+}
+
+sub formatResultSet {
+  my $self = shift;
+  my @rs = @_;
+  my $ret;
+  foreach my $rr ( @rs ) {
+    my %record = %{ $rr };
+    foreach my $col (sort keys %record) {
+      $ret .= "$col: $record{$col} \t";
+    }
+    $ret .= "\n";
+  }
+  return $ret;
+}
+
+
+
+# filter to turn ilrt squish into ericp algae
+
+sub squish2algae {
+  my $self=shift;
+  my $squish = shift;
+  chomp $squish;
+
+  $squish =~ s/\n/ /g;
+  $squish =~ s/\r/ /g;
+  $squish =~ m/SELECT\s+(.*)\s*WHERE\s*(.*)\s*USING\s*(.*)/i;
+
+  my $SELECT = $1;
+  my $WHERE = $2;
+  my $USING = $3;
+  my $FROM;
+  if ($SELECT =~ s/FROM\s+(.*)//i) {
+    $FROM=$1;
+  }
+
+  $SELECT =~ s/SELECT//i;
+  $FROM =~ s/FROM//i;
+  $WHERE =~ s/WHERE//i;
+  $USING =~ s/USING//i;
+
+  my @selects = split (/\s+/, $SELECT);
+  my @froms = split (/\s+/, $FROM);
+
+  my $dbg = "Select: \t$SELECT \n\tFrom: $FROM\n\tWhere: $WHERE\n\tUsing: $USING \n";
+
+  my %ns;
+  my @spaces = split(/\s*AND\s*/i, $USING);
+  if (! @spaces) { push (@spaces, $USING) };
+
+  my $pairs = $USING;  # note: squish syntax underspecified! :(
+  $pairs =~ s/for//ig;
+  $pairs =~ s/as//ig;
+  $pairs =~ s/and//ig; # sugar; see #todo at top of file
+  my @nslist = split(/\s+/,$pairs);
+  while (@nslist) {
+    my ($x,$y) = (shift @nslist, shift @nslist);
+    chomp $y;
+    $ns{$x} = $y;
+  }
+
+  $WHERE =~ s/(\w+)::/$ns{$1}/ig;
+  $WHERE =~ s/\)\s*\(/)\n\t(/g;
+
+  $SELECT =~ s/,//g; # desugar: no commas in var names
+
+  my $algae;
+  $algae .= "(ask '(\n";
+  $algae .= "$WHERE\n";
+  $algae .= ") collect '( $SELECT )\n )\n";
+
+  return $algae;
+}
+
+
+

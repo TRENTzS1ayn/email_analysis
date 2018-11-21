@@ -1,0 +1,1026 @@
+docno="lists-020-10423290"
+received="Fri Apr 23 08:26:41 2004"
+isoreceived="20040423122641"
+sent="Fri, 23 Apr 2004 05:19:21 -0700 (PDT)"
+isosent="20040423121921"
+name="Dirk-Willem van Gulik"
+email="dirkx@asemantics.com"
+subject="Howards Preso / leiden 2004 (fwd)"
+id="20040423051901.R54360@skutsje.san.webweaving.org"
+charset="ISO-8859-1"
+expires="-1"
+
+To:public-rdf-dawg@w3.org
+
+
+
+
+
+
+
+XQuery: a whirlwind tour
+
+Howard Katz
+
+========================
+
+
+
+
+
+data model
+
+----------
+
+
+
+atomic values and nodes (book prize for number of types!) are injected
+into (== constructed in) an empty data model
+
+
+
+XQuery is a functional language: expressions (Expr "+" Expr) (eg additive
+expression) evaluate their operands and return results, with expressions
+higher up the query tree do the same thing, taking the data model instance
+through a series of transformations for each expression we "ascend"
+
+
+
+compositionality says same thing: we want the output of any expression to
+be able to act as an input to the higher-up expression calling it.
+Syntactically, for binary operators (eg) reflected in the grammar. ie,
+operands in following can be just about anything :
+
+
+
+AdditiveExpr ::= MuliplicativeExpr ( ("+" | "-")
+MultiplicativeExpr )*
+
+
+
+So in general, for case of generic
+
+
+
+  operator
+
+   /     \
+
+exprexpr
+
+
+
+it's never a syntax error for operands to be *any* type of expression (tho
+it may produce other types of errors -- see below)
+
+
+
+final query result is whatever emerges through the top of the query tree,
+the last man standing
+
+
+
+so data model instances consist of an ordered, heterogenous sequence of
+"items": atomic values and/or nodes (so one of differences between XQuery
+Data Model and InfoSet is ordered forests, as well as PSVI from XML Schema
+validation.
+
+
+
+*everything* is a sequence, even one-offs (singleton sequences)
+
+
+
+examples
+
+--------
+
+
+
+1 (does this look like xml to you??)
+
+
+
+construct an IntegerLiteral 1 in the query
+
+1 goes in -- 1 comes out
+
+
+
+----
+
+
+
+"2", 3 + 1
+
+
+
+    ,
+
+
+
+   /            \
+
+       "2"        "+"
+
+/         \
+
+IntegerLiteralIntegerLiteral
+
+
+
+rule for evaluating :
+
+
+
+construct a sequence containing a single xsd:string "2"
+
+construct two atomic xs:integer values 3 and 1
+
+add the latter 2 together -> 4
+
+concatenate the 4 onto the "2"
+
+
+
+=> 42
+
+
+
+----
+
+
+
+<foo/>, <bar/>
+
+
+
+=> <foo/><bar/>
+
+
+
+(again, not quite xml)
+
+
+
+----
+
+
+
+       query tree for more complex expression
+
+
+
+       1 + count( doc( "bib.xml" )//text() )
+
+
+
+       QueryBody
+
+          Additive [ + ]
+
+             IntegerLit [ 1 ]
+
+             FunctionCall
+
+                QName [ count ]
+
+                RelPath [ // ]
+
+                   FunctionCall
+
+                      QName [ doc ]
+
+                      StringLit [ bib.xml ]
+
+                   TextTest
+
+
+
+
+
+easy way to implement all the above is to have every expression evaluated
+via a function call that returns a generic sequence of items to the
+function that calls it. ie signature is something like
+
+
+
+ItemSequence additiveExpr( ItemSequence additiveExprLHS,
+
+ItemSequence additiveExprRHS )
+
+
+
+my implementation returns a sequence of two-element integer arrays
+
+
+
+int[][] additiveExpr( int[][] additiveExprLHS, int[][]
+additiveExprRHS )
+
+
+
+principle of full compositionality can lead to interesting syntactic
+constructs. eg looking at addition:
+
+
+
+AdditiveExpr ::= MuliplicativeExpr ( ("+" | "-")
+MultiplicativeExpr )*
+
+
+
+MultiplicativeExpr := UnaryExpr ( "*" | "div" | "idiv" | "mod" )
+UnaryExpr )*
+
+...
+
+
+
+we can say
+
+
+
+1 + <foo>abc</foo> (: RIPLEY QUERY #1 :)
+
+
+
+similarly, any step in xpath/location path can be a generic Expr:
+
+
+
+<foo><bar/></foo>/bar  (: RIPLEY QUERY #2 :)
+
+
+
+
+
+Grammar is complex
+
+------------------
+
+
+
+ o 142 productions (nov03 working draft)
+
+
+
+ o 320 terminals(+/-)
+
+
+
+ o heavy use of lexical states:
+
+
+
+   DEFAULT, OPERATOR, NAMESPACEDECL, NAMESPACEKEYWORD, VARNAME, ITEMTYPE,
+
+   KINDTEST, KINDTESTFORPI, XML_COMMENT, PROCESSING_INSTRUCTION,
+CDATA_SECTION,
+
+   START_TAG, XMLSPACE_DECL, EXPR_COMMENT, EXT_KEY, OCCURRENCEINDICATOR,
+CLOSEKINDTEST,
+
+   SCHEMACONTEXTSTEP, ELEMENT_CONTENT, QUOT_ATTRIBUTE_CONTENT,
+APOS_ATTRIBUTE_CONTENT,
+
+   END_TAG, PROCESSING_INSTRUCTION_COMMENT
+
+
+
+we start in DEFAULT state and change state according to state-change rules
+in main spec document
+
+
+
+eg one such rule:
+
+
+
+   if in START_TAG state:
+
+
+
+   "/>"               popState()
+
+   "<"                ELEMENT_CONTENT
+
+   " ' "              QUOT_ATTRIBUTE_CONTENT
+
+   " " "              APOS_ATTRIBUTE_CONTENT
+
+   "{}" DEFAULT       pushState()
+
+   S, QName, "="      no-op
+
+
+
+
+
+some sequence stuff
+
+-------------------
+
+
+
+(10, (1, 2), (), (3, 4)) => (10, 1, 2, 3, 4) => 101234
+
+
+
+(10, 1 to 4)=> (10, 1, 2, 3, 4) => 101234
+
+
+
+(21 to 29)[ 5 ]
+
+
+
+fn:reverse( 1 to 3) => (3, 2, 1)
+
+
+
+
+
+3 possible outcomes for evaluation of any XQuery expression
+
+-------------------
+
+
+
+1. produce a valid result
+
+
+
+2. produce a null sequence result
+
+
+
+3. throw an error
+
+
+
+case-by-case. eg, here's what we do w/ arithmetic operators:
+
+
+
+   1. apply atomization to each operand (rule for producing a single
+atomic value from a sequence)
+
+   2. If either resulting sequence is (), => ()
+
+   3. if fn:count( seq_LHS ) or fn:count( seq_RHS ) > 1, throw a type
+error
+
+   4. if either sequence is now of type xdt:untypedAtomic, cast to the
+default type for the operator.
+
+      (default for all operators except idiv is xs:double. If the cast
+fails, throw a dynamic error
+
+   5. apply the operator. either return the result or throw a dynamic
+error
+
+
+
+So
+
+1 + <foo>abc</foo>
+
+
+
+fails under rule #4. throw a dynamic error
+
+
+
+1 + <foo>123</foo>
+
+
+
+succeeds
+
+
+
+=> 124
+
+
+
+
+
+comparisons
+
+-----------
+
+
+
+general comparisons, inherited from XPath 1.0:
+
+
+
+42 = 42       => true (: not unexpected :)
+
+
+
+what happens with a general comparison where one operand or the other is a
+sequence ??
+
+
+
+doc( "bib.xml" )//book[ author/last = "Kennedy" ]
+
+
+
+ie, what if the book has 3 authors, equivalent to :
+
+
+
+( "Abiteboul", "Buneman", "Suciu" ) = "Suciu"
+
+
+
+answer: we do "existential comparison
+
+
+
+ie
+
+
+
+(1, 2) = (2, 3 )  (: RIPLEY QUERY #3 :)
+
+
+
+
+
+General comparison is not transitive
+
+
+
+(1, 2) = (2, 3) => true
+
+
+
+(2, 3) = (3, 4) => true
+
+
+
+(3, 4) = (4, 5) => true
+
+
+
+however
+
+
+
+(1, 2) = (4, 5) => false
+
+
+
+
+
+Question: how to inject existing nodes into the Data Model? ("traditional
+function of an XML query language):
+
+
+
+input functions
+
+---------------
+
+
+
+so called because they input selected nodes into the data model
+
+
+
+we usually use to root location paths -- connect them to source documents
+of interest
+
+
+
+doc( "bib.xml" )//book
+
+
+
+collection( "someUri" )/bib/book/author[ 1 ]
+
+
+
+these location path return node in document order
+
+
+
+what happens *across* documents is impl-dependent but stable during a
+session (@@@@@ CHECK THIS @@@@@)
+
+
+
+
+
+constructed nodes
+
+-----------------
+
+
+
+we can also inject/construct our own nodes
+
+
+
+<foo>I <i>am</i> handsome!</foo>
+
+
+
+node construction gives XQuery rich ability to do transformations and
+"rich" reporting, replacing much of XSLT
+
+
+
+Much ado about query analysis vs. query evaluation leads to distinction
+between static errors and dynamic errors, static vs dynamic type checking
+
+
+
+constructed nodes are first-class citizens, not just decoration. *all*
+nodes have identity
+
+
+
+<foo/> is <foo/> => false(: RIPLEY QUERY #4 :)
+
+
+
+wrapping "real" nodes in an element constructor is more than cosmetic. we
+need to deep copy:
+
+
+
+<foo>
+
+{
+
+doc( "bib.xml" )//editor
+
+}
+
+
+
+because of need for disambiguation of editor/.. operation
+
+
+
+<foo>{ (: evaluate what goes here :) } </foo>
+
+
+
+eg
+
+
+
+<foo>{ doc( "bib.xml" )//node() }</foo>
+
+
+
+What about (Straing
+
+
+
+<foo>{ <bar> { <baz/> } </bar> } </foo>
+
+
+
+
+
+
+
+user-defined functions
+
+----------------------
+
+
+
+    define function is-document-element( $e as element() ) as xs:boolean
+
+    {
+
+        if ( $e/.. instance of document-node() )
+
+        then true()
+
+        else false()
+
+    };
+
+
+
+depending on how invoked :
+
+
+
+    is-document-element( doc( "bib.xml" )/bib )     => true
+
+
+
+    is-document-element( doc( "bib.xml" )//editor ) => false
+
+
+
+    is-document-element( doc( "bib.xml" )//book )   => throws
+
+
+
+To note :
+
+
+
+variation #3 throws because signature calls for *single* element
+
+
+
+alternate signatures might be
+
+
+
+  $e as element()?
+
+  $e as element()*
+
+  $e as element()+
+
+  $e as element( foaf:Person )
+
+  $e as element( price, xsd:decimal )
+
+
+
+"rich" prolog structure standardizes switches and context-setters inside
+the query
+
+---------------------
+
+
+
+   define variable $titles { doc(
+?
+?books.xml
+?
+?)//title };
+
+   define function outtie($v as xs:integer) as xs:integer external;
+
+   define variable $v as xs:integer external;
+
+   declare namespace foo = "http://example.org";
+
+   <foo:bar> { doc( "http://fooThings.com" )//foo:bar } </foo:bar>
+
+
+
+flwors return tuples
+
+--------------------
+
+
+
+    for $number in ( 1, 3, 5 )
+
+    for letter in ( "A", "B", "C" )
+
+return ( $number, "-", $letter, " " )
+
+
+
+    => 1-A  1-B  1-C  3-A  3-B  3-C  5-A  5-B  5-C
+
+
+
+sample queries
+
+---------------
+
+
+
+some $emp in //employee satisfies ($emp/bonus > 0.25 * $emp/salary)
+
+
+
+  o existential semantics == "any"
+
+
+
+  o as opposed to every $emp in //employee ...
+
+
+
+     ------------
+
+
+
+<bib>
+
+  {
+
+    for $b in doc("http://www.bn.com/bib.xml")//book
+
+    where $b/publisher = "Addison-Wesley" and $b/@year > 1991
+
+    order by $b/title
+
+    return
+
+        <book>
+
+            { $b/@year }
+
+            { $b/title }
+
+        </book>
+
+  }
+
+</bib>
+
+
+
+=>
+
+
+
+<bib>
+
+    <book year="1992">
+
+        <title>Advanced Programming in the Unix environment</title>
+
+    </book>
+
+    <book year="1994">
+
+        <title>TCP/IP Illustrated</title>
+
+    </book>
+
+</bib>
+
+
+
+   o order by changes ordering on demand from default document order
+
+
+
+-------------
+
+
+
+for $s in doc("report1.xml")//section[section.title = "Procedure"]
+
+return
+
+($s//instrument)[ position()<=2 ]
+
+
+
+    ----------------
+
+
+
+for $p in doc("report1.xml")//section[section.title = "Procedure"]
+
+where not( some $a in $p//anesthesia satisfies
+
+        $a << ($p//incision)[1] )
+
+return $p
+
+
+
+    ----------------
+
+
+
+<section_list>
+
+  {
+
+    for $s in doc("book.xml")//section
+
+    let $f := $s/figure
+
+    return
+
+        <section title="{ $s/title/text() }" figcount="{ count($f) }"/>
+
+  }
+
+</section_list>
+
+
+
+
+
+xpaths vs flwors
+
+----------------
+
+
+
+XPaths navigate, select nodes en bulk, tho predicates (filters) can narrow
+the size of the result list (not result set btw)
+
+
+
+flwrs allow finer-grained manipulation of individual items, additional
+navigation from selected nodes (for), complex multi-level (re)grouping
+
+
+
+o fine-grained manipulation of individual items
+
+o grouping and decoration of semi-results (ie "reporting")
+
+o complex transformation
+
+
+
+
+
+short-circuitable error reporting
+
+---------------------------------
+
+
+
+    declare function func( $arg_1 as item? ) as item*
+
+    {
+
+(: something :)
+
+    };
+
+
+
+    some $x in expr() satisfies $x = funct( $x )
+
+
+
+is allowed to return true immediately if found, even if possibility of
+erroring on subsequent items
+
+
+
+
+
+documentation, all at W3C XML Query website (sorry, no url)
+
+-------------
+
+
+
+[ Howard's Top 4 ]
+
+
+
+ o XQuery 1.0: An XML Query Language (http://www.w3.org/TR/xquery/) [132
+pages, wd 12nov03: last call]
+
+
+
+The main overview document. Describes main features and surfaced
+language syntax
+
+
+
+ o XML Query Use Cases (http://www.w3.org/TR/xquery-use-cases) [84 pages,
+wd 12nov03]
+
+
+
+Specific enought to be used for test cases. Good sample of actual
+XQuery snippets
+
+
+
+ o XQuery 1.0 and XPath 2.0 Data Model
+(http://www.w3.org/TR/xpath-datamodel) [67 pages, wd 12nov03; last call]
+
+
+
+XML Schema Datatypes Part II + 7 node types, their properties, and
+accessors
+
+
+
+DM = XML Infoset + ordered forests + XML Schema PSVI
+
+
+
+ o XQuery 1.0 and XPath 2.0 Functions and Operators
+(http://www.w3.org/TR/xpath-functions/) [166 pages, wd 12nov03; last call]
+
+
+
++/- 150 built-functions
+
+
+
+----
+
+
+
+XML Query (XQuery) Requirements
+(http://www.w3.org/TR/xquery-requirements/) [14 pages, wd 12nov03]
+
+
+
+XQuery 1.0 and XPath 2.0 Formal Semantics
+(http://www.w3.org/TR/xquery-semantics) [175 pages, wd 20feb03; last call]
+
+
+
+XML Syntax for XQuery 1.0 (XQueryX) (http://www.w3.org/TR/xqueryx/) [52
+pages, wd 19nov03]
+
+
+
+XSLT 2.0 and XQuery 1.0 Serialization
+(http://www.w3.org/TR/xslt-xquery-serialization/) [20 pages, wd 12nov03;
+last call]
+
+
+
+XPath Requirements Version 2.0 (http://www.w3.org/TR/xpath20req/) [17
+pages, wd 22aug03]
+
+
+
+XQuery and XPath Full-Text Requirements
+(http://www.w3.org/TR/xquery-full-text-requirements) 10 pages, wd 2may03]
+
+
+
+XQuery and XPath Full-Text Use Cases
+(http://www.w3.org/TR/xmlquery-full-text-use-cases/) [106 pages, wd
+22aug03]
+
+
+
+834 pages in total
+
+
+
+
+
+other suggestions
+
+----------------------
+
+
+
+ o hands-on via saxon at sourceforge (sorry, no url)
+
+
+
+ o "XQuery from the Experts", ed Howard Katz, 2003
+
+
+
+ o "Practical XQuery", Mike Brundage, AW, 2004
+
+
+
+
+
+conclusions
+
+-----------
+
+
+
+ o functional language is elegant, easy to implement
+
+
+
+ o support for xml makes it complex
+
+
+
+ o support for typed xml makes it more complex
+
+
+
+ o user-defined functions (either internal or external) provide
+extensibility
+
+
+
+ o great to be able to move numerous "declare" switches inside the query
+
+
+
+ o ability to do ad hoc grouping via node constructors w/ arbitary
+sequencing provides rich transformational/reporting capability (another
+way to say is the ability order user-defined heterogeneous sequences and
+optionally annotate them is powerful)
+
+
+

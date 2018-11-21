@@ -1,0 +1,48 @@
+docno="lists-042-7226773"
+received="Mon Aug 11 19:08:30 2003"
+isoreceived="20030811230830"
+sent="Mon, 11 Aug 2003 16:09:13 -0700"
+isosent="20030811230913"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="RE: Changing etag and getlastmodified on move/rename"
+id="010901c3605d$948bc9c0$f8cb90c6@lisalap"
+charset="utf-8"
+inreplyto="JIEGINCHMLABHJBIGKBCGECMICAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+To:"'Julian Reschke'"<julian.reschke@gmx.de>,"'Webdav WG'"<w3c-dist-auth@w3c.org>
+
+
+
+
+> > Wouldn't the "getlastmodified" value change during this operation
+> > as well?  I'm assuming that at the beginning /a/b and /a/c had 
+> > different content, which is why the ETag had to changed when the 
+> > MOVE caused the content /a/c to be overwritten with the content 
+> > from /a/b.  If that's the case then the result of a GET to /a/c 
+> > is different after the move, so the 'getlastmodified' must 
+> also change.
+> 
+> Most of the time yes, but not always: if /a/b and /a/c might 
+> have had the same DAV:getlastmodified property before the 
+> MOVE, in which case the date for /a/c may not change (one of 
+> the reasons why ETags are better than dates).
+> 
+> Seems that the HTTP caching (lastmodified and etag) aren't 
+> very compatible with WebDAV namespace operations.
+> 
+
+HTTP caching is very carefully defined.  The "Last-Modified" header isn't defined as the last time the user did a PUT request, it's defined very carefully in terms of when the entity changed:
+" The Last-Modified entity-header field indicates the date and time at which the origin server believes the variant was last modified. "
+
+If the variant was last changed through either a local file system move overwrite, or through a WebDAV MOVE operation that targetted the URL where that variant is accessed, then Last-Modified has changed according to the definition.  HTTP doesn't say how it behaves in terms of MOVE because to HTTP, MOVE doesn't exist.  But it does define things carefully enough so that you can deduce that a MOVE must change the Last-Modified value.  The reason for this is because Last-Modified was designed for caching, not for display.  If a MOVE request overwrites a resource with different content, caching agents need to know to update their cached copy.  
+
+We've noticed that Apache doesn't change the Last-Modified date when a file is moved in the server's file system.  It accepts the file system's say-so, even when the file has been overwritten during a local move.  However Apache simply doesn't have the information that the file was changed so it can't -- in essence this is the "origin server believes" phrase of the spec.  Thus, Apache can break caching.  A client can ask for a file with a "Last-Modified-Since" value, and Apache may return a 412 Precondition Failed response even when the file has been changed due to a local file-system move.  Clearly that's wrong.
+
+The design of HTTP caching isn't very compatible with how clients want to display the last time a user edited a file, and it isn't very compatible with how the Windows file system works.  But HTTP caching wasn't designed to solve either of those problems.
+
+Lisa
+
+
+

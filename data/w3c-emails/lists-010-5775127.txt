@@ -1,0 +1,394 @@
+docno="lists-010-5775127"
+received="Sat Aug  3 02:02:17 1996"
+isoreceived="19960803060217"
+sent="Sat, 3 Aug 1996 01:57:44 0700"
+isosent="19960803085744"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="Sticky header perlim draft"
+id="c=US%a=_%p=msft%l=RED-77-MSG-960803085744Z29559@abash1.microsoft.com"
+expires="1"
+
+
+To:"'http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com'"<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+Here is a preliminary version of an Internet-draft about sticky headers
+and header name compression that I committed to write up at the Montreal
+IETF.
+
+Comments are welcome, and will be incorporated before sending it in as
+an official draft.
+
+===============HTTP Working Group                              Paul J.
+Leach, Microsoft
+INTERNET-DRAFT
+<draft-ietf-http-sticky-00.txt>
+Expires January 11, 1996                                  July 11, 1996
+                Sticky Headers and Header Name Compression
+                           Preliminary Draft
+STATUS OF THIS MEMO
+This preliminary draft is submitted in response to a work item of the
+HTTP Working Group for HTTP/1.2, but does not at this time represent its
+consensus.
+This document is an Internet-Draft. Internet-Drafts are working
+documents of the Internet Engineering Task Force (IETF), its areas, and
+its working groups. Note that other groups may also distribute working
+documents as Internet-Drafts.
+Internet-Drafts are draft documents valid for a maximum of six months
+and may be updated, replaced, or obsoleted by other documents at any
+time. It is inappropriate to use Internet-Drafts as reference material
+or to cite them other than as "work in progress".
+WARNING: The specification in this document is subject to change, and
+will certainly change.  It is inappropriate AND STUPID to implement to
+the proposed specification in this document.  In particular, anyone who
+implements to this specification and then complains when it changes will
+be properly viewed as an idiot, and any such complaints shall be
+ignored. YOU HAVE BEEN WARNED.
+To learn the current status of any Internet-Draft, please check the
+"1id-abstracts.txt" listing contained in the Internet-Drafts Shadow
+Directories on ftp.is.co.za (Africa), nic.nordu.net (Europe),
+munnari.oz.au (Pacific Rim), ds.internic.net (US East Coast), or
+ftp.isi.edu (US West Coast).
+Distribution of this document is unlimited.  Please send comments to the
+HTTP working group at <http-wg@cuckoo.hpl.hp.com>.  Discussions of the
+working group are archived at
+<URL:http://www.ics.uci.edu/pub/ietf/http/>.  General discussions about
+HTTP and the applications which use HTTP should take place on the <www-
+talk@w3.org> mailing list.
+DO NOT IMPLEMENT TO THIS DOCUMENT                   Page [1]
+Internet-Draft         Sticky Headers               08/03/96
+ABSTRACT
+This draft defines two mechanisms to reduce the size of HTTP requests
+and responses. This will result in fewer bytes transmitted over the net,
+which is especially desirable for clients attached to the network via
+slow links, although it may also help increase efficiency of congested
+links, such as the intercontinental ones, as well. The mechanisms flow
+from the following two observations.
+The first is that a sequence of HTTP requests and responses between a
+given client and server typically contains many headers whose values are
+the same for each request and/or response. This draft proposed a way to
+optionally omit sending repetitive headers, instead allowing the sender
+to indicate to the receiver that the values from a previous message
+should be used. Such headers are called "sticky". Special provisions are
+made for proxies so that messages from many clients to a single server
+can be multiplexed over a single connection and still take advantage of
+sticky headers.
+The second is that HTTP header names are usually chosen to be indicative
+of their purpose, not for their short length. This draft proposes a way
+to compress header names using tersely encoded abbreviations.
+The intent is that this document be incorporated into the HTTP/1.2
+specification [1], if the HTTP working group accepts the design.
+However, the only dependencies in the design are that the client and
+server support persistent connections, and that any proxies in the
+communication chain correctly implement the Connection header, so that
+it could be implemented in applications speaking earlier versions of
+HTTP.
+Table of Contents
+1. Introduction............................................3
+2. Overall Operation.......................................3
+ 2.1 Basic operation ......................................4
+ 2.2 Contexts .............................................4
+ 2.3 Changing the sticky-header set .......................5
+3. Specification...........................................5
+ 3.1 Sticky connection-token ..............................6
+ 3.2 Sticky header ........................................6
+4. Examples................................................6
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 2]
+Internet-Draft         Sticky Headers               08/03/96
+5. Header name compression.................................8
+6. Security Considerations.................................9
+7. Acknowledgments.........................................9
+8. References.............................................10
+9. Author's address.......................................10
+1. Introduction
+This draft introduces sticky headers and header name compression. Sticky
+headers require two simple extensions to HTTP -- a new connection-token
+for the Connection header, and a new header, the Sticky header. Header
+name compression merely introduces short equivalents for existing header
+names, and describes a methodology for creating short names for headers
+added to HTTP in the future.
+By default, HTTP/1.1 connections are persistent, and there is a fairly
+widely implemented extension to HTTP/1.0 (the "Connection: Keep-Alive"
+extension) which provides the same functionality when clients are
+communicating directly with origin servers.
+Sticky headers operate over persistent connections, and their must be
+negotiated.
+This draft is being proposed as a component of HTTP version 1.2. It is
+based on work initially done by the persistent connection committee of
+the HTTP working group of the IETF.
+The organization of this draft is as follows. In section 2 we describe
+the overall operation of sticky headers,  then section 3 specifies the
+extension to the Connection header and the Sticky header, and section 4
+provides some examples. In section 5 we specify header name compression.
+2. Overall Operation
+We describe the overall operation in stages:
+  .  basic operation -- suitable for most user-agent to server
+     communication
+  .  contexts -- an optimization for proxy to server operation
+  .  changing the default sticky headers
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 3]
+Internet-Draft         Sticky Headers               08/03/96
+  .  backwards compatibility considerations
+2.1 Basic operation
+The negotiation of the sticky headers option may take place on any
+request sent over a persistent connection. The client may add the
+connection-token "Sticky" to the Connection header in a request; if the
+server accepts the use of sticky headers, it responds with the same
+token in the Connection header of its response.
+Once the use of sticky headers has been negotiated, specified message-
+headers (see section 4.1 and 4.2 of [1]) are remembered from message to
+message, so that they need to be transmitted in a message only if they
+have changed since the last message. The use of sticky headers continues
+until the connection is closed, without further need for the "Sticky"
+connection-token on each request.
+An examination of HTTP/1.1 header fields shows that the message-headers
+with the following field-names are reasonably likely to have the same
+field-values in consecutive requests from a user-agent to a particular
+server:
+     Accept, Accept-Charset, Accept-Language, Accept-Encoding,
+     Authorization, Proxy-Authorization, From, Host, User-Agent
+     Note: Because there do not appear to be any response headers
+     whose field-values are likely to be repeated on consecutive
+     responses, other than the Server header, it was not deemed
+     useful to support sticky headers in the server to client
+     direction.
+By default, message-headers with these field-names are the ones that
+must be remembered, and they comprise the "sticky-header set" for a
+connection. If any of them are not present in a message received by a
+server, they are taken from the remembered set and added to the message
+before processing it. If any of them are present in a message, they
+replace the instance in the remembered set. To send a message without
+one of the remembered message-headers, send a message-header line
+consisting of just the field-name and a colon, and no field-value; upon
+reception of such a line, the message-header in the remembered set with
+that field-name is deleted.
+Section 2.3 provides a way to change the default sticky-header set.
+2.2 Contexts
+Proxies can operate just like user-agents if they want. However, they
+typically act on behalf of many clients, multiplexing a single
+connection to a server across messages from many clients. Such
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 4]
+Internet-Draft         Sticky Headers               08/03/96
+multiplexing will likely destroy the correlation between consecutive
+messages that makes sticky headers an effective compression technique.
+To better support multiplexed connections, we allow for the creation of
+multiple sticky header "contexts" on a single persistent connection.
+Once a context has been set up, each context operates with respect to
+sticky-headers just as if it were a separate persistent connection.
+I.e., there is a sticky-header set and a remembered set of message-
+headers for each context.
+To create a context, the Sticky header is sent by the client:
+     Sticky:   NNNN
+where NNNN is the context number. If the server response contains a
+Sticky header with the same context number, then the context is set up,
+otherwise it is refused. Once a context is created on an persistent
+connection, subsequent messages that want to use the context include a
+Sticky header with the context number used to create it, and it remains
+in effect until the connection is closed.
+The context in use when no Sticky header is present is context 0 (zero).
+2.3 Changing the sticky-header set
+To change the sticky-header set from the default, extra header field-
+names can be listed in the Sticky header when a context is created. For
+example, the following message-headers would negotiate the use of sticky
+headers and add the Foo and Bar message-headers to the sticky header set
+for the default context:
+     Connection: Sticky
+     Sticky: 0 Foo, Bar
+The main purpose for this facility is to allow yet-to-be-invented
+headers to be added to the sticky header set. There is no way to remove
+headers from the sticky header set, or to add more headers to the set
+after a context is created.
+2.4 Backwards compatibility
+A client may safely attempt to negotiate sticky headers with any server
+to which it may legally set up a persistent connection.
+If negotiation is attempted to an origin-server that does not support
+sticky headers, it will fail, because the server will not include
+Connection: sticky in its response.
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 5]
+Internet-Draft         Sticky Headers               08/03/96
+If negotiation is attempted to an HTTP/1.1 proxy that does not support
+it, the Connection and Sticky headers will be removed by the proxy and
+so the negotiation will fail because neither the proxy nor any inbound
+server will include Connection: sticky in its response.
+Negotiation will not be attempted to HTTP/1.0 proxies, because it is not
+legal to set up persistent connections with them.
+3. Specification
+3.1 Sticky connection-token
+The Sticky connection-token is used as part of a Connection header to
+negotiate the use of sticky headers. If a request contains a Connection
+header with the "sticky" connection-token, the client is requesting the
+use of sticky headers. If the server's response contains a Connection
+header with the "sticky" connection-token, then it accepts the use of
+sticky headers.
+3.2 Sticky header
+The Sticky general header may be used to create a sticky header context,
+to indicate that a message belongs to an existing sticky header context,
+or to add headers to the sticky header set.
+     Sticky    = "Sticky" ":" context-id 0#field-name
+     context-id     = *DIGIT
+     field-name     = token        ; see section 4.2 of [1]
+The context-id either requests the creation of a new context with that
+ID, or indicates that this message belongs to an existing context with
+that ID.
+Field-names may be present only when creating a new context. If present,
+then the client requests that message-headers with the given field-names
+be made part of the sticky header set for the context.
+If the creation of a new context is requested, the server indicates
+acceptance of the new context by returning a Sticky header with the same
+context-id in its response message.
+4. Examples
+     client:
+     (requesting first object, negotiating sticky headers)
+     GET / HTTP/1.1<CRLF>
+     Accept: text/html<CRLF>
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 6]
+Internet-Draft         Sticky Headers               08/03/96
+     Accept-Language: en<CRLF>
+     Connection: sticky<CRLF>
+     <CRLF>
+     server:
+     HTTP/1.1 200 OK<CRLF>
+     MIME-Version: 1.0<CRLF>
+     Connection: sticky<CRLF>
+     Content-Type: text/html<CRLF>
+     Content-Length:94<CRLF>
+     <CRLF>
+     <94 bytes body data here>
+     client:
+     (client makes a request changing the Accept value but maintaining
+     the value of the Accept-Language: field from the previous request)
+     GET /myimg.jpg HTTP/1.1<CRLF>
+     Accept: image/jpeg<CRLF>
+     <CRLF>
+     server:
+     HTTP/1.1 200 OK<CRLF>
+     MIME-Version: 1.0<CRLF>
+     Content-Type: image/jpeg<CRLF>
+     Content-Length:4000<CRLF>
+     <CRLF>
+     <4000 bytes body data here>
+     client:
+     (requests a second context)
+     GET /myimg.jpg HTTP/1.1<CRLF>
+     Accept: image/jpeg<CRLF>
+     Accept-Language: fr<CRLF>
+     Connection: sticky<CRLF>
+     Sticky: 1<CRLF>
+     <CRLF>
+     server:
+     (accepts second context)
+     HTTP/1.1 200 OK<CRLF>
+     MIME-Version: 1.0<CRLF>
+     Content-Type: image/jpeg<CRLF>
+     Content-Length:4000<CRLF>
+     Connection: sticky<CRLF>
+     Sticky: 1<CRLF>
+     <CRLF>
+     <4000 bytes body data here>
+     client:
+     (making a request in second context -- Accept-Language is "fr")
+     GET / HTTP/1.1<CRLF>
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 7]
+Internet-Draft         Sticky Headers               08/03/96
+     Accept: text/html<CRLF>
+     Connection: sticky<CRLF>
+     Sticky: 1<CRLF>
+     <CRLF>
+     server:
+     HTTP/1.1 200 OK<CRLF>
+     MIME-Version: 1.0<CRLF>
+     Content-Type: text/html<CRLF>
+     Content-Length:94<CRLF>
+     <CRLF>
+     <94 bytes body data here>
+5. Header name compression
+Once sticky headers are negotiated, then either client or server can
+replace a header name in the left hand column with its abbreviation in
+the right hand column of the following table.
+Accept               #A
+Accept-Charset       #B
+Accept-Encoding      #C
+Accept-Language      #D
+Accept-Ranges        #E
+Age                  #F
+Allow                #G
+Authorization        #H
+Cache-Control        #I
+Connection           #J
+Content-Base         #K
+Content-Encoding     #L
+Content-Language     #M
+Content-Length       #N
+Content-Location     #O
+Content-MD5          #P
+Content-Range        #Q
+Content-Type         #R
+Date                 #S
+ETag                 #T
+Expires              #U
+rom                 #V
+Host                 #W
+If-Modified-Since    #X
+If-Match             #Y
+If-None-Match        #Z
+If-Range             #a
+If-Unmodified-Since  #b
+Last-Modified        #c
+Location             #d
+Max-Forwards         #e
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 8]
+Internet-Draft         Sticky Headers               08/03/96
+Pragma               #f
+Proxy-Authenticate   #g
+Proxy-Authorization  #h
+Public               #I
+Range                #j
+Referer              #k
+Retry-After          #l
+Server               #m
+Transfer-Encoding    #n
+Upgrade              #o
+User-Agent           #p
+Vary                 #q
+Via                  #r
+Warning              #s
+WWW-Authenticate     #t
+The character after the "#" is a base64 "digit" as per RFC 1521. For the
+headers defined in HTTP/1.1 it comes from the range 0-45 decimal. There
+can be 18 more headers added to HTTP and still only require one digit;
+at that point if more are added a second digit can handle up to 4096
+headers.
+A static analysis of the effectiveness of this compression method shows
+that the lengths of the uncompressed headers total 480 bytes, whereas
+compressed, they total 92 bytes -- an 81% savings. The actual savings
+will depend on the relative frequency of use of the different headers.
+6. Security Considerations
+This HTTP extension has two indirect effects on security. Using sticky
+headers can reduce the performance penalty of authentication, since a
+client can send one authentication header and maintain that
+authentication for a period of time. On the other hand an attacker could
+theoretically intercept a previously initiated communication channel and
+substitute itself, gaining the authentication attributes of the client
+that initiated the communication. This latter attack could only work
+with the non-secure authentication methods anyway so it is not
+considered to be a serious concern.
+7. Acknowledgments
+An earlier version of this design resulted from discussion of the HTTP
+persistent connection sub-working group, and was written up in an
+Internet-Draft by Alex Hopmann.
+DO NOT IMPLEMENT TO THIS DOCUMENT                   [Page 9]
+Internet-Draft         Sticky Headers               08/03/96
+8. References
+  [1]  Roy T. Fielding, et. al., Hypertext Transfer Protocol --
+     HTTP/1.1.  Internet-Draft draft-ietf-http-v11-spec-06.txt, HTTP
+     Working Group, July 4, 1996.
+9. Author's address
+Paul J. Leach
+Microsoft
+1 Microsoft Way
+Redmond, Washington, 98052, U.S.A.
+Email: paulle@microsoft.com
+DO NOT IMPLEMENT TO THIS DOCUMENT                  [Page 10]
+
+
+

@@ -1,0 +1,140 @@
+docno="lists-043-13089664"
+received="Thu Sep  9 16:22:49 1999"
+isoreceived="19990909202249"
+sent="Thu, 9 Sep 1999 13:20:54 -0700"
+isosent="19990909202054"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="XFDL and Xptr example"
+id="NDBBLAOMJKOFPMBCHJOIIECACBAA.jboyer@uwi.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+
+In a phone conversation after the 9 sep 99 con call, Joseph reminded me to
+post the following (tweaked) excerpt from the face to face scenarios
+presentation.  It shows how relatively simple XPath statements can be used
+to adequately express the notion of selective exclusion.
+
+Hopefully a future version of the scenarios document will contain this.
+
+PARTIAL DOCUMENT
+Multiple Signer
+Document Closure
+Ancestor Info
+Order of Signed Element
+Good News: Via new XPointer (XPath), these problems can now be solved
+
+----------------------------------------------------------------------------
+----
+The XFDL example below requires the following considerations:
+
+1) Page and item levels identify elements by unique scope identifier
+attribute named 'sid'.
+
+2) For option level and below, elements are uniquely identified by tag name.
+
+3) Adding a digital signature changes the signer and value option elements
+of the signature button.
+
+4) Adding a digital signature also implies creating a new signature item
+with a scope identifer equal to the character data in the button's
+'signature' option.
+
+5)The first signature button must exclude the value and signer options of
+the second signature button as well as the signature item that the second
+signature button must create.
+
+----------------------------------------------------------------------------
+----
+Before first signature:
+
+
+<!-- The signature parts are 'hypothetical' XFDL (no dsig standard yet) -->
+<?xml version="1.0"?>
+<XFDL version="5.1.0">
+<page sid="P1">
+
+<field sid="F1"> ... </field>
+<field sid="F2"> ... </field>
+...
+
+<button sid="B1">
+<signer></signer>
+<value>...</value>
+<signformat>XPointer B1 shown below</signformat>
+<signature>S1</signature>
+</button>
+
+<button sid="B2">
+<signer></signer>
+<value>...</value>
+<signformat>/descendant-or-self::node()</signformat>
+<signature>S2</signature>
+</button>
+
+...
+<field sid="F3"> ... </field>
+<field sid="F4"> ... </field>
+</page>
+</XFDL>
+
+
+----------------------------------------------------------------------------
+----
+The XPointer for button B2 simply says that the whole document should be
+signed.  If the app did not assume that signature S2 would be added last,
+then B2 could use an Xpointer similar to the one given below for B1.
+
+XPointer B1 keeps everything except it filters the parts that will be
+changed as a result of adding signature B2.
+
+/descendant-or-self::node()
+[
+not(ancestor::page[@sid="P1"]
+and ancestor::button[@sid="B2"]
+and (ancestor-or-self::value
+or ancestor-or-self::signer))
+and
+not(ancestor::page[@sid="P1"]
+and ancestor-or-self::signature[@sid="S2"])
+]
+
+The / says go to the root of the document, which is the parent of the root
+XFDL element so the DTD, PIs, etc. are included.  The descendant-or-self
+'axis' means every node at or below the one given (which is the root, so the
+whole document is considered).  The ::node() matches every node in the parse
+tree of the document (one could filter on tag names at this point, but it is
+unnecessary).  The square bracketed filter test gives the condition under
+which a node should be retained.  We want to keep every node as long as it
+
+a) is *not* a node with a page ancestor of P1, a button ancestor of B2, and
+as long as the node or its ancestors do not have a tag name of value or
+signer.  This excludes the button 2 signer and value options (and any of
+their parse tree descendants).
+
+AND
+
+b) is *not* a node with a page ancestor of P1, and as long as it or its
+ancestors do not have a tag of signature and a scope identifier attribute of
+S2.  This excludes the signature item (and its descendants).
+
+Note that this example still has some imprecision here (in favor of showing
+the basics to the reader).  For example, I would like to be able to ensure
+that the parent of the page is the XFDL root element, the parent of the
+button is the given page, the parent of the signer or value is the given
+button, etc.  Although XPath has axes for specifying these additional bits
+of information, notice that the given XPath is *precise enough* within the
+context of the application to be secure for the application, whereas a
+URI+fragId construction would get nowhere.  We need to ensure that the
+objects being excluded have specific tag names, attribute values AND
+ancestral chains AT A MINIMUM.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+

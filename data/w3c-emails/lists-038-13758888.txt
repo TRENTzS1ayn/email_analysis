@@ -1,0 +1,473 @@
+docno="lists-038-13758888"
+received="Wed Nov  4 03:34:08 1998"
+isoreceived="19981104083408"
+sent="Tue, 3 Nov 1998 23:29:33 -0800"
+isosent="19981104072933"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="Clarification of URI vs. resource"
+id="007101be07c4$de92ce20$d115c380@galileo.ics.uci.edu"
+charset="iso-8859-1"
+expires="-1"
+
+To: WEBDAV WG<w3c-dist-auth@w3.org>
+
+
+On September 9, 1998, Larry Masinter started a thread titled, "aliasing and
+other (primarily) editorial issues with -protocol-08", based on discussion
+at the WebDAV WG meeting at the Chicago IETF.  He wrote:
+
+> As you may recall, the issue I raised was one of whether the
+> webdav draft required that a DAV-compliant resource had one, and
+> only one, URI. I pointed out the various situations of aliasing,
+> of which 'case sensitive URI' is only one instance, but other kinds
+> of aliasing might also be possible.
+
+Mark Anderson also touched on this issue in his October 30, 1998 post.
+
+The core issues here are:
+
+a) Can a resource have more than one URI, or does each URI imply a new
+resource?
+
+b) If a resource can have more than one URI, the language in the WebDAV
+spec. needs to be more precise in distinguishing between URI and resource.
+In particular, this would be expected to affect the definition of a
+collection.
+
+Larry also re-raised this issue in an October 7 email to the list titled
+"DAV and "one URL per resource"?"  Despite this, the issue was not
+substantively addressed in the -09 specification.  In retrospect, looking at
+the list traffic, this issue should have been addressed in the -09 revision.
+Larry speaks as chair of the HTTP Working Group and a co-author of the URI
+syntax specification, after all.
+
+This message consists of a set of proposed changes to the -09 draft to
+clarify:
+
+a) A resource can have more than one URI.
+b) A collection is a set of URIs, not a set of resources.
+
+The rest of the modifications are dependent on these clarifications.  These
+changes do not introduce any new functional requirements -- they merely
+clarify and strengthen the discussion of collections, and operations which
+affect the namespace (MOVE, COPY, PUT, etc.)
+
+The intent of this message is to give the working group the opportunity to
+review these proposed changes -- and only these proposed changes! -- before
+they are added to the draft.  I'd prefer to hear any comments back by
+Tuesday, November 10, midnight Pacific time.
+
+--------------------
+
+3 Terminology
+
+URI/URL - As defined in [RFC2396].
+
+Collection - A resource that contains a set of URIs, termed member URIs,
+which identify member resources and meets the requirements in section 5 of
+this specification.
+
+Member URI - A URI which is a member of the set of URIs contained by a
+collection.
+
+Internal Member URI - A Member URI that is immediately relative to the URI
+of the collection (the definition of immediately relative is given in
+section 5.2).
+
+{the remainder of section 3 is unchanged}
+
+---------------------
+
+5.1 HTTP URL Namespace Model
+
+The HTTP URL namespace is a hierarchical namespace where the hierarchy is
+delimited with the "/" character.
+
+An HTTP URL namespace is said to be consistent if it meets the following
+conditions: for every URL in the HTTP hierarchy there exists a collection
+that contains that URL as an internal member. The root collection of the
+namespace is exempt from the previous rule.
+
+Neither HTTP/1.1 nor WebDAV require that the entire HTTP URL namespace be
+consistent.  However, certain WebDAV methods are prohibited from producing
+results that cause namespace inconsistencies.
+
+Although implicit in [RFC2068] and [RFC2396], a resource MAY be identified
+by more than one URI. For example, a resource could be identified by
+multiple HTTP URLs.
+
+5.2 Collection Resources
+
+A collection is a resource whose state consists of at least a list of
+internal member URIs and a set of properties, but which may have additional
+state such as entity bodies returned by GET.  An internal member URI MUST be
+immediately relative to the base URI of the collection.  That is, the
+internal member URI is equal to the containing collection's URI plus an
+additional segment for non-collection resources, or additional segment plus
+trailing slash "/" for collection resources, where segment is defined in
+section 3.3 of [RFC2396].
+
+Any given internal member URI MUST only belong to the collection once, i.e.,
+it is illegal to have multiple instances of the same URI in a collection.
+Properties defined on collections behave exactly as do properties on
+non-collection resources.
+
+For all WebDAV compliant resources A and B, identified by URLs U and V, for
+which U is immediately relative to V, B MUST be a collection that has U as
+an internal member URI. So, if the resource with URL http://foo.com/bar/blah
+is WebDAV compliant and if the resource with URL http://foo.com/bar/ is
+WebDAV compliant then the resource with URL http://foo.com/bar/ must be a
+collection and must contain URL http://foo.com/bar/blah as an internal
+member.
+
+Collection resources MAY list the URLs of non-WebDAV compliant children in
+the HTTP URL namespace hierarchy as internal members but are not required to
+do so. For example, if the resource with URL http://foo.com/bar/blah is not
+WebDAV compliant and the URL http://foo.com/bar/ identifies a collection
+then URL http://foo.com/bar/blah may or may not be an internal member of the
+collection with URL http://foo.com/bar/.
+
+{The final three paragraphs of this section are unchanged.}
+
+If a WebDAV compliant resource has no WebDAV compliant children in the HTTP
+URL namespace hierarchy then the WebDAV compliant resource is not required
+to be a collection.
+
+There is a standing convention that when a collection is referred to by its
+name without a trailing slash, the trailing slash is automatically appended.
+Due to this, a resource may accept a URI without a trailing "/" to point to
+a collection. In this case it SHOULD return a content-location header in the
+response pointing to the URL ending with the "/".  For example, if a client
+invokes a method on http://foo.bar/blah (no trailing slash), the resource
+http://foo.bar/blah/ (trailing slash) may respond as if the operation were
+invoked on it, and should return a content-location header with
+http://foo.bar/blah/ in it.  In general clients SHOULD use the "/" form of
+collection names.
+
+A resource MAY be a collection but not be WebDAV compliant.  That is, the
+resource may comply with all the rules set out in this specification
+regarding how a collection is to behave without necessarily supporting all
+methods that a WebDAV compliant resource is required to support.  In such a
+case the resource may return the dav:resourcetype property with the value
+dav:collection but MUST NOT return a DAV header containing the value "1" on
+an OPTIONS response.
+
+------------------------
+
+7.5 Write Locks and Collections
+
+A write lock on a collection, whether created by a "Depth: 0" or "Depth:
+infinity" lock request, prevents the addition or removal of member URIs of
+the collection by non-lock owners.  As a consequence, when a principal
+issues a PUT or POST request to create a new resource under a URI which
+needs to be an internal member of a write locked collection to maintain HTTP
+namespace consistency, or issues a DELETE to remove a resource which has a
+URI which is an existing internal member URI of a write locked collection,
+this request MUST fail if the principal does not have a write lock on the
+collection.
+
+However, if a write lock request is issued to a collection containing member
+URIs identifying resources that are currently locked in a manner which
+conflicts with the write lock, the request MUST fail with a 423 (Locked)
+status code.
+
+If a lock owner causes the URI of a resource to be added as an internal
+member URI of a locked collection then the new resource MUST be
+automatically added to the lock.  This is the only mechanism that allows a
+resource to be added to a write lock.  Thus, for example, if the collection
+/a/b/ is write locked and the resource /c is moved to /a/b/c then resource
+/a/b/c will be added to the write lock.
+
+------------------------
+
+8.1 PROPFIND
+
+The PROPFIND method retrieves properties defined on the resource identified
+by the Request-URI, if the resource does not have any internal members, or
+on the resource identified by the Request-URI and potentially its member
+resources, if the resource is a collection that has internal member URIs.
+All DAV compliant resources MUST support the PROPFIND method and the
+propfind XML element (section 12.14) along with all XML elements defined for
+use with that element.
+
+A client may submit a Depth header with a value of "0", "1", or "infinity"
+with a PROPFIND on a collection resource with internal member URIs.  DAV
+compliant servers MUST support the "0", "1" and "infinity" behaviors. By
+default, the PROPFIND method without a Depth header MUST act as if a "Depth:
+infinity" header was included.
+
+{the next three paragraphs are unchanged}
+
+A client may submit a propfind XML element in the body of the request method
+describing what information is being requested.  It is possible to request
+particular property values, all property values, or a list of the names of
+the resource's properties.  A client may choose not to submit a request
+body.  An empty PROPFIND request body MUST be treated as a request for the
+names and values of all properties.
+
+All servers MUST support returning a response of content type text/xml or
+application/xml that contains a multistatus XML element that describes the
+results of the attempts to retrieve the various properties.
+
+If there is an error retrieving a property then a proper error result MUST
+be included in the response.  A request to retrieve the value of a property
+which does not exist is an error and MUST be noted, if the response uses a
+multistatus XML element, with a response XML element which contains a 404
+(Not Found) status value.
+
+{the next paragraph was changed}
+
+Consequently, the multistatus XML element for a collection resource with
+member URIs MUST include a response XML element for each member URI of the
+collection, to whatever depth was requested. Each response XML element MUST
+contain an href XML element that gives the URI of the resource on which the
+properties in the prop XML element are defined.  Results for a PROPFIND on a
+collection resource with internal member URIs are returned as a flat list
+whose order of entries is not significant.
+
+{the last two paragraphs are unchanged}
+
+In the case of allprop and propname, if a principal does not have the right
+to know whether a particular property exists then the property should be
+silently excluded from the response.
+
+The results of this method SHOULD NOT be cached.
+
+----------------------
+
+8.6 DELETE
+
+8.6.1 DELETE for Non-Collection Resources
+
+If the DELETE method is issued to a non-collection resource whose URIs are
+an internal member of one or more collections, then during DELETE processing
+a server MUST remove any URI for the resource identified by the Request-URI
+from collections which contain it as a member.
+
+8.6.2 DELETE for Collections
+
+{the following paragraph was unchanged}
+
+The DELETE method on a collection MUST act as if a "Depth: infinity" header
+was used on it.  A client MUST NOT submit a Depth header with a DELETE on a
+collection with any value but infinity.
+
+DELETE instructs that the collection specified in the Request-URI and all
+resources identified by its internal member URIs are to be deleted.
+
+If any resource identified by a member URI cannot be deleted then all of the
+member's ancestors MUST NOT be deleted, so as to maintain namespace
+consistency.
+
+{the following paragraph was unchanged}
+
+Any headers included with DELETE MUST be applied in processing every
+resource to be deleted.
+
+When the DELETE method has completed processing it MUST result in a
+consistent namespace.
+
+{the following paragraph was unchanged}
+
+If an error occurs with a resource other than the resource identified in the
+Request-URI then the response MUST be a 207 (Multi-Status).  424 (Failed
+Dependency) errors SHOULD NOT be in the 207 (Multi-Status).  They can be
+safely left out because the client will know that the ancestors of a
+resource could not be deleted when the client receives an error for the
+ancestor's progeny.  Additionally 204 (No Content) errors SHOULD NOT be
+returned in the 207 (Multi-Status).  The reason for this prohibition is that
+204 (No Content) is the default success code.
+
+-----------------------
+
+8.8 COPY Method
+
+The COPY method creates a duplicate of the source resource, identified by
+the Request-URI, in the destination resource, identified by the URI in the
+Destination header.  The Destination header MUST be present.  The exact
+behavior of the COPY method depends on the type of the source resource.
+
+{the following paragraph was unchanged}
+
+All WebDAV compliant resources MUST support the COPY method.  However,
+support for the COPY method does not guarantee the ability to copy a
+resource. For example, separate programs may control resources on the same
+server.  As a result, it may not be possible to copy a resource to a
+location that appears to be on the same server.
+
+-------------------------
+
+8.8.3 COPY for Collections
+
+{the following paragraph was unchanged}
+
+The COPY method on a collection without a Depth header MUST act as if a
+Depth header with value "infinity" was included.  A client may submit a
+Depth header on a COPY on a collection with a value of "0" or "infinity".
+DAV compliant servers MUST support the "0" and "infinity" Depth header
+behaviors.
+
+A COPY of depth infinity instructs that the collection resource identified
+by the Request-URI is to be copied to the location identified by the URI in
+the Destination header, and all its internal member resources are to be
+copied to a location relative to it, recursively through all levels of the
+collection hierarchy.
+
+A COPY of "Depth: 0" only instructs that the collection and its properties
+but not resources identified by its internal member URIs, are to be copied.
+
+{the following paragraph was unchanged}
+
+Any headers included with a COPY MUST be applied in processing every
+resource to be copied with the exception of the Destination header.
+
+The Destination header only specifies the destination URI for the
+Request-URI. When applied to members of the collection identified by the
+Request-URI the value of Destination is to be modified to reflect the
+current location in the hierarchy.  So, if the Request-URI is /a/ with Host
+header value http://fun.com/ and the Destination is http://fun.com/b/ then
+when http://fun.com/a/c/d is processed it must use a Destination of
+http://fun.com/b/c/d.
+
+When the COPY method has completed processing it MUST have created a
+consistent namespace at the destination (see section 5.1 for the definition
+of namespace consistency).  However, if an error occurs while copying an
+internal collection, the server MUST NOT copy any resources identified by
+members of this collection (i.e., the server must skip this subtree), as
+this would create an inconsistent namespace. After detecting an error, the
+COPY operation SHOULD try to finish as much of the original copy operation
+as possible (i.e., the server should still attempt to copy other subtrees
+and their members, that are not descendents of an error-causing collection).
+So, for example, if an infinite depth copy operation is performed on
+collection /a/, which contains collections /a/b/ and /a/c/, and an error
+occurs copying /a/b/, an attempt should still be made to copy /a/c/.
+Similarly, after encountering an error copying a non-collection resource as
+part of an infinite depth copy, the server SHOULD try to finish as much of
+the original copy operation as possible.
+
+{the following 2 paragraphs are unchanged}
+
+If an error in executing the COPY method occurs with a resource other than
+the resource identified in the Request-URI then the response MUST be a 207
+(Multi-Status).
+
+The 424 (Failed Dependency) status code SHOULD NOT be returned in the 207
+(Multi-Status) response from a COPY method.  These responses can be safely
+omitted because the client will know that the progeny of a resource could
+not be copied when the client receives an error for the parent.
+Additionally 201 (Created)/204 (No Content) status codes SHOULD NOT be
+returned as values in 207 (Multi-Status) responses from COPY methods.  They,
+too, can be safely omitted because they are the default success codes.
+
+---------------------------
+
+8.9 MOVE Method
+
+The MOVE operation on a non-collection resource is the logical equivalent of
+a copy (COPY), followed by consistency maintenance processing, followed by a
+delete of the source, where all three actions are performed atomically.  The
+consistency maintenance step allows the server to perform updates caused by
+the move, such as updating all URIs other than the Request-URI which
+identify the source resource, to point to the new destination resource.
+Consequently, the Destination header MUST be present on all MOVE methods and
+MUST follow all COPY requirements for the COPY part of the MOVE method.  All
+DAV compliant resources MUST support the MOVE method.  However, support for
+the MOVE method does not guarantee the ability to move a resource to a
+particular destination.
+
+{the final two paragraphs are unchanged}
+
+For example, separate programs may actually control different sets of
+resources on the same server.  Therefore, it may not be possible to move a
+resource within a namespace that appears to belong to the same server.
+
+If a resource exists at the destination, the destination resource will be
+DELETEd as a side-effect of the MOVE operation, subject to the restrictions
+of the Overwrite header.
+
+----------------------------
+
+8.9.2 MOVE for Collections
+
+A MOVE with "Depth: infinity" instructs that the collection identified by
+the Request-URI be moved to the URI specified in the Destination header, and
+all resources identified by its internal member URIs are to be moved to
+locations relative to it, recursively through all levels of the collection
+hierarchy.
+
+{the following three paragraphs are unchanged}
+
+The MOVE method on a collection MUST act as if a "Depth: infinity" header
+was used on it.  A client MUST NOT submit a Depth header on a MOVE on a
+collection with any value but "infinity".
+
+Any headers included with MOVE MUST be applied in processing every resource
+to be moved with the exception of the Destination header.
+
+The behavior of the Destination header is the same as given for COPY on
+collections.
+
+When the MOVE method has completed processing it MUST have created a
+consistent namespace at both the source and destination (see section 5.1 for
+the definition of namespace consistency). However, if an error occurs while
+moving an internal collection, the server MUST NOT move any resources
+identified by members of the failed collection (i.e., the server must skip
+the error-causing subtree), as this would create an inconsistent namespace.
+In this case, after detecting the error, the move operation SHOULD try to
+finish as much of the original move as possible (i.e., the server should
+still attempt to move other subtrees and the resources identified by their
+members, that are not descendents of an error-causing collection).  So, for
+example, if an infinite depth move is performed on collection /a/, which
+contains collections /a/b/ and /a/c/, and an error occurs moving /a/b/, an
+attempt should still be made to try moving /a/c/. Similarly, after
+encountering an error moving a non-collection resource as part of an
+infinite depth move, the server SHOULD try to finish as much of the original
+move operation as possible.
+
+{the following two paragraphs are unchanged}
+
+If an error occurs with a resource other than the resource identified in the
+Request-URI then the response MUST be a 207 (Multi-Status).
+
+The 424 (Failed Dependency) status code SHOULD NOT be returned in the 207
+(Multi-Status) response from a MOVE method.  These errors can be safely
+omitted because the client will know that the progeny of a resource could
+not be moved when the client receives an error for the parent.  Additionally
+201 (Created)/204 (No Content) responses SHOULD NOT be returned as values in
+207 (Multi-Status) responses from a MOVE.  These responses can be safely
+omitted because they are the default success codes.
+
+--------------------------------
+
+9.3 Destination Header
+
+Destination = "Destination" ":" absoluteURI
+
+The Destination header specifies the URI which identifies a destination
+resource for methods such as COPY and MOVE, which take two URIs as
+parameters.  Note that the absoluteURI production is defined in [RFC2396].
+
+---------------------------------
+
+12.13.2 set XML element
+
+Name:set
+Namespace:DAV:
+Purpose:Lists the DAV property values to be set for a resource.
+Description: The set XML element MUST contain only a prop XML element.  The
+elements contained by the prop XML element inside the set XML element MUST
+specify the name and value of properties that are set on the resource
+identified by Request-URI.  If a property already exists then its value is
+replaced. Language tagging information in the property's value (in the
+"xml:lang" attribute, if present) MUST be persistently stored along with the
+property, and MUST be subsequently retrievable using PROPFIND.
+
+----------------------------------
+
+That's it!
+
+- Jim
+
+
+

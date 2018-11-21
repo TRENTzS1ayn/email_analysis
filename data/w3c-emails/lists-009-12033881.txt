@@ -1,0 +1,72 @@
+docno="lists-009-12033881"
+received="Tue Nov 14 10:38:11 1995"
+isoreceived="19951114153811"
+sent="Tue, 14 Nov 1995 09:42:20 0800 (PST)"
+isosent="19951114174220"
+name="Brian Behlendorf"
+email="brian@organic.com"
+subject="using opaque strings to determine uniqueness"
+id="Pine.SGI.3.91.951114091046.12134B100000@fully.organic.com"
+charset="USASCII"
+inreplyto="9511140941.AA03199&#64;hplyot.obspm.fr"
+expires="1"
+
+To: Laurent Demailly<dl@hplyot.obspm.fr>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+On Tue, 14 Nov 1995, Laurent Demailly wrote:
+> I agree that there should be some *opaque* string used to select if the
+> object is the same or not (string which could be for instance a last
+> modified date, an MD5 digest,... whatever the server wants)
+
+While this sounds good in theory, I believe there are situations where 
+this breaks down. 
+
+Time    Action
+
+T+0:    client A connects through proxy1.bigISP.com to a server which 
+        contains a document which changes hourly, and has a CID of "X".
+T+1h:   client B connects through proxy2.bigISP.com to the same server,
+        and gets the hourly-changing document which now has a CID of "Y".
+T+1h1m: client B "refreshes" the page by doing an IMS request, but this
+        time goes through proxy1.bigISP.com, either because of round-robin
+        DNS or some sort of client load-balancing[*].
+        client B says "send me the document, unless it has the CID of 'Y'"
+proxy1.bigISP.com sees its CID is "X", not "Y", and sends the OLD
+DOCUMENT.
+
+[*] - consider the 20+ proxies that AOL uses, sometimes one user can go 
+through multiple proxies in the same session to a server!
+
+Now, you can say that the server is negligent for not adding "Expires" 
+headers, but at any rate this works now with true If-Modified-Since.  And 
+my general gut feeling is that when you design protocols they should map 
+to users and application builder's metaphors as closely as possible - 
+just asking "is this document different" is *much* different than asking 
+"is this document more recent".
+
+That said, I think what we need for doing conditional requests is a 
+general grammar to which we can apply file attributes.  Something like
+
+  Send-If: "Last-Modified" > "Nov 14 10:26:03 1995" &&
+    "Content-Digest" != "MD5=0906bdfddce0964b42ad656"
+
+By allowing equalities, inequalities, greater-than/less-than, and 
+conjunctions, we remove the need for "Send-Unless", for 
+"In-Not-Modified-Since", and lots of other things I'm sure we'll find.
+
+Since the "fallback" for conditional requests is to get the entire 
+document, if the server can't determine enough attributes about the 
+requested object to answer the conditional query, it can just send the 
+document.
+
+Simon, does HTTP-NG have something along these lines?
+
+Brian
+
+--=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--
+brian@organic.com  brian@hyperreal.com  http://www.[hyperreal,organic].com/
+
+
+

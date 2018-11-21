@@ -1,0 +1,102 @@
+docno="lists-010-8080363"
+received="Mon Aug 19 13:54:37 1996"
+isoreceived="19960819175437"
+sent="Mon, 19 Aug 96 13:36:25 MDT"
+isosent="19960819193625"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: New document on &quot;Simple hitmetering for HTTP&quot;"
+id="9608192036.AA11872@acetes.pa.dec.com"
+inreplyto="9608172105.aa21758&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@liege.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    > I guess I've never really understood what OPTIONS is supposed
+    > to do, nor does the existing spec language make it clear that
+    > this is allowed to carry the various request-headers that
+    > are needed to report use-counts broken down by, say, User-agent.
+    
+    My inclination is not to disallow anything unless it is known to be
+    harmful, and I don't think that this usage of OPTIONS would be harmful.
+
+OK, but it doesn't say this in the spec, so (although the robustness
+principle would certainly imply this) there is no way to insist that
+every implementor of OPTIONS gets it right.
+    
+    Actually, what made me think of it was the fact that a HEAD request
+    is normally considered another "hit" on that resource, whereas an
+    OPTIONS request should not be (speaking with my wwwstat hat on).
+    That begs the question of whether the proxy or origin would reduce
+    the reported count by one to avoid improperly counting the last HEAD
+    action as a "hit"? Such a question is difficult to answer, since it
+    depends on how the server collects and analyzes such data.
+
+If the recipient knows how to interpret the use-count information,
+then it isn't ambiguous (the hit count is increment by the use-count
+value, period).  But perhaps we need a way to prevent the sending
+of use-counts in situations where they are not wanted or expected.
+    
+    > Finally, OPTIONS responses include messages bodies, and HEAD
+    > responses "MUST NOT", so I would expect the use of HEAD to
+    > require few bits transferred over the wire.
+    
+    Nope -- successful responses to OPTIONS must not include entity info.
+
+I guess I'm still confused.  I probably misread "the response MUST NOT
+include entity information other than what can be considered as
+communication options" as applying to the body, when it actually seems
+to apply to the header.  But unless you mean something different by
+"entity info", then there's an inconsistency between what you just said
+and what you wrote into the spec.
+    
+    >     Does it make a difference when going through old proxies?
+    >     
+    > You mean, because HTTP/1.0 proxies don't understand OPTIONS and would
+    > reject such requests?  In theory, yes, although I'm not sure this would
+    > be an issue, because a server that wants accurate use-counts would only
+    > believe them from a "cooperative" cache, which is identified by
+    > "Connection: coop" in the request, and we said
+    > 
+    >      Note: a server might distrust such a request-header  when
+    >      received from an HTTP/1.0 client, which might have incorrectly
+    >      forwarded the Connection header.
+    
+    I was going to mention this later (along with a real review of the draft),
+    but that is not an appropriate use of Connection.  For one thing, assuming
+    that all intermediaries have caches (and thus would assign any meaning to
+    being cooperative) is wrong.  For another, it doesn't take advantage of
+    the extensibility mechanism inherent in cache-control.  Instead of all
+    the coop negotiation, an origin server should decide whether being
+    cooperative is required or optional.  If it is required, then send
+    
+Cache-control: proxy-revalidate, coop
+    
+    with coop (or something similar) being defined as a modifier on
+    proxy-revalidate such that caches which obey the coop directive
+    (whatever that may imply) may ignore the proxy-revalidate.
+    
+That's an interesting suggestion (and it's nice to know that the
+proxy-revalidate design we came up with seems to be the appropriate
+mechanism for this purpose).
+
+But without some additional mechanism, I don't think this is going
+to work.  I don't see how it solves the problem of HTTP/1.0 proxy
+in the response chain.  Sad to say, but I don't think our hit-metering
+design would work if there is an HTTP/1.0 proxy in the chain; either
+it might respond to the use-count reports from its own cache, or
+(if we were to adopt the OPTIONS proposal) it wouldn't forward them.
+So we need a foolproof way to prevent the use of hit-metering if
+there are any pre-HTTP/1.1 proxies in the picture.
+
+Until an origin server can determine with 99.999% reliability that its
+"Cache-control: proxy-revalidate, coop" will only let cooperative
+proxies cache the response, it's not going to allow any cache to do
+so.  And so nobody will use hit-metering, and we make no progress.
+
+-Jeff
+
+
+

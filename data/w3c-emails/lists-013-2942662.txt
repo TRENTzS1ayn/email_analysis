@@ -1,0 +1,172 @@
+docno="lists-013-2942662"
+received="Wed Sep 25 05:36:05 2002"
+isoreceived="20020925093605"
+sent="Tue, 24 Sep 2002 19:47:14 0400 (EDT)"
+isosent="20020924234714"
+name="Jeffrey Mogul"
+email="Jeff.Mogul@hp.com"
+subject="Re: IfRange with other conditionals"
+id="200209242347.g8ONl5lB026652@wera.hpl.hp.com"
+inreplyto="Pine.BSF.4.44.0209231751310.74524-100000&#64;measurementfactory.com"
+expires="1"
+
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+cc:ietf-http-wg@w3.org
+
+
+
+
+
+Alex Rousskov asks:
+
+Can the author(s) or anybody clarify the intent?
+
+I think that's probably "me", for these excerpts, but it's
+possible other people had some say in the wording here.
+
+(1) Alex writes:
+
+    RFC 2616 says:
+    
+       An HTTP/1.1 origin server, upon receiving a conditional request that
+       includes both a Last-Modified date (e.g., in an If-Modified-Since or
+       If-Unmodified-Since header field) and one or more entity tags (e.g.,
+       in an If-Match, If-None-Match, or If-Range header field) as cache
+       validators, MUST NOT return a response status of 304 (Not Modified)
+       unless doing so is consistent with all of the conditional header
+       fields in the request.
+    
+    As far as I can see, a 304 (Not Modified) response code SHOULD NOT be
+    generated for an If-Range request. If-Range definition implies that
+    only 200 (OK) and 206 (Partial Content) responses are valid. Can a 304
+    response be ever "consistent with" an If-Range field?
+    
+It would have been helpful to note the specific section number from
+RFC2616.  This particular text is in 13.3.4 (Rules for When to Use
+Entity Tags and Last-Modified Dates) and isn't meant to be normative
+with respect to what status codes are valid under other circumstances.
+That is, this is an extra restriction (imposed when a request has
+multiple conditions), and can't be taken as implying a lack of
+restrictions in other cases.
+
+My guess is that we (I?) wrote this without fully thinking through
+whether If-Range could ever return ("be consistent with") 304.
+But on the "better safe than sorry" principle, I see nothing
+really wrong with this paragraph.
+
+    Can a 412 response be ever "consistent with" an If-Range field?
+
+Consider at least this case:
+
+GET /foo.html HTTP/1.1
+Host: whatever.com
+If-Range: *
+Range: bytes=100-200
+    
+Remember that section 14.27 (If-Range) informally defines If-Range
+as a sort of combination of GET+If-Match+Range, followed by a plain
+GET if the If-Match fails.
+
+Section 14.24 (If-Match) says:
+
+   If none of the entity tags match, or if "*" is given and no current
+   entity exists, the server MUST NOT perform the requested method, and
+   MUST return a 412 (Precondition Failed) response. This behavior is
+   most useful when the client wants to prevent an updating method, such
+   as PUT, from modifying a resource that has changed since the client
+   last retrieved it.
+
+All of the other language that defines what 412 really means
+looks a lot like this.
+
+Therefore, I suppose it is plausible that if "/foo.html" simply
+doesn't exist, then 412 is ""consistent with" If-Range.  However,
+this seems to be a nonsensical special case (why not simply return
+404 here, and in any case what does "If-Range: *" mean?) so I think
+we can rule it out.  The other reason for returning 412 with a
+plain If-Match (none of the entity tags match) is precisely the
+case where If-Range wants the server to return 200.
+
+Thus, I don't think If-Range should ever give rise to a 412 response,
+except in this one probably nonsensical example for which a 404
+response would be more appropropriate.
+
+But again, this is not really the point being addressed in section
+13.3.4!
+
+    And a related question regarding proxy behavior; RFC 2616 says:
+    
+       An HTTP/1.1 caching proxy, upon receiving a conditional request that
+       includes both a Last-Modified date and one or more entity tags as
+       cache validators, MUST NOT return a locally cached response to the
+       client unless that cached response is consistent with all of the
+       conditional header fields in the request.
+    
+    What does "return a locally cached response" mean exactly? Does it
+    include returning a 304 response (cached headers, no content)? Or just
+    responses with locally cached _content_ (such as 200 and 206
+    responses, but not 412).
+
+(Again, we're in 13.3.4.)  This is one of those places where the
+terminology ("response") used in RFC2616 fails us.  (I won't rehash
+that debate here.)  I think the most reasonable interpretation of this
+paragraph is that a cache entry of any sort (i.e., with any status
+code) is useless if it's not consistent with all of the conditional
+header fields in the request.
+
+This follows my basic philsophy about caching: if there's any
+doubt, don't use a cache entry; contacting the origin server
+might be slow but it won't give the wrong content or headers.
+    
+    I find it curious that all "If-*" sections in the RFC have "the
+    behavior when both If-Foo and If-Bar are present is undefined"
+    clauses, _except_ for the If-Range section. It sort of implies that
+    If-Range can be used in combination with all others, but valid server
+    behavior upon receiving certain combinations is not clear to me. Thus
+    the questions above.
+    
+Perhaps an oversight on my part.  On the other hand, we made an
+explicit decision (discussed on the mailing list, if my memory
+is correct) not to list in the spec all possible combinations of
+headers that were not meaningful.  The fact that we did list a
+few specific "undefined" combinations does not mean that all
+other combinations are reasonable!
+
+Anyway, I can't think of any reasonable interpretation for this
+example:
+
+GET /foo.html HTTP/1.1
+Host: whatever.com
+If-Range: "a"
+Range: bytes=100-200
+If-Match: "b"
+
+Note that unlike "If-Match", which can carry many entity tags,
+If-Range is explictly defined to carry only one validator.  The
+assumption is that If-Range is defined to fill in holes for
+a specific cached instance, not to grab a chunk of some
+finite subset of the instances of a resource.
+
+It *might* make sense to do:
+
+GET /foo.html HTTP/1.1
+Host: whatever.com
+If-Range: "a"
+Range: bytes=100-200
+If-None-Match: "b"
+
+which means
+if the current entity tag is "b" then send 304
+else if the current entity tag is "a" then send 206 (w/bytes=100-200)
+else send 200
+
+but believe me, I haven't thought this through all the way.
+
+-Jeff
+
+P.S.: Alex, I owe you answers for several previous questions
+you've posted.  I'm trying to catch up on my email.
+
+
+

@@ -1,0 +1,234 @@
+docno="lists-039-10834066"
+received="Mon Oct 25 17:41:33 1999"
+isoreceived="19991025214133"
+sent="Mon, 25 Oct 1999 17:41:31 -0400"
+isosent="19991025214131"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: Versioning spec review - 02.3"
+id="9910252141.AA24961@tantalum"
+inreplyto="8525680F.0053CE57.00&#64;d54mta03.raleigh.ibm.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+   From: jamsden@us.ibm.com
+
+   Last paragraph: How about using components of versioning support instead of
+      "levels"?
+
+In the latest rev of the spec, the versioning options fell quite naturally
+into 3 levels, so given the client-side advantages of having 3 levels of
+support vs. multiple orthogonal versioning options, I'd like to go with
+levels, if at all possible.
+
+   <jra>
+   Can a server support ONLY mutable resources, or does it have to have
+   support for immutable resources too?
+
+I assume by support for immutable resources, you mean providing a
+client with some way of saying "never allow a DAV:overwrite on this
+revision".  To me, that's an access control issue, not a versioning
+issue, and I'd rather not mix in limited forms of access control
+that will just end up conflicting with the general forms when they
+are provided.  Since neither DMS nor CM systems provide this functionality
+on a resource by resource basis, we gain no interoperability by 
+specifying it.
+
+   For example, DMS systems that
+   don't currently support immutable revisions. In this case, the
+   DAV:overwrite would always be T.
+
+A DMS must let you do a checkin with DAV:overwrite=F (otherwise
+you'd never have more than the initial version).  The only difference
+in this regard between a DMS system and a standard CM system is that a
+DMS system allows you have DAV:overwrite=T, which a standard CM system
+would refuse.
+
+   B.T.W., this isn't mentioned in the
+   semantics of CHECKIN. Looks like mutable revisions are missing from
+   CHECKIN although the postconditions mentions the concept.
+
+Do you mean something like "If DAV:overwrite=T then the server MUST
+support DAV:overwrite having the value T"? (:-) 
+
+   <jra> What is the URL for the baseline? Is it something the server
+   generated, or is it derived from the associated collection.
+
+All baselines for a particular versioned collection can be found in
+the DAV:baselines collection of that versioned collection.  The
+server generates the URL of that collection, and generates the
+name for a baseline in that collection. 
+
+   The
+   protocol doesn't say how a baseline is created, or how this URL is
+   derived. Did I miss this? I don't see anything in CHECKIN.
+
+I took that out, since I agree with your contention that it doesn't properly
+belong in CHECKIN.  So you now just create baselines with the MKRESOURCE
+command.  There's a ToDo note in the draft saying this should be explicitly
+mentioned in the MKRESOURCE method description.
+
+   In any case, any place where a specific revision is required, but
+   revision id must be specified. For example, putting a configuration in
+   the RSR. The same must be true of baselines.
+
+Baselines and revisions are indicated in RSR's by their URL's.  We
+could allow alternative compound notations as well, but is there
+a compelling reason to do so (it does add complexity).
+
+   How is constraining a "property collection" any harder than
+   constraining a method?  You write down the constraint, and servers and
+   clients must follow it.
+
+   <jra> A method can define specific semantics that are supported. It
+   doesn't have to list a bunch of things you can't specify.
+   </jra>
+
+I had no trouble specifying the appropriate constraints on the
+appropriate properties in the protocol.  Live properties commonly have
+their values constrained by the server, so this is nothing unusual for
+WebDAV.
+
+   having a downlevel lock check out the resource into the default
+   workspace has the right semantics for down level clients working
+   against auto-versioned resources ... the PUT that would auto- version
+   fails because the resource is already checked out into the default
+   workspace.
+
+   <jra> Nice idea, but I think it overloads lock too much. Another
+   way to look at it (from the point of view of a non-versioning aware
+   client) is the lock prevents anyone else from checking out the
+   revision. So the down-level client locks, does a bunch of PUTs knowing
+   that no-one else can change the resource, and then does an
+   unlock. Each PUT still does a CHECKOUT/PUT/CHECKIN, but only the
+   down-level client can directly or indirectly checkout the
+   revision. The effect is the same, but this keeps lock out of
+   checkout/checkin which might be a good thing.
+   </jra>
+
+One of the bad things about creating a new revision on every downlevel
+PUT is that it fills the history of a resource with "non-interesting"
+revisions, but we have to do it to prevent lost updates.  In contrast,
+a LOCK/UNLOCK request gives us exactly the information we need to
+implement a more intelligent revision creation policy.  To not take
+advantage of this information when designing the protocol strikes me
+as remiss.
+
+   <jra>
+   Lock is an access control mechanism. We've already got the method and
+   need to have it mean something. This is just an attempt to do
+   something reasonable. If we want to keep locking optional though,
+   we'll have to make sure none of this functionality is required.
+   </jra>
+
+Current WebDAV locking (with lock tokens) are good for some things,
+but any time it is not reasonable to expect a client to hold and
+remember a lock token, WebDAV locks are not appropriate.  It is better
+to just have the protocol treat the operation as undefined or an
+error, rather than increase the complexity of the protocol (and of
+servers that implement it) with functionality that is not useful.
+
+   Marshalling, how is the Target-Selector overridden with a
+   specific label or id?
+
+   It isn't.  The Target-Selector with a label or id is just for folks with
+   lightweight workspaces that don't have rsr's.  For folks with workspaces,
+   overriding with a specific label is far less common, and can be done by
+   accessing the DAV:revisions or DAV:revision-labels collections.
+
+   <jra>
+   Two problems: if the Target-Selector is just a label, what is used to
+   select the collection revisions in the URL path?
+
+Core and Activity versioning servers will not be generating versioned
+collections, so there will be no collection revisions in the URL path.
+Versioned-Collection servers will provide repositories, which are
+required to be located in a non-versioned part of the namespace
+(i.e. under no versioned collections).  In either case, the DAV:revision-labels
+collection will have no collection revisions in its URL path, so no
+collection revision selection is required.
+
+   Second, folks with
+   workspaces will override with a specific label LOTS of times to do
+   compares, browse old versions, prepare for merging, look at what other
+   people are doing, etc.
+
+The DAV:revision-labels collection is there to give clients easy access
+to any revision by using a label.  No need for a specific header, and
+suitable for use in any context where a URL can be specified (as opposed
+to the Target-Selector, which just works for a Request-URL).
+
+   CHECKIN is doing PROPPATCH work. This is not a propertyupdate, its a
+   set of parameters for the CHECKIN method. We should not reuse the
+   propertyupdate, but rather create a new element, specific to the
+   method. Otherwise we have to specify a whole bunch of restrictions
+   about what can go in the propertyupdate.
+
+Not if we place no restrictions on what can go in the property-update.
+Note that I'm happy to say no specification of the DAV:checkin-policy
+in a CHECKOUT request, but if we *do* allow it, I believe that the
+most appropriate way is to allow CHECKOUT to do an arbitrary PROPPATCH
+to "initialize" the new working resource.  Think of CHECKOUT as a
+"MKRESOURCE" for working resources.
+
+   I don't think we need two ways of updating properties on a resource,
+   PROPPATCH and CHECKIN. You say later on that some of the properties
+   are not actually saved. This is even worse. Method parameters should
+   be coupled with the method, not the resource.
+
+We already have two: PROPATCH and MKRESOURCE.  So if we add a third,
+there is at least precedent.
+
+   Having "uncheckout" as an option to CHECKIN is reasonable because
+   they are logically very similar in basic intent (i.e. "I'm done
+   with this resource").  We already have DAV:overwrite which doesn't create
+   a new revision, and DAV:identical-uncheckout which only creates a new
+   revision if it has changed, so DAV:uncheckout seems to fit in very smoothly.
+
+   <jra> But I think the intent of the two methods is the exact
+   opposite. The intent of CHECKIN is to create a new revision an
+   preserve changes unless perhaps there's no need to because there were
+   no changes. The intent of UNCHECKOUT is to ensure a new revision is
+   not created, and the changes are lost. Coupling these two concepts in
+   the same method seems wrong. This is taking control couples too far.
+
+Both DAV:overwrite and DAV:indentical-uncheckout conflict with your
+description of the intent of CHECKIN.  One never creates a new revision,
+and the other only sometimes creates a new revision.
+
+      Notice that most of these
+      checkin policies could be marshalled in simple headers.
+
+   So we could use up the single header namespace, instead of using XML
+   which has user-defined namespaces ? (:-)
+
+   <jra> Since we own headers, there is no namespace issue.
+
+This "we" is a very diverse group (i.e. everyone proposing extensions
+to HTTP) with overlapping needs/interests.  Using up a name that is
+"global" to this group is, in my opinion, a very significant issue.
+After all, we've already made life difficult for the archery extension
+group by defining the semantics of "Target-Selector" (:-).
+
+      7. The paragraph about Target-Selector specfies a revision id or label is
+      incorrect. The selector "self" cannot be applied to collections on the path
+      because its a revision of the collection that's needed, not the versioned
+      collection as a whole.
+
+   And if so, it will "correctly" return an error (you should be using a workspace
+   to look at things in versioned collections).
+
+   <jra>
+   But down-level clients can't do this.
+   </jra>
+
+Down-level clients won't be issuing requests with Target-Selector headers.
+
+Cheers,
+Geoff
+
+
+

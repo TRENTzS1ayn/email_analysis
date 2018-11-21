@@ -1,0 +1,112 @@
+docno="lists-103-5177029"
+received="Sun Feb 27 16:05:03 2000"
+isoreceived="20000227210503"
+sent="Sun, 27 Feb 2000 22:02:22 +0100"
+isosent="20000227210222"
+name="Dieter K?hler"
+email="dieter.koehler@ppp.uni-bamberg.de"
+subject="Re: TreeWalker.whatToShow"
+id="38B990DE.6D4E3898@ppp.uni-bamberg.de"
+charset="us-ascii"
+inreplyto="85256891.006F52DB.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+
+To:keshlam@us.ibm.com,"www-dom@w3.org"<www-dom@w3.org>
+
+> Unfortunately that would defeat the use cases that whatToShow was designed
+> to handle, such as "hide the EntityReference nodes".
+
+You are right:  I was more concerned about using TreeWalker.whatToShow
+on element nodes.  But to form a judgment on what to do with
+EntityReference nodes, I am in need of a clear understanding, whether
+the child list of an EntityReference node should be regarded as part
+of the document tree.  The DOM 2 draft reads: "... if such an
+[corresponding] Entity exists, then the child list of the
+EntityReference node is in general the same as that of the Entity
+node." So if we have a document like this:
+
+...
+<!ENTITY h "hallo">
+...
+hallo
+<a>&h;</a>" 
+...
+
+and we set the whatToShow flag to SHOW_ALL, the resulting structure
+when applying a TreeWalker seems to be (A):
+
+[Text node: hallo]
+[Element node: a]
+  [EntityReference node: h]
+    [Text node: hallo]
+
+And if we switch of SHOW_ENTITY reference it is (B):
+
+[Text node: hallo]
+[Element node: a]
+  [Text node: hallo]
+
+But we cannot achieve a result as (C):
+
+[Text node: hallo]
+[Element node: a]
+  [EntityReference node: h]
+
+without using a filter in a TreeWalker, and we cannot achieve it with
+a NodeIterator at all, though it would be the desired output if we are
+planning to write e.g. an XML editor.
+
+It seems as if EntityReference nodes need a special treatment, which
+is not surprising since the treatment of EntityReferences marks
+exactly the difference between a source code view of an XML document
+and a browser view before applying style information.  So I would
+suggest (if it is to less time to decide now, then for DOM Level 3)
+introducing a new flag both to NodeIterators and TreeWalkers called
+resolveReferences, which has according to the three different
+behavioral patterns A, B, and C (see above) three possible values:
+'resolve', 'replace', and 'pure'.  You might ask: why not using a
+filter?  My reply would be, a) that especially B and C are standard
+cases.  B for XML browsers and C for XML editors.  Therefore we need a
+convenient and fast way to implement all these document views in the
+DOM. And b), that I can see no way to achieve such a view as C with a
+NodeIterator.
+
+So if we have a resolveReferences flag in the DOM, is there any longer
+a need for the skip behavior of TreeWalker.whatToShow instead of the
+reject behavior?
+
+> ... You can write the desired filtering behavior today. The question is whether
+> the current behavior is excessively confusing even when documented.
+
+My question is, which of both behavioral patterns is the best way to
+get the desired results.  Therefore I discussed some different
+examples of use for iterators, since I hope that my thoughts might
+help to make a good work a little better.
+
+> >And finally, a suggestion for an additional attribute for the
+> >NodeIterator and TreeWalker interface:
+> >    filtered of type boolean
+> 
+> How would this differ from, eg, (NodeIterator.getFilter()!=null)?
+
+What I had in mind was the question, what would be the most elegant
+way to switch a filter off and on again in an object orientated
+programing language.  If we do it your way, the applications has to be
+aware of the filter that was attached to an iterator before it was
+switched off; if we do it the way, I suggested, the information stays
+with the iterator, which seems to be closer to the philosophy of
+object orientated programing.  BTW: I borrowed this idea from the
+treatment of iterating database tables in Delphi.
+
+-- 
+=====================================================================
+ Dieter Koehler, M. A. - dieter.koehler@ppp.uni-bamberg.de
+ Mittlere Kaulberg 22, D-96049 Bamberg, +49(0)951-5190726
+ "http://www.philo.de/Philosophie-Seiten/": 1000+ Philosophie-Links
+ "http://www.philo.de/VirtualLibrary/14.de.htm": Deutsche Philo-Links
+ "http://www.philo.de/xml/": Open XML - XML-Komponenten fuer Delphi
+=====================================================================
+
+
+

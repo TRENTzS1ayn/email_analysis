@@ -1,0 +1,128 @@
+docno="lists-006-8784286"
+received="Sat Feb 17 16:55:01 2001"
+isoreceived="20010217215501"
+sent="Sat, 17 Feb 2001 13:57:25 -0800"
+isosent="20010217215725"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: BASELINE option"
+id="20010217135725.N27443@lyra.org"
+charset="us-ascii"
+inreplyto="200102172005.PAA11060&#64;tux.w3.org"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+On Sat, Feb 17, 2001 at 03:05:14PM -0500, Edgar@edgarschwarz.de wrote:
+>...
+> When asked a while ago about the difference between version controlled
+> collections and baselines you told me that baselines are a depth 1 thing.
+
+A version-controlled collection (VCC) is a VCR that refers to a baseline
+from its DAV:checked-in value.
+
+Conceptually, a baseline is simply an unordered, unstructured *set* of hrefs
+to version resources. (depth doesn't really apply: baselines are member
+resources rather than collections)
+
+> If I understood that correctly this would mean that a baseline doesn't
+> capture states of collections and their contents recursively.
+
+If your collections are versioned, then it certainly does capture their
+state. Even though the baseline itself is unstructured, you can "reassemble"
+the collections by examination of the DAV:version-controlled-binding-set
+properties of the collection versions found in the baseline.
+
+Let's say that your baseline has { CV1, V2, V3, V4 } in it. CV1 is a
+collection version; the others are regular version resources. To reassemble
+these into a tree, you would fetch the binding-set and the version histories
+from the resources:
+
+    Resource  History  Binding-set
+    --------  -------  --------------
+    CV1       H1       { H2, H3, H4 }
+    V2        H2       n/a
+    V3        H3       n/a
+    V4        H4       n/a
+
+As you can see, the members of CV1 are V2, V3, and V4, by matching up the
+version histories.
+
+The above is just the conceptual model. It is actually much easier to see
+the relationship by simply going to the DAV:baseline-collection of the
+baseline. That is a set of VCRs that are already arranged for you.
+
+>...
+> BTW, I use baselines which don't catch collection members. If I want them in my
+> baseline I add them as a subbaseline. Also baselines only exist in the context of
+> a workspace in my system. So a subbaseline can be identified by it's relative path
+> from workspace root.
+
+This is one way to do it. A lot of baselines, but acceptable.
+
+> As a remark, I'm still not sure why we need the terms "configuration" and "baseline".
+> Isn't a baseline just a version of a configuration ?
+
+I'm not a terminology guy. I'll leave this to somebody else.
+
+> You argue correctly that a baseline is efficient by containing just version
+> and path of the resources it contains.
+
+Nope. Just versions. No paths.
+
+> The same is valid for subbaselines. Imagine a medium sized baseline containing
+> 1000 resources.
+> Now you need a bugfix in one resource. You create a new baseline of the configuration
+> duplicating 999 entries from the predecessor.
+
+Untrue. That is an *implementation* detail. Nobody said that you must store
+the set of versions this way. As a matter of fact, there is no way to
+*retrieve* the set of versions, thus no reason to ever truly keep a copy of
+them around.
+
+To query the set of versions, you must walk over the DAV:baseline-collection
+and fetch the DAV:checked-in values.
+
+[ as a counter-point: Subversion doesn't store anything when you "create" a
+  new baseline. baselines are synthesized at request time from information
+  within the repository. even then, we only synthesize a portion of the
+  DAV:baseline-collection. even better: it is a very lightweight operation
+  since the repository is logically organized as a set of baselines.
+  concretely, each baseline is merely a diff against the previous baseline ]
+
+>...
+> In 12.2.1 (DAV:subbaseline-set) you write: "A server MAY reject attempts to modify
+> the DAV:subbaseline-set of a checked out configuration"
+
+This is because a server may not support subbaselines, so this is how it
+prevents clients from using the feature.
+
+> My interpretation of this statement is, that a server understanding BASELINE at least
+> must know about checking out subbaselines.
+
+If you can't set the subbaseline-set, then the client can never create
+subbaselines. Thus, any subbaselines that exist are due entirely to the
+server's operation. If it is creating them, then yes: it must fully support
+them, including checking them out.
+
+> This sounds plausible. Because if not
+> it couldn't work with any baseline containing subbaselines.
+> If that's right some comments:
+> It MAY reject modifying the subbaseline-set. But probably it can change some
+> resources and create a new baseline containing the old subbaselines ?
+> So it already has to know a lot about subaselines, but can't do all with them.
+> But not much is missing here. This can be confusing.
+> I think make the whole subbaseline stuff optional or remove the MAY sentence.
+
+Splitting subbaselines out into another option would be too complicated. It
+is much easier to cut it all off with a simple "MAY" sentence in 12.2.1.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

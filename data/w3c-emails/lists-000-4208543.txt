@@ -1,0 +1,78 @@
+docno="lists-000-4208543"
+received="Thu Oct 14 17:53:08 1999"
+isoreceived="19991014215308"
+sent="Thu, 14 Oct 1999 15:51:59 -0600"
+isosent="19991014215159"
+name="ldcousin@mmm.com"
+email="ldcousin@mmm.com"
+subject="Possible fix for tidy's untidy handling of &lt;option&gt; and &lt;textarea&gt;"
+id="8625680A.00783EE6.00@em-stpmta-01.mmm.com"
+charset="us-ascii"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+
+
+Here's a possible fix for tidy's mishandling of <option> and <textarea>.
+The problem appears to be in the ParseText routine in parser.c.  I changed
+ParseText to:
+
+void ParseText(Lexer *lexer, Node *field, uint mode)
+{
+    Node *node;
+
+    lexer->insert = null;  /* defer implicit inline start tags */
+
+    while ((node = GetToken(lexer, Preformatted)) != null)
+    {
+        if (node->tag == field->tag && node->type == EndTag)
+        {
+            FreeNode(node);
+            TrimSpace(lexer, field->last);
+            return;
+        }
+
+        /* deal with comments etc. */
+        if (InsertMisc(field, node))
+            continue;
+
+        if (node->tag == tag_font)
+        {
+            ReportWarning(lexer, field, node, DISCARDING_UNEXPECTED);
+            FreeNode(node);
+            continue;
+        }
+
+/*fix*/        /* LDC: added for option and textarea elements */
+/*fix*/        if ( node->type == TextNode )
+/*fix*/        {
+/*fix*/             InsertNode( field, node );
+/*fix*/             continue;
+/*fix*/        }
+
+        /* terminate element on other tags */
+        if (!(field->tag->model & CM_OPT))
+                ReportWarning(lexer, field, node, MISSING_ENDTAG_BEFORE);
+
+        UngetToken(lexer);
+        TrimSpace(lexer, field->last);
+        return;
+    }
+
+    if (!(field->tag->model & CM_OPT))
+        ReportWarning(lexer, field, node, MISSING_ENDTAG_FOR);
+}
+
+I added the lines with the /*fix*/ in front of them.  It appears that
+ParseText never saves the text node that it parses inside the
+<option> and <textarea> elements.  All I'm doing here is saving the text.
+WARNING: this fix may be completly WRONG
+(though it seems to work for me).  Use at your OWN RISK!
+
+Larry Cousin
+3M Health Information Systems
+
+
+

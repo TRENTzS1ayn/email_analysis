@@ -1,0 +1,266 @@
+docno="lists-046-1447355"
+received="Tue Jun 11 04:27:52 2002"
+isoreceived="20020611082752"
+sent="Tue, 11 Jun 2002 10:28:35 +0200"
+isosent="20020611082835"
+name="Gregor Karlinger"
+email="gregor.karlinger@iaik.at"
+subject="RE: POLL: Fwd: Re: XPath filter 2.0"
+id="038801c21121$fb498e90$51981b81@iaik.at"
+charset="us-ascii"
+inreplyto="20020610211649.9FF6B10A&#64;policy.w3.org"
+expires="-1"
+
+To:<reagle@w3.org>
+Cc:"XMLSigWG"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi,
+
+I vote for #2 for the following reasons:
+
+  1. more intuitive, eliminates the strange UNION behaviour of #1
+
+  2. makes it possible to arrange several set operations within a
+     single transform (more intuitive than a sequence of transforms,
+     less overhead)
+
+  3. easier to make optimizations such as Merlin has worked out
+     (thanks Merlin!)
+
+Regards, Gregor
+
+> -----Original Message-----
+> From: w3c-ietf-xmldsig-request@w3.org 
+> [mailto:w3c-ietf-xmldsig-request@w3.org] On Behalf Of Joseph Reagle
+> Sent: Monday, June 10, 2002 11:17 PM
+> To: merlin; Christian Geuer-Pollmann; John Boyer
+> Cc: w3c-ietf-xmldsig@w3.org
+> Subject: POLL: Fwd: Re: XPath filter 2.0
+> 
+> 
+> 
+> 
+> I'd like to move forward to a Last Call for this 
+> specification ASAP. Last 
+> week Merlin outlined some options [1], one of which being a 
+> new proposal 
+> that he gave some more details about [2] in response to Christian.
+> 
+> So to conclude the thread I'd like to know what people prefer:
+> 1. Move forward with what we have presently [3].
+> 2. Specify Merlin's proposal (The timing of this will be 
+> dependent on properly representing the proposal (e.g., Merlin's time 
+> <smile/>) and then reviewing and iterating on it a few times 
+> to make sure 
+> we have it clear.)
+> 
+> Please respond before Wednesday. I'm favoring option #1 
+> unless there's a 
+> couple of folks advocating/willing-to-write #2 without a 
+> strong dissent. 
+> 
+> [1] 
+> http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002AprJun/0288
+> [2] 
+> http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002AprJun/0291
+> [3] http://www.w3.org/TR/2002/WD-xmldsig-filter2-20020425/
+> 
+> ----------  Forwarded Message  ----------
+> 
+> Subject: Re: XPath filter 2.0
+> Date: Thu, 06 Jun 2002 12:22:47 +0100
+> From: merlin <merlin@baltimore.ie>
+> To: Christian Geuer-Pollmann <geuer-pollmann@nue.et-inf.uni-siegen.de>
+> Cc: w3c-ietf-xmldsig@w3.org
+> 
+> r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.06.06/10:29:55
+> 
+> >>     * Implementations SHOULD note that an efficient realization
+> >>       of this transform will not compute a node set at each
+> >>       point in this transform, but instead make a list of
+> >>       the operations and the XPath-selected nodes, and then
+> >>       iterate through the input document once, in document
+> >>       order, constructing a filtering node set N based upon
+> >>       the operations and selected nodes.
+> >>   .......
+> >>   . Efficiency is as with the current spec. Basically this
+> >>     fixes union.
+> >
+> >Does this mean that based on the operations, you make some 
+> tree-labeling
+> >;-)) and then you make one tree-traversal to output the 
+> selected nodes?
+> 
+> Yes, but this is the exact algorithm that implementations
+> of the _current_ XPath Filter 2.0 transform _should_ use
+> if a sequence of the current XPath Filter 2.0 transforms
+> precedes c14n. This formulation of the filter simply makes
+> it easier to express in terms of SHOULD language.
+> 
+> >Sounds cool, in that case, the efficiency would be much 
+> better then the
+> >current results of v2.0. What kind of algorithm do you use for
+> >
+> > - make a list of operations and selected nodes,
+> > - decide based on this data which nodes are the result.
+> 
+> If you're asking for a normative algorithm for the general
+> case, then I would have to think for a while. Restricting
+> myself somewhat:
+> 
+> First, let's characterize a sequence of filters:
+>   Filter ::= (INTERSECT | SUBTRACT | UNION)+
+> 
+> You will observe that adjacent SUBTRACT and INTERSECT
+> operations can be idempotently reordered, and that
+> adjacent operations of the same type can be computationally
+> merged. However, I would expect that type of thing to be
+> done in the XPath expressions so I will ignore this.
+> 
+> Restricting myself to the following production, which captures
+> all _common_ (in my opinion) use cases:
+>   SimpleFilter ::= A:UNION* (B:INTERSECT | C:SUBTRACT)* D:UNION*
+> 
+> Iterate over the document.
+>   (define (include-node) ;; whether or not to include a node
+>     (cond ;; returns the first match
+>       ((encountered-any D) t)
+>         ;; if you've encountered a node in a trailing union
+>       ((encountered-any C) nil)
+>         ;; not if you've encountered a subtraction node
+>       ((null B) t)
+>         ;; if there are no intersect operations
+>       ((encountered-all B) t)
+>         ;; if you've encountered a node in each intersect node set
+>       (t nil))) ;; not otherwise
+> 
+> Note that encountered-any returns nil if its parameter is an
+> empty list of node sets, but encountered-all is true in this
+> case. We can therefore express this concisely:
+>   (define (include-node)
+>     (or (encountered-any D)
+>       (and (not (encountered-any C)) (encountered-all B))))
+> 
+> You can implement encountered-foo and therefore include-node
+> strictly in terms of node labeling, a stack and iteration.
+> Obviously you must also consider the input node set.
+> 
+> Going from this to a fully general solution is fairly
+> straightforward. Observe that UNIONs are subject to ALL
+> subsequent INTERSECT and SUBTRACT operations, but no preceding
+> ones, and that the entire filter is equivalent to:
+>   UNION/ Filter
+> 
+> I can then say that a node is included if I have encountered
+> a node in ANY ( UNION operation AND NOT ANY SUBSEQUENT SUBTRACT
+> operation AND ALL SUBSEQUENT INTERSECT operations ).
+> 
+> Work done to compute this is proportional to the number of
+> filters but only done at a labeled node.
+> 
+> Merlin
+> 
+> >Christian
+> >
+> >
+> >
+> >
+> >--On Donnerstag, 6. Juni 2002 01:09 +0100 merlin 
+> <merlin@baltimore.ie>
+> >
+> >wrote:
+> >> Hi,
+> >>
+> >> Quick summary of options:
+> >>
+> >> 1. Current Spec
+> >>   . This is intuitive (in my opinion) because it is based on a
+> >>     linear sequence of set operations.
+> >>   . Typical (IMHO) use cases require 2 XPath evaluations.
+> >>     However, increasingly complex filtering requirements incur
+> >>     increasing cost; an arbitrarily complex expression requires
+> >>     an arbitrarily large number of simple XPath expressions.
+> >>     However, the standard XPath filter may be more useful for
+> >>     these anyway.
+> >>   . Operation can, in most cases, be commingled with c14n for
+> >>     efficiency, but:
+> >>   . The union operator is really ugly and unintuitive.
+> >>
+> >> 2. Christian's Spec
+> >>   . *I* do not believe this is as intuitive; it involves labeling
+> >>     nodes and then traversing the document, proceeding based
+> >>     on node labels (e.g., omit-but-traverse).
+> >>   . Typical use cases require 2 XPath evaluations. Increasingly
+> >>     complex filtering requirements can be solved in a fixed
+> >>     number (2/3) of increasingly complex XPath expressions.
+> >>   . Operation can be commingled with c14n for effiency.
+> >>
+> >> 3. Or, we can take a variant of the current spec. I won't
+> >>    detail it horrendously, but basically:
+> >>
+> >>   . The XPath Filter 2.1 takes, as a parameter, a sequence
+> >>     of operations, each of which is characterized as a
+> >>     set operation (intersect, subtract, union) and an
+> >>     XPath expression.
+> >>   . Operation over an input node set is as follows:
+> >>     * Construct a node set N consisting of all the
+> >>       nodes in the input document.
+> >>     * Iterate through each of the operations.
+> >>       # Evaluate the XPath expression; the result is X.
+> >>       # Expand all identified nodes to include their
+> >>         subtrees; the result is Y.
+> >>       # Assign N = N op Y
+> >>     * Use the resulting node set N as a filter to select
+> >>       which nodes from the input node set will remain in the
+> >>       output node set, just as the XPath 1.0 filter. This is
+> >>       tantamount to intersection with the input node set.
+> >>     * Implementations SHOULD note that an efficient realization
+> >>       of this transform will not compute a node set at each
+> >>       point in this transform, but instead make a list of
+> >>       the operations and the XPath-selected nodes, and then
+> >>       iterate through the input document once, in document
+> >>       order, constructing a filtering node set N based upon
+> >>       the operations and selected nodes.
+> >>     * Implementations SHOULD note that iterating through the
+> >>       document and constructing a filtering node set N can
+> >>       be efficiently commingled with the canonicalization
+> >>       transform if canonicalization is performed immediately
+> >>       after this transform.
+> >>   . With this formulation, intersection and subtraction
+> >>     are IDENTICAL to the existing spec, with the only
+> >>     change being that you can put them in one transform
+> >>     or many.
+> >>   . Union is, however, much improved (in my opinion). You
+> >>     can only use it to include nodes that would be
+> >>     removed by a previous operation in the same transform.
+> >>     As a result, the output node set will only include
+> >>     nodes from the input node set.
+> >>   . Efficiency is as with the current spec. Basically this
+> >>     fixes union.
+> >>
+> >> I write this a while ago; thought I'd send it rather
+> >> than delete it. It's probably wasteful to propose yet
+> >> another option.
+> >>
+> >> Merlin
+> 
+> -------------------------------------------------------
+> 
+> -- 
+> 
+> Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+> W3C Policy Analyst                mailto:reagle@w3.org
+> IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature/
+> W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+> 
+> 
+
+
+
+
+application/x-pkcs7-signature attachment: smime.p7s
+
+
+
+

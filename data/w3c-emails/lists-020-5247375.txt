@@ -1,0 +1,136 @@
+docno="lists-020-5247375"
+received="Tue Jun  8 19:30:24 2004"
+isoreceived="20040608233024"
+sent="Tue, 8 Jun 2004 19:29:37 -0400"
+isosent="20040608232937"
+name="Igor Hersht"
+email="igorh@ca.ibm.com"
+subject="RE: PLease define 'collation'"
+id="OFE7BB8E71.332DBF13-ON85256EAD.0080345A-85256EAD.00810CA7@ca.ibm.com"
+charset="ISO-8859-1"
+inreplyto="PLease define 'collation'"
+expires="-1"
+
+To:mhk@mhk.me.uk
+Cc:public-qt-comments@w3.org,ashokmalhotra@alum.mit.edu,Stephen.Buxton@oracle.com
+
+
+
+
+
+
+
+>A collation is a mapping from strings to sequences of integers,
+>referred to as collation units. This mapping can be described as a
+ >function C(xs:string)->xs:integer*.
+
+>Two strings are considered equal if they map to the same
+>sequence of collation units.
+
+Problems.
+
+The definition does not correspond the Unicode Collation
+Algorithm (see
+http://www.unicode.org/unicode/reports/tr10/#Main_Algorithm).
+The algorithm consist of 3 steps
+Step 1. Produce a normalized form of each input string.
+Step 2. The collation element array is built
+Step 3. The sort key is formed.
+String comprising and matching based on the calculated values of
+the sort key.
+
+As far as I understand  the term ?collation unit? should corresponds
+the Unicode term ?collation element?.  The step 3 is missing in the
+collation
+definition . Doing comprising based only on the collation
+element is incorrect. The main problem is that collation elements
+represent just part of the string. The sort key represents whole string.
+
+Some of the problems (e.g. ignoring punctuation) could be fixed relatively
+easy. ?a-? corresponds 2 collation elements, ?a? ? just one.
+Using relatively simple algorithm we can find that the second collation
+element is ignorable and not to include it in the final sequence.
+
+Some of the problems (e.g. Contextual Sensitivity see 1.3 Contextual
+Sensitivity)
+would require very serious rework of the existing collation implementations
+(the rework could be more time consuming than the rest of XSLT2.0 and XPath
+functionality). Just an example from this chapter (which works fine with
+the
+ICU Unicode Collation Algorithm based implementation).
+?In French and a few other languages, however, it is the last accent
+difference
+that determines the order?
+Normal Accent Ordering  {'c','o','t', 0x00EA}  < {'c',0x00F4,'t', 'e'}
+French Accent Ordering  {'c','o','t', 0x00EA}  > {'c',0x00F4,'t', 'e'}
+
+There is another simple solution which is to create  sort key from the
+collation
+elements and map the key to an integer sequence. I don?t think that the
+collation
+definition make sense here.
+
+
+Solution
+
+2. Common collation definitions
+A collation is a parameter for 2 functions fn:compare and fn:match.
+
+fn:compare( $arg1  as xs:string?, $arg2  as xs:string?,
+$collation  as xs:string) as xs:integer
+Two strings (arg1 and arg2) are considered equal if fn:compare returns 0.
+A string arg1 is considered greater than a string arg2 if fn:compare()
+return is more than 0.
+
+fn:match( $arg1  as xs:string?, $arg2  as xs:string?, $collation  as
+xs:string) as xs:integer*
+fn:match returns 2 integer sequence  (S(start,end)) or an empty ESsequence.
+
+Definitions of fn:contains, fn:starts-with, fn:ends-with,
+fn:substring-before and fn:substring-after are quiet obvious in terms
+of fn:match.
+
+fn:contains return true if fn:match returns not empty sequence.
+fn:starts-with return true if fn:match returns not empty sequence
+and start = 0.
+fn:ends-with return true if fn:match returns not empty sequence
+and end = arg1.length() -1.
+fn:substring-before an empty string if fn:match returns an empty sequence.
+Otherwise fn:substring-before returns arg1.substring(0,start).
+fn:substring-afret an empty string if fn:match returns an empty sequence.
+Otherwise fn:substring-before returns
+arg1.substring(end, arg1.length()).
+
+2.1 Specific collations
+Specific collations should be defined as definitions for
+fn:compare and fn:match functions.
+
+
+2.1.1 Unicode collation
+fn:compare and fn:match for the Unicode collation.
+defined in http://www.unicode.org/unicode/reports/tr10.
+The Unicode collation define different kinds of matching.
+I think we can use an ambiguous -minimal one the(see 8 Searching and
+Matching).
+It could be good idea to define the maximal one (seems to corresponds a
+common
+sense). The match is maximal if for all positive i and j, there is no match
+at Q[s-i,e+j].
+
+2.1.2 The Unicode codepoint collation
+fn:compare and fn:match is obvious here and corresponds and corresponds to
+the
+Michael Kay's one.
+
+2.1.3  Other collations.
+Other collations are implementation defined.
+
+
+
+Igor Hersht
+XSLT Development
+IBM Canada Ltd., 8200 Warden Avenue, Markham, Ontario L6G 1C7
+Office D2-260, Phone (905)413-3240 ; FAX  (905)413-4839
+
+
+

@@ -1,0 +1,351 @@
+docno="lists-039-15068674"
+received="Thu Jan 13 20:06:24 2000"
+isoreceived="20000114010624"
+sent="Thu, 13 Jan 2000 20:06:23 -0500"
+isosent="20000114010623"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: a Grand Unified Locking Proposal (GULP, or perhaps, GULP! :-)"
+id="10001140106.AA22868@tantalum"
+inreplyto="85256865.0069D72C.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+First, thanks for the prompt review!  Based on Jason's comments, I will
+rewrite the "headers", write a few key examples, and will give each of
+the "rules" a number, so that I can explain the example by reference to
+which rule produces the behavior in the example.
+
+I will make no changes to the actual rules, so there will be no semantic
+changes in this rewrite.
+
+And now for a few responses:
+
+   From: ccjason@us.ibm.com
+
+      GULP: Part II
+
+      - A URL identifies a resource.
+
+   Cool. I notice there is no mention of null resources.  Perhaps that's
+   intentional?
+
+I'll change this to say "A URL can identify a resource".
+I did not intend to imply that all URL's identify a resource.
+This model does not have the notion of a null resource.
+
+      - A lock is on a URL. Every lock has a lock token and a lock owner.
+
+     Every lock on a resource has a name which is a relative URL (i.e. a slash
+     separated sequence of URL segments). Every LOCK request that succeeds
+     results in a new globally unique lock token. Every lock token has an owner
+     that is the principal of the LOCK request.
+
+   Just vocab.  "Name" doesn't seem to be the right word.  I'd expect a "name"
+   to be unique and be equivalent to a token.  -- Otherwise, A-OK.
+
+I'm open to whatever term folks prefer.  All that really matters is
+that it be a string which has relative URL syntax.
+
+     - A LOCK request creates a lock on the request URL.
+     When a request of the form "LOCK /pathX" succeeds, a lock named "pathY/."
+     with a new lock token is added to the resource identified by "/", where
+     "pathY" is the result of applying standard URL path transformations to
+     remove all segments named "." or ".." from "pathX". If a collection C has a
+     binding from "segX" to resource R, and a request adds a lock named
+     "segX/pathZ" with token "L" to C, then the request adds a lock named "pathZ"
+     with token "L" to R. Similarly, if a collection C has a lock named
+     "segX/pathZ" with token "L", and a request (e.g. PUT, COPY, MOVE, BIND) adds
+     a binding in C from "segX" to resource R, then the request adds a lock named
+     "pathZ" with token "L" to R. If the attempt to add the lock named "pathZ" to
+     R fails, the request MUST fail.
+
+   I'd prefer not to say the lock is on a URL, but hey, let's give it a
+   shot....  Oh..  I think I understand what you mean by that. The phrase
+   just threw me off.  You are talking about what Eric calls namespace
+   locks.
+
+The only sense in which there are two kinds of locks in this model is
+that locks named "." have some additional properties, but the
+preceding paragraph applies to *all* locks, not just locks named "."
+
+   All this does ring of implementation rather than model.  You're
+   basically describing how URI protection would have to be implemented
+   to be efficient.
+
+How this is implemented is completely up to the server.  This is
+intended to define the effect of locking in terms of resource
+properties visible via the protocol.  These semantics describe both
+under what conditions a request MUST fail, and what the state on the
+server will be following a successful request.
+
+   For this reason, there is a lot of detail here.
+   Mention and emphasis of the overall effect would be good: URI
+   protection.
+
+That comes later.  This is just a detailed description of how the
+locking properties must appear on the server following various
+operations.  This is modeled in terms of the underlying binding
+model instead of trying to enumerate all WebDAV methods, in order
+to provide guidance when new methods are defined.  This way,
+you can just look at the effect of a new method on the binding model,
+and conclude what the locking effect will be, rather than having
+to reconvene the locking working group whenever a new method is
+added to HTTP.
+
+      - An UNLOCK request removes all locks with the specified lock token.
+
+      When a request of the form "UNLOCK /pathX; Lock-Token L" succeeds, then the
+      lock with token "L" is removed from the resource identified by "/". If a
+      collection C has a binding from "segX" to resource R, and a request removes
+      a lock named "segX/pathZ" with token "L" from C, then the request removes a
+      lock named "pathZ" with token "L" from R.
+
+   Hmm.  Couldn't you just say that the lock with token L is removed
+   everywhere it existed?  At least as a summary statement?  This rings
+   of implemenation again.
+
+That statement only applies to the UNLOCK request.  The second
+sentence applies to all methods that result in a lock being removed,
+whether it is from an UNLOCK, a DELETE, a MOVE, or some new method not
+yet defined.
+
+      Similarly, if a collection has a
+      lock named "segX/pathZ" with token "L", and a request (e.g. DELETE, MOVE)
+      removes a binding in C from "segX" to resource R, then a lock named "pathZ"
+      with token "L" is removed from R.
+
+   This should be a different bullet.
+
+I intended this bullet to be about lock removal in general, not just about
+the UNLOCK command.  I'll retitle this section: "A lock can be removed from a
+resource by UNLOCK or by removing a resource from a locked
+collection."
+
+   Also, we seem to talk of specific situations.
+
+If you can think of a situation this doesn't cover, please let me know.
+The wording here was intended to be the minimal number of rules that
+completely define the semantics.
+
+   If so, doesn't the above descriptions also cover
+   the situation for descendents of R (assuming R is a collection)?
+
+Yes, it does.  (All of these rules are applied recursively).
+
+      - A lock on a URL protects which resource is identified by that URL.
+
+      If a collection identified by the URL "/colX" contains a lock named "pathZ"
+      with token "L", if a request would change the resource identified by
+      "/colX/pathZ", the request MUST specify token "L" in an IF header and the
+      request principal MUST be the owner of token "L".
+
+   OK.  The "lock on URL" phrase threw me off again, but the details
+   sound right.
+
+   Does this include null mapped resources? 
+
+Definitely yes!  (That was one of the interesting challenges :-).
+
+   Note: this only protects the mapping of the resource explicitly
+   locked.  Not *necessarily* any of the bindings to the root.  Just an
+   observation.   Later we might have to decide to allow servers to also
+   protect those bindings if they wish.
+
+It is designed to protect all the bindings from the resource to the
+root.  Can you come up with an example of how a binding could be removed
+without violating one of the rules?
+
+   If this is the way we're going to describe the semantics we want, will
+   we later need to use "If there exists..." type phrasing?
+
+Shouldn't have to.  Let me know if you have an example where you think
+the current semantics aren't sufficient.
+
+   You don't say what will happen if the request does include all the
+   right tokens and the sumitter is the owner of all those tokens.  That
+   is the main area where recent proposals semantically distinguish
+   themselves.
+
+Actually, this proposal very carefully deals only with the lock
+state of properties, the two locking operations (LOCK and UNLOCK),
+and when a method will fail because of violating a lock.  The semantics
+of non-locking methods is left undefined except where it results in
+a modification to the lock state of a resource.
+
+     - A Depth:N lock on a URL locks any URL that extends the locked URL by no
+     more than N segments.
+
+     If a collection C has a binding to resource R, and a request adds a Depth:N
+     lock named "." with token "L" to C, then the request adds a Depth:N-1 lock
+     named "." with token "L" to R. Similarly, if a collection C has a Depth:N
+     lock named "." with token "L", and a request adds a binding in C to resource
+     R, then the request adds a Depth:N-1 lock named "." with token "L" to R. If
+     the attempt to add the lock named "." to R fails, the request MUST fail.
+     Conversely, the Depth:N-1 lock is removed from R whenever a binding to R or
+     the Depth:N lock is removed from C.
+
+   Dynamic depth lccks.  Okay.
+   I guess technically you have declare what happens at depth 0.
+
+Shouldn't have to.  Just substitute "0" for N in the above paragraph,
+and you know what happens at depth 0.  Only "infinity" is special.
+
+     - A Depth:infinity lock on a URL locks all URL's that extend the locked
+   URL.
+
+     If a collection C has a binding to resource R, and a request adds a
+     Depth:infinity lock named "." with token "L" to C, and this is the first
+     Depth:infinity lock named "." with token "L" on C, then the request adds a
+     Depth:infinity lock named "." with token "L" to R. Similarly, if a
+     collection C has a Depth:infinity lock named "." with token "L", and a
+     request adds a binding in C to resource R, then the request adds a
+     Depth:infinity lock named "." with token "L" to R. If the attempt to add the
+     lock named "." to R fails, the request MUST fail.
+
+     If a collection C has a
+     binding to resource R, and a request removes the last Depth:infinity lock
+     named "." with token "L" from C, then the request removes a Depth:infinity
+     lock named "." with token "L" from R. Similarly, if a collection has a
+     Depth:infinity lock named "." with token "L", and a request removes a
+     binding in C to resource R, then a Depth:infinity lock named "." with token
+     "L" is removed from R.
+
+   Sounds like this wording also handles the recursive removal of locks
+   from the whole tree.  Good.  -- There is a bit of messiness dealing
+   with loops I think.  If didn't couch this all in detailed
+   implementation based way, we might not have to mention that.
+
+I continue to maintain that this is pure semantics (albeit described
+in the form of state transition rules).  Getting the semantics to handle loops
+was one of the hardest parts of this protocol.  If I got it wrong,
+let me know.
+
+   BTW, you speak of the "*last* Depth:infinity lock".  What is the
+   significance of "last".  (I also notice you mentioning "first"
+   earlier.)
+
+You can have multiple occurrences of the same lock on a resource.
+Certain state changes occur only on the first application of a given
+lock to a resource, and on the removal of the last occurrence of a
+given lock on a resource.
+
+     Note that multiple Depth:infinity locks named "."
+     with the same token can be placed on the same resource due to multiple
+     bindings to that resource in a Depth:infinity locked collection.
+
+   Right.  IOW, "do the right thing". :-)
+
+Actually, this was intended to be a pre-emptive answer to the question
+you raised above (:-).  In particular, it is wrong to not add a lock to
+a resource because one like it is already there (i.e. it is not a set).
+
+     - If an exclusive lock identifies a resource, no other lock of that type can
+     identify that resource.
+
+     If a request attempts to add a lock named "pathZ" with token "L" and type T
+     to resource R, and R already has an exclusive lock named "pathZ" with type
+     "L" but with a different token, the request MUST fail. Similarly, if a
+     request attempts to add an exclusive lock named "pathZ" with token "L" and
+     type T to resource R, and R already has a lock named "pathZ" with type T but
+     with a different token, the request MUST fail.
+
+   Hmmm. Exclusivenss of exclusive locks also apply to the name space
+   aspect of the lock?  This isn't good.
+
+I'm not sure what you mean by this.  In particular, what do you mean
+by the "name space aspect of a lock"?
+
+   It means only one exclusive
+   lock can exist in the system at a time.
+
+How so?  You can get an exclusive lock conflict only if there are
+two locks on the same resource *and* they are of the same type 
+*and* they have the same name *and* they have different tokens
+*and* one of them is exclusive.  That leaves room for lots of exclusive
+locks.
+
+   I'd prefer the lock to be
+   shared unless the resource is at a lock URI.  (Resource Lock, not
+   Namespace lock)
+
+Just one kind of lock, but each lock has a "name" and exclusive locks
+don't conflict unless they have the same name.
+
+     - A write-lock on a URL protects the body and dead properties of any
+     resource identified by that URL.
+
+     If a resource has a write lock named "." with token "L", in order to modify
+     the body or dead properties of that resource, a request MUST specify token
+     "L" in an IF header and the request principal must be the principal that
+     created the lock.
+
+   So we now need to define "lock".  Based on how you are using it in
+   this document, a LOCK request can create many locks.
+
+Yes.
+
+   And all of those
+   locks will basically have the "same" (expanded) name.
+
+There is no concept of an "expanded" lock name.  A lock has exactly
+one name (just as it has one token and one type and one owner).
+
+   Except if it's
+   a depth lock in which case there might be a lot of locks with "." as
+   their name so their "expanded" names will differ.
+
+Yes, there will be a lot of locks with "." as their name
+(for a given resource, locks will differ in their token, unless
+they are shared locks).
+
+   Anyway, my point
+   here is that a LOCK request creates many "lock"s.  If you couch it as
+   you have, I think you're obligated to use Eric's "lock set" term.
+
+I haven't found the need to do so.  I can just say "all locks with the
+same token" if I need to refer to that set (and I only needed to do
+so for the UNLOCK definition).
+
+   You haven't really said what happens in null mapped URI space.
+
+Actually, I have (:-).  Run through the rules for a URL that does
+not (currently) identify a resource, and all should work.
+
+   The
+   actual document might not need to mention it, but since we've talked a
+   lot about it, you probably should clarify that for us on the list.
+
+Yes, and example is clearly called for.
+
+      OK, Jason, Yaron, Eric, et. al, what did I forget this time? (:-)
+
+   Well, overall my impression is that the semantics outlined here so far
+   are good, but that the explanation is very dense and that it probably
+   doesn't need to be.
+
+I believe that you couldn't delete any of the rules without losing
+some key semantics.  I'm always interested in seeing alternative
+formulations, though.  (Then I can take the potshots :-).
+
+   Although a few of the semantic details are
+   differnt, Eric's way of describing it might be a LOT simplier.
+
+Eric's description did not handle cyclic bindings, some of the
+subtler cases of locks on URL's not bound to resources, or of the
+behavior of LOCK's when the state of collections are modified.
+That does make it simpler (:-).
+
+   Perhaps starting with Eric's proposal and altering that match your
+   semantics might work better.
+
+Anything that gets us to a complete and understandable set of
+semantics works for me!
+
+Cheers,
+Geoff
+
+
+

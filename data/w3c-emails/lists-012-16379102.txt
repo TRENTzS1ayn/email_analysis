@@ -1,0 +1,212 @@
+docno="lists-012-16379102"
+received="Wed Mar 14 15:59:21 2001"
+isoreceived="20010314205921"
+sent="Wed, 14 Mar 2001 08:57:52 0700"
+isosent="20010314155752"
+name="Carl Kugler"
+email="kugler@us.ibm.com"
+subject="Re: HTTP and half close (WAS: HTTP client abort detection)"
+id="OF99DF2538.169E640EON87256A0F.00573C13@LocalDomain"
+charset="usascii"
+inreplyto="HTTP and half close (WAS: HTTP client abort detection)"
+expires="1"
+
+To: Miles Sabin<MSabin@interx.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+
+There is a long-expired Internet-Draft, "HTTP Connection Management"
+(http://www.ics.uci.edu/pub/ietf/http/draft-ietf-http-connection-00.txt),
+that has some good discussion of related issues.
+
+<!--StartFragment-->The HTTP/1.1 Proposed Standard [HTTP/1.1] specification
+is silent on
+   when, or even if, the connection should be closed (implementation
+   experience was desired before the specification was frozen on this
+   topic). So HTTP has moved from a model that closed the connection
+   after every request/response to one that might never close. Neither
+   of these two extremes deal with "connection management" in any
+   workable sense.
+<!--EndFragment-->
+
+     -Carl
+
+
+
+Miles Sabin <MSabin@interx.com> on 03/14/2001 07:35:00 AM
+
+To:   http-wg@cuckoo.hpl.hp.com
+cc:
+Subject:  HTTP and half close (WAS: HTTP client abort detection)
+
+
+
+Scott Lawrence wrote,
+> Miles Sabin wrote:
+> > I've been trying (unsuccessfully) to decide whether or not
+> > RFC 2616 permits a server to interpret the receipt of a FIN
+> > on the incoming-request side of it's connection to a client
+> > as a full client close ...
+>
+> I think that it would have been poor form at best for the HTTP
+> WG to ignore the Tcp semantics in that way.  In fact, the
+> client is doing you a favor by sending the FIN as soon as it
+> knows it's done with that half-connection - the server can then
+> close its half right away even if it might otherwise have left
+> it open for persistence, perhaps suffering the time-wait
+> penalty when it times it out (if the client sends the first
+> FIN, then it has to hold the time-wait, and the server
+> doesn't).
+
+Thinking about this some more, I'm coming to the conclusion that
+there's a genuine and problematic gap in RFC 2616. Just to make
+sure there's no misunderstanding here, I want to emphasize that
+I'm quite well aware of the benefits for servers of clients
+sending the first FIN.
+
+As far as I can make out there's nothing in RFC 2616 which
+unambiguously rules out any of the following possible client and
+server implementations,
+
+1. Clients which send a FIN early ... ie. by doing a half close
+   as soon as their last request is sent, but possibly before
+   the corresponding response has been received.
+
+2. Clients which don't (half or full) close until all pending
+   responses have been received.
+
+A. Servers which treat an early client FIN only as a half close
+   and continue processing and sending pending responses.
+
+B. Servers which treat an early client FIN as an indicator of a
+   client abort, and hence abandon processing and sending pending
+   responses.
+
+The problem is that clients of type 1 aren't fully interoperable
+with servers of type B ... if a type 1 client does an eager
+half close a type B server would abandon it's response.
+
+So at least one of these two should be ruled out by RFC 2616.
+
+Unfortunately I don't see that either unambiguously is. And if
+neither are ruled out by the spec, then interoperability
+considerations mean that it's not safe for client or server
+implementors to adopt either. In real-world terms, I'm pretty
+sure that most existing user-agents (nb. I'm not talking about
+clients generally) are of type 2, and most servers are of type
+A.
+
+Here are some pro and con considerations wrt type 1 clients and
+type B servers.
+
+* The pragmatic good citizenship argument that a client should
+  send the first FIN, and sending it immediately after its
+  request has been sent, before any or all of the response has
+  been received, makes that likely.
+
+  On the other hand, this isn't the only way for a client to send
+  the first FIN. In scenarios which allow a client to half close
+  eagerly it should also be possible for it to send Connection:
+  close, in which case the server would know that the connection
+  is terminating. Hence the server, assuming it sends a Content-
+  Length or chunks, could quite happily defer closing after
+  sending the response, on the assumption that the client will
+  close soon and that it can close it's own end when that
+  happens.
+
+  On balance, I don't think any conclusion can be drawn from the
+  above. Early half close helps servers, but there are other
+  ways of getting the same effect.
+
+* A similar pragmatic argument that if servers are allowed to
+  treat early client FINs as client aborts, then they might be
+  able to avoid expensive response processing.
+
+  In the particular case of a proxy server, such a FIN might be
+  detected during proxy-side DNS resolution, but before the
+  initiation of a connect to an origin server. If the proxy
+  isn't going to cache the now unwanted response (either because
+  it's not a caching proxy, or because it's confident the
+  response will be uncacheable) then it would make sense not to
+  attempt to forward the request to the origin server at all.
+
+* From 8.1.4 Practical Considerations,
+
+    Servers SHOULD always respond to at least one request per
+    connection, if at all possible. Servers SHOULD NOT close a
+    connection in the middle of transmitting a response, unless a
+    network or client failure is suspected.
+
+  So long as we read 'middle' of a response liberally and allow
+  it to cover any point in time between the servers receipt of
+  the request up to the completion of the sending of the
+  response, then this seems to support type 1 clients against
+  type B servers.
+
+  Nevertheless, it's very hard to see the practical difference
+  between a 'network or client failure' and, say, the behaviour
+  of a user agent when a user hits the stop button because the
+  server hasn't managed to deliver a response sufficiently
+  quickly.
+
+* If we aren't so liberal with the reading of 'middle' in the
+  above quoted para, then we have,
+
+    A client, server, or proxy MAY close the transport connection
+    at any time. For example, a client might have started to send
+    a new request at the same time that the server has decided to
+    close the "idle" connection. From the server's point of view,
+    the connection is being closed while it was idle, but from
+    the client's point of view, a request is in progress.
+
+  This suggests that a server which detects an early client FIN
+  would be within it's rights in exploiting the persistent
+  connection close race condition to avoid processing or sending
+  any response at all: it's free to close the connection at any
+  time, and it's not yet started to send it's response. The only
+  difference between this scenario and the typical cases is the
+  exact location of the request message ... on the wire, in the
+  TCP receive buffers, or in a server buffer.
+
+* If type 1 clients are legitimate, this parenthetical comment in
+  4.4 Message Length becomes quite baffling,
+
+    the transfer-length of that body is determined by one of the
+    following (in order of precedence):
+
+    5. By the server closing the connection. (Closing the
+       connection cannot be used to indicate the end of a request
+       body, since that would leave no possibility for the server
+       to send back a response.)
+
+  because if an early half-close were legitimate, it would
+  provide a perfectly respectable mechanism for delimiting a
+  request body.
+
+None of the above leaves me with any particularly clear idea of
+what best practice might be. Unless I can be persuaded otherwise
+I'm obliged to be cautious from an interoperability perspective
+and assume,
+
+* That a type 1 client implementation is inadvisable, because
+  it wouldn't reliably interoperate with type B servers.
+
+* That a type B server implementation is inadvisable, because
+  it wouldn't reliably interoperate with type 1 clients.
+
+Can anyone shed any more light on this?
+
+Cheers,
+
+
+Miles
+
+--
+Miles Sabin                               InterX
+Internet Systems Architect                5/6 Glenthorne Mews
++44 (0)20 8817 4030                       London, W6 0LJ, England
+msabin@interx.com                         http://www.interx.com/
+
+
+

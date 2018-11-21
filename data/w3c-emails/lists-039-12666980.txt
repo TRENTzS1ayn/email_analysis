@@ -1,0 +1,149 @@
+docno="lists-039-12666980"
+received="Tue Dec  7 22:47:15 1999"
+isoreceived="19991208034715"
+sent="Tue, 7 Dec 1999 22:47:03 -0500"
+isosent="19991208034703"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: BINDing using a weak reference"
+id="9912080347.AA01622@tantalum"
+inreplyto="384D9108.8F796130&#64;us.oracle.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+Before diving in, I'd like to thank Eric for becoming active
+in the working group!  Getting this kind of in depth analysis
+is of immense value as we try to nail down the spec for last call.
+
+   From: "Eric Sedlar" <esedlar@us.oracle.com>
+
+   Are you assuming that WebDAV servers will generally be standalone
+   repositories, or do expect existing repositories (e.g. ClearCase,
+   MSExchange, Oracle RDBMS) will implement WebDAV in addition to other
+   protocols they currently use to access information therein?
+
+The latter.
+
+   Do you
+   expect WebDAV servers to be only used for managing development content
+   or also to manage production content?
+
+Both.
+
+   It would seem like you would
+   want the broadest audience possible, and that would include existing
+   servers and handling both development and production content.
+
+Definitely.
+
+   If you
+   implementing WebDAV on an existing server breaks their existing
+   guarantees, they won't be able to support WebDAV, which seems like an
+   undesirable outcome.
+
+The challenge is that different server implementations (e.g. file
+systems, relational databases, document mgmt repositories, versioning
+repositories) have very different guarantees, so defining a protocol
+that allows clients to interoperate with all of them inevitably leads
+to choices that are not optimal for any particular existing server.
+
+The example of the Unix file system was intended to illustrate how
+your (very reasonable) definition of strong/weak bindings are problematic
+when applied to a different server implementation (i.e. the Unix file
+system).
+
+   It seems to me that the most common type of WebDAV application would
+   be managing content on a web site, and the most common type of search
+   (as is most common today) would be the Yahoo-like one box keyword
+   search across the entire resource space, or perhaps contrained across
+   a certain class of resources, like Amazon's "Search all books"
+   functionality.  If I want to implement this functionality against a
+   resource space managed by WebDAV, I'm screwed if I defer garbage
+   collection.
+
+A WebDAV site will commonly contained the source resources from which
+derived resources are computed, as well as historical information
+(e.g. previous revisions of existing information).  In the case of
+Yahoo-like searches, unless they are constrained to a particular tree
+(and in the case of versioning, a particular tree with a particular
+target-selector header), many/most of the "hits" will be incorrect.
+The "search all resources" approach works when only "deployed"
+resources exist at a site ... with WebDAV support, there will be much
+more available, and naive searches that don't restrict themselves
+to a particular hierarchy will no longer be effective.
+
+   >    Also,
+   >    deferring the garbage collection associated with the unlink breaks the
+   >    transactional guarantee when people COMMIT their work.
+   >
+   > There is no COMMIT functionality in WebDAV, so this would not be an issue.
+
+   Are you assuming that WebDAV can only be implemented against
+   non-transactional content repositories?
+
+No - we are just assuming that WebDAV must be implementable
+on either a transactional or a non-transactional server, which
+means that no cross-request transactional behavior can be 
+assumed or required.
+
+   If so, you should state that
+   in the charter for WebDAV.  I think you would be unnecessarily
+   restricting the number of vendors interested in WebDAV if you did
+   this.
+
+If there is any problem implementing WebDAV on a transactional server,
+please flag it!  My point was just that WebDAV cannot assume cross-request
+transactional behavior, so an argument based on what is needed to support
+cross-request transactions would not apply to the WebDAV protocol.
+Perhaps I misunderstood your point about COMMIT?
+
+   >    <es> locking a URL locks the namespace, not the resource.
+   >
+   > I assume this only applies to weak bindings (i.e. there must be some
+   > way to lock the resource itself, so I assume that is done through a
+   > strong binding?).
+
+   I'm jumping to conclusions here based on the conversations you have
+   been having with Yaron Goland.  Given that some applications will want
+   to reserve the entire pathname when they LOCK it to prevent it from
+   being moved, it seemed like a dichotomy would have to be introduced
+   where there are two separate types of LOCK operations: one that locks
+   the name separately from another request that locks the resource it
+   refers to.
+
+Currently, that is not the case for RFC-2518.  A lock is applied to the
+URL and results in both a lock on the resource identified by the URL,
+and the protection of the mapping of that URL to that resource.
+
+   >    The resource the locked URL points to may actually be deleted while
+   >    the URL to it is locked.   In this case the resource
+   >    is deleted when the lock is released.  (Think of the lock like an open file
+   >    descriptor, or in database terms, a snapshot in a read-only transaction that
+   >    was started when the lock was acquired).  This has the same effect as if
+   >    someone deleted that resource the instant the lock was released.
+   >    </es>
+   >
+   > This could be hard for a server implement if it didn't have underlying
+   > transaction support.
+
+   Well UNIX doesn't go through a lot of hoops to maintain storage for
+   open files.  However, another way to do this is to increase the
+   reference count on the resource by one for each BINDing and LOCK
+   against the resource.  Why do you think this would be hard?
+
+Well, the creation of those .nfsxxx files that sometimes don't get
+garbage collected properly are some pretty ugly hoops (:-).  But more
+to the point, RFC-2518 currently states that a locked resource can
+only be deleted by a holder of the lock token, and that if you do hold
+the lock token and issue a DELETE, the DELETE applies immediately and
+is not deferred until the lock is removed.  So the DELETE semantics
+you describe would not be compliant with RFC-2518.
+
+Cheers,
+Geoff
+
+
+

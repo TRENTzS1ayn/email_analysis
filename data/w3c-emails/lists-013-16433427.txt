@@ -1,0 +1,88 @@
+docno="lists-013-16433427"
+received="Fri May 24 13:31:00 1996"
+isoreceived="19960524173100"
+sent="Fri, 24 May 1996 10:30:48 0700"
+isosent="19960524173048"
+name="Bennet Yee"
+email="bsy@cs.ucsd.edu"
+subject="Re: Missing requirements"
+id="199605241730.KAA21157@work.ucsd.edu"
+inreplyto="199605241607.MAA07892&#64;argon.ncsc.mil"
+expires="1"
+
+
+To:dpkemp@missi.ncsc.mil(David P. Kemp)
+Cc:ietf-tls@w3.org
+
+
+Hi David,
+
+In message <199605241607.MAA07892@argon.ncsc.mil>, David P. Kemp writes:
+> 
+> I believe that one of the requirements of the TLS working group should
+> be to specify a Record-Layer protocol that defines the on-the-wire data,
+> along with an (extremely simple) API to allow session keys to be fed
+> into the implementation of the protocol, whether the implementation
+> resides in user space (the browser) or kernel space (the network stack).
+
+This would be a very good goal.  We do have to be careful about
+providing mechanisms for not just specifying the bulk encryption /
+hash functions and injecting the corresponding encryption and MAC
+keys, but also have a mechanism for the record layer to call-back or
+otherwise notify the key-exchange/management layer.
+
+One of the problems in SSLv2 was that sequence numbers wrapped around,
+providing the attacker (for long-lived, high volume connections) the
+opportunity to replay messages and have them MAC okay.  To avoid this,
+there needs to be a mechanism for the record layer to tell the key
+management layer that the keys need to be refreshened.  And while
+there's no public cryptanalysis of RC4 (the only cipher used in
+practice for https:) that tells us the maximum stream length that we
+should use prior to changing keys yet (unicity distance, etc), a
+mechanism should exist to allow the record layer -- which has the
+information about how long has the cipher been used as well as the
+number of records sent -- to likewise signal to the key management
+layer that a new key should be used.
+
+This necessarily implies that a synchronization record must exist to
+separate the data records that were encrypted using an old key and
+those encrypted using the new, or that a key-ID be incorporated in the
+header.  Unless, of course, we want to incorporate extra redundency in
+the encrypted portion so trial decryptions can tell which key was
+used, which would not be good practice.
+
+> A completely independent requirement should be to define the handshake
+> protocol by which the session keys are established.  That is where all
+> the session/connection state is maintained, where the debate over
+> CipherSuite bundling will occur, where implementations will have to
+> do certificate passing, parsing, validation, and caching, etc.
+> These are the hard problems, and it makes sense to divorce them from
+> the easy problem of defining a record layer.
+
+Agreed.  And if we simply include a few fields in the records such as
+a variable sized cipher-specific data (new stream keys [encrypted] /
+key ID and new IV), then we can make it UDP-capable and make Charles
+and other folks happy.  Datagram support was, I believe, one of the
+goals of PCTv2 and STLP (see STLPCiphertext's key_info member).  We do
+have to think hard about what to do w/ datagrams that are delayed --
+with stream ciphers and a new stream key per message, every datagram
+implicitly incorporates a change-key operation; with block ciphers (in
+CBC mode), all that needs to change on a per-datagram basis is the IV,
+so a refresh-key operation makes sense.  For block ciphers, then, the
+datagram header should have either a new key and IV, or a key ID (use
+existing key) and new IV -- and we have to worry about datagrams that
+are delayed so they arrive after the encryption keys have been
+updated.  Do we discard them, or do we decrypt them and pass them on
+to the application?  Since UDP allows datagram duplication, loss, and
+reorderings anyway, I'd say to drop 'em.
+
+-bsy
+
+--------
+Bennet S. YeePhone: +1 619 534 4614    Email: bsy@cs.ucsd.edu
+
+Web:http://www-cse.ucsd.edu/users/bsy/
+USPS:Dept of Comp Sci and Eng, 0114, UC San Diego, La Jolla, CA 92093-0114
+
+
+

@@ -1,0 +1,245 @@
+docno="lists-097-15711920"
+received="Thu May 24 16:16:45 2001"
+isoreceived="20010524201645"
+sent="Thu, 24 May 2001 15:16:39 -0500"
+isosent="20010524201639"
+name="Dan Connolly"
+email="connolly@w3.org"
+subject="proof ontology in real N3 [was: KC...]"
+id="3B0D6C27.135D8AE0@w3.org"
+charset="us-ascii"
+inreplyto="v0422083ab7301ab0cb5c&#64;[158.63.201.143]"
+expires="-1"
+
+
+To: Jim Hendler<jhendler@darpa.mil>,timbl@w3.org,www-archive@w3.org
+
+Jim,
+
+Attached find your proof ontology cleaned up to
+parse as N3. I'm sure there are still bugs in it,
+but this is a start.
+
+I'm copying www-archive, which makes the attatchment
+available somewhere in
+http://www.w3.org/Archives/Public/www-archive/
+
+-- 
+Dan Connolly, W3C http://www.w3.org/People/Connolly/
+@prefix dc: <http://purl.org/dc/elements/1.1/>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax#>.
+@prefix daml:  <http://www.daml.org/2001/03/daml+oil#> .
+
+<> dc:description """
+Idea: There is a standard way that students are taught for the exchange of
+FOL proofs in philosophical logic courses (like the one I took in 1975 -
+ouch!) One generates a proof by showing that a particular set of assumptions
+can lead to a particular conclusion via a set of proof steps permitted by
+the axioms of FOL. (Propositional cases are easier to show than Predicate,
+but same thing works for full FOL).
+
+The idea is simple - each step of a proof is made up of
+
+  1. The set of assumptions on which a step depends
+  2. A step number (or arbitrary label)
+  3. A new assertion
+  4. The logical axiom on which it depends
+  5. The previous step numbers (labels) that were used by the axiom
+  6. Comments (real logicians don't use comments)
+
+  ------------------------------------------------------------------------
+
+Example:
+
+Given:
+  A -> B
+  B -> -C
+  C
+
+Prove:
+  -A
+
+PROOF:
+
+      1   (1)  A -> B      A      1
+      2   (2)  B -> -C     A      2
+      3   (3)  C           A      3
+      4   (4)  A           A      4   ; an assumption is added to make the proof hold
+    1,4   (5)  B           MP   1,4   ; modus ponens of 1,4
+  1,2,4   (6)  -C          MP   2,5   ; note assumption 4 included since 5 was needed
+1,2,3,4   (7)  C & -C      &-I  3,6   ; and-introduction brings in 3
+  1,2,3   (8)  -A          RAA    7   ; we can negate any assumption (we chose 4) by reducio
+
+Thus we see -A dependent only on 1,2,3 and are done.
+
+  ------------------------------------------------------------------------
+
+Bringing this to the web
+
+The idea is simply to create an ontology which has proof as a class with a
+set of statements, each statement containing the stuff above. In very rough
+N3/DAML (details at some later date - namespace issues ignored)
+  ------------------------------------------------------------------------
+""".
+
+@prefix : <proof-ontology#>.
+@prefix Proof: <proof-ontology#>.
+
+:Proof :a rdfs:Class.
+
+Proof:Body :a rdf:Property;
+ rdfs:domain Proof:Proof;
+ range [ :collectionOf Proof:Step]. #  [Dan - I will need your help for how to do collection, etc.]
+
+Proof:Step a rdfs:Class.
+
+:AssumptionSet a rdf:Property;
+ rdfs:domain Proof:Step;
+ rdfs:range [ :collectionOf :StepID].
+
+:StepID a daml:UniqueProperty;
+ rdfs:domain Proof:Step;
+ rdfs:range :STRING. #              Better to use URIs?
+
+Proof:Assertion a rdfs:Class.
+
+Proof:AsBody a rdf:Property;
+ rdfs:domain Proof:Assertion;
+ rdfs:range :STRING.     #          [being lazy here - shouldn't be a string, but member of some sort
+#                                of enumerated class]
+
+:StepAssertion a rdf:Property;
+ rdfs:domain Proof:Step;
+ rdfs:range Proof:Assertion.
+
+:RuleName a rdfs:Class. #         IMPORTANT: RuleName can be any URI!
+
+:StepRule :a rdf:Property;
+ rdfs:domain :ProofStep;
+ rdfs:range  :RuleName.
+
+:StepDependsOn a rdfs:Property;
+ rdfs:domain :ProofStep;
+ rdfs:range [ :collectionOf :StepID].
+
+<> dc:description """
+  ------------------------------------------------------------------------
+
+Thus:
+
+the example above becomes:
+""".
+
+@prefix Proof: <proof-ontology#>.
+@prefix : <#>.
+
+:ExampleProof a Proof:Proof;
+  Proof:Body
+   (PF1 PF2 PF3 PF4 PF5 PF6 PF7 PF8).
+
+
+:Assumption1 a  Proof:Assertion;
+ :PfAsBody "A -> B" .                  #  daml:rule preferred over strings
+
+:Assumption2 a  Proof:Assertion;
+ :PfAsBody "B -> -C" .
+
+:Assumption3 a  Proof:Assertion;
+ :PfAsBody "C" .
+
+
+@prefix PropLogic: <PropLogic#>.
+
+:PF1 a Proof:Step;
+ Proof:AssumptionSet (PF1);
+ Proof:StepID "PF1";          #         set notation would be a good N3 addition
+ Proof:StepAssertion :Assumption1;
+ Proof:StepRule PropLogic:Assumption;  #    (assumptions defined in PropLogic)
+ Proof:StepDependsOn (:PF1).
+
+:PF2 a Proof:Step;
+ :AssumptionSet (:PF2);
+ Proof:StepID "PF2";
+ Proof:StepAssertion :Assumption2;
+ Proof:StepRule PropLogic:Assumption;
+ Proof:StepDependsOn (:PF2).
+
+:PF3 a Proof:Step;
+ Proof:AssumptionSet (:PF3);
+ Proof:StepID "PF3";
+ Proof:StepAssertion :Assumption3;
+ Proof:StepRule PropLogic:Assumption;
+ Proof:StepDependsOn (:PF3).
+
+:Assumption4 a  Proof:Assertion;
+ Proof:AsBody "A" ;
+ rdfs:label "I added this one to negate later".
+
+:PF4 a Proof:Step;
+ Proof:AssumptionSet (:PF4);
+ Proof:StepID "PF4";
+ Proof:StepAssertion :Assumption4;
+ Proof:StepRule PropLogic:Assumption;
+ Proof:StepDependsOn (:PF4).
+
+:PF5 a :ProofStep;
+ Proof:AssumptionSet (:PF1 PF4);
+ Proof:StepID "PF5";
+ Proof:StepAssertion Conclusion1;
+ Proof:StepRule PropLogic:ModusPonens;  #     (ModusPonens a standard inference in Logic)
+ Proof:StepDependsOn (:PF1 :PF4).
+
+:Conclusion1 a Proof:Assertion;
+ Proof:AsBody "B".
+
+@prefix HendlerOldProof: <HendlerOldProof#>.
+@prefix cwmLogic: <cwmLogic#>.
+
+:PF6 a Proof:Step;
+ Proof:AssumptionSet (:PF1 :PF2 :PF4);
+ Proof:StepID "PF6";
+ Proof:StepAssertion HendlerOldProof:Conclusion29; # Had a "-C" string hanging around
+ Proof:StepRule cwmLogic:ModusPonens; #    Rules by URI is web power at its best
+ Proof:StepDependsOn (:PF2 :PF5).
+
+@prefix DanCwm20010604: <DanCwm20010604#>.
+@prefix LogicAllowedByAll: <LogicAllowedByAll#>.
+
+:PF7 a Proof:Step;
+ Proof:AssumptionSet (:PF1 :PF2 :PF3 :PF4);
+ Proof:StepID "PF7";
+ Proof:StepAssertion DanCwm20010604:ContradictionInC;
+ Proof:StepRule LogicAllowedByAll:AndIntroduction;
+ Proof:StepDependsOn (:PF3 :PF6).
+
+@prefix LogicAllowedBySome: <LogicAllowedBySome#>.
+
+:PF8 a Proof:Step;
+  Proof:AssumptionSet (:PF1 :PF2 :PF3);
+  Proof:StepID "PF8";
+  Proof:StepAssertion :ProvenAssertion;
+  Proof:StepRule LogicAllowedBySome:ReducioAdAbsurdum;
+  Proof:StepDependsOn (:PF7);
+  rdfs:comment "QED.".
+
+:ProvenAssertion a Proof:Assertion;
+ Proof:AsBody "-A" .
+
+<> dc:description """
+Lots of stuff left to do - but basic idea works.
+
+  ------------------------------------------------------------------------
+
+features: I think we don't even need ordering - that is implied solely by
+the StepDependsOn relations. Proof Checker must agree to all rules specified
+as StepRules, check that the proof is sound (i.e. all StepIDs defined, all
+inferences legitimized), and it can agree w/conclusion. No need for HOL,
+works for any FOL system, could be made to work for any logic system
+definable by rules in step (includes modal and conditional). Predicate
+Logics include use of "existential introduction, universal elimination" and
+the like (see basic logic book).
+""".
+
+
+

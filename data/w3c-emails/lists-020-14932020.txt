@@ -1,0 +1,370 @@
+docno="lists-020-14932020"
+received="Sat Jun 12 09:55:55 2004"
+isoreceived="20040612135555"
+sent="Sat, 12 Jun 2004 15:55:16 +0200"
+isosent="20040612135516"
+name="Jos De_Roo"
+email="jos.deroo@agfa.com"
+subject="Re: disjunction implementation"
+id="OF7448F8C4.B68595A4-ONC1256EB1.004A0C33-C1256EB1.004C606E@agfa.com"
+charset="us-ascii"
+inreplyto="disjunction implementation"
+expires="-1"
+
+To:eric@w3.org
+Cc:public-rdf-dawg@w3.org, Rob Shearer<Rob.Shearer@networkinference.com>
+
+
+
+Eric,
+
+[I couldn't find "dork" in my dictionary, but
+http://www.google.be/search?hl=en&ie=UTF-8&edition=us&q=define%3Adork&meta=
+helped :)]
+
+I've been testing your test case i.e.
+http://eulersharp.sourceforge.net/2004/04test/ericP.n3
+-- filter
+http://eulersharp.sourceforge.net/2004/04test/ericF.n3
+
+cwm --think gave back
+#####################
+     @prefix : <http://example.org/n#> .
+ 
+      ( :A1  )
+         :isBindingFor <ericF.n3> .
+      ( :A2  )
+         :isBindingFor <ericF.n3> .
+      ( :A3  )
+         :isBindingFor <ericF.n3> .
+
+
+euler --think --nope gave back
+##############################
+
+@prefix log: <http://www.w3.org/2000/10/swap/log#>.
+@prefix : <http://example.org/n#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+
+(:A1) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>. 
+
+(:A3) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>. 
+
+(:A2) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>. 
+
+
+euler --think gave back
+#######################
+
+@prefix log: <http://www.w3.org/2000/10/swap/log#>.
+
+(<http://eulersharp.sourceforge.net/2004/04test/ericP.n3>.log:semantics
+ 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>.log:semantics).log:conjunction 
+=>
+{
+@prefix log: <http://www.w3.org/2000/10/swap/log#>.
+@prefix : <http://example.org/n#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+
+ {# <http://eulersharp.sourceforge.net/2004/04test/ericF.n3> line 7. 
+  :A1 :p2 :C} =>
+{(:A1) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>}. 
+
+ {# <http://eulersharp.sourceforge.net/2004/04test/ericF.n3> line 7. 
+  :A3 :p2 :C} =>
+{(:A3) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>}. 
+
+ {# <http://eulersharp.sourceforge.net/2004/04test/ericF.n3> line 8. 
+  :A2 :p3 :D} =>
+{(:A2) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>}. 
+
+ {# <http://eulersharp.sourceforge.net/2004/04test/ericF.n3> line 8. 
+  :A3 :p3 :D} =>
+{(:A3) :isBindingFor 
+<http://eulersharp.sourceforge.net/2004/04test/ericF.n3>}. 
+
+
+so indeed, for the "proofs" we have 4 paths
+from the given facts to the 3 results
+
+
+-- 
+Jos De Roo, AGFA http://www.agfa.com/w3c/jdroo/
+
+
+
+
+"Eric Prud'hommeaux" <eric@w3.org>
+Sent by: public-rdf-dawg-request@w3.org
+12/06/2004 05:38
+
+ 
+        To:     public-rdf-dawg@w3.org, Rob Shearer <Rob.Shearer@networkinference.com>
+        cc: 
+        Subject:        disjunction implementation
+
+
+
+I'm a dork. I sent out an optional arcs impelementation. I was supposed
+to send disjunction implementation.
+Fortunately, there are those near me who are willing to point out these 
+things.
+
+The algae code:
+
+package W3C::Rdf::AlgaeCompileTree::UnionDisjunction;
+sub evaluateQTerm {
+    my ($self, $resultSet, $db, $modifier) = @_;
+
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+                 my $row = $e->nextElement;
+                 foreach my $term ($self->{LEFT}, $self->{RIGHT}) {
+                     my $miniResultSet = $row->makeResultSet;
+                     $term->evaluateQTerm($miniResultSet, $db, $modifier);
+                     for (my $miniE = $miniResultSet->elements; 
+$miniE->hasMoreElements;) {
+                                 my $miniRow = $miniE->nextElement;
+                                 my $newRow = $row->duplicate;
+                                 $newRow->assumeNewBindings($miniRow);
+                     }
+                 }
+                 $row->eliminate;
+    }
+}
+
+which, as advertised is really a UNION op.
+
+I also have
+
+package W3C::Rdf::AlgaeCompileTree::UnionDisjunctionMerge;
+sub evaluateQTerm {
+    my ($self, $resultSet, $db, $modifier) = @_;
+
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+                 my $row = $e->nextElement;
+                 my $keepRow = 0;
+                 foreach my $term ($self->{LEFT}, $self->{RIGHT}) {
+                     my $miniResultSet = $row->makeResultSet;
+                     $term->evaluateQTerm($miniResultSet, $db, $modifier);
+                     for (my $miniE = $miniResultSet->elements; 
+$miniE->hasMoreElements;) {
+                                 my $miniRow = $miniE->nextElement;
+                                 if (my $foundRow = 
+$row->getCousinWithBindings($miniRow)) {
+                                     $foundRow->assumeNewProofs($miniRow);
+                                     if ($foundRow == $row) {
+                                                 $keepRow = 1;
+                                     }
+                                 } else {
+                                     my $newRow = $row->duplicate;
+                                     $newRow->assumeNewBindings($miniRow);
+                                 }
+                     }
+                 }
+                 if (!$keepRow) {
+                     $row->eliminate;
+                 }
+    }
+}
+
+which is kind of like sticking a DISTINCT on the result set except the
+proofs get tacked together. This is NOT streamable.
+
+The last form is inspired by Matlab (and SQL, I guess) which provides
+shortcut operators:
+
+package W3C::Rdf::AlgaeCompileTree::ShortcutDisjunction;
+sub evaluateQTerm {
+    my ($self, $resultSet, $db, $modifier) = @_;
+
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+                 my $row = $e->nextElement;
+                 my $empty = 1;
+                 foreach my $term ($self->{LEFT}, $self->{RIGHT}) {
+                     my $miniResultSet = $row->makeResultSet;
+                     $term->evaluateQTerm($miniResultSet, $db, $modifier);
+                     for (my $miniE = $miniResultSet->elements; 
+$miniE->hasMoreElements;) {
+                                 $empty = 0;
+                                 my $miniRow = $miniE->nextElement;
+                                 my $newRow = $row->duplicate;
+                                 $newRow->assumeNewBindings($miniRow);
+                     }
+                     last if (!$empty);
+                 }
+                 $row->eliminate;
+    }
+}
+
+
+TEST CASE:
+
+  ns <http://example.org/n#>
+  assert (
+   A0 p1 B .
+  # A0 p2 C .
+  # A0 p3 D .
+ 
+  # A1 p1 B .
+   A1 p2 C .
+  # A1 p3 D .
+ 
+  # A2 p1 B .
+  # A2 p2 C .
+   A2 p3 D .
+ 
+  # A3 p1 B .
+   A3 p2 C .
+   A3 p3 D )
+ 
+  ask (
+   ( ?n p2 C || ?n p3 D ))
+ 
+  collect (?n)
+
+TEST RUN OUTPUT:
+
+For W3C::Rdf::AlgaeCompileTree::UnionDisjunction:
+
++-------------------------+
+|                        n|
+|-------------------------|
+|<http://example.org/n#A1>|
+|<http://example.org/n#A3>|
+|<http://example.org/n#A3>|
+|<http://example.org/n#A2>|
++-------------------------+
+or with "proofs"
++-------------------------+----------------------------------------------------+
+|                        n|     |
+|-------------------------|----------------------------------------------------|
+|<http://example.org/n#A3>|                                                    |
+|<http://example.org/n#A3> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A1>|                                                    |
+|<http://example.org/n#A1> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A2>|                                                    |
+|<http://example.org/n#A2> <http://example.org/n#p3> <http://example.org/n#D> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A3>|                                                    |
+|<http://example.org/n#A3> <http://example.org/n#p3> <http://example.org/n#D> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
++-------------------------+----------------------------------------------------+
+
+
+For W3C::Rdf::AlgaeCompileTree::UnionDisjunctionMerge:
+
++-------------------------+
+|                        n|
+|-------------------------|
+|<http://example.org/n#A3>|
+|<http://example.org/n#A1>|
+|<http://example.org/n#A2>|
++-------------------------+
+or with "proofs"
++-------------------------+----------------------------------------------------+
+|                        n|     |
+|-------------------------|----------------------------------------------------|
+|<http://example.org/n#A3>|                                                    |
+|<http://example.org/n#A3> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|<http://example.org/n#A3> <http://example.org/n#p3> <http://example.org/n#D> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A1>|                                                    |
+|<http://example.org/n#A1> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A2>|                                                    |
+|<http://example.org/n#A2> <http://example.org/n#p3> <http://example.org/n#D> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
++-------------------------+----------------------------------------------------+
+
+For W3C::Rdf::AlgaeCompileTree::ShortcutDisjunction:
+
++-------------------------+
+|                        n|
+|-------------------------|
+|<http://example.org/n#A1>|
+|<http://example.org/n#A3>|
++-------------------------+
+or with "proofs"
++-------------------------+----------------------------------------------------+
+|                        n|     |
+|-------------------------|----------------------------------------------------|
+|<http://example.org/n#A3>|                                                    |
+|<http://example.org/n#A3> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
+|------------------------------------------------------------------------------|
+|<http://example.org/n#A1>|                                                    |
+|<http://example.org/n#A1> <http://example.org/n#p2> <http://example.org/n#C> .|
+| 
+-->{<file://na/home/eric/sources/public/perl/modules/W3C/Rdf/bin/run.sh>} 
+|
++-------------------------+----------------------------------------------------+
+
+
+Stuff repeated from optional arc impelementation mail follows:
+
+The interface to the result set is:
+for each row
+  for each new solution
+    duplicate the row
+    add the bindings to the new row
+eliminate the original row
+
+
+ala:
+sub evaluateQTerm {
+    for (my $e = $resultSet->elements; $e->hasMoreElements;) {
+                 my $row = $e->nextElement;
+                 for each solution
+                     my $newRow = $row->duplicate;
+                     $newRow->assumeNewBindings(solution);
+                 }
+                 $row->eliminate;
+    }
+}
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

@@ -1,0 +1,98 @@
+docno="lists-009-9389846"
+received="Tue Aug 29 15:48:14 1995"
+isoreceived="19950829194814"
+sent="Tue, 29 Aug 95 15:47:14 PDT"
+isosent="19950829224714"
+name="Paul Leach"
+email="paulle@microsoft.com"
+subject="RE: questions &ndash;&ndash; clarifications requested"
+id="9508292336.AA15126@netmail2.microsoft.com"
+inreplyto="questions &ndash;&ndash; clarifications requested"
+expires="1"
+
+
+To:sjk@amazon.com
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+----------
+] From: Shel Kaphan  <sjk@amazon.com>
+] To: Paul Leach
+] Subject: questions -- clarifications requested
+] Date: Tuesday, August 29, 1995 10:25AM
+]
+] Paul Leach writes:
+] ...
+]  >
+]  > 9. Is the Expires entity-header field ever returned from POST, PUT,
+]  > DELETE, LINK or UNLINK methods? (These are never cached, and the
+]  > description implies of Expires implies it is only used for caching 
+purposes.)
+]  >
+] ...
+]
+] The *results* of these operations can be cached.  The expires header
+] is appropriate.  Requests for these methods must go all the way
+] through to the origin server, and cannot be served from a cache
+] themselves.  The results can be identified with the Location header in
+] such a way that a subsequent GET or HEAD can retrieve *its* results
+] from the cached resource left in the cache by the POST, PUT, etc.
+
+This wasn't the answer I was expecting, so let me explain why I asked 
+the question.
+
+This answer seems inconsistent with the description of the nature of 
+the entity-bodies returned from PUT, DELETE, LINK, UNLINK:
+
+(Sec. 6.2.2) "an entity describing the result of the action"
+
+From this I concluded that it *isn't* the content associated with the 
+URI, so that a subsequent GET shouldn't return the _entity_ returned 
+from these methods. The entity-headers are associated with the resource 
+named by the URI, so they could be cached (or the entity-headers 
+associated with an already cached copy updated). This won't do much 
+good if the entity itself isn't cached, though, as the next GET will 
+still miss and force a trip to the origin server.
+
+In the case of DELETE, it would seem logical that any cached info 
+should be purged if the request succeeds :-)
+
+In the case of PUT, any previous cached copy would be invalid, so an 
+Expires: for the new copy isn't very interesting. And since there's no 
+guarantee that a subsequent GET will retrieve what the PUT just wrote 
+(at least, I don't recall seeing one on the spec), the entity-body that 
+was in the PUT request can't be cached to service subsequent GETs. 
+(Adding an indication, in HTTP 1.2, to the response to say that a GET 
+of what was just PUT will return the same thing might be a nice 
+idea...) So, for now, it seems like a PUT should also cause any cached 
+copy to be deleted.
+
+In the case of LINK and UNLINK, if the cache already contained an 
+unexpired copy of the entity referred to by the URI, then it is 
+plausible it could update the Expires (and other meta-data) on that 
+copy if the Last-Modified indicated by the respose hasn't changed.
+
+IMHO, this complexity isn't worth it.  Just say that Expires isn't 
+allowed in responses from PUT, DELETE, LINK, and UNLINK.
+
+For POST, the situation is more complex, since it says that the entity 
+returned is
+"an entity describing or containing the result of the action"
+If there were a way to determine that it contained the result of the 
+action, and some guarantee that a subsequent GET (of the URI specified 
+by the Location header in the response) would fetch this entity, then 
+your argument would hold. However, since neither of the predicates are 
+true, it seems that the conclusion doesn't follow.
+
+So, that's why I posited that Expires shouldn't be returned from POST, 
+PUT, DELETE, LINK, and UNLINK.
+
+And, having thought about it to respond to Shel, I also conclude that 
+POST, PUT, and DELETE should be specified to delete any cached copies 
+(if successful), and that the results from all these methods should 
+*not* be cached.
+
+Paul
+
+
+

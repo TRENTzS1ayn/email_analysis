@@ -1,0 +1,91 @@
+docno="lists-100-14391176"
+received="Thu Aug 23 12:19:24 2001"
+isoreceived="20010823161924"
+sent="Thu, 23 Aug 2001 11:19:17 -0500"
+isosent="20010823161917"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: New EE variants of NoModificationAllowed.xml's, most tests now option safe"
+id="002101c12bef$5bd4b7d0$a800a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="009d01c12be4$a062c550$293b0681&#64;HAPPY"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+
+Mary Brady wrote:
+>Didn't you have an element that could identify conditions under which the
+test should be
+>run?
+
+Yes, if you place an <implementationAttribute name="enumdProperty"
+value="true/false"/> immediately after the <metadata/> element, then the
+test will attempt to change the document builder used for the test to be
+compatible or will throw an exception in the test constructor and not be
+reported as either a pass or a failure.
+
+>How about if we make the harness smart enough to accept as input test
+>conditions, and only run the tests that are available for those conditions
+instead of
+>running through the tests twice?
+
+The reason the tests are run twice, each with a difference set of
+conditions, is that the implementation could have, for example, dorked
+something with namespace processing and would pass all the tests with, for
+example, namespaceAware=false and fail some with namespaceAware=true, even
+though none of the tests should need to change their expectations due to
+namespace awareness.  Same goes for validation.  Since you would expect that
+it would be rare for a bugs to be dependent on two parser configuration
+attributes (for example, only occurs when namespaceAware=false and
+validation=true), two runs should be sufficient and you don't need to run
+all the permutations.
+
+The two run behavior is not in the tests (that is dom1-core.jar), but in the
+runners (junit-run.jar and avalon-run.jar).
+
+> It seems as though I remember some other implementations
+> that had somewhat different variants of whitespace -- in some cases,
+comments and
+> "normal" whitespace were stripped, in others, only "normal" whitespace was
+> stripped.  Given that these options are not well-defined, we could let the
+implementor
+> using the tests provide the proper info.
+
+The meanings of the various properties have to have well defined meanings
+since the set the expectations between the test and the processor.  However,
+there is no obligation for the an implementation to support any of the
+properties, if it refuses to provide an implementation with validation =
+true or ignoringElementContentWhitespace = true, the tests that required
+those properties do not run.
+
+ignoringElementContentWhitespace is the behavior described in JAXP 1.1.  If
+the source document has a DTD, MSXML's whitespace processing is compatible.
+So for the tests currently written, we would not need to distinguish between
+the two.
+
+If an implementations' whitespace elimination mode removes comments, then if
+their implementation is JAXP compatible, they should throw an exception when
+it is attempted to create a DocumentBuilder with
+ignoringElementContentWhitespace = true.  If it is in another platform or
+language, they have control on what configurations are tested and they just
+don't test that configuration.
+
+At least, it is essential to detect and compensate for
+expandEntityReferences since the DOM specs explicitly allows entity
+expansion.  Testing the Java parsers in both modes increases confidence in
+the tests since the pool of parsers that do not support entity preservation
+is pretty small, but non-zero (Xerces-C is an example).
+
+Ignoring whitespace is a very common option and if I remember right, Batik
+and maybe Adobe's SVG Viewer, are hardwired to remove whitespace in element
+content.
+
+On a related note, MSXML and Oracle's Java parser represent the XML
+declaration as a processing instruction.  I don't know if any of the current
+tests are affected by that (earlier test suites were), but if they are, I
+would suggest addressing it by pruning the XML "PI" before returning from
+the load() method
+
+
+

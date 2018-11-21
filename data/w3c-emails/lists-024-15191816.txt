@@ -1,0 +1,167 @@
+docno="lists-024-15191816"
+received="Wed Apr  2 17:04:34 2003"
+isoreceived="20030402220434"
+sent="Wed, 2 Apr 2003 14:04:19 -0800"
+isosent="20030402220419"
+name="Patil, Sanjaykumar"
+email="sanjay.patil@iona.com"
+subject="RE: Progressive Concreteness of Choreography binding"
+id="EA3ECEFACBE7674789ADE4D9E3ABB6B03E1967@AMERWEST-EMS1.IONAGLOBAL.COM"
+charset="iso-8859-1"
+inreplyto="Progressive Concreteness of Choreography binding"
+expires="-1"
+
+
+To:"Ricky Ho"<riho@cisco.com>,<public-ws-chor@w3.org>
+
+
+
+This is good. With the example, we can now make the abstract discussion more concrete :-)
+
+Questions:
+a> Do we need message definitions in the choreography? Wouldn't message properties be sufficient?
+b> Is our model to define the choreography with POHandlingProcess at the center of the universe? Based on whether we define it as a collaboration or as individual role's process, the language will change. 
+   For example, if we were to follow a collaboration model, the first statement in the Process construct will be something like 'Partner "seller" to receive "PO" from partner "purchaser"' instead of 'receive "PO" from partner "purchaser"'
+c> What is the purpose of "Message binding" in the Implementation Binding? Perhaps this is related to question a> above. Wouldn't Message Property binding be sufficient?
+d> Assuming that there is an individual Implementation Binding for each role involved in the shared collaboration, the Partner binding can be to identify the choreography interface of each partner. The choreography interface of "mySelf" may not be needed as it becomes part of the other roles' implementation binding.
+
+Thoughts??
+
+Sanjay Patil
+Distinguished Engineer
+sanjay.patil@iona.com
+-------------------------------------------------------
+IONA Technologies
+2350 Mission College Blvd. Suite 650
+Santa Clara, CA 95054
+Tel: (408) 350 9619
+Fax: (408) 350 9501
+-------------------------------------------------------
+Making Software Work Together TM
+
+
+-----Original Message-----
+From: Ricky Ho [mailto:riho@cisco.com]
+Sent: Wednesday, April 02, 2003 1:07 PM
+To: public-ws-chor@w3.org
+Subject: Progressive Concreteness of Choreography binding
+
+
+
+Continuing our discussion of "abstract message".  I want to show an how we 
+can start with a very abstract definition at the choreography and 
+progressively add concrete binding to that.
+
+Lets define a orchestration flow that is independent of message type and 
+only have the message properties concept.
+
+ABSTRACT PROCESS
+===================
+At the very beginning, the process declares the "NAMES" of all messages 
+that it may send or receive.  It also declares the "NAMES" and "TYPES" of 
+message properties, but it doesn't say how the message properties is 
+extracted from the message.
+
+Within the process flow, it uses only the named "message" and "message 
+properties".
+
+
+Orchestration POHandlingProcess {
+Partner declaration {
+purchaser;
+creditCheckProvider;
+}
+
+Message declaration { // all are "typeless"
+PO;
+POConfirmation;
+PORejection;
+CreditCheckRequest;
+CreditCheckResponse;
+}
+
+Message Property declaration { // all are "typed"
+float PO.dollarAmount
+Customer PO.cust
+Customer CreditCheckRequest.cust
+int CreditCheckResponse.rating
+}
+
+Process {
+receive "PO" from partner "purchaser"
+if ("PO.dollarAmount" > 100K) {
+assign "PO.cust" to "CreditCheckRequest.cust";
+send "CreditCheckRequest" to partner "creditCheckProvider";
+receive "CreditCheckResponse" from partner "creditCheckProvider";
+if ("CreditCheckResponse.rating" > 3) {
+send "POConfirmation" to partner "purchaser"
+} else {
+send "PORejection" to partner "purchaser"
+}
+}
+send "POConfirmation" to partner "purchaser"
+}
+}
+
+
+IMPLEMENTATION BINDING
+======================
+The WSDL implementation binding basically map the partner into a particular 
+WSDL PortType.  Then it maps each named message (defined in abstract 
+process) into the WSDL PortType/Operation/Part (can be either the request 
+or the response).  Finally, it defines the message properties in terms of 
+XPATH which extract the data from the corresponding message.
+
+
+Implementation Binding for "POHandlingProcess" {
+Partner binding {
+mySelf --> PortType POHandlingPT  // contains a one-way "submitPO" operation
+purchaser --> PortType POCallbackPT // contains 2 one-way "confirmPO", 
+"rejectPO" operations
+creditCheckProvider --> CreditCheckPT // contains a request/reply "check" 
+operation
+}
+
+Message binding {
+PO --> From request of (PortType = "POHandlingPT", Operation = 
+"submitPO", Part="po")
+POConfirmation --> To request of (PortType = "POCallbackPT", Operation = 
+"confirmPO", Part="poConfirmation");
+PORejection --> To request of (PortType = "POCallbackPT", Operation = 
+"rejectPO", Part="poRejection");
+CreditCheckRequest --> To request of (PortType = "CreditCheckPT", 
+Operation = "check", Part="customerInfo");
+CreditCheckResponse --> From response of (PortType = "CreditCheckPT", 
+Operation = "check", Part="Return");
+}
+
+Message Property binding {
+PO.dollarAmount = XPATH(//totalAmount/@amount);
+Customer PO.cust = XPATH(//customer);
+Customer CreditCheckRequest.cust = XPATH(//customer);
+int CreditCheckResponse.rating = XPATH("//rank");
+}
+}
+
+
+PROTOCOL (ON-THE-WIRE-MESSAGE) BINDING
+======================================
+This binding defines how the abstract message defined in WSDL is serialized 
+on the wire, such as which parts goes to SOAP header and which goes to SOAP 
+body.
+WSDL binding covers this.
+
+
+ADDRESS BINDING
+================
+For dynamic address resolution, this defines the service provider endpoint 
+resolution mechanism.  For static address resolution, this defines the 
+actual service endpoint location.
+
+
+Rgds,
+
+Ricky
+
+
+

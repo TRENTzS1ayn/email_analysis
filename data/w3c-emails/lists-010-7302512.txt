@@ -1,0 +1,133 @@
+docno="lists-010-7302512"
+received="Tue Aug 13 18:41:36 1996"
+isoreceived="19960813224136"
+sent="Tue, 13 Aug 96 16:22:55 MDT"
+isosent="19960813222255"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Entity Tags"
+id="9608132322.AA11273@acetes.pa.dec.com"
+inreplyto="2.2.32.19960813215412.00b29cc0&#64;rafiki.spyglass.com"
+expires="1"
+
+
+To: Daniel DuBois<dan@spyglass.com>
+Cc: cuckoo.hpl.hp.com@http-wg.uucp,swingard@spyglass.com
+
+    Initially, I felt a hash of {the full pathname (to distinguish
+    variants), the size of the file, and the OS-reported
+    last-modification time} would be sufficient to be a strong
+    validator.  But, technically, that doesn't guarantee that a file
+    that has changed twice in the same second has a different ETag
+    value, which the spec says is a must.
+
+    So now I have a dilemma.  On NT, I might have an easy solution, as
+    supposedly FILETIMES are stored as 100-nanosecond intervals.  On
+    UNIX do I have to use a W/ weak validator?  I'm strongly concerned
+    that every time someone aborts a GIF download, and returns to the
+    containing page, smart browsers of the future will be using
+    If-Match with Range GET's, and the Spyglass Server will be left out
+    in the cold with its wimpy weak validators.
+
+First of all, on many UNIX systems, the file modification time
+actually has sub-second resolution.  Here's a little test program:
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    main(int argc, char **argv) {
+    struct stat statbuf; static char buf[1000];
+    sprintf(buf, "cat a.out > %s", argv[1]);
+    system(buf);
+    stat(argv[1], &statbuf);
+    printf("%d.%06d\n", statbuf.st_mtime, statbuf.st_spare2);
+    system(buf);
+    stat(argv[1], &statbuf);
+    printf("%d.%06d\n", statbuf.st_mtime, statbuf.st_spare2);
+    }
+If I compile this (as a.out) and run it on either ULTRIX or Digital
+UNIX, I get results like:
+% a.out foo
+839976508.783384
+839976508.904470
+%
+i.e., the st_spare2 field is really the tv_usec part of the file
+modification date.
+
+Now, I'll immediately admit that this is not true for all UNIX
+variants.  For example, the version of the 4.4BSD code that someone
+left here a few years ago explicitly sets the st_spare2 field to zero.
+And even on DEC's UNIX systems, the resolution of this field is
+actually one clock tick (1 msec on Digital UNIX, 4 msec on ULTRIX)
+and so it is not 100% proof against collisions.  But it's pretty
+hard to update a file, hand out a copy via the HTTP server, and
+update it again all in the space of 1 msec - our best SPECweb96
+results so far show only 809 ops/sec.
+
+I'm not a POSIX expert, so I don't know if the POSIX spec for
+stat() says anything about st_spare2.  Perhaps people blessed
+with UNIX systems from other major vendors, or other POSIX-compliant
+systems, can run my little test program and report what they find.
+(Please, not all at once!)
+
+More to the point, the requirement in the HTTP/1.1 spec for strong
+validators does not preclude the use of 1-second timestamp resolutions
+under the appropriate conditions.  For example, if your server is
+integrated with some sort of authoring tool that simply delays its
+update if the new version is being written within a second of the
+old version, then you can make the appropriate guarantee.  The
+guarantee is not based solely on the resolution of the timestamp;
+it's based on what the server knows about how the timestamp has been
+used.
+
+Even more useful, probably, is the fact that a file modification
+timestamp T of any resolution R is only "weak" during the
+period R+|E| after the file has been modified, where E is a bound
+on clock skew.  To make this more specific, suppose that you know that
+(1) file F was modified at time T
+(2) the timestamp T has a resolution of R seconds
+(3) the clock used to generate the timestamp T is at most E
+seconds away from the clock used by the server to find out
+the current time.
+
+Then, between time T and time T+R+|E|, you would have to generate
+an entity tag of the form
+W/"encoding-of-T"
+but after time T+R+|E|, you could generate an entity tag of the form
+"encoding-of-T"
+because you are now sure that you have not given out that tag for
+a previous version of the resource.
+
+[The slight rub here is that the server might have to lock the file
+against modification between the time that it reads the timestamp
+and the time that it finishes reading the data, so that these two
+values are effectively read in one atomic operation.  But this might
+be necessary in any case, to avoid sending out a chimera with
+pieces from two versions of the file.]
+
+The rules in section 13.3 state that these two entity tags cannot
+be treated as equal.  This prevents any errors on GETs, and if a
+client does a conditional PUT using an entity tag, we've already
+insisted that this only be done with non-weak tags.
+
+The downside of this weak-and-then-strong approach is that if the file
+is changing rapidly *and* is being given out more frequently than it
+changes, then one may miss a lot of opportunity for optimizing If-Match
+and Range GETs.  But then this is an incentive to use an operating
+system that minimizes T, and a system design that minimizes E, or makes
+E = 0 (e.g., don't have the server read its files via NFS unless you
+also use NTP).
+
+    I would think with our file-based web server, numerous changes per
+    second aren't as much of an issue as a database back-end that was
+    generating content dynamically.  I'm thinking that said dynamic
+    application was the focus and intent of the restrictions on the
+    strong validators, so maybe I can slide by?
+
+I think it's not that difficult to abide by the rules even for
+file-based servers.  And it would be sad if we discovered after a while
+that we can't safely do conditional Range GETs, for example, because
+server implementors didn't take this seriously enough.
+
+-Jeff
+
+
+

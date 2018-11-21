@@ -1,0 +1,130 @@
+docno="lists-038-7963220"
+received="Thu Jul 16 23:44:11 1998"
+isoreceived="19980717034411"
+sent="Thu, 16 Jul 1998 20:43:29 -0700"
+isosent="19980717034329"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: Locking questions"
+id="004701bdb135$0fa81a60$d115c380@galileo.ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="5040100020405190000002L002*&#64;MHS"
+expires="-1"
+
+To: Jim Amsden<jamsden@us.ibm.com>,w3c-dist-auth@w3.org
+
+
+
+Jim Amsden writes:
+> Sure, I'll take a T-shirt - large. But, I don't think we're out
+> of the woods yet. There are still a couple of problems. First,
+> as you already noted, there is no way for an application that
+> has "lost" a lock token to use a lockdiscovery property to get
+> it back. Using the owner element hack is a work-around, but
+> would result in non-standard servers. Another is for the
+> application to just try each lock token until it finds one that
+> works. Pretty ugly. This really limits the usefulness of
+> lockdiscovery too.
+
+So what you suggest is an operation which returns, for a given resource, all
+lock tokens for locks owned by the principal making the request.  This is
+different from lockdiscovery, since lockdiscovery gives you all lock tokens
+owned by all principals.
+
+I'm not yet convinced that requiring applications to persistently store lock
+tokens is a bad idea, and if they get sufficiently confused to lose their
+persistently stored lock tokens, then the brute force mechanism of trying
+each one in turn doesn't seem that bad for an infrequent error recovery
+situation (i.e., losing the persistently stored lock token for a shared lock
+in which there were more than one principal actively locking the resource).
+
+If such a feature is needed (I'm not yet convinced), then a "LOCKINFO"
+method could potentially solve this dilemma.  The semantics would be to
+return the lock tokens (in suitable XML packaging) for all locks owned by
+the principal who made the request.
+
+> Worse than this though is that locking on the server can't work
+> for the same reason. Say a principal submits a PUT request on a
+> locked resource. The If header contains a precondition containing
+> the appropriate lock token for the locked resource. However, the
+> server can't determine if the requesting principal owns the given
+> lock token! This is because the server can't lookup the lock using
+> a lockdiscovery since it's activelock elements don't contain the
+> principal.
+
+This is true iff the server only stores the same information as is contained
+in the activelock element.  However, as you adroitly point out, a server
+which only stores this information will be unable to validate a principal
+against a lock token.
+
+> So there is no way for the server to determine if the
+> resource is locked by the requesting user. If you leave out the
+> principal and don't match on it in the server, then any application
+> could get any lock token it wanted out of the lockdiscovery property
+> and modify anything. Servers could of course use some other mechanism
+> to attach principals to lock tokens, but this re-introduces the same
+> authorization id problem that DAV was trying to avoid.
+
+It's much easier to implement a single server, where you can set
+authentication policies, than writing an interoperability specification like
+WebDAV which has to accomodate many different policies.
+
+So, I can easily imagine a server which has an internal notion of principal
+(each principal having an associated id), and which maps these principal ids
+to basic (via SSL) and digest authentication credentials.  This server would
+then persistently store the principal identifier with each lock token owned
+by that principal.  This mapping of principal id to lock token would be
+internal to the server, and would not be exposed via the lockdiscovery
+mechanism (since there is still no standard, interoperable way of
+identifying principals in DAV).  But, when the principal submits a lock
+token with either basic (via SSL) or digest auth credentials, the server
+*does* have sufficient information to map the auth credentials to the
+internal principal identifier, and the server can verify that the
+authenticated principal does, in fact, own a given lock token.
+
+> It would also fragment lock information producing poor encapsulation in
+> implementations. In addition, DAV wouldn't have proper "closure"
+> in that it wouldn't save information it requires to meet its own
+semantics.
+
+These assertions need more backup before I'll accept them.
+
+> It all boils down to you can't have principal based locking without the
+> principal. I suggest DAV use the userid from the Basic or Digest
+> scheme and that all methods requiring access permission (e.g., any method
+> that updates a locked resource in this version of DAV) submit an
+Authorization
+> header.
+
+This is how the Web works today, as specified by RFC 2068.  If you're trying
+to modify a resource and it's not world-readable, you'll be asked (via a 401
+Unauthorized response with a WWW-Authenticate header) to submit
+authentication credentials.  This is capability that WebDAV inherits from
+HTTP.
+
+> When ACLs are introduced, there will have to be some upward-compatible way
+to
+> identify a principal. The reason for using the userid instead of the whole
+> authorization header is to avoid the particularities of the authorization
+> schemes. It is highly likely that any ACL, authorization, or
+> locking scheme will have to identify principals as that's kind of the
+point.
+
+This will indeed be a challenge.
+
+> Another suggestion: LOCK should return an activelock elmement, not a
+> lockdiscovery. 99.99% of the time, its the lock token just granted the
+> application needs, and if more information is needed, use
+> PROPFIND to get the
+> lockdiscovery. This simplifies client applications significantly.
+
+In my mind, I envisioned a function which takes an lockdiscovery XML subtree
+and outputs a list of filled-in lock objects.  This routine is reusable
+everywhere a lockdiscovery is returned.  If this routine must be written
+once for receiving a lockdiscovery, I don't see why it adds complexity to
+reuse it for LOCK responses.
+
+- Jim
+
+
+

@@ -1,0 +1,168 @@
+docno="lists-064-14822510"
+received="Wed Apr 24 12:46:12 2002"
+isoreceived="20020424164612"
+sent="Wed, 24 Apr 2002 17:23:31 +0100"
+isosent="20020424162331"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Re-Evaluating EARL"
+id="026601c1ebac$63537280$cfba0150@localhost"
+charset="utf-8"
+expires="-1"
+
+
+To:<w3c-wai-er-ig@w3.org>
+
+Well, re-evaluating bits of it, anyway. These are just some notes - read
+with a pinch of salt [1].
+
+* EARL Test Cases as Classes
+
+I've already noted in the test schema thingy that evaluating something for
+passing a test is very much like testing for class membership. For example,
+instead of saying that { :MyPage earl:passes :WCAGComplianceTest }, we can
+just say { :MyPage rdf:type :WCAGCompliant }. The problem with that is that
+there is no innate RDF machinery for expressing various confidences of the
+type arc, which is something that we need.
+
+OTOH, having some kind of general mechanism for confidences and typing
+would benefit applications external to EARL, so it may be worth just
+changing a few properties around to make the mechanism less evaluation
+specific.
+
+The good thing about using a "kind of" type arc is that to make Al's test
+domain thing clearer, all you do is make the test class a sub class of some
+"this is what's being evaluated" class: e.g. { :WCAGCompliant
+rdfs:subClassOf earl:WebContent }.
+
+What that does raise though is the issue of someone being 70% sure that
+something is WCAGCompliant: surely they don't mean that it's also got a 70%
+chance of being a document? Hmm... no, because I guess you're talking about
+sticking the tail on the donkey in the class diagrams. If you miss the
+WCAGCompliant class, you might still hit WebContent, so the confidence only
+applies for the exact class which is the object of the confidence/type
+combination.
+
+<WackierStuff>
+
+* Dark Triples
+
+Taking a walk on the wild side, perhaps the best way to encode a dark
+triple statement set (analogous to a formula in N3) would be to encode some
+XML RDF as a canonicalized literal, and then use a property linking the RDF
+to the set of triples that you get from parsing it. The SWAP stuff has
+log:n3ExprFor, so something like :rdfExprFor would be suitable. Here's an
+example of what this would be like:-
+
+<rdf:RDF xmlns="http://www.w3.org/2001/03/earl/test#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description>
+   <assertedBy rdf:resource="#Sean"/>
+   <rdfExprFor rdf:parseType="Literal">
+     <rdf:RDF xmlns="http://www.w3.org/2001/03/earl/test#"
+       xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+       <rdf:Description>
+        <rdf:type rdf:resource="#WCAGCompliantDocument"/>
+        <reprOf rdf:resource="http://www.w3.org/"/>
+        <date>2002-04-17</date>
+       </rdf:Description>
+     </rdf:RDF>
+    </rdfExprFor>
+</rdf:Description>
+</rdf:RDF>
+
+Try running it through the W3C's RDF Validator:-
+
+   http://www.w3.org/RDF/Validator/
+
+It's a fairly simple model. Actually, it is reminiscent of DanBri's
+reification by hyperdata thing, although here we're pickling another RDF
+document within our primary one. And hey: no reification properties (but a
+big datatypes conundrum).
+
+But that's if dark triples are even required in EARL. I tend to think of
+EARL as a very loose specification - more like a set of guidelines for
+encoding evaluation data in RDF as coherantly as possible. So we can
+outline the advantages and disadvantages of reifying vs. dark tripling, and
+then let people decide what makes more sense for their application (if we
+find that both are accptable to some extent).
+
+* Changes...
+
+With every coming second, something new is realised or proposed for EARL -
+natural since all languages evolve, and the ones that don't are usually the
+worse for it. We've normally held this to be a bad thing - how can one
+implement to a language when it changes every five seconds? - but since
+there aren't a great deal of implementations yet, that's not such a
+pressing problem. OTOH, the best things to have come out of EARL so far
+are, IMO, the spin off discussions about identifying content, coming up
+with confidence metrics (and all the other metrics), and discussing the
+best way towards coherant and usable (i.e. queryable) data structures.
+
+In fact, EARL is remarkably stable, with the only changes being on the
+picky vocabulary level (up until this dark triples stuff), so that's good.
+Even properties like earl:assertedBy aren't much of a change, with that
+particular example being a simple inverse of earl:asserts.
+
+* Anonymous validity properties
+
+I thought that one way to force implementations to recognize validity
+property extensions would be to make all validity properties anonymous.
+However, that'd be enforcable only in prose, and would make for M&S-esque
+style restrictions. (zing).
+
+</WackierStuff>
+
+* TestCase ID/Suite
+
+When working on the RDF XAG-compliance stuff, I noted that suite could be
+deprecated, and earl:id could be made a transitive property, simplifying
+the model. Also, earl:level and earl:testCriteria would become fairly
+redundant. This means that you can declare stuff like:-
+
+:WCAG earl:id :WCAGA, :WCAGAA .
+:WCAGA earl:id :WCAG1_1, :WCAG1_2, WCAG1_3 .
+:WCAGAA earl:id :WCAG3_1, :WCAG3_2 .
+
+[ earl:assertedBy :Sean;
+  rdf:subject :MyOtherPage;
+  rdf:predicate earl:passes;
+  rdf:object :WCAG ] .
+
+and with the knowledge:-
+
+earl:id a daml:TransitiveProperty .
+{ :p a daml:TransitiveProperty . :x :p :y . :y :p :z }
+  log:implies { :x :p :z } .
+
+infer:-
+
+:WCAG earl:id :WCAGA, :WCAGAA,
+   :WCAG1_1, :WCAG1_2, WCAG1_3,
+   :WCAG3_1, :WCAG3_2 .
+
+Actually, this loops back to the dark triples stuff again: if the triples
+in the earl:Assertion{ [ earl:assertedBy :Sean; rdf:subject :MyOtherPage;
+rdf:predicate earl:passes; rdf:object :WCAG ] } were dark, you couldn't
+substitute in the inferred stuff above. That is, you couldn't put that
+information into the formula that I'd be asserting, but you'd still have it
+in the root formula. Hmm...
+
+Note also that a different mechanism for earl:excludes should be found.
+It's a bit odd to say "believe this to be true unless there's some
+information to the contrary", which is effectively what EARL 0.95 does with
+earl:id and earl:excludes. You have to have earl:includes/earl:excludes
+pairs or something, although tests with CWM's log:notIncludes don't produce
+quite the intended results, so it's difficult to ground in terms of
+implementations.
+
+[1] That'd be some highly evolved salt.
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://purl.org/net/swn#> .
+:Sean :homepage <http://purl.org/net/sbp/> .
+
+
+

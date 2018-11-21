@@ -1,0 +1,132 @@
+docno="lists-038-15557204"
+received="Wed Dec 23 19:30:10 1998"
+isoreceived="19981224003010"
+sent="Wed, 23 Dec 1998 16:30:06 -0800"
+isosent="19981224003006"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Ramifications of WebDAV's property design decisions"
+id="3FF8121C9B6DD111812100805F31FC0D08792BEE@RED-MSG-59"
+expires="-1"
+
+
+To:"'Slein, Judith A'"<JSlein@crt.xerox.com>,"Masinter, Larry<masinter@parc.xerox.com>"<masinter@parc.xerox.com>, Jim Davis<jdavis@parc.xerox.com>,w3c-dist-auth@w3.org
+
+<Introduction>
+This e-mail investigates the ramifications of WebDAV's property design
+choices. I will be putting out a separate e-mail which will discuss how we
+ended up with this design and what we can do to help future groups avoid the
+same fate.
+</Introduction>
+
+<Design Principals>
+The essential error WebDAV made was in allowing for the existence of live
+properties. As is being discovered, live properties cover a lot of ground.
+From properties that seem natural and obvious, such as getcontentlength, to
+protocol related information hammered into the property mechanism, such as
+the lockdiscovery property.
+
+But both are in WebDAV because of performance issues in HTTP. Those are the
+issues I discuss in my second e-mail. Until those issues are resolved we
+will have to deal with the design problems I discuss below.
+
+As a side note, one can argue that both properties should be available so
+that DASL can search them. There is no requirement that DASL limit its
+search scope to just properties. DASL is free to search on any aspect of a
+resource, not all of them expressed through properties.
+</Design Principals>
+
+<POST>
+The first error is the use of side effects from setting a property's value
+as a mechanism to alter the state of a resource. This error was avoided in
+the WebDAV protocol but I fully expect many people will find the siren call
+of sneaking in some functionality through PROPPATCH too hard to resist.
+
+HTTP already provides a mechanism for causing state changes in a resource,
+it is called a method. Using property side effects is really nothing more
+than tunneling a state change request through a PROPPATCH. There is no
+difference between this and tunneling through HTTP using the POST method.
+Both essentially require that a new protocol be invented and thus rob the
+user of that new protocol of the features and infrastructure already built
+into HTTP.
+</POST>
+
+<Severability>
+Some claim they can avoid the first error by only using properties to
+provide read-only functional data. This is the error that WebDAV made.
+However, HTTP already provides a mechanism to interrogate a resource, as
+before, it is called a method. By overloading properties with read-only
+functional data we kill functional severability in the server.
+
+For example, one may want to purchase PROPFIND/PROPPATCH support for one's
+store from Vendor A and LOCK support for the same store from Vendor B.
+WebDAV's design makes this purchase decision almost impossible. Vendor A and
+B must have some agreement with each other so that someone performing Vendor
+A's PROPFIND can obtain the lockdiscovery property in order to use Vendor
+B's LOCK implementation. Because both implementations were written to work
+with the same store, there should be no reason for them to have to interact
+at the protocol level. It is the store that enforces locks, the LOCK
+implementation just exposes the store's features. But because WebDAV made
+the design mistake of mixing functional data into properties, this
+severability isn't possible.
+
+The unfortunate ramifications of our bad design choice is that there will
+probably have to be some sort of standard (unofficial or otherwise) to allow
+"hooking in" to PROPFIND/PROPPATCH support by server extensions. I don't
+even want to think of the performance ramifications.
+</Severability>
+
+<Is it live or is it Memorex?>
+A third abuse of the system, one WebDAV managed to avoid, is interpreting
+the existence of a property as functional data. Imagine, for example, that
+one retrieved a lockdiscovery property from a resource and therefore assumed
+that the resource supported locking. What if that resource is really just
+level 1 compliant and the lockdiscovery property is there because of a COPY
+or is there because of a buggy client? Without the server standing guard any
+insane client could come up and set that property. The lesson is that one
+must always proactively check that a property is live. In the case of the
+lockdiscovery property this is achieved by performing OPTIONS and checking
+for the DAV header. If it contains a 2 then one knows that dav:lockdiscovery
+property is live.
+
+I know that some have suggested that we have an explicit mechanism to
+determine if a particular property is live. While I can imagine that DASL
+might have some interest in such a feature, I think for general usage it is
+inappropriate. As the WebDAV design principal "It is required or it is not
+in the spec" indicates, clients do not look for functionality piece meal.
+They aren't going to go to a server and ask "Are creationdate, displayname,
+getcontentlanguage, getcontentlength, getcontenttype, getetag,
+getlastmodified, resourcetype and source all live on your server?" They are
+going to ask for the DAV header.
+</Is it live or is it Memorex?>
+
+<schemas>
+There is one last feature that one could claim gives legitimacy to live
+properties, this is schema enforcement. LDAP is the canonical example, it
+provides a mechanism to say things like "This property must be an integer"
+or "If this property is defined then so must this property be defined."
+
+The working group has looked at this issue in the past and wisely choose to
+ignore it until the WebDAV standard had settled down a bit. I think there is
+an excellent argument to be made for schema support in WebDAV. The reason
+being that this feature does not require a server to understand or enforce
+the "meaning" of a property, as functional properties often require. Rather
+the server is only required to blindly enforce a set of well defined
+syntactic rules. Such an enforcement mechanism can act in complete
+isolation, thus not violating the rule of severability.
+</schemas>
+
+<Conclusion>
+The easy conclusion is to declare that live properties are just bad design
+and to ban them. But there are very serious problems in the HTTP protocol
+which lead to WebDAV's property design. Until these issues are addressed we
+can not realistically demand that people cease from this bad design
+practice.
+
+I look forward to the day when these HTTP issues are resolved, alternative
+mechanisms are provided for the functional data now in WebDAV and we declare
+DAV's properties to be officially deprecated.
+</Conclusion>
+
+
+

@@ -1,0 +1,181 @@
+docno="lists-005-12924445"
+received="Mon Nov 20 22:39:55 2000"
+isoreceived="20001121033955"
+sent="Mon, 20 Nov 2000 19:41:05 -0800"
+isosent="20001121034105"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: Working collections"
+id="20001120194105.C21426@lyra.org"
+charset="us-ascii"
+inreplyto="200011190411.XAA17774&#64;tantalum.atria.com"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+On Sat, Nov 18, 2000 at 11:11:07PM -0500, Geoffrey M. Clemm wrote:
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    Why would a checked-out version selector (of a member or a collection) ever
+>    be any different from a working resource? What would be the justification
+>    for such a difference?
+> 
+> A checked-out (non-collection) version selector is very similar to
+> a (non-collection) working resource.  The main difference is that 
+> the working resource is deleted when it is checked in, while the
+> version selector is not.  
+> 
+> For collection version selectors, the model is relatively simple ...
+> a collection version selector has as members other version selectors
+> (possibly other collection version selectors), as well as non-versioned
+> members.  So a collection version selector is the root of a tree of
+> version selectors (and possibly non-versioned resources).
+
+Agreed/understood on both paragraphs.
+
+> In contrast, it sounds like you want a collection working resource
+> (aka a "working collection") to not be a tree, which would make a
+> working collection very different from a checked out collection
+> version selector.
+
+Right!
+
+Per my "operational model" note, the SVN client will never attempt to deal
+with any resources under the working collection, so I don't want to worry
+about making them present.
+
+[ since we've defined DELETE of a collection member as an operation on the
+  collection, the above statement still holds for "not dealing" with
+  collection member resources; I just mildly refer to it :-) ]
+
+>    Doing a check-out in place does not work well for me. I want to construct an
+>    activity, check out a bunch of things w.r.t. that activity, make the
+>    changes, then merge the activity in one fell swoop. That model works great,
+>    and I don't see any incentive/benefit to using a different model.
+>    [ I will admit to not reading the latest incarnation of workspaces, but it
+>      still seems moot if the activity model and working resources satisifies my
+>      problems ]
+> 
+> If you only checkout leaf (i.e. non-collection) resources, that works
+> fine, but as soon as you want to track the history of the collections,
+> you need to decide what kind of resource are the members of the checked
+> out collections.  That's where I believe that the notion of a working
+> collection either falls apart, or at least, becomes quite complex.
+
+Or simply state that the members are not present :-)
+
+I do understand that this introduces the dreaded "Model C" for what a
+working collection is.
+
+> All that the "in-place" checkout requires is that you precede your
+> work with a single MKWORKSPACE request, that simply tells the server
+> "this is the root of the tree of resources I'm going to be mucking with".
+> If the client is going to be versioning collections, it needs to know
+> that anyway, and it seems reasonable to have it issue the single MKWORKSPACE
+> request before it checks out its first collection.
+
+Um. After you create a workspace, then it must get populated with the
+resources that you want to work with. So wouldn't that be something like:
+
+    MKWORKSPACE /some/whwere
+    COPY /repos  -> /some/where/repos
+
+And then you start working with /some/where/repos ? Ooh, and the client also
+has to make sure the result of the COPY actually creates version selectors,
+doesn't it?
+
+Hmm. I guess you could use VERSION-CONTROL instead of COPY to set up the
+workspace contents. But... it isn't a simple matter of "just create a
+workspace".
+
+>    In the model that I'm going to use, I don't need to "slash-through" the
+>    working collection. I just need it to establish a spot where I can create
+>    new members/sub-collections.
+> 
+> It's the semantics of those new members/sub-collections that is the
+> tricky part.  What if you MOVE some existing version-controlled
+> resources into the working collection, checkout some of the existing
+> members of the working collection, and create new members.  All of
+> these have to be modeled in a way that allows the server at checkin
+> time to decide what version histories should be associated with what
+> names in the new version of the collection.
+
+Per my other note, each creation of a resource within the working collection
+(via PUT, MKCOL, COPY, or MOVE) will return a 201 (Created) response. Per
+RFC 2616, I must return a Location: header with "the most specific URI for
+the resource". That URI will refer to the new working resource, and will
+*NOT* be a child of the working collection.
+
+>    If I want to reach an existing child resource,
+>    then I'll go through version selectors (to their versions, which I CHECKOUT,
+>    and then to their working resources).
+> 
+> So when you checkout an existing child resource of a working collection,
+> how is this reflected in the state of that working collection?
+
+The child resource isn't present in the working collection, so a change is
+not required.
+
+> What happens
+> if you delete a  checked-out child of that working collection?  Does that
+> delete the working resource, or is it still around but invisible when
+> you check it in?
+
+If a CHECKOUT is done on a "leaf" version (thus creating a working
+resource), and then somebody does a DELETE within that resource's parent's
+working collection, then you have a "merge conflict".
+
+1) a working resource exists, possibly with changes
+2) the resource has been marked for deletion
+
+When you commit, the above two conditions are incompatible since the server
+cannot know which takes precedence. So, the commit would fail.
+
+[ commit meaning a CHECKIN of the related activity, workspace, whatever ]
+
+> One can probably create answers to these things,
+> but it won't be simple.
+
+Well, the hardest part is whether it is reasonable to say that a working
+collection does not report any members. Or maybe it does, but when you try
+to access them, you get a redirect. Or the working collection reports them
+in a PROPFIND (but returns a 409 (Conflict) if you try to fetch any
+properties) but the resource returns a 404.
+
+If the "no member" working collection is possible, then we may be okay.
+
+>    I think the point here is that I'm working in a transactional / change set
+>    model here. I get a bunch of working resources, change them, then check them
+>    in in one fell swoop. Navigation and management of checked out resources is
+>    minimal and short-lived. Give me a working resource, I'll tweak in, then
+>    merge it back in (possibly with other changes).
+> 
+> It's capturing the namespace changes (i.e. the changes to the collections)
+> that is the challenge.  You need to distinguish between new members being
+> added, existing members being renamed, existing members being replaced
+> by new members, and existing members being replaced by members from other
+> collections.  A tree of version selectors can handle this, and I would
+> regret adding significant complexity to the protocol just to provide an
+> alternative way of doing it.
+
+I think the only change to the spec would be to state that "members of a
+working collection are undefined" or some such. If it can be defined
+further, then okay.
+
+A tree of version selectors is rather difficult to maintain on the server,
+compared to a set of working resources. At any point in the tree, you would
+need to figure out which is checked out, which is not. If something is
+checked out, then what version? And as you pointed out in another note, what
+is the target of each version selector? In Subversion, I need to work with
+specific version resources (much easier than trying to prep a version
+selector to point at the version that I'm concerned with).
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

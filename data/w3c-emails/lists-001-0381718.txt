@@ -1,0 +1,62 @@
+docno="lists-001-0381718"
+received="Wed Oct 11 22:42:46 2000"
+isoreceived="20001012024246"
+sent="Wed, 11 Oct 2000 20:41:26 -0600"
+isosent="20001012024126"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="Bug + fix: Frameset followed by frame causes infinite loop"
+id="002001c033f5$ea8fca70$b665a8c0@rwaki"
+charset="iso-8859-1"
+expires="-1"
+
+To:<dsr@w3.org>,<html-tidy@w3.org>
+
+
+If a frame element appears after the end of a frameset, 4-Aug-2000 Tidy
+enters an infinite loop. Tidy mistakenly tries to wrap the frame in a
+noframes element, but since frame is not allowed in noframes, Tidy then
+ends the noframes element which puts it right back where it started. IE
+and Netscape simply ignore the illegal frame element.
+
+This is the same bug previously reported by Johny Jugianto:
+
+   http://lists.w3.org/Archives/Public/html-tidy/2000JulSep/0336.html
+
+The following change to ParseHTML() in parser.c should fix this.
+(The equivalent change in Java Tidy is working for me.)
+
+*** \dev\tidy\2000-08-04-C\c\parser.c   Fri Aug 04 16:32:04 2000
+--- parser.c    Wed Oct 11 19:19:32 2000
+*************** void ParseHTML(Lexer *lexer, Node *html,
+*** 3187,3192 ****
+--- 3187,3199 ----
+                  MoveToHead(lexer, html, node);
+                  continue;
+              }
++
++             /* discard illegal frame element following a frameset */
++             if (frameset != null && node->tag == tag_frame)
++             {
++                 ReportWarning(lexer, html, node, DISCARDING_UNEXPECTED);
++                 continue;
++             }
+          }
+
+          UngetToken(lexer);
+
+------------------------ Example HTML document -------------------------
+<html>
+<head><title></title></head>
+<frameset>
+  <frame name="name" src="one.html">
+</frameset>
+<frame name="ignored-by-browsers" src="two.html">
+This text belongs in a noframes element.
+</html>
+------------------------------------------------------------------------
+
+Randy
+
+
+

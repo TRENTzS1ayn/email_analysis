@@ -1,0 +1,217 @@
+docno="lists-011-0971466"
+received="Mon Mar 31 18:33:15 1997"
+isoreceived="19970331233315"
+sent="Mon, 31 Mar 97 18:29:26 PST"
+isosent="19970401022926"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Age Header Field in HTTP/1.1"
+id="9704010229.AA16044@acetes.pa.dec.com"
+inreplyto="9703260041.aa28364&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+(Reference: draft-fielding-http-age-00.txt)
+
+Roy writes, regarding the specification for the Age header in
+section 14.6 of RFC2068:
+
+      If a cache receives a value larger than the largest positive integer
+      it can represent, or if any of its age calculations overflows, it
+      MUST transmit an Age header with a value of 2147483648 (2^31).
+      HTTP/1.1 caches MUST send an Age header in every response. Caches
+      SHOULD use an arithmetic type of at least 31 bits of range.
+
+   This document focuses on the ambiguous use of the term "caches" in
+   the second-to-last line above. 
+
+    [...]
+
+   There are two possible interpretations of
+
+      HTTP/1.1 caches MUST send an Age header in every response.
+
+   Either
+
+      a) An HTTP/1.1 server that includes a cache MUST send an Age
+         header field in every response.
+   or
+      b) An HTTP/1.1 server that includes a cache MUST include an Age
+ header field in every response generated from its own cache.
+      
+For the record, when I wrote this paragraph (and I did write it),
+I should have written "HTTP/1.1 proxy caches", not "HTTP/1.1 caches".
+My error; I was being sloppy.
+
+So the issue here is not the ambiguity of the term "caches"; it
+is whether a proxy cache that immediately forwards a response must
+add an Age header to it, or not.
+
+   If we were to assume that
+
+      An HTTP/1.1 server that includes a cache MUST send an Age
+      header field in every response.
+
+   is true, then an HTTP/1.1 proxy containing a cache would be required
+   to add an Age header field value to every response that was
+   forwarded, including those that were obtained first-hand from the
+   origin server and never touched by the caching mechanism.  This would
+   directly contradict the paragraph in section 13.2.1 of RFC 2068 that
+   states:
+
+      The expiration mechanism applies only to responses taken from a cache
+      and not to first-hand responses forwarded immediately to the
+      requesting client.
+
+No, this is not a contradiction.  That paragraph from section 13.2.1
+pertains to the decision about whether a response is stale or fresh.
+This is quite distinct from any rules about how the inputs to that
+decision are provided.
+
+   and also directly contradicts the last paragraph of section 13.2.3 of
+   RFC 2068 that states:
+
+      Note that a client cannot reliably tell that a response is first-
+      hand, but the presence of an Age header indicates that a response
+      is definitely not first-hand.
+
+This is indeed a contradiction; the Note in section 13.2.3 is erroneous.
+My fault.  The Note should simply say
+
+      Note that a client cannot reliably tell that a response is first-
+      hand.
+
+(plus the part that Roy didn't quote).
+
+   However, in section 13.2.3 of RFC 2068, we also find
+
+      In essence, the Age value is the sum of the time that the response
+      has been resident in each of the caches along the path from the
+      origin server, plus the amount of time it has been in transit along
+      network paths.
+
+   which in our example would imply an age value of (a+b+c+d).
+
+You are reading this without paying attention to the clear statement
+in the previous paragraph that "the Age header value is the sender's
+estimate of the  amount of time since the response was generated at
+the origin server."  The word "estimate" there on purpose.  The
+phrase "In essence" was meant to reinforce that, but I guess it
+didn't help enough.  If you prefer, we can rewrite that statement
+as 
+      In essence, the Age value is the sum of the time that the response
+      has been resident in each of the caches along the path from the
+      origin server, plus the amount of time it has been in transit along
+      network paths, plus a bound on the estimation error.
+
+All of the points I make above are minor details; the real question
+comes up later in Roy's draft.
+
+In section 4, "Analysis of Option B", Roy carefully analyzes the
+possibility that Option B might overestimate the Age value.  He
+finds that there is no chance for an overestimate.  But he doesn't
+include here any analysis of possible *underestimates*.  In the
+following section, he does concede that these are possible.  He
+then dismisses the scenario as "uncompelling" because of the number
+of caches involved.  (I noticed that he doesn't point out that
+in order to get a significant overestimate from the Option A
+analysis, one also needs a long chain of caches.)
+
+In section 5, Roy gets confused about what "conservative" means.
+He states:
+
+   The only argument voiced against Option B is that the calculation is
+   "less conservative" than Option A, and that being "conservative" is
+   better in order to "reduce as much as possible the probability of
+   inadvertently delivering a stale response to a user."
+   
+   If "conservative" means "always overestimates more than the other
+   option", then the argument is certainly true.  However, if the
+   purpose of Age was to provide an overestimate, then why stop there?
+   Why not add arbitrary amounts of age to forwarded response, just in
+   case?  Why not disable caching entirely?
+
+But apparently fails to notice that the current language does
+not do any of these foolish things, nor has anyone advocated
+that the HTTP/1.1 spec do any of these (as far as I know.)
+
+It shouldn't be necessary to state, but perhaps it has to be
+made clear, that the rules in section 14.6 are not there to
+make the Age estimate arbitrarily high.   They are there to
+make the Age estimate as accurate as possible WITHOUT UNDERESTIMATING
+the value.
+
+We can still disagree whether an underestimate or an overestimate
+is preferrable.  I'll simply quote from what I wrote in August,
+in http://www.ics.uci.edu/pub/ietf/http/hypermail/1996q3/0439.html :
+
+    Underestimation is SERIOUSLY BAD, because it will lead to a cache
+    believing that a response is fresh when it is, in fact, stale.
+
+    Overestimation of the Age can lead to a cache treating a fresh
+    response as stale, which can cause extra revalidation messages.
+    This is somewhat inefficient, but will never lead to a client
+    inadvertently seeing an expired cache entry.  Underestimation is
+    thus a much worse error than overestimation, and so the spec is
+    designed to avoid underestimation as assiduously as possible.
+
+All arguments about whether caching are good or bad for the Internet
+are moot, if origin servers disable caching because their clients
+are unwittingly seeing stale responses.
+
+Philosophical disagreements aside, Roy apparently ignores (or
+has forgotten about) an alternative that Koen proposed in August,
+and which I modified slightly; see
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1996q3/0456.html
+
+The proposal is that an HTTP/1.1 proxy cache:
+     (1) MUST add Age when serving from cache memory
+     (2) MUST add Age when relaying a response from a pre-1.1 source
+     (3) SHOULD NOT add Age when relaying a response from a 1.1 or
+ higher source
+
+Rule #1 is apparently OK with Roy, since this corresponds exactly
+to his preferred option B.  Rule #3 is presumably also acceptable
+to Roy, since this corresponds to his Option B in an all-HTTP/1.1
+environment.  (We could quibble about whether this should be a SHOULD
+NOT or a MUST NOT, but my understanding is that our principle is
+"do not overconstrain the implementor", which leads to SHOULD NOT.)
+
+Koen suggested that "source" might be replaced with "proxy cache";
+I can't remember whether we ever resolved this minor point.
+
+Rule #2 addresses the "only case in which Option A *might* result in a
+better estimation than Option B", a case that Roy admits might exist
+but which he considers rare.  It completely solves the problem that
+I am worried about, and without causing any trouble in an all-HTTP/1.1
+chain.  As Roy points out:
+
+   [Option] A would overestimate the age on all HTTP/1.1
+   requests, even when there are no longer any HTTP/1.0 proxies.
+
+but with the revised proposal, this problem no longer exists.
+
+As far as I can tell from the mailing list archives, Roy didn't
+address this proposal when I made it.  I brought a set of slides
+to the December IETF meeting to discuss this issue, but (if my
+memory serves) that discussion didn't end up on the agenda.  Anyway,
+I suggest that this is the proposal that Roy should be analyzing,
+not the language in RFC2068.
+
+To provide a specific replacement wording for section 14.6, Age
+
+   If a cache receives a value larger than the largest positive integer
+   it can represent, or if any of its age calculations overflows, it
+   MUST transmit an Age header with a value of 2147483648 (2^31).
+   An HTTP/1.1 proxy cache MUST send an Age header in every response,
+   except that HTTP/1.1 proxy caches SHOULD NOT add an Age header
+   to an HTTP/1.1 (or higher) response that is being forwarded
+   immediately.  Caches SHOULD use an arithmetic type of at least
+   31 bits of range.
+
+-Jeff
+
+
+

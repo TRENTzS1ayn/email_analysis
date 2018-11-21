@@ -1,0 +1,222 @@
+docno="lists-046-2052226"
+received="Wed Jan  9 04:28:57 2002"
+isoreceived="20020109092857"
+sent="Wed, 09 Jan 2002 19:28:53 +1000"
+isosent="20020109092853"
+name="Thomas Maslen"
+email="tmaslen@wedgetail.com"
+subject="Notes on xml-exc-c14n rev 1.21"
+id="200201090928.g099SrM20701@piglet.dstc.edu.au"
+expires="-1"
+
+
+To:w3c-ietf-xmldsig@w3.org
+
+Very likely I just need a remedial reading comprehension class, but I came
+across a number of places in the current editors' copy (r 1.21) of the
+Exclusive XML Canonicalization spec where I ended up relying on my intuition 
+about the intent of the spec because (as far as I could tell) details were 
+either missing or inaccurate.
+
+
+Semantic issues:
+
+
+    (1)"output parent" vs "output ancestor"
+
+Section 1.1 defines "output parent" and makes it clear that any
+non-apex node has exactly one output parent, which is its nearest
+element node ancestor in the node-set.
+
+"output ancestor" is not defined anywhere, although it's a reasonable
+guess that it means "any element node ancestor in the node-set".
+
+"output ancestor" is referred to in the second bullet item toward the
+bottom of Section 1.1.  [And I believe that referring to it is 
+correct, it just needs a definition too].
+
+Exception 3 in Section 3 says "[...] a namespace declaration is output
+at every output element where that prefix is visibly utilized and an 
+equivalent declaration is not made in an output parent."  I believe
+this is wrong (inconsistent with the aforementioned second bullet item)
+and should actually say "output ancestor".
+
+Step 3.1 of the algorithm in Section 3 says "[...] it has not yet 
+been rendered (ns_rendered) by an output parent".  I believe this is 
+wrong (inconsistent with the loose description of ns_rendered) and
+should actually say "output ancestor".
+
+A literal reading of the "output parent" wording in Section 3 would,
+I believe, exclusively canonicalize
+
+<a:e0 xmlns:a="silly">
+  <a:e1>
+    <a:e2>
+      <a:e3>
+        <a:e4>
+          <a:e5>
+            <a:e6>
+              <a:e7>
+</a:e7></a:e6></a:e5></a:e4></a:e3></a:e2></a:e1></a:e0>
+
+to
+
+<a:e0 xmlns:a="silly">
+  <a:e1>
+    <a:e2 xmlns:a="silly">
+      <a:e3>
+        <a:e4 xmlns:a="silly">
+          <a:e5>
+            <a:e6 xmlns:a="silly">
+              <a:e7>
+</a:e7></a:e6></a:e5></a:e4></a:e3></a:e2></a:e1></a:e0>
+
+which I certainly hope isn't what was intended?
+
+
+    (2)Where is the exc-c14n behaviour of the default namespace specified?
+
+The default namespace ("xmlns") has various funny properties that
+have to be dealt with in definitions, particularly 
+
+      -since the default namespace doesn't have a namespace prefix,
+phrases like "For namespace prefixes ..." don't apply to it,
+
+      -since XPath very thoughtfully indicates xmlns="" by the
+absence of a namespace node, phrases like "each namespace 
+node" don't do the job either.
+
+The Canonical XML recommendation jumped through the appropriate 
+hoops to correctly define the behaviour of the default namespace
+(despite XPath), but I don't think that the exc-c14n draft does.
+
+Section 1.1 of exc-c14n is fine:  the definition of "visibly
+utilizes" does have a sentence that accounts for the default
+namespace [well, assuming that it is *not* using XPath semantics,
+i.e. the incredible disappearing xmlns="" node].
+
+Section 3 contains two definitions of exc-c14n, and I don't think 
+that either of them really addresses the default namespace:
+
+
+      -the first definition is "Canonical XML, with these three
+exceptions".  
+
+The wording in the exceptions (2 and 3) talks about 
+"namespace prefixes", so it doesn't include the default 
+namespace -- so presumably the default namespace just 
+inherits the Canonical XML behaviour, i.e. it uses 
+inclusive c14n?
+
+Is that the intent?  (I would have guessed that the
+default namespace was meant to be handled exclusively).
+
+
+      -the second definition is the pseudocode algorithm.
+
+Step 3 of the pseudocode talks about "namespace nodes"
+in the XPath sense, so implicitly [accidentally?  Or
+deliberately?] it applies to xmlns="mumble" and will
+treat it exclusively -- c.f. the first definition,
+above -- but it does not handle xmlns="" at all.
+
+
+I think that there are two options for the spec that would give 
+consistent results:
+
+    (I)state that the default namespace is always treated
+inclusively, i.e. effectively the InclusiveNamespaces 
+PrefixList invisibly contains the default namespace
+(which, of course, doesn't have a prefix)
+
+   (II)modify Section 3 (I haven't figured out how) so that both
+xmlns="mumble" and xmlns="" are canonicalized exclusively,
+i.e. they only show up when they are visibly utilized
+
+Of these, I definitely prefer (II), because I think it produces
+the less surprising behaviour.
+
+[Or is there something I haven't realized about exc-c14n that 
+makes this all a silly question, e.g. element names are always
+prefixed?]
+
+
+Consistency & Clarity:
+
+
+    (a)"apex node" is specifically defined for element nodes, whereas
+"orphan node" doesn't mention a node type.  If this is deliberate,
+i.e. the definition applies to namespace and attribute nodes too,
+then it should be explicit rather than implicit.
+
+
+    (b)"output parent" is undefined for apex nodes.  Fair enough, but can
+this be stated explicitly?
+
+
+    (c)"visibly utilizes" is defined.  "utilizes" is not.  Step 3.1 of the
+algorithm in Section 3 says "Render each namespace node iff it is
+[...] utilized by [...]".  Did it mean "visibly utilized"?
+
+
+    (d)The definition of "visibly utilizes" includes both the prefix (P) 
+and the bound value (V), and talks of a "namespace declaration".
+The first two uses of "visibly utilizes" include the prefix but 
+not the bound value.  The third use of "visibly utilizes" [well,
+the one that just says "utilizes" at present] talk about the
+namespace node and the InclusiveNamespacePrefix List.
+
+These all seem rather inconsistent.  My guess is that the definition
+should refer only to the prefix (P) and not mention the bound value
+at all.
+
+
+    (e)A paragraph in section 1.1 says "The namespace axis of an element
+contains nodes for all namespace declarations [...]".  If this is
+meant to be consistent with XPath semantics, it should mention the 
+absence of a node for xmlns="".
+
+
+    (f)Step 3.1 of the algorithm in section 3 says "Render each namespace
+node iff [...] it has not yet been rendered [...] by an output parent".
+
+This means the output parent of the namespace node, i.e. the element
+node.  Is this really what was intended?  Or did it really mean to 
+say an output parent of the element node?  (Even then, "an" doesn't
+make sense unless "output parent" is replaced by "output ancestor").
+
+
+    (g)The pseudocode is too pseudo.  In particular, the offhand use of
+ns_rendered is much to vague -- having implemented this, I can 
+guess what it really means, but the pseudocode doesn't define it
+for me.
+
+
+    (h)The DTD, the schema and the example now consistently refer to an
+"InclusiveNamespaces" element with a "PrefixList" attribute.  Good.
+
+However, the introductory text three lines above the example still
+refers to an "InclusiveNamespacePrefix" element with a "List"
+attribute, and six other places in the document also refer to an
+"InclusiveNamespacePrefix List".
+
+
+    (i)Maybe just showing my ignorance...  why does the DTD for the schema
+declare %p; and %s; and not use them?  Likewise for &dec;
+
+
+    (j)It might be helpful if the text made it obvious that it is always 
+using the XPath semantics for namespace nodes (well, except in the
+definition of "visibly utilizes"), i.e. the namespace axis of an 
+element includes all the namespace nodes from its ancestors (except 
+for overridden bindings, and except for the absence of xmlns="").
+
+The paragraph in section 1.1 says (most of) this, but a little
+reinforcement wouldn't hurt, particularly in section 3. 
+
+
+Thomas Maslen
+tmaslen@wedgetail.com
+
+
+

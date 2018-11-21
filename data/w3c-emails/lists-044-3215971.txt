@@ -1,0 +1,78 @@
+docno="lists-044-3215971"
+received="Thu Dec 16 21:16:21 1999"
+isoreceived="19991217021621"
+sent="Thu, 16 Dec 1999 18:14:00 -0800"
+isosent="19991217021400"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="An Xpath-based Solution"
+id="NDBBLAOMJKOFPMBCHJOIOELLCCAA.jboyer@uwi.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+
+The example below will eventually become part of the scenarios document, but
+Joseph requested it be posted in today's telecon.
+
+Let's do the complete example of your scenario, which includes the xpath you
+asked about above.  You have a SignedInfo that contains an ObjectReference
+O_1.  The IDREF of O_1 indicates a Manifest M.  In the Manifest, there will
+be an ObjectReference O_2 whose IDREF indicates an element X, where the
+character content of X is the base-64 encoded PDF document of interest.  The
+transforms T_2 in O_2 include a base-64 transform *after* an Xpath of
+"string(text())" (note that child:: is the default so I've taken it out of
+the example). The transforms T_1 of ObjectReference O_1 (the one in
+SignedInfo) must take as input the Manifest M, and yield as output (M minus
+(T_2 + IDREF + Location))-- but only if T_2 is exactly as described above.
+T_1 will contain the specific description of the T_2 that can be omitted,
+not just a statement saying that all transforms can be thrown out.
+
+<Signature>
+<SignedInfo>
+<ObjectReference IDREF="M">
+<Transforms> <!-- This is T_1 -->
+<Transform Algorithm="&xpath;">
+descendant::node()
+[
+not(self::Location and parent::ObjectReference) and
+not(self::IDREF and parent::ObjectReference) and
+not(self::Transform[@Algorithm="&base64;"]) and
+not(self::Transform[@Algorithm="&xpath;" and text()="string(text())"])
+]
+</Transform>
+...
+</ObjectReference>
+...
+</SignedInfo>
+...
+</Signature>
+
+<Manifest Id="M">
+<ObjectReference IDREF="X">
+<Transforms> <!-- This is T_2 -->
+<Transform Algorithm="&xpath;">string(text())</Transform>
+<Transform Algorithm="&base64;"/>
+</Transforms>
+<DigestMethod>&sha1;</DigestMethod>
+<DigestValue>blahblahblahblahblahblahbla=</DigestValue>
+</ObjectReference>
+</Manifest>
+
+<Document Id="X">
+Iambase64encodingofaPDFdocument=
+</Document>
+
+As you can see, T_1 refers to all of M except for Location, IDRef and the
+two specific transforms in T_2 that you needed to put the PDF document in X
+in the first place.  Thus, if you later decide to delete those two
+transforms and the IDREF, and instead to add a URL Location, you can do that
+without breaking the DigestValue that was computed over (most of) M.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+

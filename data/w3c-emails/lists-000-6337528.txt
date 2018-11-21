@@ -1,0 +1,549 @@
+docno="lists-000-6337528"
+received="Wed Apr 19 09:01:47 2000"
+isoreceived="20000419130147"
+sent="19 Apr 2000 09:00:46 -0400"
+isosent="20000419130046"
+name="smarks@digisolutions.com"
+email="smarks@digisolutions.com"
+subject="Re: Java Tidy Backlog"
+id="m31z42s0sh.fsf@hurin.innoverity.com"
+inreplyto="Tue, 18 Apr 2000 21:45:43 -0400&quot;"
+expires="-1"
+
+To:"Andy Quick"<ac.quick@sympatico.ca>,html-tidy@w3.org
+
+
+
+I'd be willing to try and fix some bugs. However, right now I might be
+adding one. 
+
+Here goes:
+
+When I parse this HTML 
+
+<HTML>
+<HEAD>
+  <META NAME="GENERATOR" CONTENT="Adobe PageMill 3.0 Win">
+  <TITLE>Spencer Museum of Art Printroom Home Page</TITLE>
+
+<STYLE type="text/css">
+  <!--  EM { font-family: garamond, serif; }  A { text-decoration: none; }   -->
+</STYLE>
+
+</HEAD>
+
+<BODY BGCOLOR="#efefef" VLINK="#004040" ALINK="#0000a0" BACKGROUND="laid.gif">
+
+You should see this.
+
+</BODY>
+</HTML>
+
+and walk the DOM it get this output:
+
+Element node: null
+Element node: null
+Element node: null
+Element node: null
+Element node: null
+Text node: Spencer Museum of Art Printroom Home Page
+Element node: null
+Text node:   <!--  EM { font-family: garamond, serif; }  A { text-decoration: none; }   -->
+Element node: null
+Text node: You should see this.
+Page parsed perfectly
+
+If I remove the <STYLE type="text/css"> </STYLE> tags, but keep the
+comment, so my input looks like this:
+
+<HTML>
+<HEAD>
+
+  <META NAME="GENERATOR" CONTENT="Adobe PageMill 3.0 Win">
+  <TITLE>Spencer Museum of Art Printroom Home Page</TITLE>
+
+
+  <!--  EM { font-family: garamond, serif; }  A { text-decoration: none; }   -->
+
+
+</HEAD>
+
+<BODY BGCOLOR="#efefef" VLINK="#004040" ALINK="#0000a0" BACKGROUND="laid.gif">
+
+You should see this.
+
+
+</BODY>
+</HTML>
+
+and walk the DOM, I get this:
+
+Element node: null
+Element node: null
+Element node: null
+Element node: null
+Element node: null
+Text node: Spencer Museum of Art Printroom Home Page
+Element node: null
+Text node: You should see this.
+Page parsed perfectly
+
+Note: the big difference is the comment element is treated properly in
+the second case. That is 
+ <!--  EM { font-family: garamond, serif; }  A { text-decoration:
+none; }   -->
+does show up as  text node. 
+
+So my question, perhaps bug, is why does the presence of the the Style
+induce what appears to be incorrect behavior. That is why does the
+presence of the STYLE tag cause the comment tag to be treated as a
+text node and not an element node. 
+
+Thanks in advance, and again, I am happy to try my hand at resolving some other
+issues with JTiddy. Is there a bug database? If not, for starter, I could put
+Bugzilla or Jitterbug (or something else) on my server. 
+
+Spencer
+
+
+Oh, here is the java that generated the above output:
+
+/**
+ * @author Spencer Marks <smarks@digisolutions.com>
+ * @version $Id: HTMLTidyTagRemover.java,v 1.5 2000/04/18 22:19:49 sam Exp $
+ */
+
+package com.innoverity.util.html;
+
+import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import java.net.URL;
+import java.net.URLConnection;
+
+import com.innoverity.data.DynamicDictionary;
+import com.innoverity.util.logging.MsgLog;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.tidy.Tidy;
+
+import com.innoverity.data.ProcessedDocument;
+
+/**
+ * This implementation of the HTMLTagRemove interface
+ * uses the HTML Tidy program to create a parse tree,
+ * walk it and extract just the text from the element node.
+ */
+public class HTMLTidyTagRemover implements HTMLTagRemover  {
+
+  HTMLTidyTagRemover() {
+
+    /** pacakge level constructor so that only factory
+     * can crate us.
+     */
+  }
+
+  /**
+   * Implement the HTMLTagRemoverInterface.
+   *
+   * @param in is a 'InputStream'
+   * the HTML document to remove tags from.
+   *
+   * @param out is a 'PrintWriter - the new document that will contain
+   * just the text of the supplied HTML document.
+   *
+   * @param errors is a 'OutputStream'
+   * If the HTML document has parse errors they are recorded here.
+   *
+   * @return a 'HTMLPageInfo'
+   * Info about the HTML document.
+   */
+  public HTMLPageInfo removeTags(InputStream in, PrintWriter out, PrintWriter errors) throws IOException  {
+
+    HTMLPageInfo notReallyImplementedYet = new HTMLPageInfo();
+
+    Tidy tidy = new Tidy();
+    tidy.setMakeClean(true);
+    tidy.setErrout(errors);
+
+    // parse document
+    Document doc = tidy.parseDOM(in, null);
+    int errorCount =  tidy.getParseErrors();
+    int warningCount = tidy.getParseWarnings();
+    // udpate HTMLPageInfo
+    notReallyImplementedYet.setNumberOfWarnings(warningCount);
+    if (warningCount != 0 || errorCount != 0 ) {
+      notReallyImplementedYet.setPageWasMalformed(true);
+    } else {
+      notReallyImplementedYet.setPageWasMalformed(false);
+    }
+    notReallyImplementedYet.setNumberOfErrors(errorCount);
+
+    // generate output
+    print(doc, out);
+
+    errors.flush();
+    out.flush();
+
+    return notReallyImplementedYet;
+  }
+
+  /**
+   * Prints the specified node, recursively.
+   *
+   * @param node a value of type 'Node'
+   */
+  private void print(Node node, PrintWriter out) {
+    if ( node == null ) {
+      return;
+    }
+
+    int type = node.getNodeType();
+    switch ( type ) {
+
+    case Node.DOCUMENT_NODE:
+      print(((Document)node).getDocumentElement(),out);
+      break;
+
+    case Node.ELEMENT_NODE:
+      String nodeValue = node.getNodeValue();
+      System.out.println("Element node: " + nodeValue);
+      NodeList children = node.getChildNodes();
+      if ( children != null ) {
+        int len = children.getLength();
+        for ( int i = 0; i < len; i++ ) {
+          print(children.item(i),out);
+        }
+      }
+      break;
+
+    case Node.TEXT_NODE:
+       nodeValue = node.getNodeValue();
+        System.out.println("Text node: " + nodeValue);
+      out.write(nodeValue);
+      out.write(" ");
+      break;
+
+    }
+
+  }
+
+  /**
+   * Unit Test
+   *
+   * @param args[] is a 'String'
+   */
+  public static void main(String args[]) {
+
+    if ( args.length != 3 ) {
+      System.out.println("Usage: HTMLTidyProcessor <input file> <output file> <error log file>");
+      System.out.println("You typed: " + args.length + "arguments");
+
+      System.exit(1);
+    }
+
+    FileInputStream in = null;
+    FileOutputStream out = null;
+    FileOutputStream errors = null;
+    HTMLTidyTagRemover  app = new HTMLTidyTagRemover();
+    HTMLPageInfo pageInfo = null;
+    try {
+
+      in = new FileInputStream(args[0]);
+      out = new FileOutputStream(args[1]);
+      errors = new FileOutputStream(args[2]);
+      PrintWriter textFile = new PrintWriter(out);
+      PrintWriter errorOut = new PrintWriter(errors);
+      pageInfo =  app.removeTags(in, textFile, errorOut);
+
+      textFile.flush();
+      errorOut.flush();
+
+      textFile.close();
+      errorOut.close();
+
+      if (pageInfo.pageWasMalformed() == true) {
+        System.out.println("The parser generated " + pageInfo.getNumberOfWarnings() + " warnings while removing tags");
+        System.out.println("The parser generated " + pageInfo.getNumberOfErrors() + " errors while removing tags");
+      } else {
+        System.out.println("Page parsed perfectly");
+      }
+
+    }
+    catch ( IOException e ) {
+      System.err.println( e.toString() );
+    }
+
+  }
+
+}
+
+/**
+ * @author Spencer Marks <smarks@digisolutions.com>
+ * @version $Id: HTMLPageInfo.java,v 1.6 2000/04/18 22:19:49 sam Exp $
+ */
+package com.innoverity.util.html;
+
+import java.net.URL;
+
+/**
+ * This class is used to hold statistics about
+ * an HTML page.
+ *
+ * NOTE this class is more of a place holder than
+ * anything else right now; It is very much a work in progress.
+ * The idea being that at some point the search engine might
+ * want to provide functionality along the lines of letting
+ * the user search for pages with lots of images, etc.
+ *
+ * This data structure can be filled in when the html 2 text conversion
+ * takes place.
+ *
+ * This object is included as member data in FeatureVector.
+ * @see com.innoverity.clustering.FeatureVector
+ *
+ */
+
+public class HTMLPageInfo {
+
+  // true if the page required tidying or
+  // could no tbe processed.
+  private boolean wasMalFormed;
+
+  private int numberOfLinks;
+  private int numberOfImages;
+  private int numberOfGIFs;
+  private int numberOfMPEGs;
+  private int numberOfJPEGs;
+  private int numberOfWarnings;
+  private int numberOfErrors;
+
+  /**
+   * Default constructor
+   *
+   */
+  public HTMLPageInfo() {
+
+    this.wasMalFormed = false;
+    this.numberOfLinks = 0;
+    this.numberOfImages = 0;
+    this.numberOfGIFs = 0;
+    this.numberOfMPEGs = 0;
+    this.numberOfJPEGs = 0;
+    this.numberOfWarnings = 0;
+    this.numberOfErrors = 0;
+  }
+
+
+
+  /**
+   * Returns true if the tag removing processing
+   * detected an error parsing the page.
+   *
+   * @return a value of type 'boolean'
+   */
+  public boolean pageWasMalformed() {
+    return wasMalFormed;
+  }
+  /**
+   * Return the number of warnings the HTML parser
+   * generated while processing the document. 
+   * Warnings should be considered non fatal. 
+   * That is the output should be OK. 
+   * The parser is just reporting something it didn't like,
+   * but it is something it can deal with. 
+   * 
+   * @return a value of type 'int'
+   */
+  public int getNumberOfWarnings() {
+    return numberOfWarnings;
+  }
+
+
+  /**
+   * Return the number of errors the HTML parser
+   * generated while processing the document. 
+   * Errros should be considered fatal. 
+   * That is the output <b><i>might not</b></i> be OK. 
+   * The parser is just reporting something it couln't really handle.
+   *
+   * @return a value of type 'boolean'
+   */
+  public int getNumberOfErrors() {
+    return numberOfErrors;
+  }
+
+  /**
+   * Returns the number of http:// hrefs in this document.
+   *
+   * @return a value of type 'int'
+   */
+  public int getNumberOfLinks() {
+    return numberOfLinks;
+  }
+
+  /**
+   * Returns the number of <IMG> tags in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public int getNumberOfImages() {
+    return numberOfImages;
+  }
+
+  /**
+   * Returns the number of JPEGs in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public int getNumberOfJPEGs() {
+    return numberOfJPEGs;
+  }
+
+  /**
+   * Returns the number of GIFs in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public int getNumberOfGIFs() {
+    return numberOfGIFs;
+  }
+
+  /**
+   * Returns the number of MPEGs in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public int getNumberOfMPEGs() {
+    return numberOfMPEGs;
+  }
+
+  /**
+   * Set whether or not the HTML page this object
+   * contains info about was/is malformed.
+   *
+   * @return a value of type 'boolean'
+   */
+  public void setPageWasMalformed(boolean setting) {
+    this.wasMalFormed = setting;
+  }
+  
+  /**
+   *
+   * Set the number of errors the HTML parser
+   * encountered. 
+   * 
+   * @return a value of type 'int'
+   */
+  public void setNumberOfErrors(int errors) {
+    this.numberOfErrors = errors;
+  }
+
+  /**
+   *
+   * Set the number of warnings the HTML parser
+   * encountered. 
+   * 
+   * @return a value of type 'int'
+   */
+  public void setNumberOfWarnings(int errors) {
+    this.numberOfWarnings = errors;
+  }
+  /**
+   * Sets the number of http:// hrefs in this document.
+   *
+   * @return a value of type 'int'
+   */
+  public void setNumberOfLinks(int num) {
+    this.numberOfLinks = num;
+  }
+
+  /**
+   * Sets the number of <IMG> tags in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public void setNumberOfImages(int num) {
+    this.numberOfImages = num;
+  }
+
+  /**
+   * Sets the number of MPEGs in the document.
+   *
+   * @return a value of type 'int'
+   */
+  public void setNumberOfMPEGS(int num) {
+    this.numberOfMPEGs = num;
+  }
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"Andy Quick" <ac.quick@sympatico.ca> writes:
+
+> Dave,
+> 
+> The backlog of Java tidy issues is growing a bit faster than I can
+> handle them.  Generally speaking, Java tidy is quite stable and
+> matches C tidy on a very high percentage of HTML documents.
+> However, there are more bug-finders than bug-fixers right now :-)
+> 
+> I was wondering if I could ask people to post them to this mailing list
+> so that I could increase the potential number of bug-fixers.  I would
+> be willing to approve and integrate bug fixes into the source code.
+> Maybe people could clearly indicate in the subject whether the issue
+> applies to Tidy, Java Tidy, or both.  Another idea would be to set up
+> another mailing list, but I don't think it's worth that at this point.
+> 
+> Regards,
+> 
+> Andy Quick
+
+
+

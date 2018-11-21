@@ -1,0 +1,424 @@
+docno="lists-097-9761899"
+received="Sat Dec  8 21:40:28 2001"
+isoreceived="20011209024028"
+sent="Sat, 8 Dec 2001 21:40:27 -0500 (EST)"
+isosent="20011209024027"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="Ruby-RDF 4th cut (w/ basic NTriples support)"
+id="Pine.LNX.4.30.0112082137140.28513-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To:<www-archive+ruby@w3.org>
+
+
+
+wondering whether to use the ruby xslt library + one of the RDF XSLT
+parsers to get NTriples, instead of depending on external rdf parser...
+
+next job: roundtrip .nt files to ensure some kind of integrity?
+
+--danbri
+
+---------- Forwarded message ----------
+
+#!/usr/local/bin/ruby
+#
+# RDFWeb Ruby RDF stuff
+# danbri@w3.org
+
+# Overview:
+# we use the classes 'Graph', 'Node', and 'Statement'
+#
+# todo:
+#  - associate Nodes with Graphs
+#  - implement ask(template_statement) method (slog through the variations!)
+#  - implement ntriples-based i/o
+#  - use method_missing to catch property queries on nodes
+#  - figure out how to test this and Perl version at same time
+#  - document the stuff it doesn't do w.r.t. RDF specs
+#  - find out about various Ruby features I'm unclear on (see 'todo:' notes)
+#  - continue migrating ask() to return graphs not nodes
+#  - add Mozilla-based graph API
+#  - fix the worst inefficiencies (eg. all those new graphs / statements)
+
+##############################################################################
+#
+class Node
+  @@nodes = {}
+  attr_accessor :content
+
+  # constructor (make this private? use get* instead)
+  def initialize (content)
+    @content = content
+  end
+  def inspect
+    "#@content "
+  end
+
+  # Get a Node given its URI, recycling where available
+  def Node.getResource(content)
+    return @@nodes[content] if @@nodes[content]
+    node = Node.new(content)
+    @@nodes[content]=node
+    return node
+  end
+
+  # get a fresh blank node
+  # notes: couldn't see how to have Node.getResource() work
+  def Node.getBlank()
+    content = '[' + rand(1000000).to_s() # stopgap: todo, uuid
+    node = Node.new(content)
+    @@nodes[content]=node
+  end
+
+  def Node.getLiteral(content)
+    return @@nodes[content] if @@nodes[content]
+    node = Node.new("\""+content)
+    @@nodes["\""+content]=node
+    return node
+  end
+
+  def to_s
+    "#@content"
+  end
+  def method_missing(methid)
+    str = methid.id2name
+    print "Missing method ",str,"\n" # todo: use later for rdf property access
+  end
+end
+
+
+#############################################################################
+#
+
+class Graph
+
+  def initialize( statements )
+    @db = {} # counter(notyet, just flag) for each statement we've met, todo: provenance
+    statements.each { |statement| @db[statement]=1 } if statements
+    @fp={}
+    @bp={}
+    # print "Initializing a graph with statements ", db
+    statements.each {|statement| tell(statement) } if statements
+  end
+
+
+  # tell the graph something (add and index a statement)
+  def tell ( statement )
+
+    @db[statement]=1
+
+    # store objects under subject+predicate
+    #
+    sp_list = @fp["#{statement.subject} | #{statement.predicate}"]
+    if (sp_list)
+      # puts "Storing object under EXISTING s/p, statement= #{statement}"
+      # puts "Inspecting existing sp_list: #{sp_list.inspect} \n"
+      sp_list.push(statement.object) #todo: we should order this list (and po)
+    end
+    if (!sp_list)
+      # puts "Storing object under NEW s/p, statement = #{statement}"
+      sp_list = [statement.object]
+      @fp["#{statement.subject} | #{statement.predicate}"]=sp_list
+    end
+
+    # store subjects under predicate+object
+    #
+    po_list = @bp["#{statement.predicate} | #{statement.object}"]
+    if (po_list)
+      # puts "Storing subject under EXISTING p/o, statement= #{statement}"
+      po_list.push(statement.subject)
+    end# todo: lookup else syntax for Ruby
+    if (!po_list)
+      # puts "Storing subject under NEW p/o, statement= #{statement}"
+      po_list = [statement.subject]
+      @bp["#{statement.predicate} | #{statement.object}"]=po_list
+    end
+  end
+
+
+  def toNtriples()
+    out = "\nSerializing Graph as Ntriples (vapourware: not NTriples yet!):\n"
+
+    # forward pointers -- from subject+predicate to object(s)
+    @fp.each_key{ |key| out += ("FP entry: \tkey='#{key}' value='#{@fp[key]}' \n") }
+    out += "Inspecting FP: #{@fp.inspect()}\n\n"
+
+    # backward pointers -- from predicate+object to subject(s)
+    @bp.each_key{ |key| out += ("IP entry: \tkey='#{key}' value='#{@bp[key]}' \n")}
+    out += "Inspecting BP: #{@bp.inspect()} \n\n"
+
+    out += "End Ntriples.\n\n"
+    return out
+  end
+
+  # return all the blunt ends of the arcs in this graph
+  def subjects()
+    ans=[]
+    @db.each_key{ |statement| ans.push(statement.subject) }
+    return ans
+  end
+
+  # return all the sharp ends of the arcs in this graph
+  def objects()
+    ans=[]
+    @db.each_key{ |statement| ans.push(statement.object) }
+    return ans
+  end
+
+  # return all the label nodes for the arcs in this graph
+  def predicates()
+    ans=[]
+    @db.each_key{ |statement| ans.push(statement.predicate) }
+    return ans
+  end
+
+  def size()
+    return @db.length
+  end
+
+  # Graph.ask
+  #
+  # Basic query method for our RDF graph. passed a (template) statement w/ nils
+  # ...and returns a graph (which we can probe with subjects(), predicates() etc
+  #
+  # Notes: this is all pretty inefficient, creating new graphs all
+  # over the shop when we needn't, new statements etc etc.
+  # todo: change @fp and @bp to store refs to statements not nodes
+  #       ...and think about how we can return sub-graph matches
+  # without having to go index them. maybe do indexing on demand?
+  # (see also tell()
+
+  def ask(query)
+    # puts "Vapourware ask/query method called, template statement: #{query} "
+
+    # ooo: dump all statements in the graph
+    if (query.predicate==nil && query.subject==nil && query.object==nil)
+      dump =[]
+      @db.each_key() {|k| dump.push(k)}
+      return Graph.new(dump)
+    end
+
+    # xxx: is this statement in the graph?
+    if (query.predicate && query.subject && query.object)
+      if ( @db[query] == nil)
+        # puts "Test failed: statement #{query.inspect} is not in graph\n"
+      return Graph.new( [ ] )
+      end
+      if ( @db[query] >0)
+        # puts "Test succeeded: statement #{query.inspect} is in graph\n"
+        return Graph.new([query]) if (@db[query])
+      end
+    end
+
+    # xxo
+    if (query.predicate && query.subject && query.object==nil)
+      # puts "xxo: get value(s) given sp"
+      # puts "subject = '#{query.subject}' predicate= '#{query.predicate}' \n"
+      # puts "Answer lookup: "
+      #old:     return @fp["#{query.subject} | #{query.predicate}"]
+      obs = @fp["#{query.subject} | #{query.predicate}"]
+      response=[]
+      obs.each { |object| response.push(Statement.new(query.subject,query.predicate, object)) } if obs
+      ans = Graph.new(response)
+      return ans
+    end
+
+    # puts "oxx: get subjects(s) given po"
+    ## TODO: THIS IS INEFFICIENT. STORE STATEMENTS IN FP and BP!!!
+    if (query.predicate && query.subject==nil && query.object)
+      subs = @bp["#{query.predicate} | #{query.object}"]
+      response=[]
+      subs.each { |subject| response.push(Statement.new(subject,query.predicate,query.object)) } if subs
+      ans = Graph.new(response)
+      # puts "Returning a graph! details: #{ans.inspect} \n"
+      return ans
+    end
+
+  ## more query facilities needed here
+
+  # done: xxx ooo xxo oxx
+  # todo: xox oxo oox xoo
+
+  end
+
+end
+
+###########################################################################
+#
+class Statement
+  attr_accessor :predicate, :subject, :object
+  def initialize (subject, predicate, object)
+    @subject = subject
+    @predicate = predicate
+    @object = object
+  end
+  def inspect
+    "<#@subject> <#@predicate> <#@object> "
+  end
+  def to_s
+  "Statement: #@subject> <#@predicate> <#@object>\n"
+  end
+
+end
+
+############################################################################
+#    A rather basic NTriples parser, cut down from:
+#    http://www.w3.org/2000/10/swap/n-triples2kif.pl
+#    http://www.w3.org/TR/rdf-testcases/#ntriples
+# seeAlso:
+#     http://www.rubycentral.com/book/tut_stdtypes.html
+
+class NTriples
+
+  # clean up a term t and return
+  # litOK: flag whether literals acceptable or not
+  def NTriples.term (t, litOK)
+    t.chomp()
+    t=t.sub(/^\s*</,'')
+    t=t.sub(/>\s*$/,'')
+    # a whole bunch more stuff see perl script above
+    # print "Modified t: #{t.inspect} \n"
+    return t
+  end
+
+
+  # pull NTriples from somewhere, return them as a new Graph
+  #
+  def NTriples.nt2graph
+    data = Graph.new([])
+    while gets# defaulting to STDIN
+      next if /^#/# re IO see
+      next unless /\S/# http://www.rubycentral.com/book/intro.html
+      # print "data is: '#{$_}' \n"
+      $_ = $_.sub(/^ */, '')# http://www.rubycentral.com/book/tut_io.html
+      $_ = $_.sub(/\s*\.\s*$/, '')#
+      chomp
+      # print "data is now: '#{$_}' \n"
+
+       parts = $_.split(/\s+/)
+       # puts "Summary: #{parts.inspect}\n"
+
+      st = NTriples.term(parts[0], 0)
+      pt = NTriples.term(parts[1], 0)
+      ot = NTriples.term(parts[2], 1)
+      # puts "output = s:#{st} p:#{pt} o:#{ot} \n"
+      s = Statement.new( Node.new(st), Node.new(pt), Node.new(ot) )
+      data.tell(s)
+    end
+    return data
+  end
+end
+
+
+
+############################################################################
+#
+# Examples and tests
+
+srand() # seed randomizer for blank node genids
+
+# Some handy namespaces
+FOAF = 'http://xmlns.com/foaf/0.1/'
+DC = 'http://purl.org/dc/elements/1.1/'
+
+# Some bits of RDF vocabulary
+foaf_mbox = Node.getResource(FOAF+'mbox')
+foaf_livesIn = Node.getResource(FOAF+'livesIn')
+foaf_homepage = Node.getResource(FOAF+'homepage')
+
+# Get some initial nodes and properties
+# ie. some resources we'll be mentioning (no URIs known for the blanks)
+#
+bristol = Node.getBlank()
+libby = Node.getBlank()
+damey = Node.getBlank()
+danbri = Node.getBlank()
+
+dbhome = Node.getResource('http://rdfweb.org/people/danbri/')
+dbmail = Node.getResource('mailto:danbri@rdfweb.org')
+
+# make some statements from these raw materials
+s1 = Statement.new(danbri, foaf_homepage,dbhome)
+s2 = Statement.new(danbri, foaf_mbox,dbmail)
+s3 = Statement.new(danbri, foaf_livesIn, Node.getLiteral("Bristol"))
+s4 = Statement.new(damey, foaf_livesIn, Node.getLiteral("Bristol"))
+lie = Statement.new(danbri, foaf_livesIn, Node.getLiteral("Hong Kong"))
+
+g = Graph.new( [s1, s2, s3, s4] )# we can initialise a graph with content
+g2 = Graph.new([])# or empty (todo: allow no args constructor)
+
+g.tell(Statement.new(libby, foaf_livesIn, Node.getLiteral("Bristol")))
+g.tell(Statement.new(libby, foaf_mbox, Node.getResource('mailto:libby.miller@bristol.ac.uk')))
+g.tell(Statement.new(libby, foaf_mbox, Node.getResource('mailto:libby@rdfweb.org')))
+g.tell(Statement.new(damey, foaf_mbox, Node.getResource('mailto:d.m.steer@lse.ac.uk')))
+
+puts "Testing API:\n RDF Graph: ", g, "\n"
+
+#puts g.toNtriples()
+
+## Test our query code
+# these should return a Graph
+# we'll have prettier interfaces built ontop of this
+# subjects() predicates() objects() gets blunt/label/sharp parts of the arcs
+# also to come:
+# we'll add mozilla-style graph nav API (GetSource/GetTarget etc)
+# and a node centric API
+
+# query 'xxx'
+# todo!
+
+
+print ("Statement 's3' (ie. #{s3.inspect}) is in the graph\n") if ((g.ask(s3)).size >0 )
+print "Size s3: " , g.ask(s3).size  ,"\n"
+print ("Statement 'lie' (ie. #{lie.inspect}) is (rightly) NOT in the graph\n") if((g.ask(lie)).size ==0)
+
+
+# query 'xxo'
+puts "Asking for mailboxes of libby:\n"
+t1 = g.ask( Statement.new( libby, foaf_mbox, nil)).objects()
+# maybe: g.ask(...).
+puts "Answer was: #{t1} \n"
+
+# query 'oxx'
+puts "Mailboxes of people who live in bristol: \n\n"
+
+who = g.ask(Statement.new( nil,foaf_livesIn,Node.getLiteral("Bristol")))
+
+puts "Got an answer graph: #{who.inspect} \n"
+puts "All the people in bristol: \n #{who.subjects()} \n"
+
+puts "Their mailboxes...\n"
+mbox=[]
+puts "All the people in bristol: \n #{who.subjects()} \n"
+
+who.subjects().each {
+  |w| mbox.push( g.ask( Statement.new(w,foaf_mbox,nil)).objects() )
+}
+
+puts "mbox is: #{mbox.inspect}\n"
+puts mbox.each { |mailto| puts "Email: #{mailto} \n" }
+
+# query 'xoo'
+#
+
+# query 'oox'
+
+# query 'xox'
+
+# query 'oxo'
+
+# query 'ooo' (all unknown)
+t2 = g.ask (Statement.new(nil,nil,nil))
+# puts "Tripledump: #{t2.inspect}\n" # todo: no workie yet
+
+
+## Test our simple parser
+print "Testing NTriple parser..."
+loaded = NTriples.nt2graph()
+puts "Loaded from disk: #{loaded.inspect} \n\n"
+
+
+

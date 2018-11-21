@@ -1,0 +1,132 @@
+docno="lists-054-10790992"
+received="Fri Oct 18 00:50:50 1996"
+isoreceived="19961018045050"
+sent="Fri, 18 Oct 96 00:50:44 EDT"
+isosent="19961018045044"
+name="lee@sq.com"
+email="lee@sq.com"
+subject="Re:  C.4  Undeclared entities?"
+id="9610180450.AA26369@sqrex.sq.com"
+inreplyto=" C.4  Undeclared entities?"
+expires="-1"
+
+
+To:U35395@UICVM.CC.UIC.EDU,w3c-sgml-wg@w3.org
+
+> C.4 if XML makes DTDs optional and allows partial DTDs, what must or
+> may a parser do when it encounters references to undeclared entities
+> (9.4)?  Should XML declare any set of entities automatically?
+
+I would like to suggest -- at least briefly :-) -- a model in which
+entities can be expanded by a (conceptual) preprocessor.  By conceptual,
+I mean that it doesn't need to be a separate physical process or a
+separate pass -- it could all be handled within a single program.
+
+SGML reinvented the C preprocessor with entities, but added some features...
+It seems that XML has only three kinds of entity:
+    [1] parameter entities in the DTD (possibly)
+    [2] entities for text substitution
+    [3] entities for referring to and including external files
+
+Now, entities of type [1] and [2] are the same as each other, except
+for the different scopes and permitted contexts.  That is, they do
+essentially the same thing.
+
+Entities of type 3 may be general or parameter entities, and may be used
+in one of three ways:
+    [a] as an in-place inclusion
+
+<!Entity Simon "http://www.other.stuff/goes/here.fragment">
+.
+.
+.
+&Simon;
+
+    [b] as a reference to a different kind of information
+
+<!Entity Simon "http://www.other.stuff/goes/here.gif" NDATA GIF>
+.
+.
+.
+&Simon;
+    
+    [c] as a delayed reference
+
+<!Entity Simon.gif "http://www.other.stuff/goes/here.gif" NDATA GIF>
+<boy picture=Simon.gif>
+    
+    Case [a] can be handled before the parser ever sees the data, just
+    as the C preprocessor handles #include.
+    For error handling, C allows
+#line 45 "filename"
+    so that the C preprocessor can tell the C compiler what line number
+    to put out on errors.  (apologies to all those to whom this is
+    blindingly obvious).
+
+    Without a DTD you can't distinguish [a] and [b] until you
+    actually fetch the data -- you then either inspect the data stream
+    or use the MIME media type to determine how to handle the data.
+    In a WWW environment, the actual declared notation (if you had a DTD)
+    should of course be overridden by the MIME media type.
+
+    In general, the media type may vary depending on the time of day --
+    for example, a server might have access to the same information
+    in multiple formats, and prefer to serve up the most appropriate
+    version (given the list that the browser said it handles) that is
+    in the cache.
+
+    I suppose a notation of "DYNAMIC" would be appropriate for that.
+
+    At any rate, in XML we can't handle case [b] without a DTD.
+    If there was no DTD, where did the entitiy definition come from?
+    So there could always be a NOTATION, although we wouldn't know
+    that it was right without fetching the data.  It's a hint, if you will.
+
+    Case [c], an entity-valued attribute, can't be handled at all
+    without a DTD.  With a DTD, the behaviour is implementation defined
+    even in SGML (as I understand it).
+
+    You can get even more undefined by having an NDATA attribute -- the
+    standard and the handbook are hard to follow on this, as I and several
+    others have found, especially when used without conref.  But I digress.
+
+Entities for text substitution and for file inclusion can without loss of
+generality be expanded as the text is read over the network (say).
+
+Entities that have an associated notation must be passed on to the client
+of the parser.
+
+Does that sound reasonable?
+
+If we can phrase it in that way, it is just a sort of brain-dead cpp,
+or m4 with most of the features removed :-), and is easy to write and
+understand.
+
+You are then amenable, however, to evil tricks which must be firmly
+discouraged:
+    <!Entity x '<!entity y "zzz">'>
+    &x;
+    <!Entity startP "<P>">
+and so on.
+
+The only complication I see is that %entity; is not allowed after the
+start of the document, and &entity; is not expanded in the DTD itself.
+
+This does not quite work correctly with the current SGML rules on
+attribute values, where a CDATA attribute, despite being declared
+as CDATA, is actually RCDATA.  Hence,
+    <!Entity mine "It's mine">
+    <declaim what='&mine;'>
+would expand to
+    <declaim what='It's mine'>
+and break.
+
+Is that a problem?  My feeling is yes, it's a problem, although
+I have encountered more than one commercial parser that did indeed
+have problems with this sort of thing, especially with nested
+parameter entities.
+
+Lee
+
+
+

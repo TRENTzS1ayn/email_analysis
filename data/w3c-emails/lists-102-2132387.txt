@@ -1,0 +1,138 @@
+docno="lists-102-2132387"
+received="Wed Dec 31 19:16:44 1997"
+isoreceived="19980101001644"
+sent="Thu, 1 Jan 1998 09:39:19 +1000"
+isosent="19971231233919"
+name="David Peterson"
+email="david.peterson@iname.com"
+subject="Nodes, NodeLists an other such things"
+id="01bd1645$5055d9c0$0200a8c0@down"
+charset="iso-8859-1"
+expires="-1"
+
+To:"DOM Mailing List"<www-dom@w3.org>
+
+
+Hi there. Throwing caution to the wind, I've attempted to make a concrete
+implementation of DOM (9th Dec) in Java, using the current Java API.  In
+doing so, I've come across a few difficulties and inefficiencies.  Most of
+the problems so far are with Node and NodeList/NodeEnumerator.  Thus, I have
+a couple of proposals.
+
+1. Revamp NodeList/NodeEnumerator
+
+Rational: NodeList is a very simple interface and is easy to map to your
+average list-based data structure, which is a good thing, but while it
+generally allows you to discover most things about it, it definitely doesn't
+do it the most efficient way.
+
+Example:
+    Node getPreviousSibling()
+
+    In order to retrieve the previous sibling of a node using the standard
+DOM interface, the follow steps must be taken.
+
+    i. Get the parent node's children:
+         parent.getChildren();
+    ii. Cycle through the children, starting at 0.  Probably the best way to
+go is with NodeEnumerator, since there's no telling if NodeList.item() is a
+really inefficient call.  This is the really bad step, especially if the
+node you're working on happens to be number 90000.  You also have to keep
+track of the previous node, since there's no going back with
+NodeEnumerators.  Cycling could require a LOT of method calls which add's
+even more overhead.
+    iii. return the discovered sibling.
+
+There are similar problems with insertBefore, removeChild and replaceChild,
+since to insert using the standard DOM EditableNodeList, an index is
+required, and all that is provided is a reference node.
+
+Thus, I propose an improved interface that provides for both (fairly)
+efficient indexing, while also providing a better way to handle referenced
+nodes.  The best I've been able to come up with so far is a single, hybrid
+interface.  It's based around a cursor position, and allows both indexed and
+reference access with a fairly simple interface.  In very sparse form:
+
+    public interface NodeIterator {
+
+    // returns the node at the cursor
+    Node getCurrent()
+
+    Node toNext();
+    Node toPrevious();
+    Node toFirst();
+    Node toLast();
+    Node toIndex(long index);
+    Node toNode(Node node);
+
+    long getLength();
+    long getCurrentIndex();
+    }
+
+Basicaly, the 'get' methods don't modify the cursor location, while the 'to'
+methods do.   The 'to' methods return the node that they end up at as a
+"convenience".  'toIndex' provides the ordinal access, while 'toNode'
+provides for reference-based access.  It also allows the implementation to
+attempt to move the cursor around in the most efficient way possible, as
+appropriate to the implementation.
+
+Advantages: Simplifies and combines the two interfaces, allows the
+implementation to determine the most efficient way to traverse the list,
+provides better 'referencing' abilities
+Disadvantages: Doesn't map as readily to conventional data-structures, in a
+threaded environment, it could be difficult to ensure that the cursor is not
+being shifted about by more than one thread (which could lead to serious
+stuff-ups).
+
+The following is a quick proposal for an Editable extension.
+
+public interface EditableNodeIterator extends NodeIterator{
+
+void addBefore(Node newNode);
+void addAfter(Node newNode);
+Node replace(Node newNode);
+Node remove();
+}
+
+Each method is based on the cursor also.  In fact, if you add 'Current'
+after each method name, it's even clearer what they do.
+
+
+Proposal 2:  Add an EditableNode extension.
+
+Rational: Insertion and removal of children has the additional problem of
+associating the parent with the child.  That is, making sure that when
+'getParentNode()' is called on a child, the correct parent is returned.
+Using the standard DOM interface, it is impossible to change the parent node
+of a child.
+
+Possible Solution: Create the EditableNode interface.  This would provide a
+standard way to edit tricky stuff without unnecessarily exposing it to the
+general public.  A starting implementation:
+
+public interface EditableNode extends Node {
+    // Sets the parent node.  returns the old parent, or null.
+    Node setParentNode(Node newParent);
+}
+
+This allows Nodes to attempt a cast to a standard interface, which is better
+that a stab in the dark at their own implementation.
+
+Basicaly, it comes down to whether implementations are expected to cast to
+non-standard implementations in order to provide basic functionality.
+Overall, IMHO, that is a bad thing.  DOM is trying to be
+language/processor/browser/implementation agnostic, and that means that a)
+as little casting as possible should be required and b) what casting is
+required should be to other, standard, interfaces.
+
+In the case of setting the parent, there are quite a few good reasons why
+'setParentNode()' isn't in the standard Node interface, since it's easy to
+stuff up.  But there should be a standard way to 'guess' at a possible route
+of action.
+
+Anyway, appologies for the length.  Thanks for your time.
+
+David Peterson.
+
+
+

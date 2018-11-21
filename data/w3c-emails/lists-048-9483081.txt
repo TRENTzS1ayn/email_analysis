@@ -1,0 +1,176 @@
+docno="lists-048-9483081"
+received="Fri Oct 19 18:57:44 2001"
+isoreceived="20011019225744"
+sent="Fri, 19 Oct 2001 23:51:06 +0100"
+isosent="20011019225106"
+name="Graham Klyne"
+email="Graham.Klyne@MIMEsweeper.com"
+subject="Re: 2001-09-07#5 Literals (use cases/test inputs, please?)"
+id="5.1.0.14.2.20011019230533.00ab58d0@joy.songbird.com"
+charset="us-ascii"
+inreplyto="OF39B04A7D.EF4C162F-ON41256AEA.0075EC67&#64;bayer-ag.com"
+expires="-1"
+
+
+To:jos.deroo.jd@belgium.agfa.com
+Cc:w3c-rdfcore-wg@w3.org
+
+At 10:43 PM 10/19/01 +0100, jos.deroo.jd@belgium.agfa.com wrote:
+> > I'm starting to think this is worth changing the charter over:
+> > if the xml:lang stuff is to be significant, it must be
+> > in triple form.
+>
+>and Sergey's proposal S3
+>[[
+>   (S3) use bNodes [M&S,TBL]
+>
+>       Examples: John_Smith weight [units Pounds, rdf:value "10"], or
+>                 John_Smith weight [pounds [decimal "10"]]
+>]] -- http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2001Oct/0343.html
+>[TBL] http://www.w3.org/DesignIssues/InterpretationProperties.html
+>
+>I find that a very reasonable path to follow!
+
+Yes, but I have concerns that it could break some reasonable existing 
+interpretations.
+I like the general idea of capturing the language/type information in RDF 
+triples, but I can see some possible difficulties.  Let's see if I can 
+build this by example:
+
+(1)
+    <ex:Subj>
+      <ex:prop>chat</ex:prop>
+    </ex:Subj>
+-->
+    ex:Subj ex:prop "chat" .
+
+I think this is pretty uncontroversial.  But let's see what happens when 
+language tagging (or data typing) information is introduced:
+
+(2)
+    <ex:Subj>
+      <ex:prop xml:lang="en">chat</ex:prop>
+    </ex:Subj>
+-->
+    ?
+I feel that it is important that the triple:
+
+    ex:Subj ex:prop "chat" .
+
+should still be generated;  i.e. having the presence of xml:lang force an 
+"interpretation property" form, such as:
+
+(2a)
+    ex:Subj ex:prop _:a .
+    _:a lang:en "chat" .
+
+would be confusing, because adding the xml:lang property (compared with 
+(1)) makes a triple disappear.  That seems to me like a landmine for unwary 
+developers.  Also, it presumes that the extra information is available at 
+triple-generation time (which is true for xml:lang, but maybe not for data 
+typing).
+
+Similar considerations would apply to an translation like:
+(2b)
+    ex:Subj ex:prop _:a .
+    _:a rdf:value "chat" .
+    _:a xml:lang "en" .
+
+which is what the example cited above from Sergey's (S3) seems to suggest.
+
+Another approach, overcoming this objection, is to interpret (2) as:
+(2c)
+    ex:Subj ex:prop "chat" .
+    "chat" xml:lang "en" .
+
+but this introduces a different set of considerations:
+
+- we have to admit literals as subjects, at least in the abstract 
+syntax.  (I don't see this as a problem, just something to be faced.)
+
+- each *instance* of a given literal may have a different model theoretic 
+interpretation;  e.g. the "chat"s in:
+
+    "chat" xml:lang "en" .
+    "chat" xml:lang "fr" .
+
+must denote different things, I think.  In turn, I think this means that 
+each *instance* of a literal must correspond to a different graph node 
+(which have distinct identities to hand the different interpretations onto).
+
+Yet another approach is suggested by DanCs technical note on using XML 
+schema data types:
+(2d)
+    ex:Subj ex:prop "chat" .
+    ex:Subj _:prop _:a .
+    _:a rdf:value "chat" .
+    _:a xml:lang "en" .
+
+This avoids all the above issues, but requires the introduction of an 
+unidentified property (_:prop).  I have a really hard time to see how that 
+would work in practice, especiially if ex:Subj has multiple qualified 
+properties:
+
+    ex:Subj ex:does "chat" .
+    ex:Subj ex:about "chat" .
+    ex:Subj _:prop _:a .
+    _:a rdf:value "chat" .
+    _:a xml:lang "en" .
+    ex:Subj _:prop _:b .
+    _:b rdf:value "chat" .
+    _:b xml:lang "fr" .
+
+ From this, not knowing the association between the unknown properties and 
+the given properties, it's not possible to tell which literal is to be 
+interpreted in English, and which in French.
+
+...
+
+Having got this far, I find myself wondering if a combination of Dan's 
+approach PLUS interpretation properties could work:
+(2e)
+    ex:Subj ex:prop "chat" .
+    ex:Subj ex:prop _:a .
+    _:a lang:en "chat" .
+
+In this case, the presence of xml:lang qualifier forces the generation of 
+two extra triples, having the form of blank node and an interpretation 
+property, but leaves the original property intact.  But this too seems to 
+have some subtle problems:  suppose it were used as an element of a 
+daml:Collection type of list -- would the duplication of a listhead 
+property not result in an ill-formed list when subjected to further analysis?
+
+...
+
+If one accepts that language tagging can be viewed as kind of type 
+information, I think many of the issues raised by xml:lang are also raised 
+when one wants to use XML schema data types (or any other data types).  A 
+clean solution to this problem will address both sets of issues.
+
+I find all of the above feel somewhat unsatisfactory, except (2c), and that 
+approach requires that some aspects of the model theory need to be 
+fundamentally revisited, which appears to me like a big bite to take in RDF 
+1.0.  Earlier today, I was thinking that we should do as little as possible 
+about data typing because it seems to be such a difficult area, but having 
+xml:lang to deal with seems to require us to face the issues now.
+
+I have ignored the issues of treating the language information as part of 
+the literal itself, but as we have seen that seems to introduce its own set 
+of difficulties, and I don't think it really helps with the data typing 
+case (e.g. we can't infer this extra information from schema data types 
+when available).  (Maybe this is what Jan meant when he talked today about 
+two levels of typing?)
+
+Still undecided,
+
+#g
+
+
+------------------------------------------------------------
+Graham Klyne                    MIMEsweeper Group
+Strategic Research              <http://www.mimesweeper.com>
+<Graham.Klyne@MIMEsweeper.com>
+------------------------------------------------------------
+
+
+

@@ -1,0 +1,89 @@
+docno="lists-000-2462301"
+received="Sun Aug  1 15:57:54 1999"
+isoreceived="19990801195754"
+sent="Sun, 1 Aug 1999 14:52:23 -0500"
+isosent="19990801195223"
+name="Advocate"
+email="wotw@inebraska.com"
+subject="TrimEmptyElement(): don't remove empty TR, imply required TD  instead"
+id="v04205501b3ca4ab49b74@[206.222.216.26]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Modification of TrimEmptyElement so that, when called from ParseRow, 
+instead of removing an empty TR, it instead implies a single, empty 
+TD.  This is consistent with the behavior of the browsers and with 
+the author's intent such as when a row is entirely spanned and/or 
+decided to leave out trailing empty cells in the row.  If it is 
+removed, the program would have to go back to the previous rows that 
+have cells that span this empty row and reduce their ROWSPAN 
+attributes to preserve the original intent, and tidy's AttVal 
+structure doesn't distinguish between original and implied attributes 
+and values.
+
+This is not the same as the fixed case where content outside of a TD 
+is now moved to before the table instead of implying a TD.
+
+*** tidy26jul99/parser.cSun Aug  1 13:45:42 1999
+--- tidy26jul99-TrimEmptyElement/parser.cSun Aug  1 14:01:52 1999
+**************
+*** 81,98 ****
+   void TrimEmptyElement(Lexer *lexer, Node *element)
+   {
+       if (element->content == null &&
+           (element->tag != tag_a || element->attributes == null))
+       {
+           if (element->type == TextNode ||
+                   (element->tag != null &&
+                    element->tag != tag_layer &&
+                   !(element->tag->model & CM_ROW)))
+           {
+ 
+!            if (element->type != TextNode)
+!                 ReportWarning(lexer, element, null, TRIM_EMPTY_ELEMENT);
+ 
+!             DiscardElement(lexer, element);
+           }
+       }
+   }
+--- 81,109 ----
+   void TrimEmptyElement(Lexer *lexer, Node *element)
+   {
++     Node *node;
++
+       if (element->content == null &&
+           (element->tag != tag_a || element->attributes == null))
+       {
+           if (element->type == TextNode ||
+                   (element->tag != null &&
+                    element->tag != tag_layer &&
+                   !(element->tag->model & CM_ROW)))
+           {
++             if (element->tag == tag_tr) {
++                 /* If a table's row is empty, we imply a cell as per  *
++                  * the behavior of Netscape/IE.  Otherwise removing   *
++                  * it would mess up the rowspanning of previous rows. */
+ 
++                 node = InferredTag(lexer, "td");
++                 ReportWarning(lexer, row, node, MISSING_STARTTAG);
++                 InsertNode(row, node);
++             } else {
+!                 if (element->type != TextNode)
+!                     ReportWarning(lexer, element, null, TRIM_EMPTY_ELEMENT);
+ 
+!                 DiscardElement(lexer, element);
++             }
+           }
+       }
+   }
+-- 
+          ,=<#)-=#  <http://www.war-of-the-worlds.org/>
+     ,_--//--_,
+  _-~_-(####)-_~-_  "Did you see that Parkins boy's body in the tunnels?" "Just
+(#>_--'~--~`--_<#)  the photos.  Worst thing I've ever seen; kid had no face."
+
+
+

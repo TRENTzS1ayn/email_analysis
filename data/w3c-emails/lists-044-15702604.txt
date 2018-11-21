@@ -1,0 +1,206 @@
+docno="lists-044-15702604"
+received="Tue Aug 29 14:33:53 2000"
+isoreceived="20000829183353"
+sent="Tue, 29 Aug 2000 11:33:43 -0700"
+isosent="20000829183343"
+name="John Boyer"
+email="jboyer@PureEdge.com"
+subject="RE: Proposed processing model for Reference and Transforms"
+id="BFEDKCINEPLBDLODCODKAELDCEAA.jboyer@PureEdge.com"
+charset="iso-8859-1"
+inreplyto="200008291240.NAA30944&#64;cougar.baltimore.ie"
+expires="-1"
+
+To:"merlin"<merlin@baltimore.ie>
+Cc:"XML DSig"<w3c-ietf-xmldsig@w3.org>,"TAMURA Kent"<kent@trl.ibm.co.jp>,"Petteri Stenius"<Petteri.Stenius@remtec.fi>
+
+
+Hi Merlin,
+
+<merlin>
+I meant to bring this up on the last teleconf but forgot..
+
+1)
+
+" 3. replace any element node E with E plus all descendants of E (text,
+  comment, PI, element) and all namespace and attribute nodes of E and its
+  descendant elements. "
+
+" To retain comments while selecting the entire document, use the following
+  full XPointer: URI='#xpointer(//. | //@* | //namespace::*) "
+
+I'm not sure if there is a subtlety that is lost on me, but would not
+'#xpointer(/)' select the whole document? '/' returns the root node
+which, by 3, is automatically expanded to include all descendants.
+</merlin>
+
+<john>The subtlety is that to root node is not an element.  However, it is
+probably better to use #xpointer(/) and add a line before 3 that says that a
+root node is replaced by its element, PI, comment children such that 3
+(which would then be 4) would expand the node-set to cover the whole
+document.
+
+Any detractors to this change?
+</john>
+
+2)
+
+" 1.Initialize an XPath evaluation context by setting the initial
+  node equal to the input XML document's root node, and set the
+  context position and size to 1. "
+
+By "initial node" I presume you mean "context node"?
+
+This is troublesome: If I do an XPath on URI='#foo' then the XPath
+expresion '.' is not 'id("foo")' but '/'. In other words, XPath
+and fragmentary URIs are incompatible. See 5) below.
+
+<john>
+Saw 5.  Don't understand the problem.  At its most basic level, set
+membership is indicated by a boolean (1 or 0).  The URI="#foo" should result
+in a node-set that is representative of the entire document (i.e. the
+underlying tree is of the whole document)but only foo and its descendants
+are in the set (marked with 1).  The fact that a node-set must, under the
+covers, still maintain a tree structure is evident in the processing rules
+for XPath expression evaluation.  There is no way to process the axes for
+things like ancestor and child without retaining a parse tree.
+As well, the result is not id("foo") which only returns foo, not
+foo+descendants.
+Finally, I don't understand how . becomes /.  The new XPath write-up
+encumbers the implementer with the need to iterate the node-set, using each
+node as the context node and evaluating the XPath expression given.  This
+was done to make our xpaths look like xsl:template xpaths as well as to
+optimize our process by allowing a node-set to pass through a number of
+node-set-aware transforms without being serialized.  See comments below for
+more info.
+</john>
+
+This is particularly important because, although an XPath can reflect
+the position of the node at signing time, if it is moved into another
+document then it will not verify.
+
+<john>I don't fully understand this, but I'm guessing it comes from a
+different understanding about the new processing model</john>
+
+3)
+
+Namespace attributes, C14N, XPaths and XPointers. I'll write this
+shortly.
+
+4)
+
+An XSLT is applied to an XML document, so why a binary input type?
+
+I have no strong opinion on this, it is just an observation.
+
+<john>Our transform processing model allows us to move one of two things
+into a transform: octet stream or XPath node-set (or sufficiently functional
+alternative).  The typical XSLT implementation expects to read the XML
+document from a source file (octet stream).  A number of XSLT processors
+have advanced features that allow reading from an 'extended' input source
+that, under the covers, contains the XML document in a DOM tree.  However,
+this is not, strictly speaking, an XPath node-set.  Particularly, it is not
+a node-set with some of the nodes omitted.  Finally, even if an XSLT
+implementation were to accept an XPath node-set, it seems likely that it
+would be looking for a node-set with the root or a single element
+identified, and it would use the occurences of xsl-applytemplates to descend
+into the document or element.  So, I chose octet stream to avoid ambiguities
+and possible conflicts of processing models.</john>
+
+5)
+
+The current content distinction of "binary" or "node set" does not
+seem sufficient to me. I should I have raised this earlier, but...
+
+In my implementation, and I think this might be reflected in others,
+I distinguish three content types: "binary", "node set" and "node
+tree". A tree being a limited set.
+
+The output of a fragment or empty URI is a tree. The output of an
+XPath, XSLT or full XPointer is a set which may be a tree.
+
+<john>
+It seems impossible to me to do most of what XPath requires without having
+an underlying tree representation that maintains ancestor, sibling and other
+informational relationships between the nodes.  Therefore, I view a node-set
+output as including a tree at all times.  The node-set just says which parts
+of the underlying tree are included and which are omitted should the tree
+ever be serialized.
+</john>
+
+The input to an XPath or XSLT is a tree. More importantly, the
+context node is the root of the tree. This is why a set is invalid.
+But a set which is a tree is okay.
+
+<john>
+The input to XPath is, for all intents and purposes, a node-set with the
+root node of the parse tree identified.  I believe we are thinking of the
+same thing.
+</john>
+
+Also, a complexity arises in whether an expression should be
+allowed to go above the context node '..' / '/; or not.
+
+<john>It absolutely MUST be able to go above the context node.  The context
+node is just an initializer, but there must be a parse tree behind the
+scenes.  It is impossible to process the ancestor axis otherwise, and this
+would violate the XPath specification.
+If implementers are having trouble with this, we need to know ASAP.  I can
+rewrite the sections to account for this, although this results in more
+processing at run-time.
+</john>
+
+My suggestion would be that we should mandate that the context
+node should be treated as the document root node during XPath
+processing (and it should inherit appopriate attributes). In
+other words, our transform should operate indistinguishably were
+a C14N/parse step present.
+
+<john>This would be the way I would fix the problem, but it is also a step
+we were trying to avoid.  Before we do this, could you identify a
+non-obscure implementation of Xpath that has this problem?  I ask because
+such an XPath implementation would seem to be unusable in an XSLT
+implementation, which is part of the stated raison d'etre for XPath.</john>
+
+This can be implemented efficiently with a slightly customized
+XPath processor, and on a standard XPath processor by simply
+performing the explict C14N/parse step.
+
+Things don't seem to be coming together terribly cleanly, whatever
+we do.
+
+<john>Actually, I thought it was cleaner in the following ways:
+
+1) We addressed the fact that we actually did not have a spec that would
+have resulted in interoperable signatures for something as simple as
+URI="#foo".
+
+2) We finally have an enveloped signature transform that works.
+
+3) We have a processing model that does not require conversion to an octet
+stream at the end of every transform if successive transforms can take pass
+through a node-set.
+
+4) The Xpath expressions are now simpler (not containing that awful (../ |
+//@* | //namespace::*) as a prefix).  Further, they now look exactly like
+the Xpath expressions that one would write if one were creating an
+xsl:template match expression.
+
+Sure the current stuff is longer, but that is because we MUST eliminate the
+ambiguities and because there seems to be substantial interest in providing
+an enveloped signature transform.
+
+John Boyer
+Development Team Leader,
+Distributed Processing and XML
+PureEdge Solutions Inc.
+Creating Binding E-Commerce
+v: 250-479-8334, ext. 143  f: 250-479-3772
+1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>
+
+</john>
+
+Merlin
+
+
+

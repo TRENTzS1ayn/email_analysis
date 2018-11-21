@@ -1,0 +1,124 @@
+docno="lists-039-6989098"
+received="Fri Aug 20 09:35:53 1999"
+isoreceived="19990820133553"
+sent="Fri, 20 Aug 1999 09:35:14 -0400"
+isosent="19990820133514"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: Locking: Implementation Considerations"
+id="9908201335.AA29957@tantalum"
+inreplyto="852567D3.0002B3B6.00&#64;D51MTA07.pok.ibm.com"
+expires="-1"
+
+
+To:ccjason@us.ibm.com
+Cc:JSlein@crt.xerox.com,w3c-dist-auth@w3.org
+
+
+   From: ccjason@us.ibm.com
+
+   <JC> Geoff, before you go on vacation, it would probably be valuable if you
+   were your own devil's advocate here....
+
+<gmc/> I always like a good debate, even with myself (:-).
+
+   <gmc>
+   So what conclusion can one draw from all this?
+
+   One possibility is to say that locking is largely unneccessary in the
+   presence of versioning (after all, everything is read-only unless you
+   explicitly check it out into your workspace), so versioning servers
+   just won't bother with locking at all.  This would have an unfortunate
+   interoperability result on Class-2 clients try to work with versioning
+   servers.
+   </gmc>
+
+   <JC> So why *NOT* let versioning replace locking?  Is there a form of
+   locking that provides value add over versioning?
+
+<gmc> Versioning is harder to provide than "simple single resource at
+a time" locking (ssraat locking :-).  But ssraat locking is very
+useful for various simple use cases (I'm working on these two resources
+... I lock them while I'm doing so).  So I see a variety of clients
+getting significant benefit out of ssraat locking, and it's nice and
+lightweight for servers to implement (well, not so lightweight in the
+presence of bindings, but still doable).
+
+But if you extend locking to depth:infinity locking of collections,
+the utility to clients drops dramatically.  It appears to work just
+fine while there is just a single client (but then you didn't need to
+lock in the first place).  But as soon as you get a few clients trying
+to get work done, the simplicity of just "locking the whole
+collection" when you want to work on some of the members inevitably
+leads to gratuitous lockout.  Most of the resources locked by a
+depth:infinity lock are commonly *not* ones you are going to change,
+and even the usually harmless operation of adding a new member to a
+collection is locked out.  Even worse, all the properties of those
+members are locked as well.  In contrast sraat locking encourages the
+client to just lock the resources they really expect to modify, so
+when another client collides with the lock, you really are preventing
+an overwrite situation.  Of course, a client could just walk the whole
+collection and place depth:0 locks on every member, but at least we
+aren't encouraging them to do so.
+
+This argument so far is based solely on the dis-utility of
+depth:infinity locking from a clients perspective.  Let's go devil's
+advocate for a moment: "Then clients can simply just not use
+depth:infinity locks if they have these bad effects."
+
+But now lets look at it from a servers point of view (clearly the
+devil needs a much better advocate than me :-).  To handle clients
+that *do* chose to use depth:infinity locks (because they haven't yet
+figured out how bad they are :-), you still have to pay the price of
+implementing them.  The added complexity of lock-null and
+depth:infinity is likely to significantly *decrease* the
+interoperability of clients and servers, both because some servers
+will consciously cut various corners and because the of the high
+likelihood of servers handling edge cases differently.
+
+Now lets add in the presence of versioning (note that all the preceding
+arguments apply irrespective of the existence of versioning support).
+You now have workspaces that share common revisions but that have their
+own "working resource" for resources that are being modified in that
+workspace.  Ssraat locking works just fine, since the lock is being
+applied to the resources being modified (i.e. the checked-out working
+resources).  On the other hand, depth:infinity locks apply to all the
+*shared* revisions, effectively locking out key versioning operations
+(such as labeling) on all the shared resources.
+
+So in summary, the argument is that depth:infinity provides marginal
+utility for locking-only clients, provides significant cost/complexity
+for locking-only servers, decreases interoperability due to this
+cost/complexity, and is incompatible with versioning.
+
+   <JC/> How mature is the versioning work?  Be your own devil's
+   advocate...
+
+<gmc/> Even if we had no plans of ever producing a versioning
+protocol, I'd still be against depth:infinity locking and lock-null
+resources.  (And thus he adroitly dodges the request to denigrate
+the versioning work :-).
+
+   <gmc>
+   Another possibility is to downgrade Depth:infinity locking to a MAY,
+   thereby warning clients that they are likely to find this not supported,
+   and to turn the default lock into Depth:0, instead of Depth:infinity.
+   The latter will cause an interoperability issue with existing class-2
+   servers, but since there aren't many of those yet, if we move fast, this
+   would probably be OK.
+   </gmc>
+
+   <JC/> There must be issues with your first proposal or you wouldn't have
+   offered this one.  Let's hear them.  :-)
+
+<gmc/> Actually, that was just a pre-emptive strike in case someone
+came up with some convincing reasons why they just had to have
+depth:infinity locking.  I don't have any, and I'd rather just
+simplify the spec (i.e. the first proposal), so the second proposal is
+(in my view) just an inferior alternative proposal.
+
+Cheers,
+Geoff
+
+
+

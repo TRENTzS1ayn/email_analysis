@@ -1,0 +1,325 @@
+docno="lists-036-15771722"
+received="Sun Mar  7 04:13:09 2004"
+isoreceived="20040307091309"
+sent="Sun, 7 Mar 2004 09:13:03 +0000"
+isosent="20040307091303"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="dual-purpose grammar idea"
+id="20040307091303.GA13515~@nicemice.net"
+charset="us-ascii"
+expires="-1"
+
+To:uri@w3.org
+
+
+
+Quick summary:  Below my signature appears a grammar designed to be
+useful for both decomposition and validation of URIs, which I'm throwing
+out here in case anyone finds it interesting.  (I have not tested it.)
+
+Lately I've started to appreciate the difficulty of writing grammars.
+There are at least three different things you might want to use a
+grammar for:  To generate a valid string, to check a string for
+validity, and to decompose a string into its components.  I've been
+surprised at how tricky it can be to write a grammar that works well for
+more than one of those purposes.
+
+The grammar in RFC-2396 is a validation grammar.  It accepts only valid
+URIs (and thereby defines valid URIs), but its grammar is overkill if
+all you want to do is decompose a URI without validating it (or without
+validating all of it).
+
+The regular expression in RFC-2396 is a simple grammar for decomposing a
+URI into its top-level components, but not deeper (it doesn't decompose
+the authority component).
+
+The 2396bis draft simplifies the grammar.  One simplification is to
+have only one path token for URI-reference, whereas RFC-2396 has two
+(abs_path and opaque_part).  The cost of this particular simplification
+is that the grammar now accepts invalid URIs, like foo://bar:0x3FF/, and
+decomposes them in a way that's inconsistent with the regular expression
+(the grammar says the path is "x3FF/", while the regular expression
+says it's "/"). The regular expression doesn't decompose the authority
+component, and the grammar is overkill if you merely want to separate
+the userinfo, host, and port without worrying about the details of IPv6
+address syntax or the distinction between a name and an IPv4address.
+
+For generating a string, you would need a truly unambiguous grammar,
+one that does not rely on first-match-wins.  Only with an unambiguous
+grammar can you be sure that the same components you stitch together
+will be gotten back out again.  The grammars in RFC-2396 and the 2396bis
+draft uses first-match-wins, so they don't work for generating URIs.  In
+particular, they would let you generate a path of //foo/ and an empty
+authority, but then you wouldn't get those back out again, you'd get a
+path of / and an authority of foo.
+
+Since both RFC-2396 and the 2396bis draft explicitly decline to
+provide generative grammars, I haven't tried that either.  I have
+written a grammar that can be used for selective decomposition and
+validation of URI components.  While I was at it, I included an idea for
+disambiguating reg-name and hostname (using a leading dot in front of
+reg-name), but that's an orthogonal issue.
+
+AMC
+http://www.nicemice.net/amc/
+
+; Proposal for a decomposition grammar for URIs (and, with slight
+; alteration, IRIs) that can also be used for validation.
+;
+; First match wins, always.  Almost all the rules, not just a few, rely
+; on first-match-wins for disambiguation.
+;
+; Token naming convention:  In any rule of the form
+;
+;     foo = structured-foo / loose-foo
+;
+; anything that matches structured-foo is guaranteed to also match
+; loose-foo; therefore, if you have no need to validate or decompose
+; foo, you can drop structured-foo and its orphaned descendents from the
+; grammar.  The rule for loose-foo will be very simple.
+;
+; There is no valid-foo grammar, but a foo can be validated by parsing
+; it and then verifying that no loose-* tokens were matched.
+;
+; By selecting relevant parts of the grammar, an application can
+; decompose as deep or as shallow as it needs to, and validate only the
+; components it needs to validate (to protect itself from choking on
+; them).  Perhaps it should even be recommended that applications not
+; balk at invalid components that they merely pass along; this would
+; allow the syntax of a component to be expanded in the future, provide
+; it stays within the loose-* syntax.
+;
+; Unlike structured-* tokens, loose-* tokens canNOT be dropped from the
+; grammar (unless they are orphaned).  For example, it is the presence
+; of the loose-* tokens that allows URI-reference to have just one path
+; token with no special rules about leading slashes, rather than two
+; path tokens with different special rules (path-with-authority would
+; have at least one leading slash, path-without-authority would have no
+; more than one leading slash).
+;
+; This grammar is not useful for generating URIs.  For that you
+; would need a grammar that is truly unambiguous without relying on
+; first-match-wins, which would be more complex (involving four kinds of
+; paths).  RFC-2396 and the 2396bis draft likewise make no attempt to
+; supply a generative grammar.
+;
+; Extension to ABNF:
+;
+; If foo is an alternation of single-character patterns (or recursively
+; an alternation of such things), then !foo matches any single character
+; that foo does not match.  For example, !(ALPHA / DIGIT / "-") matches
+; any character that is neither an ASCII letter, an ASCII digit, nor
+; hyphen-minus.  As a special case, !"" matches any single character.
+; This extension makes the loose-* rules more intuitive and easier to
+; convert to a simple regular expression.
+
+any = !""
+unreserved-ascii = ALPHA / DIGIT / "-" / "." / "_" / "~"
+unreserved = unreserved-ascii
+sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+pct-encoded = "%" HEXDIG HEXDIG
+pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+
+URI-reference = structured-URI-reference / loose-URI-reference
+loose-URI-reference = *any
+structured-URI-reference =
+    [scheme ":"] ["//" authority] path ["?" query] ["#" fragment]
+
+URI = structured-URI / loose-URI
+loose-URI = *any
+structured-URI =
+    scheme ":" ["//" authority] path ["?" query] ["#" fragment]
+
+absolute-URI = structured-absolute-URI / loose-absolute-URI
+loose-absolute-URI = *any
+structured-absolute-URI = scheme ":" ["//" authority] path ["?" query]
+
+; No grammar is provided for relative-URI, because it would be
+; difficult, and who needs it anyway?  Let's just define a relative URI
+; to be a URI-reference whose scheme is undefined (the scheme token is
+; not matched).
+
+scheme = structured-scheme / loose-scheme
+loose-scheme = 1*!( ":" / "/" / "?" / "#" )
+structured-scheme =  ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+
+query = structured-query / loose-query
+loose-query = *!"#"
+structured-query = *( pchar / "/" / "?" )
+
+fragment = structured-fragment / loose-fragment
+loose-fragment = *any
+structured-fragment = *( pchar / "/" / "?" )
+
+path = structured-path / loose-path
+loose-path = *!( "?" / "#" )
+structured-path = segment *( "/" segment )
+
+segment = structured-segment / loose-segment
+loose-segment = *!( "/" / "?" / "#" )
+structured-segment = *pchar
+
+authority = structured-authority / loose-authority
+loose-authority = *!( "/" / "?" / "#" )
+structured-authority = [userinfo "@"] host [":" port]
+
+userinfo = structured-userinfo / loose-userinfo
+loose-userinfo = *!( "@" / "/" / "?" / "#" )
+structured-userinfo = *( unreserved / pct-encoded / sub-delims / ":" )
+
+port = structured-port / loose-port
+loose-port = *!( ":" / "@" / "/" / "?" / "#" )
+structured-port = *DIGIT
+
+host = [ reg-host / IP-literal / dotted-host ]
+
+; None of those alternatives can be empty, but the brackets imply that
+; host can be empty.  In some schemes an empty host is equivalent to
+; "localhost".
+
+reg-host = "." reg-name
+
+reg-name = structured-reg-name / loose-reg-name
+loose-reg-name = 1*!( ":" / "@" / "/" / "?" / "#" )
+structured-reg-name = 1*( unreserved / pct-encoded / sub-delims )
+
+; Registry-based names are marked by a leading dot, to avoid ambiguity
+; with another data type (hostname).  This is a change from the RFC-2396
+; reg_name, but a full-text search of all RFCs found no existing schemes
+; that use reg_name, so perhaps it's not too late to make a change like
+; this.
+
+dotted-host = structured-dotted-host / loose-dotted-host
+loose-dotted-host = 1*!( ":" / "@" / "/" / "?" / "#" )
+structured-dotted-host = IPv4address / hostname
+
+; loose-dotted-host does not match the empty string because neither
+; IPv4address nor hostname matches the empty string.  For more
+; rationale, see hostname below.
+;
+; IPv4address and hostname are grouped together as dotted-host so that
+; you don't need to distinguish them if your lookup service handles
+; both.
+;
+; If you want to know whether IDNA applies, you need to distinguish
+; hostname from all other types of host.  The dot in front of reg-name
+; has been introduced to make this possible without having to recognize
+; the scheme.
+
+IP-literal = "[" IPnot4address "]"
+
+IPnot4address structured-IPnot4address / loose-IPnot4address
+loose-IPnot4address = *!( "[" / "]" / "@" / "/" / "?" / "#" )
+structured-IPnot4address = IPv6address / IPvFuture
+
+IPv6address = structured-IPv6address / loose-IPv6address
+loose-IPv6address = 1*( HEXDIG / ":" / "." )
+structured-IPv6address =         6( h16 ":" ) ls32
+    /                       "::" 5( h16 ":" ) ls32
+    / [               h16 ] "::" 4( h16 ":" ) ls32
+    / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+    / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+    / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+    / [ *4( h16 ":" ) h16 ] "::"              ls32
+    / [ *5( h16 ":" ) h16 ] "::"              h16
+    / [ *6( h16 ":" ) h16 ] "::"
+h16 = 1*4HEXDIG                                                      
+ls32 = ( h16 ":" h16 ) / IPv4address
+
+IPvFuture = "v" HEXDIG "." 1*( unreserved / sub-delims / ":" )
+
+IPv4address = structured-IPv4address / loose-IPv4address
+loose-IPv4address = *( DIGIT / ".") DIGIT
+structured-IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
+dec-octet =   DIGIT              ; 0-9
+            / %x31-39 DIGIT      ; 10-99
+            / "1" 2DIGIT         ; 100-199
+            / "2" %x30-34 DIGIT  ; 200-249
+            / "25" %x30-35       ; 250-255
+
+hostname = *( domainlabel domaindot ) toplabel [domaindot]
+domaindot = "."
+
+; It is deliberate that hostname does not match the empty string.  Past
+; URI specs have never allowed hostname to match the empty string.
+; and today some implementations of some schemes would interpret it
+; as the name of the root, while other schemes say it's a synonym for
+; localhost.  If hostname matched the empty string, that would favor
+; the root interpretation, but 2396bis is going the other way, and
+; encouraging the localhost interpretation.  Therefore an empty host is
+; not a hostname, nor any other particular kind of host, but a special
+; case.
+;
+; For consistency, "." is not considered a hostname either, because
+; removing the trailing dot from a hostname should yield a hostname, and
+; that wouldn't be true for ".".  Past URI specs have also not allowed
+; "." as a hostname.
+;
+; Since hostname is the last alternative for host, one might wonder why
+; we don't define
+;
+;     loose-hostname = 1*!( ":" / "@" / "/" / "?" / "#" )
+;
+; The reason is that we don't want to claim that 1.2.3.0x4 is a
+; hostname.  Some existing software interprets this as an IP address,
+; and some existing software interprets it as a domain name.  Past URI
+; specs have always considered 1.2.3.0x4 to be neither an IP address nor
+; a hostname, and given the lack of interoperability, it's too late to
+; admit it to either camp.
+
+domainlabel = structured-domainlabel / loose-domainlabel
+loose-domainlabel = *!( "." / ":" / "@" / "/" / "?" / "#" )
+structured-domainlabel =
+    alphanum / ( alphanum 0*61( alphanum / "-" ) alphanum )
+alphanum = ALPHA / DIGIT
+
+; toplabel is just like domainlabel except that it cannot begin with a
+; DIGIT and the loose version cannot be empty.
+
+toplabel = structured-toplabel / loose-toplabel
+loose-toplabel =  !( DIGIT / "." / ":" / "@" / "/" / "?" / "#" )
+                 *!( "." / ":" / "@" / "/" / "?" / "#" )
+structured-toplabel = ALPHA / ( ALPHA 0*61( alphanum / "-" ) alphanum )
+
+; Notice that loose-domainlabel and loose-toplabel cause hostname
+; to match things like -foo_bar-..$99.  If you want to depend on
+; your operating system to check for (or otherwise deal with)
+; invalid hostname syntax, you can omit structured-domainlabel and
+; structured-toplabel from your parser, and pass -foo_bar-..$99 straight
+; through to your system name lookup function.
+;
+; Furthermore, if the name lookup function handles both IPv4address and
+; hostname, you can just parse down to loose-dotted-host (which is very
+; simple), and not bother with the individual labels.
+;
+; Notice that percent-encoding is not allowed in valid IP addresses
+; and hostnames, same as in RFC-2396.  This is not a problem for IRIs,
+; because reg-names are syntactically distinguishable from hostnames (by
+; the leading dot).  When converting IRIs to URIs, a reg-name component
+; undergoes percent-encoding, and a hostname component undergoes
+; ToASCII, and there is no need to recognize the scheme to know which it
+; is.
+
+; End of URI grammar.
+
+; For IRIs, we can simply replace a few rules:
+
+unreserved = unreserved-ascii / !%x0-7F
+
+domaindot = "." / %x3002 / %xFF0E / %xFF61
+
+structured-domainlabel =
+    <any sequence of characters and percent-escapes to which the IDNA
+    ToASCII operation can be applied (after percent-decoding) without
+    failing, with UseSTD3ASCIIRules set to true and AllowUnassigned set
+    appropriately>
+
+structured-toplabel =
+    <any structured-domainlabel whose ASCII
+    form does not begin with a DIGIT>
+
+; End of IRI-specific rules.
+
+
+

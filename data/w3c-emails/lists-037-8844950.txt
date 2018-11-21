@@ -1,0 +1,208 @@
+docno="lists-037-8844950"
+received="Mon Jun 16 21:36:31 1997"
+isoreceived="19970617013631"
+sent="Mon, 16 Jun 1997 17:59:40 -0700"
+isosent="19970617005940"
+name="Terry Allen"
+email="tallen@sonic.net"
+subject="Re: New properties (metadata) draft"
+id="199706170059.RAA30753@bolt.sonic.net"
+inreplyto="New properties (metadata) draft"
+expires="-1"
+
+
+To:ejw@rome.ICS.UCI.EDU,w3c-dist-auth@w3.org
+
+Jim Whitehead writes:
+| Enclosed is the text of a new draft which satisfies the requirements
+| for attributes (Section 5.1 of the requirements document), linking
+| (Section 5.2 of the requirements), and retrieval of unprocessed source
+| (Requirements Section 5.5).  In this draft, an instance of a piece of
+| metadata is known as a property.  This draft differs from the previous
+| draft on metadata operations (the GETMETA, ADDMETA, DELMETA draft) in
+| that it uses GET to retrieve properties, and employs new PATCH method
+| to add and delete property values.  A SEARCH method provides the
+| capability to search properties.
+
+This is interesting but needs some XML work.  On quick perusal:
+
+| This draft also makes use of the Extended Markup Language (XML) as an
+
+Extensible, not Extended.
+
+| on-the-wire representation for property names and values.  Due to the
+| recent release of the Meta Content Framework (MCF) draft, and the
+| similarity between MCF and the XML representation given in this draft,
+| there is currently debate within the Design Team over whether the
+| on-the-wire representation should use MCF.  The primary affect of this
+| debate is limited to Section 2.7, Visualizing a Property Tree Using
+| XML, which gives an algorithm for converting properties to an XML
+| representation, although it would also affect the examples throughout.
+
+
+| 2.7 Visualizing a Property Tree Using XML
+| 
+| While it is possible to visualize tree structures in many ways, for use by
+| WebDAV, this specification defines a linear visualization of property trees
+| using the Extensible Markup Language (XML) [Bray, 1997] suitable for
+| transmission as part of an HTTP protocol stream.
+|
+| A sketch of an algorithm for creating an XML linearization of a property
+| tree is given below.
+| 
+| Begin by printing an "<XML>" element, if this is a standalone document.
+
+You really want a Document Type Definition for what you're doing here,
+even though XML allows documents that don't have a DTD.  In any event,
+XML is not a particularly good name for the root element; the XML folks 
+are likely to preempt it.  How about WEBDAVTREE, etc.
+
+| Next, perform a traversal of the property tree, collecting the set of all
+| schemas used by all properties. Print one "<XML:Namespace>" ... "<AS>" XML
+
+Despite the fact that the MCF spec uses element type names that include
+colons, my testing (with James Clark's JADE 0.7) and my reading of the spec
+suggest that the colon is not a valid character here.  However, the spec
+is fluid, and you should ask for advice on this score, e.g., by posting
+to the XML-DEV list.
+
+| entity pair for each schema in use, ensuring that unique tags are used in
+
+I am not sure that "XML entity pair" means anything.  I think you mean
+"two start-tags".
+
+| the "<AS>" XML entities. Save the mapping between schema names.
+|
+| Next, perform a preorder traversal of the tree. For each node, print its
+| name as "<"{unique schema tag}":"{property URI which is relative to the
+| schema's URI}">", then print its value, then print "</>". Note that the
+
+</> is not in XML; you need to use a full end-tag, e.g., 
+<WEBDAVTREE.Namespace> ... </WEBDAVTREE.Namespace>.  
+
+| process is recursive for values which contain properties. Whitespace may be
+| printed between XML entities for prettyprinting.
+| 
+| Print a closing "</>" (to close the "<XML>") if the document is standalone.
+
+Again, you need the full end-tag.
+
+| For example, the following properties are defined on
+| http://somewhere.com/resource.
+| 
+| <XML>
+|  <Namespace><Ref>http://www.w3.org/standards/z39.50/</><AS>Z</></>
+
+should be 
+
+<Namespace><Ref>http://www.w3.org/standards/z39.50/</Ref><AS>Z</AS></Namespace>
+
+What does the "Z" mean?
+
+|  <Namespace><Ref>AIIM:Dublin:</><AS>D</>
+|  <Z:Author><D:PersonalName>Shirley</><D:FamilyName>Mansai</></>
+| </>
+
+I see.  You are trying to write a DTD on the fly.  There is no way of
+validating this structure, of knowing that you have constructed it
+correctly.  Arbitrary extensibility of syntax is nice, but so is
+validatability.  Why not construct 
+
+<!doctype webdavtree.mine [
+...
+<!element PersonalName (#PCDATA)>
+<!attlist PersonalName semantic CDATA "AIIM:Dublin">
+...
+]>
+<webdavtree>
+...
+<PersonalName>Shirley</PersonalName>
+...
+</webdavtree>
+
+?  Then you can parse with a validating XML parser to see that your
+element definition structure and document body are correctly constructed.
+Further, "AIIM:Dublin" can be a URL or URN.
+
+| To create a reference to the value "Mansai" one would perform the following
+| steps.
+| 
+|   1. Add the DAV parameter to the base URI,
+|      http://somewhere.com/resource;DAV.
+|   2. Add "/" to refer to the root of the resource's property namespace,
+|      http://somewhere.com/resource;DAV/.
+|   3. Change the author attribute's name into parameter format by changing
+|      the "/" to "!" and encasing it in parenthesis. We must encase it in
+|      parenthesis in order to indicate that we have made the "/" to "!"
+|      translation. We make the translation in order to prevent confusion over
+|      where segments are and to make sure that relative URIs will continue to
+|      work.
+|      http://somewhere.com/resource;DAV/(http:!!www.w3.org!standards!z39.50!author).
+|   4. Next we continue the path by adding the family name attribute. Because
+|      it does not include any "/" it does not require encoding.
+|      http://somewhere.com/resource;DAV/(http:!!www.w3.org!standards!z39.50!author)/AIIM:Dublin:FamilyName.
+
+If FamilyName is in the AIIM:Dublin spec, why not just assign a normal URL
+(or URN) to that semantic, exactly as you do below?  It would require the
+cooperation of the spec maintainers, but that would be a real good thing
+for interoperability.
+
+| 4 DAV Schema
+| 
+| The DAV Schema is specified as http://www.ietf.org/standards/dav/. This
+| schema is used to indicate support for properties that can be defined on a
+| resource and XML entities that can be returned in responses.
+
+If you don't include a version number in that URL you *will* regret it.
+
+| 4.1 Properties
+| 
+| 4.1.1 Live Property
+| 
+| Name: http://www.ietf.org/standards/dav/live
+| Purpose: To indicate that the parent property has its syntax and semantics
+| enforced by the resource on which it is recorded.
+| Schema: http://www.ietf.org/standards/dav/
+| Parent: Any property
+| Values: None
+| Description: This property is used exclusively in a response to indicate if
+| the resource a property is recorded on is enforcing the syntax and semantics
+| of the property. The absence of the Live property tells the client that the
+| corresponding property does not have its syntax and semantics enforced by
+| the resource on which it is recorded.
+
+Very nice; this is the right approach.  This info could be marked up according 
+to an XML DTD too.
+
+| 5.3 Link Property
+| 
+| Name: http://www.ietf.org/standards/dav/link
+| Purpose: To indicate the existence of a link associated with the parent
+| property.
+| Schema: http://www.ietf.org/standards/dav/
+| Parent: Any property that needs to have a link associated with it.
+| Values: Src 1*Dst
+| Description: Link is used to provide the source and one or more destinations
+| of the link. The parent property provides the type. Link is a multivalued
+| property so multiple Links may be used together to indicate multiple links
+| with the same type.
+
+You might want to synch this up with XML-link, once it's frozen.
+(Or again, not, depending on how it turns out.)
+
+| 8.1 Syntax
+
+This really ought to be an XML DTD unless there are technical reasons
+it can't be.  XML-lang has the EBNF in it already; there's nothing
+to be gained by reinventing it here. 
+
+
+Regards,
+
+  Terry Allen    Electronic Publishing Consultant    tallen[at]sonic.net
+                   http://www.sonic.net/~tallen/
+    Davenport and DocBook:  http://www.ora.com/davenport/index.html
+          T.A. at Passage Systems:  terry.allen[at]passage.com 
+
+
+

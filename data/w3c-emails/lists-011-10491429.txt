@@ -1,0 +1,154 @@
+docno="lists-011-10491429"
+received="Wed Nov 12 12:27:47 1997"
+isoreceived="19971112172747"
+sent="Wed, 12 Nov 97 12:22:53 PST"
+isosent="19971112202253"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: If-NoneMatch and IMS (new Issue IMS_INM_MISMATCH)"
+id="9711122022.AA14851@acetes.pa.dec.com"
+inreplyto="9711112058.AA24575&#64;pachyderm.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+The question was:
+    Is there a consensus on the correct behavior for a server when it
+    receives a request with conflicting If-None-Match and
+    If-Modified-Since headers, for instance where the I-N-M ETag is
+    outdated but the I-M-S date is good?
+    
+This is specifically answered for proxy servers in section 13.3.4
+(Rules for When to Use Entity Tags and Last-modified Dates).  The text
+there says:
+
+   An HTTP/1.1 cache, upon receiving a request, MUST use the most
+   restrictive validator when deciding whether the client's cache entry
+   matches the cache's own cache entry. This is only an issue when the
+   request contains both an entity tag and a last-modified-date
+   validator (If-Modified-Since or If-Unmodified-Since).
+
+(Several uses of the word "cache" in that paragraph should probably
+be "caching proxy", since end-client caches presumably do not
+receive cache-conditional request messages.)
+
+This is followed by:
+
+     A note on rationale: The general principle behind these rules is
+     that HTTP/1.1 servers and clients should transmit as much non-
+     redundant information as is available in their responses and
+     requests. HTTP/1.1 systems receiving this information will make the
+     most conservative assumptions about the validators they receive.
+
+I think the most straightforward extension of "these rules" to
+the correct behavior for an origin server is to do the same:
+use the most restrictive validator.  But, as Roy implied when
+he wrote "the RFC is less than clear", the term "most restrictive"
+isn't really defined.  So I would replace the first paragraph quoted
+above with these two paragraphs:
+
+   An HTTP/1.1 origin server, upon receiving a conditional request that
+   includes both a Last-modified date (e.g., in an If-Modified-Since or
+   If-Unmodified-Since header field) and one or more entity tags (e.g.,
+   in an If-Match, If-None-Match, or If-Range header field) as cache
+   validators, MUST NOT return a response status of 304 (Not Modified)
+   unless doing so is consistent with all of the conditional header fields
+   in the request.
+
+   An HTTP/1.1 caching proxy, upon receiving a conditional request that
+   includes both a Last-modified date and one or more entity tags as
+   cache validators, MUST NOT return a locally cached response to the
+   client unless that cached response is consistent with all of the
+   conditional header fields in the request.
+
+Dave Morris wrote:
+My recollection of intent matches the implementation Roy
+described.  If-None-Match supercedes IMS when both are
+present.
+
+This is not quite the same thing; allowing INM to supersede IMS
+unconditionally might be wrong if the INM contained a "weak"
+entity tag.  However, with a strong entity tag, there should be
+no practical difference between Dave's interpretation and the
+more conservative one ... except in those rare cases where a
+resource's modification date changes, but its value does not.
+
+Henry's question continues:
+
+    For example, take the following sequence
+    
+    GET /foo.txt HTTP/1.1
+    Host: server.company.com
+    
+    HTTP/1.1 200 OK
+    Last-Modified: Wed, 05 Nov 1997 22:10:48 GMT
+    ETag: "12345"
+    Content-Length: ...
+    
+    <data>
+    
+    GET /foo.txt HTTP/1.1
+    Host: server.company.com
+    If-None-Match: "12344"
+    If-Modified-Since: Wed, 05 Nov 1997 22:10:48 GMT
+    
+    Assuming the Last-Modified date hasn't changed, what should the server
+    send back as a response to the 2nd request, 304 or 200? I would have
+    thought 200 is correct, since the ETag is invalid or out of date.
+    However the spec indicates that the I-N-M header is to be treated as if
+    it isn't present if the ETag doesn't match, and then the I-M-S would
+    lead to a 304 response.
+
+Section 14.26 (If-None-Match) doesn't exactly say "ignored"; it contains
+an apparent contradiction, because it says both:
+
+   If any of the entity tags match the entity tag of the entity that
+   would have been returned in the response to a similar GET request
+   (without the If-None-Match header) on that resource, or if "*" is
+   given and any current entity exists for that resource, then the
+   server MUST NOT perform the requested method. [...]
+
+and
+
+   If the request would, without the If-None-Match header field, result
+   in anything other than a 2xx status, then the If-None-Match header
+   MUST be ignored.
+
+These excerpts both contradict the existing language in 13.3.4 (as it
+applies to caching proxies) and the revised language I proposed above.
+I.e., if the entity tags don't match, but the dates do match, 13.3.4
+says "return 200", but the latter of these two excerpts implies "return
+304".
+
+I think that's a real bug.
+
+If the entity tags do match, but the dates don't match, 13.3.4 also
+says "return 200", but the former of these two excerpts implies
+"return 304".  I think that's also a bug, but this one is probably
+not of much practical consequence unless the server is using
+weak entity tags.
+
+I would change the first sentence quoted above to:
+
+   If any of the entity tags match the entity tag of the entity that
+   would have been returned in the response to a similar GET request
+   (without the If-None-Match header) on that resource, or if "*" is
+   given and any current entity exists for that resource, then the
+   server MUST NOT perform the requested method, unless required
+   to do so because the resource's modification date fails to
+   match that supplied in an If-Modified-Since header field in the
+   request. [...]
+
+and the second sentence to:
+
+   If the request would, without the If-None-Match header field, result
+   in anything other than a 2xx or 304 status, then the If-None-Match
+   header MUST be ignored.  (See section 13.3.4 for a discussion of
+   server behavior when both If-Modified-Since and If-None-Match
+   appear in the same request.)
+
+-Jeff
+
+
+

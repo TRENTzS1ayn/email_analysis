@@ -1,0 +1,113 @@
+docno="lists-000-1715598"
+received="Sat Jul  3 17:50:52 1999"
+isoreceived="19990703215052"
+sent="Sat, 3 Jul 1999 14:50:03 -0700"
+isosent="19990703215003"
+name="Terry Teague"
+email="teague@macbroker.com"
+subject="Re: Making Tidy into a library call"
+id="l03130307b3a42bc91a53@[17.219.105.242]"
+charset="us-ascii"
+inreplyto="Making Tidy into a library call"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Douglas Cook writes in :
+
+<http://lists.w3.org/Archives/Public/html-tidy/1999JulSep/0011.html>
+
+>I will soon begin work integrating Tidy into a larger program that I am
+>working on, using it to convert existing files into XHTML for input into a
+>database.  I'm working in MS VC++ 6.0, buiding for a multiprocessor Windows
+>NT platform.  Has anyone else converted Tidy into a library?  Any
+>recommendations or things to be aware of?
+
+While I am working on a different platform (Mac OS), and not producing a
+library per se (a "plug-in" filter), I have many of the same issues as you
+will, and I can probably give you some advice.
+
+>Which portions of the initialization/uninitialization are "Init once/uninit
+>once" and which are "init before each file is parsed/uninit after?"
+
+Depending on how you port the tidy code - since the main() function runs
+the whole show ONCE, you probably want to extract out the bits that will be
+only initialized/terminated once, and put the rest of the main() in code
+that will executed each time. Static variable initialization may or may not
+cause you problems (see below).
+
+Specifically in my case, I am working in a multi-threaded application, I
+can't (easily) have global variables in my "plug-in", but the "plug-in"
+architecture has "initialize", "run", and "terminate" phases (amongst
+others). I can have multiple instances of the "plug-in" (in multiple
+formats - such as 68K, PowerPC, "FAT" processor architectures, packaged in
+a couple of different ways - code resources, shared libraries (DLL's)),
+which typically share the code, but have their own data.
+
+In my "initialize" routine :
+
+(a) I allocate memory for global variables (which get saved/restored on a
+context switch).
+(b) I set up the setjmp() error handler in case parts of tidy get a fatal
+error during initialization.
+(c) If building a version of the code with memory management debugging (if
+I'm not building a debug version, actually the calls do nothing), I
+initialize my memory manager (which in my case means allocating a block of
+memory to track memory allocation requests).
+(d) I do any platform/"plug-in" specific initialization.
+(e) I call InitTidy().
+(f) Because my "plug-in" has a GUI configuration window, I handle any
+configuration that the user may have done (at any time before the "plug-in"
+code is called) by setting the values of tidy global variables (as would
+normally come from command-line options) appropriately. This would be
+equivalent to the command-line option processing loop in tidy(), except for
+opening files. I also support Config files, and I call ParseConfigFile() in
+this case.
+(g) I call AdjustConfig().
+
+In my "run" routine :
+
+(a) I switch in (restore) the global variables.
+(b) I set up the setjmp() error handler in case parts of tidy get a fatal
+error.
+(c) I create an output stream and error stream. This would be equivalent to
+the code in tidy() that opens the files.
+(d) My "plug-in" gets handed streams of data, one stream at a time (the
+"plug-in" makes callbacks to the application for more data). For each input
+stream, I process the input in much the same way as tidy() - starting with
+the NewLexer() call.
+(e) I do the rest of the processing as per tidy(), up to the end of the
+routine where it reports errors and closes the output/error streams.
+Everything EXCEPT DeInitTidy().
+(f) I switch out (save) the global variables.
+
+In my "terminate" routine :
+
+(a) I switch in (restore) the global variables.
+(b) I call DeinitTidy().
+(c) If building a version of the code with memory management debugging (if
+I'm not building a debug version, actually the calls do nothing), I
+terminate my memory manager (which in my case means reporting any memory
+leaks, and actually disposing memory).
+(d) I do any platform/"plug-in" specific termination.
+
+
+The recent versions (15 Apr 99 and later) of Tidy have made my job easier
+than it used to. But I still have problems with variables that are static
+in various files, such as hashtables, since I can't easily make them
+extern, as they have the same names. The compiler/linker cause static
+initialization to be done once (which makes complete sense), but ideally I
+would like to do that each time in my "initialize" routine - I haven't
+found a good way to do that yet (compiler/linker dependent). There are a
+couple of other gotchas that I had to work around. I haven't completely
+solved all the problems yet - like multiple invocations of the code while
+in the application cause me some crashes (again mainly related to those
+static variables and hashtables).
+
+Hope this helps.
+
+Regards, Terry
+
+
+

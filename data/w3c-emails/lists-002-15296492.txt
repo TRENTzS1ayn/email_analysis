@@ -1,0 +1,72 @@
+docno="lists-002-15296492"
+received="Thu Oct  2 15:29:33 2003"
+isoreceived="20031002192933"
+sent="Thu, 02 Oct 2003 13:29:18 -0600"
+isosent="20031002192918"
+name="Lee Passey"
+email="lee@novomail.net"
+subject="Re: Using htmltidy to parse: getting the &quot;body&quot; of a node"
+id="3F7C7C8E.9060106@novomail.net"
+charset="us-ascii"
+inreplyto="20031001194518.99919.qmail&#64;web20414.mail.yahoo.com"
+expires="-1"
+
+
+To: joe user<palehaole@yahoo.com>
+Cc:html-tidy@w3.org
+
+
+joe user wrote:
+
+> Hello Tidy people,
+> 
+> I am trying to use Tidy to do its magic on (possibly
+> broken) html files, for input to other layers of
+> processing in C.  I need to get access to the body of
+> stuff.
+> 
+> For example, in this block:
+> 
+> <p>This is some text.</p>
+> 
+> how do I get access to the "This is some text." part? 
+> I can get a stream of TidyNodes, which have
+> attributes, but what about the actual content?  I
+> assume that the entire sequence of <p>Text</p> counts
+> as a single TidyNode?
+> 
+> Thanks for any tips on this.
+
+
+//  Fills rgBuffer with all the text from the lexer's buffer up to nBufSize
+//  minus one characters. Text is UTF-8 encoded. No markup is included.
+
+
+int getTextFromNode( TidyDocImpl* doc, Node *node, char *rgBuffer, int nBufSize )
+{
+    int len = 0;
+    Node *pTemp;
+    
+    nBufSize--;     //  So we have room to null terminate.
+
+    for (pTemp = node->content; NULL != pTemp && len < nBufSize; pTemp = pTemp->next )
+    {
+        len += getTextFromNode( doc, pTemp, &rgBuffer[ len ], nBufSize - len );
+    }
+    if (len < nBufSize && (node->type == TextNode || node->type == CommentTag ))
+    {
+        int nToCopy = node->end - node->start;
+        if (0 != nToCopy )
+        {
+            if (nToCopy > nBufSize)
+                nToCopy = nBufSize;
+            memcpy( &rgBuffer[ len ], &doc->lexer->lexbuf[ node->start ], nToCopy );
+        }
+        len += nToCopy;
+    }
+    rgBuffer[ len ] = '\0';
+    return len;
+}
+
+
+

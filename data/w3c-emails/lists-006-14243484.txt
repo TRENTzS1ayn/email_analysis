@@ -1,0 +1,158 @@
+docno="lists-006-14243484"
+received="Wed Oct  3 07:26:07 2001"
+isoreceived="20011003112607"
+sent="Wed, 3 Oct 2001 04:30:10 -0700"
+isosent="20011003113010"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: Why does MERGE automatically checkin resources related to act  ivities?"
+id="20011003043009.J24906@lyra.org"
+charset="us-ascii"
+inreplyto="3906C56A7BD1F54593344C05BD1374B104652FED&#64;SUS-MA1IT01"
+expires="-1"
+
+To:"Clemm, Geoff"<gclemm@rational.com>
+Cc:ietf-dav-versioning@w3.org
+
+
+On Tue, Oct 02, 2001 at 09:47:08AM -0400, Clemm, Geoff wrote:
+>...
+> I do believe Roy made a good case for making this behavior
+> be under client control, so I'd like to modify the marshalling
+> of the MERGE request so that there is a DAV:auto-activity-checkin
+> flag to MERGE that indicates whether or not the client wants this
+> auto-activity-checkin behavior.  Does anyone object to this change?
+
+Not a problem here.
+
+> (I'd like to make the default to not do the checkin, since this
+> is more consistent with the non-activity semantics of MERGE, which
+> does not merge checked-out resources.
+
+Not a problem.
+
+>...
+>    From: Greg Stein [mailto:gstein@lyra.org]
+> 
+>    On Mon, Oct 01, 2001 at 09:50:50AM -0400, Clemm, Geoff wrote:
+>    > Greg: If you split your "commit" into an activity "CHECKIN"
+>    > followed by a baseline "MERGE", I believe you would have the
+>    > right framework for doing branching (in particular,
+> 
+>    We use cheap copies, not branching.
+> 
+> A "cheap copy" is probably a better name for what I had in mind
+> anyway, so I'll use that term here instead of "branching".
+> 
+> In particular, I noticed in the subversion "mapping to WebDAV" design
+
+Careful with that doc :-)  it could stand some updating...
+
+> notes, that you were moving towards using something other than "COPY"
+> to marshal the creation of a "cheap copy".  I believe that
+> BASELINE-CONTROL is the appropriate way to marshal this.  The
+> DAV:baseline-collection property of a baseline exposes that "cheap
+> copy" in an interoperable way.
+
+Actually, I was planning to do a COPY from somewhere in a BC as the
+marshalling. For example:
+
+    COPY /repos/svn/$svn/bc/567/trunk HTTP/1.0
+    Destination: /repos/svn/$svn/wrk/uuid/branches/gstein-work
+
+This contains the revision/path to copy, and the destination in a working
+collection to copy it to.
+
+>    > a branch is just a CHECKIN that is not followed by a MERGE).
+>    > This would have CHECKIN of an activity create a new
+>    > subversion revision (aka a DeltaV baseline), but this revision
+>    > wouldn't become the "current" one until you did the MERGE.
+> 
+>    Not supported.
+> 
+> Isn't this just what a "cheap copy" is (i.e. a new revision that does
+> not replace the current one)?
+
+The copy occurs within a set of working resources. To get a revision, you
+must check in those resources. That revision is then "current".
+
+A cheap copy means that copying a tree does not duplicate the entire tree in
+the repository. Effectively, we create a symlink within the repository. A
+copy is unrelated to the revisions -- the latter is a feature of the entire
+repository, while copies of files/dirs are structural things *within* a
+repository.
+
+> And don't you provide a way to "merge"
+> one "cheap copy" into another (i.e. a MERGE)?
+
+We have code for merging two trees, but the user model for doing that (and
+the resulting marshalling for the feature) is not yet decided.
+
+[ we merge trees when you checkin an activity, and the changes get merged
+  with the current revision ]
+
+> I assume the reason you don't want to always use a CHECKIN/MERGE sequence
+> is that your revisions, although cheap,
+
+I believe you've led yourself down the wrong path :-)  Our cheap copies are
+not on a revision basis, but they are about copying files/dirs *within* the
+repository. A given checkin could have dozens of copy operations. The
+resulting repository looks like a standard tree, but we happen to represent
+it without a lot of duplication, and with history about the copy.
+
+> are expensive enough
+> you don't want to create them more often than is necessary
+> (i.e. only do the CHECKIN if the MERGE will succeed)?
+
+Revisions are cheap. There's no problem with spitting out hundreds of them
+(technically; that many could blow up people's brains)
+
+We can't do a CHECKIN/MERGE because the checkin operation automatically
+merges. Thus, we could not support a client that looks at those operations
+as a two step process. Our operation is a single "checkin and merge", and
+the current MERGE semantics models that.
+
+The basic issue here is that the model used by Subversion (and I suspect a
+goodly number of other systems) does not provide for checking in a new
+"head" revision and hiding it until somebody cares to make it visible.
+
+>    > If so, I believe this would then remove your need for
+>    > having CHECKIN be a side effect of MERGE.  But this of course
+>    > works only if subversion allows a new revision to be created that 
+>    > does not immediately become the current revision.  But don't
+>    > you have to do that to support branching?
+> 
+>    Effectively, we do:
+> 
+>    $ svn cp /trunk /branches/gstein-work
+> 
+> Could that be marshalled as:
+> 
+> <create baseline for /trunk>
+> BASELINE-CONTROL /branches/gstein-work 
+>  <D:version> <the-trunk-baseline> </D:version>
+
+No. We aren't copying baselines. We're copying the "/trunk" directory. The
+destination is a working resource, not something that would go under
+baseline control.
+
+>    Hmm. I just realized that the original question made it seem like
+>    some weird side effect. But in the case under discussion, you're
+>    doing a MERGE on an *activity*. Thus, it makes perfect sense to
+>    take all resources contained in that activity as the merge source.
+> 
+> Yes, if the activity is "done".  Roy's examples were for cases
+> where the activity has an interesting state you want to merge
+> into your workspace, even though the activity is not yet done.
+
+Sure... Roy's examples are quite valid. I think the original question was a
+misdirection.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

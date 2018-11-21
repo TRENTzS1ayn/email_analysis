@@ -1,0 +1,448 @@
+docno="lists-005-12939746"
+received="Mon Nov 20 23:19:23 2000"
+isoreceived="20001121041923"
+sent="Mon, 20 Nov 2000 20:19:28 -0800"
+isosent="20001121041928"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="long... Re: Working collections"
+id="20001120201928.D21426@lyra.org"
+charset="us-ascii"
+inreplyto="200011191759.MAA18766&#64;tantalum.atria.com"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+On Sun, Nov 19, 2000 at 12:59:12PM -0500, Geoffrey M. Clemm wrote:
+> 
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    On Sat, Nov 18, 2000 at 04:47:56PM -0500, Geoffrey M. Clemm wrote:
+>...
+> Great, now we're on the same chapter of the same book (:-).
+
+hehe... :-)
+
+We definitely are at the point of similar terminology. But I think we aren't
+quite at the same end point. 
+
+>    Concretely: Subversion has several server-defined namespaces. One each for
+>    activities, working resources, versions, and histories.
+> 
+> That corresponds precisely to what is currently in the protocol.
+> In fact, the protocol has just one additional namespace: workspaces
+> (where a workspace is really just a root for a tree of version selectors).
+
+Right. I didn't list these because I'd like to ignore them :-)
+
+>    The history resources cannot be moved out of their space.
+> 
+> The protocol has this restriction as well.  Note that if you support
+> collection versions, that a history resource has multiple names
+> (multiple bindings).  In particular, it has its name in the "history
+> namespace", but it also has names in the "version namespace".
+> For example, if http://gmc.repo/his/id73 identifies a history
+> resource, and http://gmc.repo/ver/c23 is a collection version with
+> a member named "foo.html" that identifies this history resource,
+> then http://gmc.repo/his/id73 and http://gmc.repo/ver/c23/foo.html
+> are two names for the same history resource, one in the history
+> namespace and the other in the version namespace.
+
+Agreed.  (and yes, I have collection versions; I doubt I'll allow slashing
+through them, tho)
+
+I'm still a bit unclear in my head what is actually *at* a history resource.
+Is something there, or is it just a logical entity named by a URI?
+
+>...
+>    >    The working resource for the collection is also handy for
+>    >    deleting or for replacing the collection:
+>    > 
+>    >        DELETE http://host.name/repo/$svn/wrk/100.3
+>    >        (note that this request also requires a checked-out parent)
+>    > 
+>    Note that Tim also pointed out that we probably would not delete the working
+>    collection itself, but delete the member from the parent collection. The
+>    above request is ambiguous with "do an UNCHECKOUT".
+> 
+> Oops, I didn't read this carefully in my first response.  UNCHECKOUT
+> (as currently defined) only applies to a checked out version selector.
+> You just DELETE a working resource if you don't want it any
+> more. (i.e. don't want to check it in).  So the above request is not
+> ambiguous with "do an UNCHECKOUT", but rather *is* the way you tell
+> the server that you no longer are interested in that working resource.
+> (And the parent, "http://host.name/repo/$svn/wrk" is not under version
+> control, and therefore does not have to be checked out prior to the
+> deletion.
+
+Right, right... calling it an "uncheckout" is a simple way of saying "go
+away". You just want to get all technical on me :-)
+
+But we agree on all the semantics above, so no big deal.
+
+> On the other hand, 
+> 
+>  DELETE http://host.name/repo/$svn/wrk/100.3/foo.html
+> 
+> is the way that you delete the member named "foo.html" from the
+> checked out collection.
+
+Agreed.
+
+And further, I'd like to state that foo.html doesn't respond to any other
+methods besides DELETE. (well, maybe OPTIONS).
+
+And yes... I recognize that this "nebulous resource" is hard to
+model/explain in the spec. I'm just trying to avoid the complexity that
+arises if that bugger truly exists. If it *only* exists as a name that can
+be referenced for deletion, then things can be simplified and much of the
+open questions/discussion can be closed up.
+
+>... discussion about DELETE ...
+>...
+>    >        COPY http://host.name/repo/somedir/
+>    >        Destination: http://host.name/repo/$svn/wrk/100.3
+>    >        Overwrite: T
+>    > 
+>    > This wouldn't work, because deleting a working resource (as is done by
+>    > an Overwrite:T) cancels the checkout.  You would need to use the new
+>    > "update" value for the Overwrite header.
+> 
+>    Nits. You know what I meant, and the server really should, too.
+>    This is where people read the letter of the law too strictly and
+>    screw up clients because the client wasn't as anal as the server.
+> 
+> Well, the server knows what you said (i.e. "get rid of the working
+> resource thereby canceling the checkout"), and it's really important
+> that the client and the server agree on this (or else the client will
+> be surprised by what the server ends up doing, because it will do what
+> the client said, not what it meant).
+
+Bah :-) ... I read the Overwrite as "it is okay if the destination already
+exists; just put the source contents there." All the hullabaloo about
+"delete then copy/move" is a bit overdone in my mind :-)
+
+Back to the question at hand:
+
+>    But for discussion. Sure... let's assume that I used "update" in there.
+>    The point is that I need to check out the collection because I'm about to
+>    replace its contents.
+> 
+> If you are going to modify it's contents (i.e. add/delete/change a
+> member), then sure, you need to check it out.  But if you are going
+> to delete the collection, then you are operating on the *parent*
+> of the collection, i.e. deleting a member of the parent of the
+> collection, so it is the *parent* that needs to be checked out for
+> the DELETE.
+
+Agreed.
+
+>... more DELETE stuff ...
+>...
+>    >    Without being able to do a CHECKOUT on a collection, there
+>    >    wouldn't be a way to do any of the above.
+>    > 
+>    > You could just use a VERSION-CONTROL request to create a new version
+>    > selector whose target is the desired collection version.  Then you can
+>    > do all your operations on that version selector.  It is one extra round
+>    > trip, but if that really matters, we could easily add a "DAV:keep-checked-out"
+>    > option to the VERSION-CONTROL request.
+> 
+>    That feels *way* bogus. Use VERSION-CONTRL? And just how do I get that to
+>    participate within an activity? Or to MERGE it? etc
+> 
+> The version selector created by VERSION-CONTROL has all the activity
+> behavior that a working resource has.  When you check it out, the
+> DAV:activity-set of the version selector is set to be the specified
+> activity(s), and when you check it in, the new version is added to the
+> DAV:version-set of the activity.
+
+I'll grant that all the above might be possible. It just seems a bit
+complicated, and I'd still need a "per activity" place for invoking the
+VERSION-CONTROL request. And yes... I hear it now: create a workspace. :-)
+
+But we still have the various problems of setting the targets of the
+selectors in the members. SVN never really deals with targets, it wants to
+work mostly with version resources. Why? Because it copies all the resources
+to the local disk and you edit them there. When you go to do a commit, it
+needs to work against what it copied (rather than the current target). Thus,
+it refers to the specific version resource that was copied to the client. It
+checks that thing out, makes the changes, and checks it in.
+
+[ possibly getting errors if the checkout of the version resource indicates
+  the version is no longer the "tip" of the line of descent in question ]
+
+>    > This would allow us to avoid all the extra complexity that would
+>    > result from having two ways to manipulate versioned collections.
+> 
+>    I'm not seeing the complexity. Check out a collection version; you get a
+>    working collection; modify it at will; check it in.
+>    The working collection operates just the same as a checked-out collection
+>    version selector. And this is right: they're both representative of a
+>    checked-out [collection] resource. Seemed pretty obvious to me.
+> 
+> If we make working collections act like checked-out collection version
+> selectors, then I agree that we can avoid the complexity.  It appears
+> that the main question we have to resolve is what precisely are the
+> members of a working collection.  If they are version selectors, then
+> we are almost there, since the working collection then just becomes
+> the root of a tree of version selectors.  The only thing left to do
+> to unify the models is to make the root *also* be a version selector,
+> and then we have a uniform tree of version selectors.
+
+Can we make the members phantoms?
+
+> Which is a good transition into your next message:
+> 
+>    From: Greg Stein <gstein@lyra.org>
+> 
+>    > But if you've got versioned collections, it's natural to get some
+>    > kind of tree when you checkout the collection, so it might as
+>    > well be a tree of version selectors.
+> 
+>    Yes. I was going to make a collection's internal members available via a
+>    working collection, but only for limited operations (namely: DELETE).
+>    I understand that the spec needs to be a bit more lucid than the hand-waving
+>    that I'm doing with those internal members :-)
+> 
+> How were you planning on enforcing this limitation?  Or perhaps more
+> importantly, why were you planning on introducing such a limitation?
+> If the working collection creates a tree of version selectors, why not
+> just use those version selectors (which are local to you, and therefore
+> won't be checked out by anyone else) for versioning operations on those
+> members?
+> 
+> The model then becomes: Check-out a collection (which then creates
+> a tree of version selectors), and then checkout one of those version
+> selectors when you want to change that member of the tree.
+
+See my "operational model" note for this. Also your followup response about
+how to deal with the targets of all of those new version selectors.
+
+>    In my model, if the parent is a working collection, then the PUT
+>    [into the working collection] succeeds and becomes a working
+>    resource. (and an analogous behavior for MKCOL)
+> 
+> To be careful about terminology, it becomes a version selector, not
+> a working resource, since auto-versioning creates version selectors,
+> not working resources.  (You indicate as much below, so this is just
+> me being pedantic :-).
+
+Eh? Auto-versioning is related to an automatic CHECKOUT/CHECKIN. I was
+referring to automatically making the new resource version-controlled.
+Further, I create a working resource for the new resource. In the 201
+(Created), I state where the new resource's working resource is located.
+
+>    >    Yes, it becomes version-controlled, as that is the behavior
+>    >    that my server imposes when a resource is PUT there. This is
+>    >    allowed by the spec.
+> 
+>    > When something becomes version-controlled, it becomes a version
+>    > selector. If you were using version selectors,
+> 
+>    I'm using version selectors. Kind of mandatory :-)
+> 
+> Well, one could invent a new kind of resource for this, but using
+> version selectors would certainly keep the model simpler.
+
+Hmm. Two points in the above.
+
+1) "When something becomes version-controlled, it becomes a version
+   selector." Where is that stated? VERSION-CONTROL creates one, sure. But
+   why can't my PUT create a working resource? (which implies an eventual
+   creation of a version, a version history, and a version selector as a
+   member of the collection version's extent version selectors)
+
+2) I stated that I use version selectors elsewhere. But the point at hand
+   really seems to refer to what is inside the working collection.
+
+>...
+>    > If you are using
+>    > working collections, we'd have to define the semantic interactions
+>    > of version selectors nested within working collections.
+> 
+>    Unless you state that a PUT/MKCOL creates a working resource within the
+>    working collection.
+> 
+> That would not work very well, since when you checkin a working resource,
+> it is deleted, which is not the behavior you would want (it would make
+> it appear that you wanted to delete that member of the working collection).
+
+Agreed.
+
+I resolved this problem when I realized (last night) that I could use the
+Location: header in the 201 response to put the new working resources
+anywhere I want (rather than under the working collection).
+
+>    [ and thus: they also create a version history; not sure when a version
+>      would be created, though ??? ]
+> 
+> When you first create a version history, it is given an initial version.
+> When you put an existing (non-versioned) resource under version control,
+> the initial version is a copy of the state of the non-versioned resource.
+
+That doesn't fully answer the question. The second sentence assumes that I
+have a non-versioned resource. That step isn't possible. I must be able to
+go from the null state to a versioned resource.
+
+I believe the answer is that a working resource might not have a
+DAV:checked-out property.
+
+How were other people thinking of modelling the creation of a versioned
+resource? Are people assuming that this is a non-atomic creation? (check out
+the parent, put a resource, version-control it, check in the parent; and
+deal with the race between the PUT and the VERSION-CONTROL when the resource
+may not be version-controlled?)
+
+>    > This becomes
+>    > complex because working resources are deleted when they are checked
+>    > in, while version selectors are not.  So if you check in a working
+>    > collection, what happens to the possibly checked-out version selectors
+>    > inside that working collection?
+> 
+>    Yes, this could be complicated :-). You could say that they just continue to
+>    hang out, but what does the parent collection (the working collection that
+>    you checked in) become? You can't just get rid of it because of the
+>    namespace consistency issue.
+> 
+> Yes.  This is why checked-out version selectors are preferable for
+> collections, because when you checkin a checked-out version selector,
+> it just becomes a checked-in version selector, and all of its members
+> are still visible and accessible.
+
+They may be preferable from that standpoint, but they are not preferable
+because of the "people stepping on each other" problem.
+
+Yes, if you go and build a workspace for each user, then this problem
+wouldn't exist. But as we've discovered, there is a problem with setting the
+targets for all the version selectors within the workspace.
+
+>    > With collection version selectors,
+>    > this is not an issue because they are not deleted when you check them
+>    > in so that nested version selectors do not get orphaned by checkin.
+> 
+>    Yup. But checked-out version selectors are not "thread safe" if you will :-)
+> 
+> Remember that you got "your own" tree of version selectors when you
+> checked out the desired collection.  So nobody else is checking out
+
+[ the "working collection is a workspace" model ]
+
+> your version selectors (they'd be checking out *their* version selectors,
+> that were created when they did *their* checkout of the collection).
+> 
+> So the only constraint here is that you can't checkout the same resource
+> twice at the same time yourself, without first creating a new tree
+> of version selectors, but that seems like a pretty reasonable
+> (and perhaps even desireable) restriction.
+
+Totally reasonable restriction. But we still have the "target" problem with
+this model.
+
+>... MERGE of an activitiy is not a transacted commit ...
+>...
+>    > ... Because of the problems with checking in working
+>    > collections that have version selector members, it would be much
+>    > simpler to just use collection version selectors.
+> 
+>    So the issue isn't about "what goes into a working collection" as much as
+>    "what happens when you check it in?"
+> 
+> Or "can we just use collection version selectors, since they already
+> have the appropriate behavior on checkin?"
+
+Nope. Target problems. I still need to check out version resources rather
+than operate through (a tree of) version selectors.
+
+>... CHECKIN on an activity ...
+>...
+>    If you check out '/some/collection/' into a working collection, then
+>    /working/collection/foo.html' may not be available.
+>    In truth, I'll probably make the URL available for DELETE, but nothing else.
+>    You'd need to go to the version (selector) to refer to the contents.
+> 
+> That seems like an unnecessary complication to the model ... you can
+> remove this restriction, and the model becomes simpler, and the clients
+> life becomes simpler as well.
+
+I don't see a way yet.
+
+And I also have to disclaim that my client (the SVN client) isn't going to
+try to "slash through" a working collection, so I actually don't have to
+worry about what those members are :-)  Thus, my request for a "phantom
+member" in there.
+
+>... more DELETE stuff ...
+>...
+>    >    > <tim>
+>    >    > The operations you describe are more appropriate to a checked out
+>    >    > collection version selector; and I agree that they are essential.
+>    >    > </tim>
+> 
+>    >    A working resource is a working resource. It shouldn't matter
+>    >    whether it came from a checked out version selector or a
+>    >    checked out version.
+> 
+>    > Well, to be precise, the result of checking out a version
+>    > selector is a checked out version selector, not a working
+>    > resource (you only get a working resource by checking out a
+>    > version).  A working resource has some very different behavior
+>    > from a checked out version selector.  In particular, checking in
+>    > a working resource deletes the working resource, while checking
+>    > in a checked out version selector just changes its state from
+>    > checked out to checked in.
+> 
+>    Fine. But all other operations: PUT, PROPFIND, etc work the same for a
+>    checked-out version selector and a working resource, right? You can still do
+>    all the same stuff to it. A CHECKIN treats them a bit different, but they
+>    seem pretty much the same otherwise.
+> 
+> That would depend on how we are handling "working collections".
+> Earlier, you were suggesting that we only allow DELETE on members
+> of working collections, and not PROPFIND, CHECKOUT, etc.  If so,
+> a working collection would be very different from a checked out
+> collection version selector.  But I believe that the checked out
+> collection version selector semantics are the ones that we want,
+> so we should use those.
+
+We may be at a critical point here. The target issue complicates creating a
+tree of version selectors.
+
+> One way to think about this is that I'm suggesting that checking
+> out a collection version should create a workspace (i.e. a tree
+> of version selectors), or in other words, that a working collection
+> is a workspace.  In fact, I'd be happy to allow you to create a
+> workspace by issuing a checkout against a collection version.
+> 
+> The only difference between such a workspace and one that was created
+> by a MKWORKSPACE is that the server selects the name for the workspace,
+> while with a MKWORKSPACE, the client specifies the name for the workspace.
+
+This is a great model based on the discussion above. But the target issue
+that you raised still creates problems. The whole reason that I checked out
+a collection version in the first place was to avoid target selectors that
+might not be targeted the way that I need them to be :-)
+
+> So, if we say that you can CHECKOUT a collection version to create
+> a workspace, and you can CHECKIN an activity to get transactioning,
+> would you have what you need?
+
+Well, in the above scenario, I'd suggest that you could do a CHECKIN on the
+working collection (a workspace) and also get a transacted checkin. But if a
+working collection is simply a checked-out version selector (in a funny
+location), then a CHECKIN on that selector would have very different
+semantics.
+
+What that means is: yes, checking in an activity is a good way to model a
+transacted checkin. And as Tim points out, it SHOULD be transacted (rather
+than MUST).
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

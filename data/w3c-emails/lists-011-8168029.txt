@@ -1,0 +1,86 @@
+docno="lists-011-8168029"
+received="Tue Aug 12 17:22:09 1997"
+isoreceived="19970812212209"
+sent="Tue, 12 Aug 1997 17:16:52 0700"
+isosent="19970813001652"
+name="Roy T. Fielding"
+email="fielding@kiwi.ics.uci.edu"
+subject="Re: REVERSION"
+id="9708121716.aa17371@paris.ics.uci.edu"
+inreplyto="Pine.SUN.3.95.970811194740.20962G100000&#64;xochi.tezcat.com"
+expires="1"
+
+To: Klaus Weide<kweide@tezcat.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+>According to the "New Features in Apache 1.2" page, 
+>  Aside from the optional proxy module (which operates as HTTP/1.0),
+>  Apache is conditionally compliant with the HTTP/1.1 [...]
+>I am not sure what this means, i.e. does it still act as an HTTP/1.1
+>server when the proxy is used, aside from the version number question,
+
+Nope.  A client talking to it as a proxy will only see an HTTP/1.0
+proxy (and that's all it gets in the way of functionality).  It always
+sends HTTP/1.0 in requests, so receiving chunked is not a problem.
+It will respond with 411 if it receives chunked from a client.
+
+However, a properly functioning HTTP/1.0 proxy is going to behave
+very much like an HTTP/1.1 proxy, aside from the lack of a Via field.
+For example, the following is going through a local test proxy:
+
+   OPTIONS http://www.apache.org/ HTTP/1.1
+   Host: www.apache.org
+
+   HTTP/1.0 200 OK
+   Date: Tue, 12 Aug 1997 23:24:41 GMT
+   Server: Apache/1.3a2-dev
+   Cache-Control: max-age=86400
+   Expires: Wed, 13 Aug 1997 23:24:41 GMT
+   Content-Length: 0
+   Allow: GET, HEAD, OPTIONS, TRACE
+   Connection: close
+
+That is an HTTP/1.1 UA talking to an HTTP/1.0 proxy, forwarding an
+HTTP/1.0 request to an HTTP/1.1 server (www.apache.org), which returns
+an HTTP/1.1 response, which is then downgraded to HTTP/1.0 when it goes
+back through the proxy.  So, although the Apache proxy does not puke on
+OPTIONS, it does return HTTP/1.0.
+
+On the flip side, however, if the proxy has been configured to deny
+the request for the URL, then the error response will be coming from
+the origin server and not the proxy. :(   E.g., the same without perms:
+
+   GET http://www.apache.org/ HTTP/1.1
+   Host: www.apache.org
+
+   HTTP/1.1 403 Forbidden
+   Date: Tue, 12 Aug 1997 23:17:56 GMT
+   Server: Apache/1.2.3-dev
+   Transfer-Encoding: chunked
+   Content-Type: text/html
+
+Likewise, it is the origin server that answers requests for "*".
+
+   OPTIONS * HTTP/1.1
+   Host: www
+
+   HTTP/1.1 200 OK
+   Date: Tue, 12 Aug 1997 23:39:55 GMT
+   Server: Apache/1.2.3-dev
+   Content-Length: 0
+   Allow: GET, HEAD, OPTIONS, TRACE
+
+which is, ummm, kind of a bummer if you are using OPTIONS to determine
+if the proxy is HTTP/1.1 compliant.
+
+This brings up a general problem I hadn't thought about before, which
+is how does the proxy indicate that it is answering as itself and not
+on behalf of the origin server?  It would look like an HTTP/1.1
+response, but without the last Via entry.  Perhaps we need a way to
+indicate that using another field, or a special value for Via.
+
+....Roy
+
+
+

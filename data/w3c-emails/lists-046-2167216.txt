@@ -1,0 +1,158 @@
+docno="lists-046-2167216"
+received="Wed Jan  9 18:41:46 2002"
+isoreceived="20020109234146"
+sent="Wed, 9 Jan 2002 18:41:00 -0500"
+isosent="20020109234100"
+name="Tom Gindin"
+email="tgindin@us.ibm.com"
+subject="Encryption code-set issues (Was Re: WOOPS: xmlenc Call 13:00 EST 20020107)"
+id="OFBBF29DE3.C9E61E33-ON85256B3C.007A111B@pok.ibm.com"
+charset="iso-8859-1"
+expires="-1"
+
+To: Christian Geuer-Pollmann<geuer-pollmann@nue.et-inf.uni-siegen.de>
+Cc:reagle@w3.org, XML Signature WG<w3c-ietf-xmldsig@w3.org>
+
+
+
+      A similar known-plaintext problem, although not as severe, occurs
+with most alternate alphabets.  Briefly, a typical non-Latin alphabet (such
+as Cyrillic, Greek, Arabic, or Hebrew) will have 7 bits or less of entropy
+for every 2 bytes encrypted, so each block in an 8-byte block algorithm
+will have 28 bits of entropy or less out of 64 bits of plaintext.  Of
+course, for AES that will be 56 out of 128.  In these cases, which have
+more practical importance than old italic, UCS-2 is no better than UTF-8
+and UCS-4 is much worse.  In another case of considerable practical
+importance, UTF-8 does weaken CJK (Chinese, Japanese and Korean characters)
+compared to UCS-2 (typical characters have about 14 bits of entropy but
+take up 3 bytes instead of 2).
+      AFAIK, one major purpose of CBC is to make it almost irrelevant
+whether random data is immediately in front of a given piece of plaintext
+or far in front of it, from the standpoint of cryptanalysis.   I am not an
+authority on crypto, but I do have some comments below, marked by [TG]
+
+            Tom Gindin
+
+
+Christian Geuer-Pollmann <geuer-pollmann@nue.et-inf.uni-siegen.de>@w3.org
+on 01/09/2002 10:01:52 AM
+
+Sent by:    w3c-ietf-xmldsig-request@w3.org
+
+
+To:    reagle@w3.org
+cc:    XML Signature WG <w3c-ietf-xmldsig@w3.org>
+Subject:    Re: WOOPS: xmlenc Call 13:00 EST 20020107
+
+
+> Ok, if I could get more folks to use IRC I think it would help on that
+> front, but that never happens.
+
+IRC: +1
+
+> BTW: What do you think of Martin's additional concern about nonces not
+> mitigating redundancy in later in the data (like Unicode italic
+> characters). I thought that with most modern ciphers that if the
+> beginning  is unpredictable that's sufficient for most of the message?
+> (If you have  any thoughts, please respond to the list.)
+
+I'm not an UFT/I18n expert so I did not understand the "Old italic" stuff,
+but I agree with Martin that usage of the Nonce does not increase entropy.
+It would do so if the whole message would be transformed in a single
+transform.
+
+Imagine we would use a construct like a cryptographic Hash function or an
+RSA encryption with a modulus size of 1000000 bit (just for illustration).
+If I hash or encrypt XML data with a low entropy using such a transform, a
+nonce would help because the nonce would influence the complete
+transformation step. That sort of "nonce" is used if we hash a unix
+password in /etc/shadow (the 'salt' value is the nonce) or if we encrypt a
+message using RSA-OAEP (the random parameters are the nonce). In these
+transforms, each input bit has effect on the output bits and then the nonce
+
+does it's job).
+
+But - encrypting a message in CBC is _NOT_ a single transformation: It's
+splitting the message into small chunks (the blocks) and transforming each
+block separately (OK, not absolutely separate because we use the chaining
+to brevent reordering of blocks and that stuff). So a CBC is not a single
+transform but many small transforms.
+
+[TG] True.  I thought one major purpose of chaining was to prevent having
+the same plaintext block yield the same ciphertext each time.
+
+So if we use a Nonce which length is (blocklength - 1), we have the
+situation that the block containing the first plaintext octet (and the
+preceding blocklength-1 nonce octets) gets a higher entropy, but ONLY this
+block gets a higher entropy. All following blocks to not take advantage of
+this nonce. Additionally, the first plaintext octet is vulnerable to
+malicious modification.
+
+[TG] I don't think this follows.  In particular, if you modify plaintext
+and you're using both CBC and PKCS-5 padding, you'll probably break the
+padding (probability slightly less than 254/255) and cause decryption to
+fail.  This is true for any block encryption using both CBC and PKCS-5
+padding.  Also, for any block encryption using CBC you'll modify ALL
+subsequent plaintext.
+
+Maybe it was not stated explicitly here:
+
+We have two different attacks against CBC-encrypted data:
+
+Type A: breaking the encryption and reveal the plaintext
+Type B: change the underlying plaintext without breaking the encryption.
+
+The Nonce value is not necessary for stopping Type-A attacks. This is done
+by using a newly generated IV for each message. For preventing Type-A
+attacks, the IV need not be secret, it must be only unique.
+
+For Type-B attacks, the Nonce makes them (if properly (blocklength-1)
+choosen) more difficult, but not impossible.
+
+If we encrypt the IV (and forget the Nonce), we create the following
+property:
+
+If an attacker modifies a bit in the encrypted IV value, 50% of the bits in
+
+the IV will change. This will make the same 50% of the first plaintext
+block toggle - and this will make parsing a little bit complicated because
+I almost always get parser exceptions ;-))
+
+This is only a weak criterion for integrity protecting, but we already
+said: "If you wanna have integrity, use XML Signature".
+
+
+
+
+>
+>
+>> ?> > > - There needs to be some text about security risks associated
+>> ?> > > ? ?with UTF-8. Assume that somebody knows that the encrypted
+>> ?> > > ? ?text is Old Italic
+>> (http://www.unicode.org/charts/PDF/U10300.pdf, ?> > > ? ?no spaces or
+>> punctuation). In this case, UTF-8 uses four bytes
+> per
+>> ?> > > ? ?characters, and three of them are always the same, and the top
+>> ?> > > ? ?two (or three if there are no numbers) bits of the last byte
+>> ?> > > ? ?are also always the same.
+>> ?> I think that the Nonce can help quite a bit in some situations.
+>> ?> But I'm not really sure at all that it will help much in the
+>> ?> situation I have described. Let's assume the attacker knows
+>> ?> that most of the encrypted text (rather than all) is in Old
+>> ?> Italic. What you are saying is that if the non-Old Italic
+>> ?> text is at the start of the data, attacks are much more
+>> ?> difficult than if the non-Old Italic text is in the
+>> ?> middle or at the end. This may indeed be true for attacks
+>> ?> that are based on looking at the start of the encoded sequence.
+>> ?> But there are most probably also attacks that can look at
+>> ?> any part of the data and try to find out something about it.
+>> ?> In other terms, the nonce doesn't really increase the entropy,
+>> ?> it just conceals it.
+>> ?> Of course, I'm not an expert here, but I'd rather be sure.
+>>
+>> Ok, I will defer this to the crypto experts.
+>
+> I'm looking forward to the discussion.
+
+
+

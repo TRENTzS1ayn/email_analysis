@@ -1,0 +1,209 @@
+docno="lists-005-11498457"
+received="Fri Oct  6 18:25:55 2000"
+isoreceived="20001006222555"
+sent="Fri, 6 Oct 2000 18:25:25 -0400 (EDT)"
+isosent="20001006222525"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: DAV:checked-out"
+id="200010062225.SAA11502@tantalum.atria.com"
+inreplyto="20001006144206.U9396&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+   From: Greg Stein <gstein@lyra.org>
+
+   > <boris> The change was made because in the old spec, servers that 
+   > supported workspaces would be confusing for clients because they replaced
+   > version selectors on checkout whereas other servers created working
+   > resources at a new URL. </boris>
+
+   But then the second client to check the thing out would be attemping to
+   check out a WORKING resource. That can fail without demanding this whole
+   "single checkout" mechanism.
+
+Yes, but we believe that a client needs to be able to control whether
+there is an "in-place" checkout (i.e. the version selector is now
+checked out) or whether a new working resource (at a different URL) is
+created, leaving the request-URL a checked in version selector.
+
+So you just indicate what you want, by including or omitting the
+DAV:target parameter to the CHECKOUT request.
+
+   > The scenario is:
+   > 
+   >   - Joe creates and activity, checkouts out /foo into that activity, and
+   >     begins updating it.
+   >   - Jane does likewise.
+   >   - One or both merge the activity
+   > 
+   > <boris> I can see two possibilities for mapping this scenario to deltaV:
+   >  In the first possibility, which does not use workspaces (or just one),
+
+   I'm not using workspaces, and don't plan to. They aren't needed in my
+   scenario, as working resources at arbitrary URLs are quite acceptable.
+
+That's fine.  Workspaces are of course totally optional.
+Boris was just being complete in his response (:-).
+
+   >  both Joe and Jane check out /foo using 
+   >    <DAV:checkout><DAV:target/></DAV:checkout>
+   >  which creates a working resource at a server-generated URL. The merge 
+   >  takes care of setting the target of the version selector at /foo. Note
+   >  that the only difference to the way it was spec'd before is that the
+   >  version selector's target is not updated when you check in a working
+   >  resource. But this probably is what you want anyway, since you use
+   >  activities and merging to update the shared state (and not the check in
+   >  operation).
+
+   This would appear to work since a version resource can have multiple hrefs
+   in its DAV:checkout-set property.
+
+Yes.
+
+   >  The second possibility is to use three workspaces, a common one, and a 
+   >  private one for each developer. A checkout, this time without the
+   >  <DAV:target/>, only affects the private workspace, and you can use
+   >  activities and merge to update the shared state in the common workspace.
+   > </boris>
+
+   I'm using activities to operate as a Change Set. Now you're also saying that
+   I must create/destroy a Workspace, too.
+
+No, no, no!  He was just saying that there is a *second* different
+way to get the same effect.  If you liked the first way, just ignore
+the rest of his message (:-).
+
+   No way. DeltaV is just broken if I
+   must do something like:
+
+       MKWORKSPACE
+       MKACTIVITY
+       CHECKOUT /foo
+       PUT /foo
+       MERGE /act/123
+       DELETE /act/123
+       DELETE /ws/123
+
+No, the second approach is one where each person creates a workspace,
+and lives in that workspace from then on (or at least, for quite a
+while).  You create that workspace once, and then do all your
+checkout/checkin's on version selectors in that workspace.  You would
+only create a second workspace for yourself if you were working on two
+projects at the same time, in which case you'd create one workspace
+for each project you are concurrently working on.
+
+   We're talking a very transitory operation, and building up a workspace for
+   that isn't right. I'm also not a fan of workspaces to begin with (I don't
+   like mutating resource types in place).
+
+Then you'll be happy that you no longer mutate resource types for an
+in-place checkout (:-) ... you just change the state of the version selector
+from checked-in to checked-out.  (But you are of course free to create
+a working resource instead).
+
+   -------
+
+   In John Vasta's email, he said the DAV:checked-out property on the version
+   selector could be used to diff the working resource against what was checked
+   out. That is the wrong approach. The DAV:checked-out should be on the
+   WORKING resource, not the version selector. That is the right place for it,
+   and it provides exactly the same value. If you are using workspaces, then
+   the (in-place) working resource will have that property.
+
+Working resources are by (the current :-) definition not in-place.
+An "in-place working resource" is a checked out version selector.
+
+   -------
+
+   DAV:checked-out on a version selector is not right. It should be on a
+   version resource and on a working resource.
+
+   I should be able to multiply-checkout a version selector, and have it imply
+   the target for checkout each time.
+
+
+   Oh. Geez... and I just saw in the spec. DAV:target *DISAPPEARS* from the
+   version selector when it gets checked out?
+
+   No. No. No. No. <repeat>
+
+As you said above, it is brain dead to mutate the resource type of
+a resource "in place", so we don't do that anymore (:-).  I thought
+you'd be pleased (or at worst, not care :-).
+
+   If somebody goes and checks out a version selector, then all the clients
+   will now need to read *two* properties to try and reach the target version
+   resource?
+
+That's exactly what would have happened whenever you had an "in-place"
+checkout.  Before the CHECKIN, you had a resource with a
+DAV:target property.  After the CHECKIN, you had  a resource with
+no DAV:target property, but with a DAV:checked-out property.
+
+Before we said it also magically changed its type.  We don't
+say that anymore.
+
+The meaning DAV:target is very different from the meaning of
+DAV:checked-out, and reflects the state change from checked-in to
+checked-out.
+
+   No way. What if I'm trying to do a property report and use
+   DAV:target to link over to the version resources to fetch their data?
+
+You expected to be able to do that to a working resource?  It has no
+DAV:target property, so you were always out of luck if you wanted to
+use the same PROPFIND on a checked in and a checked out resource.
+
+   Oops.
+   That doesn't work since DAV:target doesn't exist any more on some of the
+   version selectors.
+
+It never did, after they were "replaced" by an "in place" working resource.
+It's just that now we make it clear (:-).
+
+   PROPOSAL:
+
+     DAV:target is always defined on a Version Selector
+
+checked-in version selector, sure.
+
+     Working Resources have a DAV:checked-out property
+
+As do "checked-out" version selectors.
+
+     Version Selectors never have a DAV:checked-out property
+
+What about when they are checked out?
+
+     Version Resources retain their DAV:checkout-set, but drop the bit about
+ version selectors having a DAV:checked-out property
+
+But what about when they *are* checked out?
+
+     CHECKOUT does not manipulate the Version Selector
+
+It always did (i.e. the "in place" CHECKOUT).  It just wasn't obvious
+before.
+
+     Put the language back in that says a CHECKOUT on a Version Selector
+ replaces it with a Working Resource (which seems to be part of what is
+ happening here)
+
+How is that any better?  The bottom line is that the properties on
+the request-URL change as a result of the CHECKOUT. 
+
+Keep in mind that all we did to the spec was a mechanical query/replace
+of "in place working resource" with "checked out version selector".
+No change at all in any of the semantics.  If you didn't think that
+it acted this way before, that is one of the main reasons why we
+changed the description, because the old way of describing it hid
+some very essential semantics that are now exposed.
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,141 @@
+docno="lists-101-2468392"
+received="Thu May 31 13:48:21 2001"
+isoreceived="20010531174821"
+sent="Thu, 31 May 2001 11:47:19 -0600"
+isosent="20010531174719"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: First pass at generated schema for DOM 1 + HTML"
+id="B2C1451A181BD411B88A00E018C1C19C08ACBF@thor.aeathtl.com"
+charset="iso-8859-1"
+inreplyto="First pass at generated schema for DOM 1 + HTML"
+expires="-1"
+
+
+To:"'www-dom-ts@w3.org'"<www-dom-ts@w3.org>
+
+I'm not sure that I understand your shorthand.  So point by point:
+
+>     * Use IDL for attribute / method names
+
+Do you think the recent schemas do not use IDL for attribute method names?
+
+>     * Specify var's, parameters, and returnTypes according to 
+> the spec:
+>                 Spec always --> required in the schema
+>                 Spec sometimes --> optional in the schema
+>                 Spec never --> should not appear in the schema
+
+returnType's do not need to be in the tests since they are fixed by the DOM spec.
+I believe that anything that is fixed by the DOM spec should not be replicated 
+in the instance document or implied to be in the instance
+document by fixed or defaulted attributes in the DTD.  Any code generation
+can get the needed information either from the DOM spec or from
+annotations in the schema.
+
+I would require a var attribute for any read-only accessor or any non-void function.
+I think it is highly unlikely that you would want to invoke a function or
+access a property where it would not be beneficial to make an assertion
+on the return value or use it in a later call.  If there is a method or property
+where the return value is meaningless, then the overhead of declaring a
+variable to hold it is trivial.  Making it optional when it is used 99% of 
+the type is more likely to cause errors.  Read-write properties have both
+var and value optional, however omitting both out is a no operation.
+
+I've had a change of heart on parameters.  In my manual schema, 
+parameters that could be null were optional.  However that information is not
+in the xml source for the DOM spec and I don't think we want to introduce
+any supplimentary information.  So if the parameter is required, how do
+you specify that it is null.  One option would be to make allow "null" as
+a special value in the argument.  Unfortunately, that could seriously 
+complicate the code generation for C++.  It is a little more awkward
+in the test, but it could greatly simplify the C++ code generation, if
+null parameters are passed by passing in declared but uninitialized
+variables, such as:
+
+<declare var="refNode" type="Node"/>
+<declare var="newNode" type="Node"/>
+...
+<createElement var="newNew" obj="doc" tagName="address"/>
+<insertBefore obj="employee" refNode="refNode" insertedNode="newNode"/>
+
+I would explicitly declare all variables.  For languages where their
+is no common ancestor class, then it would be critical and potentially
+complicated to infer the appropriate type.
+
+It is safer to code the tests with explicit declaration now and
+find out later that it was unnecessary than to depend on the 
+ability to infer types from context and find out later that it
+was difficult to do.
+
+>     * Interface name -- should be inferable from somewhere, or defined
+>        as an attribute on the method name
+>                 - defaulted as an attribute in cases where it 
+> is unambiguous
+>                 - one of a list if it is available in more 
+> than one place.
+
+The interface attribute has to be there when the same method or
+property is introduced in multiple interfaces 
+(ProcessingInstruction.data and CharacterData.data for example).
+
+If not required, then we need to choose whether the interface 
+attribute is:
+
+a) not present in the DTD or schema
+b) an optional attribute whose only acceptible value is the 
+interface that defined the method.
+c) an optional attribute whose acceptible values are the
+defining interface and any derived interfaces.  Specifying
+a derived interface adds an implicit instanceOf assertion.
+
+I think that using an explcit instanceOf assertion is
+more appropriate than implying one by specifying a derived
+type.  That is, I would prefer:
+
+<assertInstanceOf obj="node" type="Comment" id="nodeIsComment"/>
+<nodeValue var="val" obj="node"/>
+
+to
+
+<nodeValue var="val" obj="node" interface="Comment"/>
+
+Option b would allow tests to anticipate an method or
+attribute being multiple defined.
+
+
+>     * Exceptions -- correspond according to the spec -- ie, 
+> only be able
+>        to specify the particular exceptions that can be 
+> thrown on a given
+>        attribute or method.
+> 
+>       any others ...
+
+In my recent schemas, <assertDOMException code="INDEX_SIZE_ERR"> 
+can be used to assert that the enclosed statement should throw
+a DOM Exception with code=INDEX_SIZE_ERR.  Only statements that
+have been declared to throw DOMException can appear within
+<assertDOMException> however there is nothing that constraints
+the code to be an appropriate value for the method.
+
+I had originally had an expectException="" attribute on the
+statement which could constrain the code values to the declared 
+list.  However that had the disadvantages of either requiring
+all invocations to have ID so that the exception assertions
+could be identified or risking that exception assertions 
+would not have an ID.  Also, it would require mixing the
+production of the try {}/catch {}/fail production in a lot of 
+places.
+
+If it is compelling to make sure that the codes are in synch,
+then I would introduce specific assertions for each code, i.e.
+
+<assertINDEX_SIZE_ERR id="AssertionIDgoesHere">
+<substring obj="str" start="-1" end="5"/>
+</assertINDEX_SIZE_ERR>
+
+but that seems overkill to me.
+
+
+

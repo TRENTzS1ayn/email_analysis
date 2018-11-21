@@ -1,0 +1,84 @@
+docno="lists-010-0773614"
+received="Wed Mar 27 19:39:26 1996"
+isoreceived="19960328003926"
+sent="Wed, 27 Mar 96 20:37 MST"
+isosent="19960328033700"
+name="Andy Rabagliati"
+email="andyr@rmi.net"
+subject="Apache LogFormat  addition of %v virtual server ID"
+id="m0u28WT001q3XC@tricord.rmi.net"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Upgrading our server from httpd to Apache, I needed the %v addition
+mentioned in mod_log_config.c, and added this to apache.conf.
+
+LogFormat "%h %l %u %t %v \"%r\" %s %b"
+
+
+ * The way this is supposed to work with virtual hosts is as follows:
+ * a virtual host can have its own LogFormat, or its own TransferLog.
+ * If it doesn't have its own LogFormat, it inherits from the main
+ * server.  If it doesn't have its own TransferLog, it writes to the
+ * same descriptor (meaning the same process for "| ...").
+ *
+ * That means that you can do things like:
+ *
+ * <VirtualHost hosta.com>
+ * LogFormat "hosta ..."
+ * ...
+ * </VirtualHost>
+ *
+ * <VirtualHost hosta.com>
+ * LogFormat "hostb ..."
+ * ...
+ * </VirtualHost>
+ *
+ * ... to have different virtual servers write into the same log file,
+ * but have some indication which host they came from, though a %v
+ * directive may well be a better way to handle this.
+ *
+ * --- rst
+
+So, I hacked it in.
+
+Here is the patch :-
+
+*** apache_1.0.0/src/mod_log_config.c   Fri Mar  1 07:42:55 1996
+--- apache_1.0.3/src/mod_log_config.c   Wed Mar 27 19:50:49 1996
+***************
+*** 159,164 ****
+--- 159,169 ----
+  
+  char *constant_item (request_rec *dummy, char *stuff) { return stuff; }
+  
++ /* added for %v functionality - andyr@wizzy.com */
++ 
++ char *log_server_hostname (request_rec *r, char *a)
++ { return r->server->server_hostname; }
++ 
+  char *log_remote_host (request_rec *r, char *a)
+  { return r->connection->remote_name; }
+  
+***************
+*** 223,228 ****
+--- 228,234 ----
+      { 'l', log_remote_logname, 0 },
+      { 'u', log_remote_user, 0 },
+      { 't', log_request_time, 0 },
++     { 'v', log_server_hostname, 0 },  /* added - andyr@wizzy.com */
+      { 'r', log_request_line, 1 },
+      { 's', log_status, 1 },
+      { 'b', log_bytes_sent, 0 },
+
+Cheers,     Andy!
+
+--
+-- Andy Rabagliati . andyr@wizzy.com
+--
+-- http://altavista.digital.com/cgi-bin/query?pg=q&q=Rabagliati
+
+
+

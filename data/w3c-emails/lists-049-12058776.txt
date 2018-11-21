@@ -1,0 +1,197 @@
+docno="lists-049-12058776"
+received="Wed Feb  6 16:40:42 2002"
+isoreceived="20020206214042"
+sent="Wed, 6 Feb 2002 22:32:55 +0100"
+isosent="20020206213255"
+name="jos.deroo.jd@belgium.agfa.com"
+email="jos.deroo.jd@belgium.agfa.com"
+subject="Re: A basis for convergence and closure?"
+id="OFA8741D46.097B9019-ONC1256B58.0075F054@bayer-ag.com"
+charset="us-ascii"
+inreplyto="A basis for convergence and closure?"
+expires="-1"
+
+To:phayes@ai.uwf.edu
+Cc:patrick.stickler@nokia.com,w3c-rdfcore-wg@w3.org
+
+
+Pat,
+
+we have tried to summarize that
+at http://www.agfa.com/w3c/euler/rdfd-theory.n3
+is that making sense ???
+
+--
+Jos
+
+
+
+
+
+Pat Hayes <phayes@ai.uwf.edu>@w3.org on 2002-02-06 06:53:49 PM
+
+Sent by:    w3c-rdfcore-wg-request@w3.org
+
+
+To:    Patrick Stickler <patrick.stickler@nokia.com>
+cc:    w3c-rdfcore-wg@w3.org
+Subject:    Re: A basis for convergence and closure?
+
+>
+>
+>It seems that, from all the past couple of weeks discussions,
+>there are the following characteristics on folks wish lists
+>(this is a partial recap of some of the desiderada):
+>
+>1. A working MT (duh ;-)
+>2. Tidy literals
+>3. A global/implicit idiom
+>4. A local/explicit idiom
+>5. Same vocabulary valid for both local and global idioms
+>6. Free combination of local and global idioms without conversion
+>7. The ability to conduct queries by value
+>8. The ability to conduct queries by literal
+>9. Datatype URIs denote the entire datatype, as defined by
+>    the datatype "owner", not only one of its components
+>
+
+I think I can summarize a way to have all the above with a minimal
+imposition of particular idioms. Consider the following story, which
+I think is very similar to  Patrick's, but expressed slightly
+differently. This is a summary of the 'simple' version of the 'Oh my
+GOD' proposal. To hell with the subtle version.
+
+I. Literal nodes are tidy, and literals denote themselves (ie we can
+treat literals as syntactic labels).
+
+II. rdf:value means that its subject can be represented textually by
+its object (somehow), so
+_:s rdf:value "10" .
+means that '10' is one possible way to 'write' whatever it is that _:s denotes.
+
+Call that a 'value triple'. It is the basic (weakest) way of linking
+a value to a literal's lexical form.
+
+III. There are two basic ways to say more about the relationship
+between the subject of a value triple and the lexical form of the
+literal.
+
+IV.  One is to use a 'tighter' property, ie a subPropertyOf
+rdf:value. So for example (Graham's F case) one could assert
+ex:ISO8601 rdf:subPropertyOf rdf:value .
+and then
+_:s ex:ISO8601 "10" .
+would say that the subject node denotes something that could be
+written as '10' *using the conventions associated with that URI*.
+
+This allows for 'multiple' such assertions, where the meaning would
+be that the literal/value pair had to conform to all the named
+constraints, ie a conjunctive reading, as usual. It also allows for
+alternative lexical forms for the same value, as in
+_:s xsd:realnumber "10.3" .
+_:s ex:germannumber "10,3" .
+
+V. The other is to assert a special datatyping triple along with the
+value triple, using rdf:dtype (or rdfd:type, whatever), giving the
+doublet case:
+
+_:s rdf:value "10" .
+_:s rdf:dtype xsd:integer .
+
+This has exactly the same meaning as
+_:s xsd:integer "10" .
+when xsd:integer is known to be a datatype, and the two forms can be
+used interchangeably or together.
+
+rdf:dtype is always a subPropertyOf rdf:type.
+
+VI. Each of these two cases IV and V requires a special semantic
+condition, and those conditions refer to externally defined datatype
+mappings. In order for an engine to make use of these mappings,  the
+relevant uris must be declared to be datatypes  by an assertion like
+xsd:integer rdf:type rdf:Datatype .
+or
+xsd:integer rdfs:subPropertyOf rdf:value .
+
+It is acceptable for the graph to entail these assertions, but I
+suggest that we recommend that they be made explicit.
+
+VII. Any graph that entails one of the forms above has the same
+meaning, as far as datatyping is concerned.  There are several ways
+to take advantage of this.
+
+One is to make <dtype> a subPropertyOf <type>, which makes them
+equivalent, so that the datatyping effect of the doublet works for
+all type assertions applied to a datatype. That is the dangerous way
+to do it, since it will break if there are two datatypes with
+overlapping value spaces but incompatible lexical spaces. (The
+symptom of 'breaking' will arise when the datatyping machinery is
+invoked; exactly what happens in the bad case is not fully
+determined. One possibility would be that the datatyping constraint
+machinery will barf. Another is that it will work, but produce
+inconsistent or misleading answers.) Nevertheless, this is a user
+option that may be useful in situations where it is known that no
+such datatype clashes will arise, or to handle legacy RDF code
+written using rdf:type. We note that it is always safe to do this in
+the untyped case, ie where no datatypes have been declared.
+
+Another way is to add a further constraint on rdf:dtype, which allows
+particular kinds of assertion to entail rdf:dtype triples. To do this
+with full generality would require the ability to write RDF rules
+(implications), but the only case that seems to be of widespread
+interest can be captured by one simple 'ranging' rule that could be
+incorporated into the general semantic conditions, viz:
+
+ddd rdf:type rdf:Datatype .
+aaa rdf:range ddd .
+bbb aaa ccc .
+--->
+ccc rdfd:type ddd .
+
+With this rule, we can infer the doublet case from an assertion that
+the range of a property is a datatype.  This is 'safe', even though
+it refers to rdf:range, because the rdfs closure rules do not allow
+us to infer that a subclass of a range is a range; so even if the
+ranges overlap, this rule will not produce any unwanted datatyping
+clashes.
+--
+
+Thats the full story. We don't need to say this idiom is OK and that
+idiom isn't; we can just let people use rdf:value and rdf:dtype
+pretty freely, and things will work out as they ought to, once you
+get used to what they are supposed to mean. rdf:value means 'this
+*can* be written out like this:<literal>', and rdfd:type means 'this
+*must* be written out using the conventions found here:<datatype
+URI>' So rdf:dtype is a constraint on the ways of writing a value,
+which is why it has this odd semantic constraint with rdf:value,
+right?
+
+Oh, I forgot; it also follows that (Dan C., are you reading this?)
+
+VIII. The in-line use of literals, as in
+<mary> <age> "10" .
+has a fixed meaning which is absolutely unchangeable, which is that
+Mary's age is the *actual literal*, ie the character string '10'.  So
+if you want to write things like that and have them mean Mary is ten,
+then either <age> has to have an odd extension, or else, tough. This
+is where Sergey's idea about XML styles might be a point worth
+making, however, to keep out the noisy townfolk; and as Patrick says,
+you can always interpret <age> to *mean*
+(lambda (x y)
+    x aged _:s
+    _:s rdf:value y  )
+and then put range constraints on <aged>.
+
+Pat
+
+
+--
+---------------------------------------------------------------------
+IHMC                          (850)434 8903   home
+40 South Alcaniz St.                (850)202 4416   office
+Pensacola,  FL 32501                (850)202 4440   fax
+phayes@ai.uwf.edu
+http://www.coginst.uwf.edu/~phayes
+
+
+

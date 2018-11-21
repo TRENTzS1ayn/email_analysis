@@ -1,0 +1,165 @@
+docno="lists-013-3783069"
+received="Thu Dec 12 05:50:47 2002"
+isoreceived="20021212105047"
+sent="Thu, 12 Dec 2002 16:17:40 +0530"
+isosent="20021212104740"
+name="Yogesh Bang"
+email="Y.Bang@zensar.com"
+subject="RE: HTTP Partial Download Query"
+id="12DBF81D4944C546AF06D1A37A07A5C8148A9B@zenmail1.ind.zensar.com"
+charset="iso-88591"
+inreplyto="HTTP Partial Download Query"
+expires="1"
+
+
+To:"Alex Rousskov"<rousskov@measurement-factory.com>
+Cc:<ietf-http-wg@w3.org>
+
+
+Dear Alex,
+
+Many Thanks for your valuable directives.
+
+My requirement is that I need to LOG which autherised user
+has asked for download of which DIGITAL CONTENT and to track whether
+the TRANSFER of that resource from WEB-SERVER is successful or not.
+
+By the term COMPLETE DOWNLOAD, I mean to say the full transfer of that
+digital content from WEB-SERVER. It need not be necessary to track 
+whether it has reached the CLIENT machine.
+
+For PARTIAL DOWNLOAD case the real problem is that 
+I can not keep Session and also I can not keep cookies at client 
+machine (Since the client can be any Device,PDA,Mobile Phones which may 
+or may-not allow any cookies). In such case how to track the 
+DOWNLOAD status?
+
+One scenario which is also not clear to me is when WEB-SEVER will send
+multipart/byteranges response? I mean SINGLE response to a request 
+for multiple non-overlapping ranges. 
+How to REQUEST for multiple non-overlapping ranges looks like?
+If you can explain the scenarion with sample Http Request-Response,
+It will be enormous help (Please refer to section 19.2 
+of RFC 2616).
+
+Once again thanks for your valuable time.
+
+With Regards,
+Yog
+
+
+
+-----Original Message-----
+From: Alex Rousskov [mailto:rousskov@measurement-factory.com]
+Sent: Wednesday, December 11, 2002 9:55 PM
+To: Yogesh Bang
+Cc: ietf-http-wg@w3.org
+Subject: RE: HTTP Partial Download Query
+
+
+On Wed, 11 Dec 2002, Yogesh Bang wrote:
+
+> Let me further clarify my points. I do not have any control over the
+> Client. I also do not have any control on TCP/IP stack or Web
+> Server.
+
+Noted. Then you can forget about doing any tricks to limit response
+sizes. Leave it to the client, the server, and HTTP. Just make sure
+your code supports any HTTP client you care about. RFC 2616 and other
+specs define what a client can do; the server API (and CGI specs)
+define what your module or CGI needs to do.
+
+> But I can write server side CGI applications.
+> But I want to take care that the DOWNLOAD of the requested
+> DIGITAL CONTENT(mp3,image etc) is complete or not.
+> And also handle the AUTHENTICATION and AUTHORISATION part for
+> the requested DIGITAL CONTENT.
+>
+> AUTHENTICATION and AUTHORISATION part can be handled in Apache
+> Module.
+>
+> But I am still not clear on
+> 1)PARTIAL DOWNLOAD with RANGE request(section 14.35 of RFC 2616)
+
+Is there any reason you want to authenticate or authorize range
+requests specially? If yes, you need to tell us relevant requirements
+so that we can help. If no, the presence of Range header is irrelevant
+to your authentication and authorization code. You are simply
+authenticating or authorizing any request that the server asks you to
+handle.
+
+> 2)Request for multiple non-overlapping ranges(section 19.2 of RFC
+> 2616).
+
+Same as (1). Is there any reason you want to authenticate or authorize
+range requests specially?
+
+> When the above TWO scenarios are possible?
+
+When client sends Range request header and the server honors it. Both
+events are probably irrelevant to authentication and authorization
+code. In general, authentication and authorization would depend on
+other request headers.
+
+> How can one know that the DOWNLOAD is complete in above two cases?
+
+This has nothing to do with authentication and authorization, right?
+You need to define "complete download" first. If by "complete
+download" you mean that an entire entity was _sent_ to the client,
+then you have at least three cases to take care of:
+
+1) The server is generating a "200 OK" response,
+  sending entire entity to an authenticated and
+  authorized client. In this case, you can check
+  that the entire response left the server (no
+  aborted connections and such).
+
+2) The server is generating a "206 Partial Content"
+  response, sending one or more pieces of an entity
+  to an authenticated and authorized client. To check
+  whether the entire entity was sent, you would probably
+  have to establish and track some kind of a "session"
+  with the client (a download state that pure HTTP lacks).
+
+  Alternatively, you can assume that no client will do
+  two partial downloads for the same content in parallel.
+  Then you can use authentication information as session
+  identifier. This assumption will not hold in all real-world
+  environments, of course.
+
+  Note that it is probably  impossible to guarantee that a
+  client cannot fool your "session" tracking code simply
+  because you cannot distinguish one client session from
+  another client session originating from the same client
+  (without client-side support which you said you lack).
+
+  Once you assigned a session ID to a sequence of responses,
+  you can maintain a response "coverage map", marking pieces
+  that were sent to the client. Once there are no holes
+  in the map, the download is complete.
+
+3) The server is not sending any content to a client.
+   It could be a response to HEAD request or perhaps a 100
+   Continue message. Your code should skip such responses.
+
+If by "complete download" you mean that an entire entity was
+_received_ by the client, then you cannot track that reliably without
+client-side support.
+
+Perhaps your requirements are such that your authorization code must
+know how much content the client has received so far (e.g., some kind
+of pay-per-play scheme). The above logic can be adjusted for that as
+well, with similar caveats.
+
+
+HTH,
+
+Alex.
+
+-- 
+                            | HTTP performance - Web Polygraph benchmark
+www.measurement-factory.com | HTTP compliance+ - Co-Advisor test suite
+                            | all of the above - PolyBox appliance
+
+
+

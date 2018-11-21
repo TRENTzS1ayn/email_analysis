@@ -1,0 +1,319 @@
+docno="lists-025-13557210"
+received="Thu Jun 26 13:18:36 2003"
+isoreceived="20030626171836"
+sent="Thu, 26 Jun 2003 10:17:05 -0700"
+isosent="20030626171705"
+name="Nickolas Kavantzas"
+email="nickolas.kavantzas@oracle.com"
+subject="Re: Choreography State Definition (was:  RE: More requirement"
+id="3EFB2A91.2AAA9DBE@oracle.com"
+charset="us-ascii"
+inreplyto="C1E0143CD365A445A4417083BF6F42CC08391BAD&#64;C1plenaexm07.commerceone.com"
+expires="-1"
+
+
+To:"Burdett, David"<david.burdett@commerceone.com>
+CC: Jean-Jacques Dubray<jjd@eigner.com>,"'Yaron Y. Goland'"<ygoland@bea.com>,"'WS Chor Public'"<public-ws-chor@w3.org>
+
+Pi-c describes how concurrent processes interact.
+
+Here is an example:
+
+P ::= ch?x.P'
+input on channel ch, data x and then continue to do P'
+
+Q ::= ch!y.Q'
+output on channel ch, data y and then continue to do Q'
+
+System ::= P || Q
+compose P and Q, by running them concurrently
+
+When these two processes are composed and run concurrently (P || Q) they make progress by reacting, since one process outputs to the channel and the other process inputs on the same channel. After they react, P continues to do P' and Q continues to do Q'.
+
+The important point is that both processes progress at the same time, in a lock-step fashion. The alignment comes from the fact that the sender process has to know that the receiver process received the message and the other way around, the receiver process has to know that the sender process sent the message before both of them progress. There is no intermediate state where one process sends and then it proceeds independently or the other process receives and then it proceeds independently.
+
+To go back to your business example, the point is that the observable business state needs to be alligned, otherwise in case of failures the buyer may thing that the order is sent and then proceed happily, while the seller has not received the order and is stucked.
+
+
+In practice though, implementing a distributed system to support this type of handshaking is *challenging* because of failures and loss of messages.
+
+This is why our CDL4WS will propably require support from a reliable messaging protocol and/or a coordination protocol.
+
+
+"Burdett, David" wrote:
+
+>
+>
+> Nick
+>
+> Why is the alignment of the observable state of, for example, a pi-c channel so important? I'm not saying it isn't, I'd just like to understand why.
+>
+> David
+>
+> -----Original Message-----
+> From: Nickolas Kavantzas [mailto:nickolas.kavantzas@oracle.com]
+> Sent: Tuesday, June 24, 2003 9:42 AM
+> To: Burdett, David
+> Cc: Jean-Jacques Dubray; 'Yaron Y. Goland'; 'WS Chor Public'
+> Subject: Re: Choreography State Definition (was: RE: More requirement
+>
+> The global knowledge of state is clearly an issue and I think we should record it as such.
+>
+> Said that, I believe that the allignment of any kind of observable state (including the observable state of a
+> pi-c channel) is a very important requirement.
+>
+> How to accomplish this at the language level and how a possible implementation will work in a distributed setting
+> is something we should discuss in our task force (no. 3).
+>
+> "Burdett, David" wrote:
+>
+> > JJ
+> >
+> > I agree with you that a) a choreography is a state machine, and b) the
+> > exchange of messages changes the state.
+> >
+> > However, I don't beleive it is possible for the parties involved in a
+> > choreography to know the *full* state of a choreography at any point in time
+> > because of a) the finite time it takes for a message to be sent, and b)
+> > sometimes a message may not be delivered.
+> >
+> > For example if a Buyer sends an order to a Supplier, then the sequence of
+> > states would be something like:
+> > 1. Initial states: Buyer: idle, Supplier: idle
+> > 2. Buyer sends the order. States: Buyer, Order Sent; Supplier, Idle
+> > 3. Supplier receives the order. States: Buyer, Order Sent; Supplier, Order
+> > Received
+> > 4. Buyer sends an acknowledgement. States: Buyer, Order Sent; Supplier,
+> > Order Ack Sent
+> > 5. Buyer receives the ack. States: Buyer, Order Ack Received; Supplier,
+> > Order Ack Sent
+> >
+> > Even in the last case, the Supplier doesn't really know the state of the
+> > Buyer as the Supplier does not know if the ack was received. Similarly, if
+> > one of the messages doesn't get through, e.g. the original order message,
+> > then they Buyer has no way of knowing what the state of the Supplier is with
+> > the choreography as illustrated above.
+> >
+> > I tend think that state belongs to an individual role rather than the
+> > choreography as a whole and so would propose the folowing "Choreography
+> > State Definition" ...
+> >
+> > "The state of a choreography instance at a point in time is defined as the
+> > combination of the states of the individual roles that are participating in
+> > that choreography instance at that time".
+> >
+> > Since communication between roles can't be instantaneous, it also means that
+> > the actual state of a complete choreography is actually unknowable whilst
+> > the choreography is in progress. Only when the choreography is halted (i.e.
+> > the states can't change) and queries made of each role to discover their
+> > state can the full state of the choreography be discovered. This is also one
+> > reason why I think that enabling "state queries" is important as you will
+> > often need to know the full state of the complete choreography to determine
+> > what to do if you want to recover after a failure to execute a choreography
+> > successfully.
+> >
+> > Thoughts?
+> >
+> > David
+> >
+> > -----Original Message-----
+> > From: Jean-Jacques Dubray [mailto:jjd@eigner.com]
+> > Sent: Wednesday, June 18, 2003 5:40 AM
+> > To: 'Yaron Y. Goland'
+> > Cc: 'WS Chor Public'
+> > Subject: RE: More requirement
+> >
+> > If two parties believe that the choreography is in a different state,
+> > one can have many surprises about the outcome of this choreography. A
+> > choreography is a state machine (in the mathematical sense) and as such
+> > is always in a given state. The language must be unambiguous about the
+> > different state. It is merely the exchange of a message that changes the
+> > state of the choreography. However, it is a very peculiar state machine,
+> > since it has no run-time associated with it that keeps ITS state.  Its
+> > state is rather "spread" over n parties, which are all represented by
+> > their individual state machines participating in the choreography. As
+> > you can imagine if these state machines gets out of synch only the most
+> > catastrophic results can be expected.
+> >
+> > Cheers,
+> >
+> > Jean-Jacques Dubray____________________
+> > Chief Architect
+> > Eigner  Precision Lifecycle Management
+> > 200 Fifth Avenue
+> > Waltham, MA 02451
+> > 781-472-6317
+> > jjd@eigner.com
+> > www.eigner.com
+> >
+> >
+> >
+> > >>-----Original Message-----
+> > >>From: Yaron Y. Goland [mailto:ygoland@bea.com]
+> > >>Sent: Dienstag, 17. Juni 2003 13:05
+> > >>To: Jean-Jacques Dubray; 'WS Chor Public'
+> > >>Subject: RE: More requirement
+> > >>
+> > >>I have to admit that the term 'choreography state synchronization
+> > >>mechanism'
+> > >>makes me really nervous only because it is so broad that it could
+> > >>potentially mean anything. But let's adopt your proposed new language
+> > >>anyway
+> > >>and when we do the full requirements review we can do a pass to look
+> > for
+> > >>phrases such as that one and make sure they are used in a consistent
+> > and
+> > >>well defined manner throughout the requirements.
+> > >>
+> > >>              Yaron
+> > >>
+> > >>> -----Original Message-----
+> > >>> From: Jean-Jacques Dubray [mailto:jjd@eigner.com]
+> > >>> Sent: Wednesday, June 11, 2003 12:44 PM
+> > >>> To: 'Yaron Y. Goland'; 'Jean-Jacques Dubray'; 'WS Chor Public'
+> > >>> Subject: RE: More requirement
+> > >>>
+> > >>>
+> > >>> Yaron:
+> > >>>
+> > >>> >>
+> > >>> >>BPSS has chosen one of a number of possible MEPs and each MEP has
+> > its
+> > >>> own
+> > >>> >>benefits and drawbacks that I don't believe this group needs to
+> > >>> address.
+> > >>> >>In
+> > >>> >>fact I expect that each industry will pick the MEPs that best meet
+> > >>> their
+> > >>> >>functional and legal requirements. Therefore I would propose that
+> > our
+> > >>> job
+> > >>> >>is
+> > >>> >>to enable the creation of such MEPs rather than specifying exactly
+> > >>> what
+> > >>> >>they
+> > >>> >>are.
+> > >>> [JJ] +1
+> > >>> >>
+> > >>> >>As such I would propose rewriting Jean-Jacques' proposed
+> > requirement
+> > >>> as:
+> > >>> >>
+> > >>> >>The WS-Chor message sequence description language MUST take into
+> > >>> >>consideration the need to manage signals where a signal is defined
+> > as
+> > >>> an
+> > >>> >>application level processing error that is expressed as a message
+> > >>> visible
+> > >>> >>by
+> > >>> >>other partners in the choreography.
+> > >>> [JJ] I am not sure I would translate it this way. Signals are not
+> > just
+> > >>> application level processing error messages. You may also have
+> > "message
+> > >>> format errors" that could be trapped above the system of record.
+> > >>>
+> > >>> I would suggest:
+> > >>>
+> > >>> >>The WS-Chor message sequence description language MUST take into
+> > >>> >>consideration the need to manage signals where a signal is defined
+> > as
+> > >>> <a choreography state synchronization mechanism> that is expressed
+> > as a
+> > >>> <standard> message visible
+> > >>> >>by
+> > >>> >>other partners in the choreography.
+> > >>>
+> > >>>
+> > >>> >>
+> > >>> >>> -----Original Message-----
+> > >>> >>> From: public-ws-chor-request@w3.org
+> > >>> >>> [mailto:public-ws-chor-request@w3.org]On Behalf Of Jean-Jacques
+> > >>> Dubray
+> > >>> >>> Sent: Thursday, June 05, 2003 2:51 AM
+> > >>> >>> To: 'WS Chor Public'
+> > >>> >>> Subject: More requirement
+> > >>> >>>
+> > >>> >>>
+> > >>> >>>
+> > >>> >>> I would like to add another requirement:
+> > >>> >>>
+> > >>> >>> The WSC-Languange MUST provide specific Message Exchange Pattern
+> > >>> >>> templates that establish a reliable state of the WSC-instance
+> > when
+> > >>> >>> needed.
+> > >>> >>>
+> > >>> >>> This requirement is essential since RM itself is not enough to
+> > >>> guaranty
+> > >>> >>> that the state of the choreography is identically represented in
+> > >>> each
+> > >>> >>> party. For instance a party sends a message with an incorrect
+> > >>> format. If
+> > >>> >>> we have RM only, then the state of the collaboration says that
+> > the
+> > >>> >>> message got there, so the choreography should proceed as normal.
+> > >>> >>> However, if this is a request, the responding party cannot send
+> > the
+> > >>> >>> response since the message was structurally incorrect.
+> > >>> >>>
+> > >>> >>> Unless the WSC-definition specifies that at this point the
+> > >>> responding
+> > >>> >>> party can send a "INVALID MESSAGE" response, we get into a
+> > deadlock
+> > >>> >>> (requesting party waiting for response, responding party unable
+> > to
+> > >>> >>> respond).
+> > >>> >>>
+> > >>> >>> A similar deadlock can happen when the message is structurally
+> > >>> valid,
+> > >>> >>> but cannot be processed by the corresponding system of record
+> > (that
+> > >>> is
+> > >>> >>> in charge of producing the response).
+> > >>> >>>
+> > >>> >>> Providing MEP-templates would greatly simply the work of the
+> > >>> designers
+> > >>> >>> by establishing clear patterns, with standard error messages
+> > that
+> > >>> can be
+> > >>> >>> used over and over by anybody.
+> > >>> >>>
+> > >>> >>> This approach also offloads the business logic of the
+> > application/or
+> > >>> >>> process engine to deal with "protocol" levels. Can you imagine
+> > the
+> > >>> >>> simplification for the Orchestration/Process Definition-instance
+> > if
+> > >>> >>> these concepts are implied rather than explicitly handled by the
+> > >>> process
+> > >>> >>> instance?
+> > >>> >>>
+> > >>> >>> See also this article:
+> > >>> >>> http://www.looselycoupled.com/stories/2003/message-infr0528.html
+> > >>> >>>
+> > >>> >>> Of course most people would have recognized the BPSS business
+> > >>> >>> transaction protocol, that itself has its root in prior work at
+> > RN
+> > >>> and
+> > >>> >>> UN/CEFACT. I think that generalizing this idea would be helpful.
+> > >>> >>>
+> > >>> >>> Cheers,
+> > >>> >>>
+> > >>> >>> Jean-Jacques Dubray____________________
+> > >>> >>> Chief Architect
+> > >>> >>> Eigner  Precision Lifecycle Management
+> > >>> >>> 200 Fifth Avenue
+> > >>> >>> Waltham, MA 02451
+> > >>> >>> 781-472-6317
+> > >>> >>> jjd@eigner.com
+> > >>> >>> www.eigner.com
+> > >>> >>>
+> > >>> >>>
+> > >>> >>>
+> > >>> >>>
+> > >>> >>>
+> > >>>
+> > >>>
+
+
+

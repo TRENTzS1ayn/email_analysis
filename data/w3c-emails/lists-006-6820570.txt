@@ -1,0 +1,148 @@
+docno="lists-006-6820570"
+received="Tue Feb  6 07:00:43 2001"
+isoreceived="20010206120043"
+sent="Tue, 6 Feb 2001 11:59:50 +0000"
+isosent="20010206115950"
+name="Tim_Ellison@uk.ibm.com"
+email="Tim_Ellison@uk.ibm.com"
+subject="RE: FW: DeltaV Passthrough issues"
+id="802569EB.0041EB1C.00@d06mta07.portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="FW: DeltaV Passthrough issues"
+expires="-1"
+
+To:ietf-dav-versioning@w3.org
+
+
+
+
+> "A PUT or PROPPATCH to a version-controlled
+> resource with the DAV:auto-version property set
+> will automatically check out that resource prior
+> to executing the PUT or PROPPATCH.  If that
+> resource is write-locked, the resource remains
+> checked-out until the resource is unlocked, at
+> which time the resource is checked in and a new
+> version is created in the version history of
+> that resource."
+>
+> That to me is "passthrough", even without the
+> label target, because it bypasses the content or
+> properties of the VCR in order to create a new
+> version.
+
+I just don't see how that can be interpreted as "passthrough".
+
+To paraphrase, the steps are:
+
+1) start with a checked-in VCR whose contents and dead properties are the
+same as (i.e., copies of) a version.  The version is identified by the
+DAV:checked-in property.
+
+2) check out the VCR.  This has no effect on the version referred to in (1)
+above.  Now the VCR is a checked-out VCR whose content and properties can
+be modified (independently of any version).  The version this checked-out
+VCR used to look like before it was modified is identified by the
+DAV:checked-out property (in fact it will be the same vallue as the
+DAV:checked-in used to have in step (1).
+
+3) After making the required modifications, check-in the VCR.  This has two
+effects, (a) the VCR cannot be further modified without checking it out
+again, and (b) a copy of the now immutable VCR is placed in the version
+history as a new version (whose DAV:predecessor-set by default will
+identify the version referred to in step (1).
+
+So the VCR does not "passthrough" any methods to the version it was
+originally based on, but check-in on a VCR does have a side-effect on the
+version history.
+
+> How am I supposed to change the properties of the VCR itself?
+
+Just PROPPATCH the checked-out VCR.
+
+When checked in, the VCR's content, dead properties and live properties
+identified in the DAV:initialize-version-content-and-properties
+postcondition of Section 3.2 CHECKIN will be made those of the new version.
+
+> The previous paragraph states:
+>
+> "In order to use methods like PUT and PROPPATCH to
+> directly modify the content or dead properties of
+> a version-controlled resource, the version-controlled
+> resource must first be checked out.  When the checked-out
+> resource is checked in, a new version is created in the
+> version history of that version-controlled resource.
+> The version that was checked out is remembered as the
+> predecessor of the new version."
+
+Yes, that say it much more eloquently.
+
+> That is unacceptable.  It's completely unacceptable to
+> create a new version of a resource, just in order to be
+> able to modify a property like 'Last-published-version'
+> on the VCR.  For the sake of conciseness, let's call
+> this a "global" property: it applies to all versions, and
+> can't have different values on different versions.
+
+You say "unacceptable", but others say it is absolutely necessary that a
+checked-in version-controlled resource has immutable properties and content
+(for caching, delta-ing, reproducability, etc.)
+
+Adding a "global" property to a particular resource and saying that it
+applies to a set of resources seems like a misnomer.   ...but running with
+your term for now,
+
+> In order to modify a global property, does a new version
+> have to be created? Even though nothing changed on the
+> old version? (the only change, conceptually, is a dead
+> property on the VCR).  If I understand the model correctly,
+> that won't work because the properties of a checked-in
+> VCR are the same as the properties of the checked-in version.
+> So global properties can't be placed on VCRs at all.
+
+Correct -- a VCR would be no place for such a global property.
+
+> Where do global properties go, then? You state that rather
+> than put global properties on the VCR, the client ought to
+> put them on the VH:
+>
+>> It sounds like you're talking about properties on the
+>> version history resource.  Your server of course must
+>> then support the version history option, but then you
+>> PROPPATCH the version history resource just as you
+>> would PROPPATCH any other resource.
+
+Right, since the history represents the entire set of versions, it seems
+the appropriate place to put a property that refers to the entire set of
+versions, like 'Last-published-version'.
+
+> That's unacceptable.  First, as you point out, the server
+> must support an extra resource, the VHR.  Then, in order
+> to present a directory listing with the value of a global
+> property like "Last-published-version" for each of n VCRs
+> in a directory, the client would have to issue a depth:1
+> PROPFIND request to find all the URLs to the VHRs, then
+> issue n PROPFIND requests, one to each VHR independently,
+> to get the values of "Last-published-version".
+
+Correct -- makes that property report seem well worth the money <g>.
+
+> However, the real showstopper is the lack of resource
+> transparency.  Global properties, like "author" from Dublin
+> Core, or "Editor-in-Chief", are hidden away in VHRs.  That
+> means that versioning-unaware clients cannot interoperate
+> with versioning clients on the same set of documents.  They
+> can't even PROPFIND a set of VCRs to get properties which
+> ought to exist.
+
+I don't have any suggestions for you here since there is no property that
+has the characteristic of being defined on a set of resources in this way.
+all I can offer is that the version history resource has a URL that the
+versioning unaware client can use to PROPFIND/PROPPATCH dead properties --
+but that would not be the same URL as any version-controlled resource
+(which is what I think you are asking for).
+
+Tim
+
+
+

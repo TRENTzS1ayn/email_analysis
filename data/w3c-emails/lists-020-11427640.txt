@@ -1,0 +1,396 @@
+docno="lists-020-11427640"
+received="Thu May  6 06:10:59 2004"
+isoreceived="20040506101059"
+sent="Thu, 6 May 2004 11:10:18 +0100 "
+isosent="20040506101018"
+name="Seaborne, Andy"
+email="andy.seaborne@hp.com"
+subject="RE: summary of OWL-QL experiences"
+id="E864E95CB35C1C46B72FEA0626A2E808028A34CE@0-mail-br1.hpl.hp.com"
+inreplyto="summary of OWL-QL experiences"
+expires="-1"
+
+
+To: Pat Hayes<phayes@ihmc.us>
+Cc:public-rdf-dawg@w3.org
+
+
+Pat,
+
+Lots of stuff here - I have only mangaged to cover some things here.
+
+Comments inline.
+
+Andy
+
+-------- Original Message --------
+> From: public-rdf-dawg-request@w3.org <>
+> Date: 5 May 2004 01:37
+> 
+> As requested in todays telecon, this is a summary of some
+> experiences when developing DQL, a query language for DAML,
+> later OWL-QL. The work was done in collaboration with Ian
+> Horrocks and Richard Fikes and a full paper on it can be got from
+> http://ksl-web.stanford.edu/KSL_Abstracts/KSL-03-14.html
+> 
+> All three of us are basically logicians, so we started with a
+> 'logical' (rather than a 'database') mental model of what a
+> query language is basically like, which is that the query is
+> a (pattern of a) theorem to be proved and the Kbase being
+> queried is what you try to prove it from, and the result of
+> the query is something like the bindings to the variables in
+> the query that make it provable.  Formally, an answer to a
+> query is a set of bindings to the variables in the query such
+> that the resulting instance was entailed by the Kbase: in
+> effect, this treats the query variables as being
+> existentially quantified in the query (= conclusion = theorem
+> = goal, terminology depending on what school you went to).
+> So this was the formal core of the design. It has the merit
+> of being very general (eg it applies to anything with a
+> semantics, by tweaking what counts as 'provable' accordingly)
+> and simple to state and kind of semantically robust. It has
+> the demerit of not supporting tabular-algebraic operations on
+> entire data sets in the SQL style. And of course like every
+> such neat semantic idea it immediately needs to be modified
+> to make it practicable :-).
+> 
+> Applied to RDF, strictly, this definition says that a query
+> would be a piece of RDF with variables in place of some
+> URIrefs or literals, and the relevant notion of entailment is
+> just being a subgraph with some URIrefs and/or literals
+> possibly replaced with blank nodes. For example, in a
+> modified Ntriples type syntax, the query
+> 
+> Query:
+> [ ?p ex:owns ?c .
+> ?c rdf:type ex:Car .]
+> 
+> 
+> when used to query the KB graph
+> 
+> ex:Joe ex:owns ex:JoesCar1 .
+> ex:JoesCar1 rdf:type ex:car .
+> ex:Bill ex:owns ex:BillsCar1 .
+> ex:BillsCar1 rdf:type ex:car .
+> 
+> should produce two answer bindings:
+> 
+> [?p/ex:Joe, ?c/ex:JoesCar1]
+> [?p/ex:Bill, ?c/ex:BillsCar1]
+> 
+> The same KB with the query
+> 
+> Query:
+> [?p ex:owns _:y .
+> _:y rdf:type ex:Car .]
+> 
+> should return the bindings
+> [?p/ex:Joe]
+> [?p/ex:Bill].
+> 
+> Note that _:y here is not a variable, 
+
+Agreed - I have seen this coming up in RDQL questions.
+
+> and that the relevant
+> query instances are entailed by the given Kbase graph but are
+> not themselves subgraphs of it. In OWL, of course, the
+> entailments can get pretty complicated, but in RDF they
+> amount only to one-way matching of bnodes in the query with
+> other nodes in the graph. (In principle this is NP-complete
+> since you CAN encode the general subgraph problem this way by
+> making RDF graphs entirely out of blank nodes. Yawn.)
+> 
+> This simple picture had to be modified pretty quickly,
+> however. First, there was an immediate issue about blank
+> nodes in the Kbase. For example suppose the graph also contained
+> 
+> ....
+> ex:Joe ex:owns _:x .
+> _:x rdf:type ex:car .
+> 
+> then should there be a third possible answer to the first query
+> [?p/ex:Joe, ?c/_:x] ?? The trouble with this is that the bnode
+> identifier has no 
+> meaning outside the graph: its an existential variable, not a
+> 'public' name like a URI or a literal - so it seems wrong to
+> return it as an answer binding; and yet, it seems that a
+> query ought to produce *something* in a case like this. We
+> thought about 'blank bindings' to indicate the presence of a
+> bnode in the graph, but eventually settled on a more
+> restrictive policy in which ONLY non-blank bindings of query
+> variables are allowed, so that in this example there would be
+> only two answers to that query, and the bnode case is
+> 'invisible' from this query (but see next paragraph).
+
+There are two cases of use of RDQL: in Jena, the local case, where the
+application has direct access to the RDF graph through the Jena RDF API,
+retruning bNodes does make sense because tha application can ask further
+questions e.g. list the properties of the bNode in the graph.  It also
+includes the case of wanting to put a retrived bNode into a query cerated
+form the results of another. The RDQL synatx does permit this but at the
+programmatic level it is possible.
+
+Used remotely, like OWL-QL, bNodes don't make sese and I get Joseki-related
+questions about how to deal with bNodes.  The OWL-QL solution of surpressing
+them (by default?) is one possibility.
+
+> 
+> Second, and related, it rapidly became clear that we might
+> not want answers to return all the bindings. We therefore
+> allow a query to specify which of the variables are expected
+> to be bound in an answer: and in fact we finished up with a
+> three-way distinction, between must-bind, don't-bind, and
+> may-bind. This allows some clever stuff to be done, eg if you
+> make ?c be may-bind and ?p be must-bind in the first query
+> then you can get the answers
+> [?p/Joe ?c/JoesCar1]
+> [?p/Bill ?c/BillsCar1]
+> [?p/Joe]
+> from the larger Kbase: it enables you to sneak past the
+> no-bnodes-as-bindings rule by allowing the binding to be
+> suppressed in bnode cases. If you insist that ?c is a
+> must-bind then you only get two answers. In effect, a
+> must-bind variable says: this must be a genuine name (URIref
+> or literal), and a may-bind variable says: this can be
+> anything, including a blank node, but in that case don't tell
+> me what blank node. As is often the case, this style of
+> querying requires the query-writer to have the smarts: the
+> answers you get depend on how you tweak the query.
+
+Could may-bind variables interact?
+
+Query:
+may-bind(?n), may-bind(?d)   # May not know licensePlateNumber 
+
+[ ?p ex:usesCar ?c .
+  ?c ex:licensePlateNumber ?n .
+
+  ?p ex:spouse ?x .
+  ?x ex:usesCar ?d . 
+  ?d ex:licensePlateNumber ?n .
+]
+
+that is ?n occurs twice and effects ?d.  (not sure this is the best
+example).
+
+In the optional triples discussions, because th optionality is usually a
+graph, not  a single triple, there are cases where graph components are
+connected by optional triples.  Execution order makes a difference (i.e.
+there are alternative interpretations of the query intention.)
+
+
+> 
+> BTW, we never did get into the issue of whether one could
+> query part of a typed literal, eg by writing a pattern like
+> ex:joe ex:age ?x^^xsd:integer .
+> with a binding to the numeral part of the literal as the
+> answer. I see no basic objection to this, however.
+
+I, too, see this as reasonable and also didn't do anything about it! What
+type is the thing bound to ?x?  Its not a literal and it does not exist in
+the graph as an independent entity.  What about the (strange in this
+example) case  ex:joe ex:age "31"^^?x (what's the XSD type of..)?
+
+Did you do selection on lang tags?  e.g. ?x@fr  and I suppose the case of
+"chat"@?x 
+
+> 
+> Third, our users insisted that a query should be able to
+> specify the form that the answers were delivered in. We
+> therefore require that a query contain an 'answer pattern'
+> which may contain some or all of the variables in the query
+> pattern. Each answer is an instance of the answer pattern
+> with all the must-bind variables bound to something.  If you
+> omit it, then the default is that the answer pattern is the
+> query pattern, but if all you want are the bindings then you
+> can give an answer pattern which is just a vector of
+> variables. Or indeed anything you like: we don't require that
+> it be legal OWL or RDF.  Any attempt to put any kind of
+> restriction on the form of the answer pattern was met with resistance,
+> by the way. (To be honest, I no longer recall what the point of the
+> 'no-bindings' option was, and I think it is not really
+> needed. No-bind variables are just those that are omitted
+> from the answer pattern, right?)
+> 
+> The above example might then look like this, using a
+> deliberately non-RDF answer pattern:
+> Query:
+> [ ?p ex:owns ?c .
+> ?c rdf:type ex:Car .]
+> Answer:
+> [ ?p owns a car called ?c]
+> must-bind:[?p]
+> may-bind:[?c]
+> 
+> with answers (from the extended graph) being:
+> 
+> [ex:Joe owns a car called ex:JoesCar1]
+> [ex:Bill owns a car called ex:BillsCar1]
+> [ex:Joe owns a car called ?c]
+> 
+> where the presence of an unbound variable in the third answer
+> is permitted and indicates the presence of a blank node in the graph.
+> 
+> BTW, these examples all query subjects and objects, but its
+> legal to query properties also, eg
+> Query:
+> [?x ?x ?y .]
+> Answer:
+> [?x is really weird]
+> must-bind:[?x]
+> applied to the RDFS axioms should yield the answers [rdfs:range is
+> really weird] [rdfs:domain is really weird]
+> 
+> Fourth, a query can contain a temporary-premis assumption.
+> This is to enable asking conditional queries. A temporary
+> premis is just another piece of pattern that is to be
+> temporarily added to the Kbase to entail the answer: all the
+> sexiness arises from its being able to share variables with
+> the query. Example from the paper:
+> 
+> Premis:
+> [ ?c rdf:type wines:seafoodCourse .
+> ?w wines:hasDrink ?c .]
+> Query:
+> [?w wines:has-color ?x .]
+> must-bind:[ ?x ]
+> 
+> which encodes "if a wine is drunk with seafood, what color
+> can it be?" This trick turns out to be quite powerful in OWL
+> and has been used in LP-type applications and 'logical'
+> querying a lot. It may be less relevant to RDF since there
+> are fewer implications of premises+Kbases to be explored.
+> 
+> On an orthogonal issue, we realized that you could use DQL to
+> query a database-like source that might have many 'answers'
+> in it, or a much more ontology-like source that might spend a
+> lot of energy trying to come up with a single answer. So we
+> thought it might be a good idea to allow the query to specify
+> how many answers it wanted to see at once, and we invented a
+> fairly elaborate set of conventions about answer dialogs
+> where the query specifies how many answers it wants to see at
+> once, answers come in bundles, etc. See section IV in the
+> paper for details. I actually think this stuff is kind of
+> neat, but I have to admit that it was probably the hardest to
+> fly. Many people seemed to think it was out of place in a
+> query language design and was stuff that ought to be handled
+> at a different layer altogether, and maybe they were right.
+> So I won't go into details here.
+> 
+> One point however that did become clear was that there is a
+> need for the server to be able to respond "no more answers'
+> to a query and to distinguish between "I guarantee that no
+> other answers are possible" from "I give up" or "I can't find
+> any more" or some such. That is, to know that an exhaustive
+> search has been done (or not) is an important piece of
+> feedback. Database querying protocols often seem to take this
+> for granted, but it can't be automatically assumed when the
+> server needs to do open-ended inference. We invented
+> 'termination tokens' to handle this (and also to encode a
+> kind of closed-world response to a query), but the exact
+> mechanism isn't so important as the distinction.  (This also
+> may be less important for RDF querying. In general, the more
+> elaborate the inference that might need to be done, the more
+> this is necessary to avoid forcing all answering services to
+> be super-powerful or some answers to be misleading: you have
+> to allow the answering service to fail gracefully.)
+> 
+> Another point is that the set of answers may contain
+> duplications and/or redundancies. We went into this in more
+> detail than I care now to remember (section IV -A in the
+> paper), but the basic point, similar to the previous, was
+> that we had to cut the answering service some slack:
+> guaranteeing no duplications is potentially very expensive,
+> particularly in cases where answers were being delivered in
+> bundles on demand, and we did not want to insist that the
+> server had to maintain the 'state' of the answering process
+> in sufficient detail as to always guarantee that there would
+> be no duplications in answer sets.  Several uses objected to
+> this, and we finished up with a design where the query could
+> specify that answer sets must be duplicate-free, but (1) this
+> meant duplication of actual bindings, not of what the
+> bindings refer to (not much of an an issue for RDF, but a
+> very big one for OWL because of owl:sameAs) and (2) the
+> service could just refuse to accept such a query, and
+> indicate why, and still be conformant.
+> 
+> Finally, there is a notion of the 'answer KB' which is
+> notionally an OWL (in our case RDF) graph. However, we felt
+> that there was no way to specify that it had to be a *fixed*
+> such graph, since there were going to be Web resources which
+> answered queries on a 'time-of -query' basis, eg weather
+> services or news services; moreover, there would be
+> Google-like services which scoured the 'state of the Web' at
+> the time of querying and might give different answers to the
+> same query in unpredictable ways. So we require only that the
+> answering source be identifiable by a URI, and expect that in
+> general this will be an RDF resource in the strict REST
+> sense, ie a time-dependent function whose value at any
+> millisecond is an RDF graph. We allow a query to specify a
+> range of such sources to be used to answer the query (or it
+> may not, of course) and again, allow a conforming server to
+> respond with a refusal to answer on the grounds that it
+> cannot access the source, when the source is specified; or,
+> the query can ask to be informed of the source or sources
+> that were used; and again, a conforming server may respond
+> with its own URI, in effect saying "Im not telling you what
+> my sources are". We expect that this would be the norm, in
+> fact. All of this can be handled by the same kind of
+> pattern/must-/may-bind machinery, but where the pattern is
+> some kind of conventional way of referring to ontology
+> sources and the variables bind to URIs of sources. It could
+> all be done in RDF and hence incorporated into the
+> query/answer pattern if we could come up with a standard
+> querying ontology, in fact.
+> 
+> However, and this may be relevant to requirement 3.5, there
+> is no general guarantee that the same query applied to a
+> given source at two different times will always yield the
+> same result, even if you use a single URI to refer to the
+> source. That kind of stability depends on the source: some
+> will be fixed graphs, some will not. To find out, ask the
+> resource owner.
+> 
+> Many of our potential users complained that there was no way
+> to do SQL-type stuff in a query language like this. One can
+> do some of this using OWL and by tweaking the answer pattern,
+> as the paper mentions; but basically they are right, and I
+> don't know what we can do about it, since many RDF graphs
+> aren't database-like. However, many are, so it seems that
+> there ought to be something constructive to be done here.
+> Over to y'all :-)  FWIW, I have come to think that allowing
+> some SQL-style operations on RDF based on namespaces would be
+> generally useful, eg allowing a query to be applied to a
+> subset of a graph defined by a 'select'  based on parts of a
+> triple being in a particular set of namespaces. This isn't
+> handled by the DQL model very well but seems useful.
+> 
+> Another piece of feedback was that people wanted to be able
+> to ask things like, how many answers are there? before asking
+> to see the actual answers. This makes sense for tabular
+> databases but makes no sense for most 'logical' KBs, and in
+> general breaks our 'query as proving a theorem' model since
+> this is a query about the entire set of answers. Still, we
+> gave in to pressure and allowed it. (This particular one is a
+> little hairy in OWL since OWL itself reasons about
+> cardinalities of sets.) In general, our default response to
+> requests like these was to allow a query to ask them, but to
+> keep them simple and allow an answering service to refuse to
+> answer them without being nonconformant.
+> 
+> That is all I can think of right now.
+
+Phew.
+
+> 
+> Pat
+> 
+> PS. In case its not obvious, things like 'yes/no' answers can
+> be encoded as patterns without any answer variables, by
+> distinguishing between an empty set of answers (= no) and a
+> single answer which is empty (= yes), or more directly by
+> giving "yes" as the answer pattern.
+
+
+

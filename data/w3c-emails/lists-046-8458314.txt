@@ -1,0 +1,170 @@
+docno="lists-046-8458314"
+received="Wed Feb 12 14:41:46 2003"
+isoreceived="20030212194146"
+sent="Wed, 12 Feb 2003 14:41:34 -0500"
+isosent="20030212194134"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: Please review RDF Last Call"
+id="20030212194133.GA23631@w3.org"
+charset="us-ascii"
+inreplyto="200301301447.34040.jjc&#64;hpl.hp.com"
+expires="-1"
+
+To: Jeremy Carroll<jjc@hpl.hp.com>
+Cc:www-rdf-comments@w3.org,reagle@w3.org,w3c-ietf-xmldsig@w3.org,n-shiraishi@w3.org
+
+
+
+On Thu, Jan 30, 2003 at 02:47:34PM +0100, Jeremy Carroll wrote:
+> 
+> RDF Core coordination:
+>    Brian please create an issue "XMLLiteral equality"
+>    Brian please create an issue "exc-c14n throughout"
+>    Pat, there is also an editorial fix for you, just below.
+> ====
+> 
+> > > ...
+> > > RDF Semantics
+> > > http://www.w3.org/TR/rdf-mt/
+> > > #rdfinterp
+> > > #dtype_interp
+
+> > As an aside, do you intend to actually "require" a particular
+> > QName prefix when it says, "which we will refer to as XSD and use
+> > the Qname prefix xsd:.  "?
+
+> I will leave Pat to pick this point up.
+
+> > I'm confused by this because most of the specifications are citing
+> > Canonical XML (c14n), not Exclusive Canonicalization (exc-c14n).
+
+> The process is intended to be two-phase:
+> 
+> The first phase takes an RDF/XML document and constructs an RDF
+> graph.  In this phase it is not required to actually canonicalize,
+> but it is required to retain all the information needed for
+> exc-c14n.
+
+Since identical strings are considered the same object in the RDF
+model, it may be worth applying exc-c14n as parseType="Literal"s are
+imported into the graph. This would apply if one were using an API to
+create XML-encoded nodes.
+  graph->createLiteral("<html>...</html>", XMLLiteral)
+If it is being parsed (as opposed to provided by an API or translated
+from another triples language), the parseType="Literal" data should
+already canonicalized. (This eases the burden on such parsers as they
+need not perform any canonicalization, though they may choose to for
+backword compatibility, as I did for annotea.)
+
+> The second phase, which many RDF applications don't actually ever do
+> is from the graph to its formal meaning; for these it concerns the
+> meaning of the string delivered by the parser. This second stage is
+> determined by the mapping defined in RDF Concepts. This second stage
+> uses c14n on the grounds that whatever the parser delivered (which
+> is intended as implementation dependent) is then preserved.
+
+I think this assumption limits the responsibility of the RDF engine to
+those semantics which are expressed in c14n subset of XML, as opposed
+to the string that looks like XML. If one uses an API to create a node
+  <!DOCTYPE PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+  <html>...</html>
+and wishes to preserve the doctype, the node must be entity-encoded
+and stored as CharData. Perhaps some of this text would serve as a
+warning in the specification somwhere in the XML Content section [4].
+
+> The semantics doc picks up after the parser has left off, i.e. with
+> the RDF graph - at this point we no longer have an XML document to
+> refer to, and so we use C14N over the fragment.
+>
+> Admittedly, it might be clearer to specify the use of exc-c14n
+> throughout - this would work except for nasty cases like XSLT, that
+> invisibly use the namespace prefices.
+>
+> > I presume that the reason you even care how the xml-literal is
+> > represented is that you will want to compare RDF instances (which
+> > might contain xml-literals) to see if they are identical at some
+> > point? If that's the case, then won't you want the character/octet
+> > representation of XML within a RDF representation to be equivalent
+> > as well? For example, if you are comparing two RDF blobs for
+> > identity, you wouldn't want the two xml-literals to be different
+> > because one implementation cared about comments and the other
+> > didn't...?
+>
+> This is a good point. Brian please assign an issue number.
+>
+> Initially the goal of working on XML Literals was simply to get
+> visibly used namespaces to work at all. This goal is achieved; but
+> for certain applications we have not achieved interoperability.
+>
+> > First, again, what purpose is a canonicalization even serving if
+> > you are likely to get implementation variances?
+>
+> It *is* an improvement on where we used to be!  So, there is quite a
+> lot of clarity as to what the contract is, but we have tried to
+> remember the more casual implementor.  If an implementor decides
+> they only want to partially support these literals, they could
+> choose say to always bind the default namespace to xhtml and not
+> support any other binding. The string for the literal is then
+> essentially a copy straight out of the input document.  Other users
+> need the precision that you talk about - which as you point out we
+> haven't delivered.
+>
+> Hmmm ... I will try and defend the decisions we have made a bit
+> more.
+>
+> The fundamental problem we are addressing is *how* to repesent XML
+> content within an RDF graph. This XML content originates from an
+> RDF/XML document, but, that original context gets lost. Thus we face
+> a number of problems familiar in exc-c14n, what to do about
+> entities?, what to do about visibly used namespaces? what to do with
+> namespaces that are present but not visibly used? These issues are
+> the pressing ones that are addressed by the Last Call docs. A
+> further issue of making sure that two different implementations get
+> exactly the same answer was not one that we felt it necessary to
+> address.  I will ask the WG to reconsider whether this was correct
+> as part of the LC process.
+
+I suspect that the easiest path is to use exc-c14n in the concepts
+document per issue reagle-02 [1]. This eliminates reagle-01 [2].
+
+The third issue [3] raised simply requires a clarification.
+
+> > > This behaviour is conformant but not required.
+> To the RDF Last Call documents.
+
+> Thanks for your comments, Brian should assign an issue number
+> concerning the implementation variability, Pat should follow up on
+> the misleading wording about the xsd namespace in semantics.
+
+Implementation experience:
+
+Annotea has to parse and reproduce plain and XML literals. These are
+stored in the triple store along with their encoding (PLAIN or
+XML). When serializing the product of a graph query (like properties
+of things annotating "http://www.w3.org/": ((annotates ?a
+http://www.w3.org/)(?p ?a ?o))), it entity-encodes PLAIN literals and
+wraps XML encoded ones in a parseType="Literal".
+  <r:Description r:about="foo"><p1>some data</p1></r:Description>
+and
+  <r:Description r:about="foo"><p1 parseType="Literal">some data</p1></r:Description>
+do not refer to the same object as the encoding is a key in the
+Literals table.
+
+[1] http://www.w3.org/2001/sw/RDFCore/20030123-issues/#reagle-02
+[2] http://www.w3.org/2001/sw/RDFCore/20030123-issues/#reagle-01
+[3] http://www.w3.org/2001/sw/RDFCore/20030123-issues/#reagle-03
+[4] http://www.w3.org/TR/2003/WD-rdf-concepts-20030123/#section-XMLLiteral
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

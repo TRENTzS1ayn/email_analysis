@@ -1,0 +1,365 @@
+docno="lists-011-8390084"
+received="Tue Aug 19 14:47:21 1997"
+isoreceived="19970819184721"
+sent="Tue, 19 Aug 97 17:42:00 EDT"
+isosent="19970819214200"
+name="Dave Kristol"
+email="dmk@research.belllabs.com"
+subject="comments on jaye-trust-state01"
+id="9708192142.AA02980@zp"
+expires="1"
+
+
+To:djaye@engagetech.com
+Cc:http-state@lists.research.bell-labs.com,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Following are my comments for Dan Jaye's recently posted
+(pre-) draft-ietf-http-jaye-trust-state-01.txt.
+
+General:
+1) Be consistent with capitalization for "Trust Authority", "user agent",
+"SigBlock".
+
+Specific, interlinear:
+
+[...]
+> ABSTRACT
+> 
+> HTTP TRUST MECHANISM PROPOSAL FOR STATE MANAGEMENT
+> March 30, 1997
+  ==============  probably not!
+
+[...]
+> 
+> 2. TERMINOLOGY
+> 
+> The terms user agent, client, server, and origin are used as in [Kristol].
+                                                  ^-- "server"
+
+[...]
+> 3.1  Syntax: General
+[...]
+
+> trusted-cookie  = 1*Set-cookie2 trust-label
+> trust-label     = "PICS-Label:" labellist
+
+This syntax possibly suggests two things that are both false:
+1) That the trust label is a continuation of Set-Cookie2; or
+2) That the trust label must immediately follow Set-Cookie2.
+
+Although a server may emit PICS-Label immediately after Set-Cookie2, it
+may not be in that position at the client, due to proxy header
+shuffling.  The only guarantee is that the relative order of
+Set-Cookie2 headers will be preserved, as will the relative order of
+PICS-Label headers.  But they well may get separated (particularly with
+header folding).
+
+There would appear to be a possible danger with using "PICS-Label".
+Suppose the origin server wants to emit one PICS-Label to label the
+content, and another to label the cookie.  Header folding would group
+all PICS-Label headers together, making it harder to pick out which
+ones apply to cookies, and which to content.
+
+> 
+> "labellist" is as specified in the PICS 1.1 label syntax in [PICS],
+> except as extended by the digital signatures working draft [DSIG], some
+> options are not used, and we require some of the optional elements, as
+> specified below.  The trust-label applies to the immediately preceding
+> Set-Cookie2 label.
+
+As I said, the last sentence might be false.
+
+[...]
+> label           = labelattr "ratings" "(" privacy-practice ")" [sigblock]
+
+In the PICS spec, "sigblock" -> "SigBlock", as you have it below.
+
+[...]
+
+> authority.  The "gen" boolean indicates whether the label is for only the 
+> URL in the "for", or for all URL's for which the specified one is a 
+> prefix.  ("True" indicates subdomains included.)  "on" is the date the 
+        ^-- (i.e., "generic") -- since you use that term later.
+
+> label was issued.  "exp" is the date the label expires.  SigBlock is the 
+> digital signature extension as described in the digital signature working
+
+> Four well-known privacy-practice values are described here to provide 
+> recognized values that should be handled by user agents.    
+> 
+[...]
+> The "anonymousexchange 1" rating indicates that the trust authority has 
+[...]
+> identifying information.  The server may collect IP Addresses but they
+> must not be associated with personal information or implicit information
+> with personally identifying information to be elegible for this rating.
+
+This last sentence is very confusing; please reword.
+
+[...]
+> The "thirdpartyexchange 1" rating indicates that the trust authority has 
+[...]
+> third parties.  The trust authority should provide information about the 
+> purposes for which that information is being used.
+
+How should it do that?  (Via ServiceID?  If so, say so.)
+
+There seems to be the implication that the privacy-practice values
+form a partial ordering, and that a more-stringent privacy-practice
+in a trust label should be acceptable to a user agent that is set to
+accept less-stringent ones, but that ordering and treatment isn't
+spelled out explicitly and should be.
+
+> The SigBlock must contain the SigCrypto token within the SigData block.  
+> The SigCrypto token must contain the encrypted trust-label-data described
+> below.
+> 
+> trust-label-data = for-URL on-date exp-date privacy-practice
+> 
+> for-URL          = quotedURL
+> exp-date         = quoted-ISO-date
+> 
+> for-URL is the URL to which the privacy practice applies as listed in the 
+> "for" attribute in "labelattr".  Exp-date is the expiration date of the 
+> trust label as listed in the "exp" attribute of "labelattr".
+
+The trust-label-data also needs the "gen" attribute to denote the
+scope of the label.  Otherwise, a web site could obtain a trust label
+for a single URL and try to pass it off as a label for an entire
+hierarchy.
+
+A nit:  the on-date in the PICS spec. is the date the signature was
+created, not the date the trust label (in our case) becomes effective.
+But it would surely be "less that or equal to the current date"
+(sect. 3.3.1), rendering that test useless.
+
+[...]
+> 3.2Server Role
+> 
+> A server communicates its privacy practices by sending an unsigned or 
+> signed trust label immediately following the cookie header(s).  The trust 
+> label is assumed to apply to all cookies in the response that match the 
+> domain and path of the trust label according to the matching rules for 
+> matching cookies to request URI's described in [Kristol].
+
+It would help to spell out that "domain and path" are derived from the
+"for" URL in the labelattr.  (It took me a couple of readings to realize
+that.)
+
+One of the contentious issues with RFC 2109 has been the concept of
+"related servers" (although it isn't called that) to which a user agent
+can send a cookie.  That's the business with the domain-matching, the
+"two-dot rule", etc.  The trust-label mechanism is even *more*
+restrictive, since the label applies to a single host.  Won't that
+restriction be even more objectionable?
+
+[...]
+> 3.3 User Agent Role
+> 
+> The user agent receives a cookie headers followed by a trust labels from 
+
+===> ^ (delete)    ^ (delete)
+
+> an origin server.
+> 
+> 3.3.1 Interpreting the trust-label
+> User agents interpret cookies as described in RFC 2109.  In addition 
+[...]
+> matching rules described in [Kristol].  To help verify the 
+> trustworthiness of the server, the user agent may look for a digital 
+> signature and use the trust authority's well known public key to 
+> decrypt the trust-label-data from the SigCrypto term.
+
+append:  and compare the information there against the plaintext trust
+label.
+
+[...]
+> The digital signature is valid if the decrypted trust-label-data 
+> satisfies the following criteria:
+
+I would have thought the digital signature is valid *if the decrypted
+trust-label-data matches the plaintext labelattr*.  The rest of these
+tests should apply whether or not there's a SigBlock.  So this spec.
+needs to describe how the digital signature gets verified.
+
+> 
+> 1) that the domain portion of the URL specified in the for-URL attribute 
+> domain matches the domain of the cookie according to the matching 
+> rules as sort forth in [Kristol];
+
+1) That the domain portion of the URL specified in the "for"
+attribute of labelattr domain-matches the Domain attribute of
+the Set-Cookie2 response header, according to the matching
+rules in [Kristol].
+> 
+> 2) that the path portion of the URL specified in the for-URL attribute is
+> compatible with the path of the cookie.  If the trust label is generic, 
+> then the for-URL path must be a prefix of the cookie's path.  If the 
+> trust label is not generic, then it must match exactly. 
+
+    2) That the path portion of the URL specified in the "for"
+    attribute of labelattr is compatible with the Path attribute of the
+    Set-Cookie2 response header.  That is, if the trust label is
+    generic, then the "for" path must be a prefix of the cookie's Path
+    attribute.  If the trust label is not generic, then it must match
+    the cookie's Path attribute exactly.
+> 
+> 3) that the "on-date" attribute of the trust label is less than or equal
+> to the current date;
+
+See earlier remark.
+
+> 
+> 4) that the "exp-date" attribute of the trust-label-data is greater than
+> or equal to the current date.
+> 
+> If the digital signature is invalid, then the cookie should be rejected.
+
+    If the digital signature is invalid, or if any of the above tests
+    fails, then the cookie should be rejected.
+
+> 
+> If the user agent is set to accept all cookies then all trust label 
+> processing can be skipped.
+> 
+> 3.3.2Accepting or rejecting Cookies
+[...]
+
+> The User Agent should have a default preference to reject "third-party-
+> exchange" cookies from unverifiable transactions.  
+
+Need a definition of "third-party-exchange"; or omit this statement, since
+it appears in RFC 2109.
+
+> 
+> For example, a user may wish to accept cookies rated anonymousexchange by
+> a recognized trust authority, rather than relying on an unsigned trust 
+> label or a trust label signed by an unrecognized entity.
+
+I don't understand the point this statement is trying to make.
+
+If a trust label's expiration is sooner than the cookie's, I think the
+cookie's expiration should be adjusted to match that of the trust label.
+Alternatively, the UA should not send a cookie whose trust label has
+expired.
+
+[...]
+> 4. EXAMPLES
+> 
+> 4.1 Example 1
+[...]
+> 3.  Server -> User Agent
+>       HTTP/1.1 200 OK
+>       Set-Cookie: Customer="WILE_E_COYOTE"; Max-Age = 94608000; 
+
+        Set-Cookie2: Customer="WILE_E_COYOTE"; Max-Age = 94608000; 
+
+>         Version="1"; Path="/acme" 
+[...]
+> 
+>     A cookie that includes the users identity and an unsigned PICS
+>     label header are sent back to the user agent with the request.  The 
+   === -> "is"
+>     Cookie is accepted because rating "noshare 1" is acceptable according 
+      ====== -> "cookie"
+>     to the privacy preferences of the user agent.
+
+... assuming the user agent doesn't require signed trust labels.
+Is there really any value in unsigned trust labels?
+
+[...]
+> 
+> 4.2 Example 2
+[...]
+> 3.  Server -> User Agent
+>       HTTP/1.1 200 OK
+>       Set-PICS-Cookie: Customer="0000000123"; Max-Age = 94608000; 
+
+=============== -> Set-Cookie2
+
+>         Version="1"; Path="/birds" 
+>       PICS-Label: (PICS-1.1 "http://www.aaa.org" label 
+>         by "paranoid@aaa.org" gen true
+>         for "http://www.acme.com/"
+>         exp "1997.12.31T23:59-0000" 
+>         ratings (noshare 1))
+> 
+>     A Cookie reflecting the users identity is transmitted with an 
+>     Unsigned trust label back to the user agent.  The Cookie is accepted
+
+      ======== -> "unsigned"
+
+>     by user agent because the rating "noshare 1" is compatible with the 
+>     user agent privacy preference.
+> 
+> 4.  User Agent -> Server
+> 
+>       GET cgi-bin/maps?TERR=deserts&FEAT=cliffs HTTP/1.1
+>       Host: roadrunnermaps.com
+
+GET /cgi-bin/maps?TER=deserts&FE=cliffs HTTP/1.1
+Host: www.roadrunnermaps.com
+
+(Changes to be consistent with step 2, which I omitted.)
+
+> 
+>     User requests an image via CGI script from a third party map provider.
+>     This is an unverifiable transaction.
+> 
+> 5.  Server -> User Agent (unverifiable transaction)
+>       HTTP/1.1 200 OK
+>       Set-PICS-Cookie: Customer="0000000123"; Max-Age = 94608000; 
+
+=============== -> Set-Cookie2
+
+>         Version="1" 
+>       PICS-Label: (PICS-1.1 "http://www.aaa.org" label 
+>         by "paranoid@aaa.org" gen true
+>         for "http://www.acme.com/"
+
+This "for" does not match the request URL *or* the (implicit) Domain
+attribute of the Set-Cookie2!  (www.acme.com vs. www.roadrunnermaps.com)
+
+>         exp "1997.12.31T23:59-0000" 
+>         extension 
+>           (optional "http://www.w3.org/PICS/DSig/sigblock-1_0.html"
+>             ("AttribInfo" 
+>               ("http://www.w3.org/PICS/DSig/X509.html" 
+>                 "base64-x.509-cert"))
+>             ("Signature" "http://www.aaa.org/trust.html" 
+>               ("byName" "aaapublickey") 
+>               ("SigCrypto" "8E53B19D35A3F19D35A38930E53FD35A7B215B2158")))
+>         ratings (anonymousexchange 1))
+> 
+
+[...]
+> 6. SUMMARY
+> 
+> This document presents an extension to the state management protocol 
+    
+    This document presents an extension to the HTTP State Management
+    Mechanism
+
+> defined in RFC2109.  It describes only changes to that protocol. Any 
+> parts of the state management not explicitly described here are assumed
+
+^-- mechanism
+
+> to remain as defined in RFC 2109.
+> 
+
+[...]
+> 8. REFERENCES
+[...]
+> 
+> [Kristol] Kristol, David M., HTTP State Management Mechanism (rev 1). 
+
+Rev
+
+> Internet Draft <draft-ietf-http-state-man-mec-03.txt>
+> ftp://ietf.org/internet-drafts/draft-ietf-http-state-man-mec-03.txt
+
+Don't let Lou Montulli off the hook!  He's a listed co-author.
+
+
+

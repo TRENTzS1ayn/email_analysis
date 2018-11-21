@@ -1,0 +1,120 @@
+docno="lists-044-3225293"
+received="Fri Dec 17 14:06:00 1999"
+isoreceived="19991217190600"
+sent="Fri, 17 Dec 1999 12:03:17 -0700"
+isosent="19991217190317"
+name="rhimes@nmcourt.fed.us"
+email="rhimes@nmcourt.fed.us"
+subject="Re:An Xpath-based Solution"
+id="9912179454.AA945457456@nmcourt.fed.us"
+charset="US-ASCII"
+inreplyto="An Xpath-based Solution"
+expires="-1"
+
+
+To:<w3c-ietf-xmldsig@w3.org>
+
+
+Thanks, John.  This was the approach I preferred.  I'm still confused as to
+whether core behavior would validate the reference, or if you are proposing that
+validation (of the reference) be passed off to the application.  If it is part
+of core behavior, I don't see the difficulty in moving the document (internal to
+external, external to internal, or external to external).  Such difficulty was
+implied in the telecon.
+
+Re your statement in the previous message:
+"Basically, the core signature verifies.  If your app took the signature
+apart, then presumably it can put it back together again before trying to
+verify it with core behavior.  Or, your app could support manifest
+validation." 
+
+The first part of this paragraph doesn't appear to refer to your proposed
+approach.  I read this as saying that because we are using a manifest (in your
+procedure below), manifest support is pushed off to the application.  Thus, core
+behavior does not validate the referenced document to the hash.  If true, I
+disagree, and strongly believe that validation of the referenced document (to
+the hash) should be part of core behavior in your proposed approach.  If my
+concern is based on a misunderstanding, I'd appreciate a clarification.
+
+Thanks,
+Rich
+
+
+____________________Reply Separator____________________
+Subject:    An Xpath-based Solution 
+Author: <w3c-ietf-xmldsig@w3.org>
+Date:       12/16/99 9:16 PM
+
+The example below will eventually become part of the scenarios document, but
+Joseph requested it be posted in today's telecon.
+
+Let's do the complete example of your scenario, which includes the xpath you
+asked about above.  You have a SignedInfo that contains an ObjectReference
+O_1.  The IDREF of O_1 indicates a Manifest M.  In the Manifest, there will
+be an ObjectReference O_2 whose IDREF indicates an element X, where the
+character content of X is the base-64 encoded PDF document of interest.  The
+transforms T_2 in O_2 include a base-64 transform *after* an Xpath of
+"string(text())" (note that child:: is the default so I've taken it out of
+the example). The transforms T_1 of ObjectReference O_1 (the one in
+SignedInfo) must take as input the Manifest M, and yield as output (M minus
+(T_2 + IDREF + Location))-- but only if T_2 is exactly as described above.
+T_1 will contain the specific description of the T_2 that can be omitted,
+not just a statement saying that all transforms can be thrown out.
+
+<Signature>
+<SignedInfo>
+<ObjectReference IDREF="M">
+<Transforms> <!-- This is T_1 -->
+<Transform Algorithm="&xpath;">
+descendant::node()
+[
+        not(self::Location and parent::ObjectReference) and
+        not(self::IDREF and parent::ObjectReference) and
+        not(self::Transform[@Algorithm="&base64;"]) and
+        not(self::Transform[@Algorithm="&xpath;" and text()="string(text())"])
+]
+</Transform>
+..
+</ObjectReference>
+..
+</SignedInfo>
+..
+</Signature>
+
+<Manifest Id="M">
+<ObjectReference IDREF="X">
+<Transforms> <!-- This is T_2 -->
+<Transform Algorithm="&xpath;">string(text())</Transform>
+<Transform Algorithm="&base64;"/>
+</Transforms>
+<DigestMethod>&sha1;</DigestMethod>
+<DigestValue>blahblahblahblahblahblahbla=</DigestValue>
+</ObjectReference>
+</Manifest>
+
+<Document Id="X">
+Iambase64encodingofaPDFdocument=
+</Document>
+
+As you can see, T_1 refers to all of M except for Location, IDRef and the
+two specific transforms in T_2 that you needed to put the PDF document in X
+in the first place.  Thus, if you later decide to delete those two
+transforms and the IDREF, and instead to add a URL Location, you can do that
+without breaking the DigestValue that was computed over (most of) M.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+ 
+
+
+
+
+
+text/plain attachment: RFC822.TXT
+
+
+
+

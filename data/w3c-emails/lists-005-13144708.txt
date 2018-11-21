@@ -1,0 +1,188 @@
+docno="lists-005-13144708"
+received="Fri Dec  1 07:41:41 2000"
+isoreceived="20001201124141"
+sent="Fri, 01 Dec 2000 07:41:16 -0500"
+isosent="20001201124116"
+name="James J. Hunt"
+email="jjh@ira.uka.de"
+subject="Draft IETF DeltaV Versioning"
+id="200012011241.HAA17921@tux.w3.org"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+[freed from spam trap - rrs]
+
+Date: Thu, 30 Nov 2000 20:30:23 -0500 (EST)
+From: "James J. Hunt" <jjh@ira.uka.de>
+To: ietf-dav-versioning@w3.org
+CC: w3c-dist-auth@w3.org, reuterj@ira.uka.de
+Message-ID: <"i41fs3.ira.0039901:001201.012827"@ira.uka.de>
+
+Dear Colleges,
+
+>From the experience we have gathered trying to implement the DeltaV
+protocol, we have some basic comments and suggestions to make before the
+end of the last call period for the DeltaV protocol.  We regard these
+issues to be important for the future development of DeltaV and WebDAV.
+This message is cross posted to the WebDAV mailing list because the main
+points pertain as much to WebDAV as to DeltaV.
+
+Valid XML should be used in WebDAV instead of simply well formed XML
+====================================================================
+
+Using simply well formed XML misses half the benefit of XML: the
+automatic detection of syntactic errors.  This is the best way to insure
+that a protocol stays open and correct.  Any client or server can be
+easily tested for at least syntactic conformance.  This does not means
+that every transaction must be validated, but ensuring that it can is
+important.
+
+On the WebDAV list, there has been some discussion about validating XML
+for WebDAV, for example, see
+http://lists.w3.org/Archives/Public/w3c-dist-auth/1999OctDec/0242.html.
+There seemed to be some agreement that the current WebDAV specification
+uses a syntax that is well-formed, but is not suitable for XML
+validation, and that it would not be too hard to make WebDAV to conform
+to XML validation rules.  However, some participants did not agree on
+the advantages of validation.
+
+Interoperability is one of the key requirement on Internet protocols for
+supporting a heterogeneous network.  This holds true for the WWW and its
+protocols including HTTP, WebDAV, and DeltaV.  As WebDAV matures several
+extension protocols are emerging, among them the bindings and
+redirect-reference protocols, DeltaV, the access control lists
+specification, and the advanced collections protocol.  All these
+extension protocols contribute to the XML syntax of WebDAV.  Moreover,
+it is quite likely that vendors will introduce proprietary extensions to
+the XML syntax.  For an idea of the extent to which this can occur, one
+just need look at the source code of the DeltaV specification at
+http://www.webdav.org/deltav/protocol/draft-ietf-deltav-versioning-10.5.htm
+and notice all the tags inserted by Word that are not part of the HTML
+specification.
+
+All in all, the XML syntax of WebDAV can no longer be viewed as being
+simple.  Validation can help us to identify bugs in WebDAV applications.
+Actually, this has already help us to find some bugs in the WebDAV
+specification itself (e.g. WebDAV issues DTD_BOOBOO, MISSING_NS_SPEC,
+cp. http://www.ics.uci.edu/pub/ietf/webdav/protocol/issues.html).
+Validation may also force implementors to handle XML more carefully and
+thus improve reliability.
+
+Note that we do not want to force a WebDAV implementation to validate
+XML.  We only suggest letting the implementor decide if and when to use
+validation.  Currently, this is not possible without modifying an
+existing XML parser or writing a non-conforming XML parser.  Therefore,
+we strongly suggest to fix the WebDAV specification and its extension
+protocols like DeltaV to conform to the XML specification--including
+XML validation.  Then an implementor may choose when to apply
+validation.
+
+Another problem is to track version information about the protocols.
+The DAV header as returned from an OPTIONS request (e.g.: "DAV: 1, 2,
+version-selector-checkout") does not help at all.  However, when using
+a DTD, the client and the server could agree on a protocol revision
+(or otherwise stop communication with an appropriate error message or
+log) by using the DTD's header information.
+
+
+Making WebDAV properties suitable for XML validation
+====================================================
+
+WebDAV currently expresses resource properties through a variety of
+tags, for example:
+
+<D:displayname xmlns:D="DAV:">Hello, world!</D:displayname>
+
+In this example, the name of the property is "DAV:displayname", and its
+value is "Hello, world!".  This approach has some disadvantages.
+First of all, if you want to list property names only, you currently
+have to do something like:
+
+<D:displayname xmlns:D="DAV:"/>
+
+But, in an XML DTD, an element can not be defined to have empty
+content and non-empty content at the same time.  Hence, the way WebDAV
+currently handles properties is not suitable for validating XML.
+This problem has already been discussed as anomaly in the DAV:prop
+element usage (see
+http://lists.w3.org/Archives/Public/w3c-dist-auth/2000JanMar/0029.html).
+
+The simple solution here is to model the property name as an element
+attribute value or as PCDATA of a generic tag for all properties:
+
+Solution using XML attributes:
+- ------------------------------
+
+<!ELEMENT property (property-name | property-value)* >
+<!ELEMENT property-name EMPTY>
+<!ELEMENT property-value ANY>
+<!ATTLIST property-name
+          name  CDATA   #REQUIRED>
+<!ATTLIST property-value
+          name  CDATA   #REQUIRED>
+
+Example:
+
+<D:property xmlns:D="DAV:">
+  <D:property-name name="displayname"/> <!--specifying property name only-->
+  <D:property-value name="source">      <!--specifying property name &
+value-->
+    <D:href>http://www.foo.bar</D:href>
+  </D:property-value>
+</D:property>
+
+Alternative solution without use of XML attributes:
+- ---------------------------------------------------
+
+<!ELEMENT property (property-name, property-value?)* >
+<!ELEMENT property-name (#PCDATA)>
+<!ELEMENT property-value ANY>
+
+Example:
+
+<D:property xmlns:D="DAV:">
+  <D:property-name>displayname</D:property-name> <!--property name only-->
+  <D:property-name>source</D:property-name>      <!--property name & value-->
+  <D:property-value>
+    <D:href>http://www.foo.bar</D:href>
+  </D:property-value>
+</D:property>
+
+
+DTD for DeltaV
+==============
+
+Having all of the above said, DeltaV should, similarly to WebDAV, of
+course specify an adequate DTD for all elements introduced in DeltaV.
+The DTD need not be sent with every message.  A reference to a URL at
+www.webdav.org would be sufficient.
+
+Labels in DeltaV
+================
+
+One of the recent changes in DeltaV was to remove labels from the core
+versioning part and put them into the options part of the protocol.
+We strongly suggest to undo this change.  Even if there exist two or
+three revision control systems that do not use labels, labels are
+essential for identifying sets of associated files in a repository of
+versions.  And, actually, they are really easy to implement
+(especially on top of a WebDAV implementation that requires built-in
+mechanisms for property storage).
+
+Sincerely,
+James J. Hunt
+J?rgen Reuter
+
+P.S. I will be at the IETF meeting in San Diego from the evening of the
+     10th to the early morning of the 15th to discuss these issues.
+     --- JJHunt
+
+P.P.S I will send a second mail pertaining to smaller points we have
+      discussed here that concern only DeltaV.
+      --- J?rgen Reuter
+
+
+

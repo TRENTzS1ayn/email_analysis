@@ -1,0 +1,148 @@
+docno="lists-013-8131935"
+received="Mon Mar 15 18:36:25 2004"
+isoreceived="20040315233625"
+sent="Mon, 15 Mar 2004 16:36:21 0700 (MST)"
+isosent="20040315233621"
+name="Alex Rousskov"
+email="rousskov@measurementfactory.com"
+subject="Re: Can the response entity be transmitted before all the request  entity has been read?"
+id="Pine.BSF.4.58.0403151542181.17944@measurementfactory.com"
+charset="USASCII"
+inreplyto="20040315190742.GD9731&#64;mail.shareable.org"
+expires="1"
+
+To: Jamie Lokier<jamie@shareable.org>
+Cc: HTTP WG<ietf-http-wg@w3.org>
+
+
+
+
+On Mon, 15 Mar 2004, Jamie Lokier wrote:
+
+> Alex Rousskov wrote:
+> > In that case, the most reliable strategy in the presence of
+> > questionable traffic is often to switch to a tunnel behavior and
+> > terminate the connection as soon as the response is sent.
+>
+> I see that is the most common strategy :).  It seems a bit dubious,
+> though, because it's easy to imagine application code like this:
+>
+>      write "Status: 200\n\n";
+>      write "Thank you for your submission.\n";
+>
+>      while ($x = read (...)) { store ($x) }
+>
+>      write "Great, all done.\n";
+
+While it is easy to imagine such an application, tasking a proxy to
+"rewrite" or "fix" application logic to fit HTTP restrictions seems
+like a bad idea. IMO, upon receiving "Status: 200\n\n" and sending off
+response headers, your proxy should become a "tunnel" and not try to
+second-guess the application intent.
+
+> As you say, there are theoretical and practical requirements for
+> talking to real HTTP clients and proxies.  One of them may well be
+> that the response shouldn't be sent before the request is read.
+>
+> I'd rather put the hard requirements, and every feature that will
+> help with robustness, in the _server_, rather than document it as a
+> requirement that applications have to follow.  It's the server's job
+> to keep the communication good as reliable as possible, insulating
+> the application.
+
+IMO, the "Do No Harm" rule trumps the "Try to change the world to the
+better" rule, especially for proxies (which is what you are
+implementing in this context). If you can reliably convert garbage
+into compliant output, do so. If your smart conversion algorithm
+silently breaks a few innocent applications, then do no smart
+conversion.
+
+If you need a negative example, consider Apache 2.x problems with
+smart content-length guessing algorithm that, AFAIK, still stalls a
+few simple CGIs that work fine with Apache 1.x:
+http://nagoya.apache.org/bugzilla/show_bug.cgi?id=23528
+
+
+Specifically, if your server will be able to detect and reject
+applications that write before reading, fine. If your server delays
+any application output until it thinks there is no more input, your
+feature is probably going to be a popular target for denial of service
+attacks (for example) and you are probably going to deadlock
+applications that write more than one buffer worth of data (another
+example).
+
+It is possible to have an HTTP-to-Applications API with enough logic
+and controls that optimizations you mention are very appropriate and
+safe. Is CGI such an interface? Do CGI specs document these things?
+
+> That's contrary to most server implementations: they do give the
+> application control over when to read and write, which is the
+> opposite of what you're suggesting here.
+
+Am I? A tunnel is exactly what gives the application unlimited ability
+to read and write at any time, at will.
+
+> I am so far following the advice in RFC 2616, which is to send
+> 100-Continue if Expect: 100-continue is received and it's HTTP/1.1
+> or greater, or if it's HTTP/1.1 (exactly that version) and it's POST
+> or PUT.
+>
+> Is that advice good?
+
+The former is not an advice, it is a MUST-level requirement :-)
+so yes, you must do that.
+
+The latter is a pro-active behavior intended to help RFC 2068 agents.
+Unfortunately, it requires compliant RFC 2616 support for 100 Continue
+in proxies. My bet that sending 100 Continue pro-actively will hurt in
+more cases than it will help, but I have no data to prove that.
+
+Moreover, there was a paper that formally proved that 100 Continue
+leads to deadlocks in certain compliant environments, so we are
+probably talking about a partially broken mechanism here anyway.
+
+> That's a crucial question.  Should I either enforce that in the
+> server, by insisting on reading the whole request before allowing
+> any text of a non-error response to be sent (error can be sent
+> immediately), or document it as an application requirement: that the
+> application must do all its reading before it writes anything?
+
+You cannot enforce this at the server without deadlocking or killing
+the application or running out of server memory. Imagine an
+application that writes more than you can buffer before it reads
+anything.
+
+> It seems that existing servers, e.g. Apache, thttpd and all the
+> others don't do either: they allow request to be read by the
+> application when it likes, the response to be sent before all the
+> request is read if the application likes, and don't document this as
+> a problem.  It's for application writers to be aware of it.
+
+That's what I would do too, as far as code is concerned. Documenting
+potential problems is always good, of course, especially if you can
+give specific real-world examples.
+
+> I'd simply like to know whether it's best to program the server to
+> enforce that, knowing it's a common/rare client weakness, or to not
+> enforce it but recommend it in the application interface
+> documentation, or to permit it if it actually works in practice.
+
+Make your HTTP-to-application proxy as simple as possible. Warn of
+possible problems if the tunnel interface is abused. Let applications
+decide how they want to deal with those problems.
+
+> My strategy is to copy Apache's well-tested "lingering close":
+> shutdown(fd,SHUT_WR) followed by reading everything for up to 30
+> seconds, or until 2 seconds passes with no incoming data, then the
+> full close().
+
+Cool. I hope this well-tested algorithm is not what breaks CGIs in
+Apache 2 :-). Also, FWIW, I recall half-close causing many problems
+for Squid proxies for a while. It is probably fixed now.
+
+Thanks,
+
+Alex.
+
+
+

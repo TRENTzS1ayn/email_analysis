@@ -1,0 +1,151 @@
+docno="lists-039-4793917"
+received="Tue Mar  9 23:46:42 1999"
+isoreceived="19990310044642"
+sent="Tue, 9 Mar 1999 23:46:26 -0500"
+isosent="19990310044626"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: Locking a Resource or Locking a URL?"
+id="9903100446.AA12321@tantalum"
+inreplyto="9903091527.aa01746&#64;paris.ics.uci.edu"
+expires="-1"
+
+
+To:fielding@kiwi.ics.uci.edu
+Cc:w3c-dist-auth@w3.org
+
+First off, I am a fervent supporter of the method/header minimization
+principle.  So please consider this message a "request to convince me",
+as opposed to an attempt to argue for the "no-passthrough" header approach.
+
+***
+
+I agree that the mapping resource type (as proposed by Yaron, Roy, et. al)
+is more general than the simple direct reference resource type currently
+proposed in the adv. col. protocol, but my primary concern is with it's
+interaction with methods that apply to collections.  In particular,
+you can use the "no-passthrough" header in a depth-n request on a
+collection, and effectively have the no-passthrough carried down to
+each of the recursive applications of the request to collection members.
+
+To model this with mapping resources, I believe you would have to have
+a "collection mapping resource" associated with every collection, just
+in case any collection members are references.  This collection
+mapping resource then implicitly collects all mappings in the
+collection, and is updated whenever a direct reference is added,
+deleted, or modified in that collection.  Although a reasonable
+abstraction, I think it will be significantly harder to specify
+precisely in the protocol.
+
+More comments sprinkled below.
+
+   From: "Roy T. Fielding" <fielding@kiwi.ics.uci.edu>
+
+   ... Let's say we have three URI -- A, B, C --
+   which have the following relationship
+
+A is any resource
+B is a direct reference resource whose target is A
+C is a resource that defines the mapping B --> A
+
+   C is therefore a resource that generates side-effects on other resources,
+   a common thing in HTTP.  The above is, in fact, how most servers are
+   configured today, though few allow remote editing of the config file C.
+
+   All of the common passthrough methods on B get applied to A.  The others
+   (all namespace operations: COPY, MOVE, DELETE, ...) result in an error
+   response saying either "I am a reference, go to C to change my definition",
+   or 401/403 if that information is protected and the credentials are missing.
+
+We would like MOVE and DELETE to do something reasonable when applied
+to B, rather than failing.  Would you object to that? (Since it is
+common for operations on one resource to have side effects on another,
+I wouldn't think having an operation on B have a side-effect on C
+shouldn't be a problem).
+
+Note: Although an issue with arguments (and arguers) on both sides, we
+currently are treating COPY just as a fancy PUT, so like PUT, it is just a
+passthrough operation.
+
+   >This mechanism would replace the No-Passthrough header currently in the
+   >advanced collections protocol.
+
+   Yes.  I'm not keen on using a header field to modify the target of a
+   method, for three reasons:
+
+     1) it messes-up caching of normal requests, just like content negotiation;
+
+Doesn't the presence of references mess-up caching anyway, since a PUT to
+one URL can invalidate the cache of a set of other URL's (i.e. all other URL's
+that refer to the same resource by some chain of references).
+
+     2) it places the client in the position of guessing the implementation
+on the server side;
+
+How does no-passthrough require any more implementation guessing than having
+a property pointing to a mapping resource?  (I'm not saying it doesn't, just
+that I don't see how it does.)   Isn't it just a particular kind of (very
+common) mapping resource type?
+
+     3) it limits the generation of direct reference names (B) to individual
+references rather than the more interesting computed reference sets.
+
+If you are only interested in "read" access, then generalizing the
+resource type is a good thing.  If you are interested in "update"
+access, then an overly general resource type harms interoperability,
+because only a restricted subset of the update functionality will be
+available from any particular server.  Doesn't a more constrained
+resource type (such as a direct reference) that can be fully
+implemented on existing servers provides a superior basis for update
+interoperability?
+
+   >We always want to make it possible for reference-aware clients to override
+   >the default behavior, and have the request applied to the reference or the
+   >target or both.  No-Passthrough lets the client have the method applied to
+   >the reference; looking up the value of DAV:reftarget and submitting the
+   >request to it allows the client to have the method applied to the target.
+
+   I'm not clear as to why it would need to be set on a per-reference basis.
+
+I would have described it as being on a "per-request" basis, not a
+per-reference basis.  It seems that the two proposals are pretty
+similar in this respect.  One style differentiates on the
+presence/absence of the no-passthrough header in a request.  The other
+style differentiates on whether it is a reference or a mapping
+resource type in a request.
+
+   I can think of a good reason not to allow it: consider a direct reference
+   whose target is a direct reference whose target is A.  If all references
+   pass through the same methods, the semantics are consistent.  Otherwise
+   it gets messy.
+
+You have two choices in each case (pass-through/no-passthrough,
+reference-resource/mapping-resource) so I don't see that one is
+messier than the other.
+
+   Regardless, it is safer to assume that the server decides what methods
+   cannot be passed-through.
+
+Doesn't allowing the client to specify the reference or the mapping resource
+effectively give the client the choice of whether to pass-through or not?
+
+   ...
+   The other advantage of this design is that it takes into account the
+   direct or indirect references that are not authorable.  That is, the
+   server can show them as part of a collection (part of its namespace)
+   and have an interoperable answer for a client that tries to COPY or
+   MOVE or DELETE those names.  I think this is cleaner than having the
+   server pretend each reference is an independent entity with its own
+   properties.
+
+I'm missing this point.  In both cases, there is a "mapping" resource.
+In one case, you get at the mapping resource by including a
+"no-passthrough" header.  In the other case, you get at it by
+requesting the "mapping resource" for the reference resource.
+In each case you have an independent resource with potential for
+its own properties.  For a server that implements a direct reference
+as just a file system sym-link, the problem of not having an independent
+entity to hold properties is just as bad in each case.
+
+
+

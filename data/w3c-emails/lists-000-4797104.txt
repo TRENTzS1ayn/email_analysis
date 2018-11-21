@@ -1,0 +1,131 @@
+docno="lists-000-4797104"
+received="Thu Nov 18 05:18:37 1999"
+isoreceived="19991118101837"
+sent="Thu, 18 Nov 1999 18:17:52 +0800"
+isosent="19991118101752"
+name="Yudong Yang"
+email="yangyudong@hotmail.com"
+subject="Tidy (oct22)  failed to parse comments"
+id="19991118101801.14513.qmail@hotmail.com"
+charset="gb2312"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+Hello,
+   I'm using tidy as a HTML parser for my program. There are some cases that tidy will make mistakes on comment contains a lot of '-'(although this is not good according to HTML4.0 ).  You could find the case in http://cn.yahoo.com/  I've made a fix for this problem.
+
+       Best Regards
+       Yudong Yang
+       
+
+in lexer.c
+and function GetToken(Lexer *lexer, uint mode)
+
+
+            case LEX_COMMENT:  /* seen <!-- so look for --> */
+
+                /* look for 1st - */
+                if (c != '-')
+                {
+                    if (comments > 2 && c == '>')
+                        ReportWarning(lexer, null, null, BAD_COMMENT);
+
+                    comments = -1;
+                    continue;
+                }
+
+                /* now look for 2nd - */
+
+                c = ReadChar(lexer->in);
+
+                if (c == EndOfStream)
+                {
+                    ReportWarning(lexer, null, null, BAD_COMMENT);
+                    UngetChar(c, lexer->in);
+                    continue;
+                }
+
+                AddCharToLexer(lexer, c);
+
+                if (c != '-')
+                {
+                    comments = 0;
+                    continue;
+                }
+
+    for(;;)  // skip all ------ like strings
+    {
+     c = ReadChar(lexer->in);
+     if(c != '-') 
+     {
+                     UngetChar(c, lexer->in);
+      break;
+     }
+                    AddCharToLexer(lexer, c);  // just add the -
+    }
+
+                lexer->state = LEX_ENDCOMMENT;
+                continue;
+
+            case LEX_ENDCOMMENT:  /* seen <!-- .... -- */
+    {
+     int spc=0;
+     for (;;)  // first skip the possiable HTML 4.0 enabled white spaces
+     {
+      map = MAP(c);
+      
+      if((map & white) == 0)
+       break;
+      
+      comments = 0;
+      c = ReadChar(lexer->in);
+      AddCharToLexer(lexer, c);
+      spc ++;
+     }
+     if (c == '>')
+     {
+      lexer->lexsize -= 3+spc;
+      lexer->txtend = lexer->lexsize;
+      lexer->lexbuf[lexer->lexsize] = '\0';
+      lexer->state = LEX_CONTENT;
+      lexer->waswhite = no;
+      return lexer->token = CommentToken(lexer);
+     }
+     else {  // not end of comment
+      
+       /*
+       SGML comment syntax is truly daft!!!
+       
+         A comment declaration consists of `<!' followed by zero or
+         more comments followed by `>'. Each comment starts with
+         `--' and includes all text up to and including the next
+         occurrence of `--'. In a comment declaration, white space
+         is allowed after each comment, but not before the first
+         comment.  The entire comment declaration is ignored.
+         
+        <!-- another -- -- comment -->
+        <!-- --->  is bad, so is <!-- foo ----- bar -->
+      */
+      
+      /* set error position just before offending chararcter */
+      lexer->lines = lexer->in->curline;
+      lexer->columns = lexer->in->curcol - 1;
+      ReportWarning(lexer, null, null, BAD_COMMENT);
+      
+      /* treat the chars as part of the comment*/
+      lexer->state = LEX_COMMENT;  /* comment */
+      UngetChar(c, lexer->in);
+      lexer->lexsize--;   
+      lexer->lexbuf[lexer->lexsize] = '\0';       
+      continue;
+     }
+    }
+ 
+ 
+
+ 
+
+
+

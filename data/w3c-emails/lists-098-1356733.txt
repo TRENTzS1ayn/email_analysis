@@ -1,0 +1,116 @@
+docno="lists-098-1356733"
+received="Mon Sep  3 12:24:24 2001"
+isoreceived="20010903162424"
+sent="Mon, 3 Sep 2001 12:11:30 -0400"
+isosent="20010903161130"
+name="Glen Daniels"
+email="gdaniels@macromedia.com"
+subject="Re: Working RDF query client using Apache Axis"
+id="01de01c13493$1b260d40$6b00a8c0@ne.mediaone.net"
+charset="iso-8859-1"
+inreplyto="Pine.LNX.4.30.0109030500080.8261-100000&#64;tux.w3.org"
+expires="-1"
+
+
+To:"Dan Brickley"<danbri@w3.org>,<www-archive@w3.org>
+Cc:<libby.miller@bris.ac.uk>
+
+> Seems to work. The 3rd argument to the server specifies the serialization
+> policy (ie. whether to use the Map construct); this may turn out to be an
+> interop headache, dunno.
+
+We're thinking of adding a convenience function which will deserialize
+everything it doesn't understand by default as a HashMap of element->content
+(content = String or another HashMap), which is probably something like what
+SOAP::Lite does too.  Not in yet, though.
+
+> ps. still some bits in code below I could strip out; it's a recycled Axis
+test
+
+How's this (didn't run it, btw):
+
+package org.w3c.inkling.soap;
+
+import java.net.*;
+import java.io.*;
+import java.util.*;
+
+import org.apache.axis.*;
+import org.apache.axis.transport.http.HTTPTransport;
+import org.apache.axis.utils.*;
+import org.apache.axis.client.*;
+import java.lang.reflect.Array;
+import org.apache.axis.encoding.*;
+import org.apache.axis.server.AxisServer;
+import org.apache.axis.utils.QName;
+import org.xml.sax.InputSource;
+
+
+public class RDFQClient {
+
+    public static String query =  "SELECT ?x, ?l, ?c" +
+            "FROM     http://xmlns.com/wordnet/1.6/Job "+
+            "WHERE "+
+            "  (web::type ?x rdfs::Class) "+
+            "  (rdfs::label ?x ?l) "+
+            "  (rdfs::description ?x ?c) "+
+            "USING web FOR http://www.w3.org/1999/02/22-rdf-syntax-ns# "+
+            "rdfs FOR http://www.w3.org/2000/01/rdf-schema#";
+
+    public static String data = "http://xmlns.com/wordnet/1.6/Job";
+
+    /**
+     * Send a hardcoded message to the server, and print the response.
+     */
+    public static void doTest (String args[], String service) throws
+Exception {
+        Options      opts    = new Options( args );
+        String       url     = opts.getURL();
+        String       action  = "EchoService" ;
+
+        if (service != null) {
+            action = service;
+        }
+
+        Debug.setDebugLevel( opts.isFlagSet( 'd' ) );
+
+        args = opts.getRemainingArgs();
+        if ( args != null ) action = args[0];
+
+        url = "http://fireball.dyndns.org/cgi-bin/soap"; // danbri hack
+        action = "http://rdfweb.org/RDF/RDFWeb/SOAPDemo#squish";
+
+        ServiceClient client = new ServiceClient(url);
+
+        client.set(HTTPTransport.URL, url);
+        client.set(HTTPTransport.ACTION, action);
+
+        String ns = "http://rdfweb.org/RDF/RDFWeb/SOAPDemo";
+        RPCParam queryParam = new RPCParam(ns, "query", query);
+        RPCParam dataParam = new RPCParam(ns, "data", data);
+        Object [] params = new Object [] { queryParam, dataParam };
+
+        Object result = client.invoke(ns, "squish", params);
+
+        ArrayList rows = (ArrayList)result;
+        System.out.println("\n\nGot rows: "+ rows +"\n\n");
+
+        System.out.println("result = " +result ) ;
+        Object[] answers = (Object[])rows.toArray();
+        for (int i=0; i<answers.length; i++) {
+            HashMap h = (HashMap)answers[i];
+            System.out.println("Answer "+i+" = "+ h +"\n\n");
+        }
+    }
+
+    public static void main(String args[]) throws Exception{
+        doTest(args, null);
+    }
+    public static void mainWithService(String args[], String service) throws
+Exception{
+        doTest(args, service);
+    }
+}
+
+
+

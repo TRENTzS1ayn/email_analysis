@@ -1,0 +1,211 @@
+docno="lists-024-15292356"
+received="Wed Apr  2 23:28:49 2003"
+isoreceived="20030403042849"
+sent="Wed, 02 Apr 2003 20:27:29 -0800"
+isosent="20030403042729"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Progressive Concreteness of Choreography binding"
+id="3E8BB831.7010506@intalio.com"
+charset="ISO-8859-1"
+inreplyto="4.3.2.7.2.20030402174414.02a3f7b8&#64;franklin.cisco.com"
+expires="-1"
+
+
+To: Ricky Ho<riho@cisco.com>
+CC:public-ws-chor@w3.org
+
+
+Ricky Ho wrote:
+
+> Let me try to rewrite the code using your suggested model and then see 
+> if there are values of indirection.  I'm assuming you are questioning 
+> the value of separating the implementation binding from abstract 
+> process.  I assume you are OK with the "Protocol Binding" and "Address 
+> Binding".
+>
+> PROCESS
+> =========
+> In this model (which WSCI and BPEL based on), the message exchange is 
+> all expressed in terms of WSDL operations.
+> So there is no need to define named messages.  The process itself 
+> directly point to the WSDL operation being invoked.
+> Message properties are defined as an XPATH extract from the message type.
+>
+> Orchestration POHandlingProcess {
+>         Partner declaration {
+>                 mySelf --> PortType POHandlingPT  // contains a 
+> one-way "submitPO" operation
+>                 purchaser --> PortType POCallbackPT // contains 2 
+> one-way "confirmPO", "rejectPO" operations
+>                 creditCheckProvider --> CreditCheckPT // contains a 
+> request/reply "check" operation
+>         }
+>
+>         Message Property declaration {
+>                 float PO.dollarAmount = XPATH(//totalAmount/@amount) 
+> of request of (PortType = "POHandlingPT", Operation = "submitPO", 
+> Part="po");
+>                 Customer PO.cust = XPATH(//customer) of request of 
+> (PortType = "POHandlingPT", Operation = "submitPO", Part="po");
+>                 Customer CreditCheckRequest.cust = XPATH(//customer) 
+> of request of (PortType = "CreditCheckPT", Operation = "check", 
+> Part="customerInfo");
+>                 int CreditCheckResponse.rating = XPATH("//rank") of 
+> response of (PortType = "CreditCheckPT", Operation = "check", 
+> Part="Return");
+>         }
+>
+>         Process {
+>                 receive request of (PortType = "POHandlingPT", 
+> Operation = "submitPO", Part="po") from partner "purchaser"
+>                 if ("PO.dollarAmount" > 100K) {
+>                         assign "PO.cust" to "CreditCheckRequest.cust";
+>                         send request of (PortType = "CreditCheckPT", 
+> Operation = "check", Part="customerInfo") to partner 
+> "creditCheckProvider";
+>                         receive response of (PortType = 
+> "CreditCheckPT", Operation = "check", Part="customerInfo") from 
+> partner "creditCheckProvider";
+>                         if ("CreditCheckResponse.rating" > 3) {
+>                                 send request of (PortType = 
+> "POCallbackPT", Operation = "confirmPO", Part="poConfirmation") to 
+> partner "purchaser"
+>                         } else {
+>                                 send request of (PortType = 
+> "POCallbackPT", Operation = "rejectPO", Part="poRejection") to partner 
+> "purchaser"
+>                         }
+>                 }
+>                 send request of (PortType = "POCallbackPT", Operation 
+> = "confirmPO", Part="poConfirmation") to partner "purchaser"
+>         }
+> }
+>
+> Is this a correct representation of your suggestion ?
+
+Perfect
+
+You're expressing the properties in terms of the abstract message, so 
+you can talk to the other partners using any protocol you want, and you 
+can also support more concrete messages that extend the abstract 
+messages defined by the WSDL operations.
+
+>
+> My other comments are embedded ...
+>
+> At 02:21 PM 4/2/2003 -0800, Assaf Arkin wrote:
+>
+>> I am in support of the use of properties, but I don't understand the 
+>> level of indirection or what it brings to the table.
+>>
+>> Some properties are interesting to express in the context of a 
+>> choreography. Rules that affect the flow (as given in this example), 
+>> partners that are communicated, time-outs that are communicated (as 
+>> opposed to pre-decided), etc.
+>>
+>> Let's say that service seller X decides to extract the property in a 
+>> very specific way that is different from how service seller Y 
+>> extracts it. Any buyer would have to understand the different ways in 
+>> which it is extracted in order to put that value in the message to 
+>> begin with. So there's another level of complexity here that affects 
+>> all the buyers.
+>
+>
+> For a particular buyer talk to a particular seller, he needs to know
+> 1) The abstract process A1
+> 2) The implementation binding B1
+> 3) The protocol binding C1
+> 4) The address binding D1
+
+Why do I need to know about the implementation binding?
+
+If I have the protocol binding and address binding I can talk to it. And 
+I understand what it does from the abstract definition. Why do I care 
+about specific implementation details that do not reflect on the manner 
+in which I communicate with that service?
+
+> But I don't see how eliminating the layer 2 will help.  I think it is 
+> even worse.  Lets say the seller want to talk to another buyer who use 
+> EDI rather than web services, then exchanging ...
+> 1) The abstract process A1
+> 2) The implementation binding B2
+> 3) The protocol binding C2
+> 4) The address binding D2
+>
+> is better than exchanging
+> 1) The process A2
+> 2) The protocol binding C2
+> 3) The address binding D2
+
+Why?
+
+EDI is a protocol. So if the other service talks EDI I need to know the 
+EDI protocol binding and the EDI address binding to send an EDI message 
+rather than a SOAP message. But if it participates in the choreography, 
+it does so regardless of which protocol I use, and regardless of how 
+someone chose to implement it.
+
+I don't see where EDI is different from any other protocol that you need 
+B2. Can you point to that difference?
+
+>> It's much easier if you write the choreography such that all seller 
+>> services (X, Y, future ones) would extract that information in much 
+>> the same way, e.g. by referencing the abstract (not concrete) 
+>> message. That allows all buyers to build their side of the 
+>> choreography in a generic way because they understand the abstract 
+>> requirements regardless of which specific service they end up talking 
+>> to.
+>>
+>> In practice, that's how I would write choreographies. Write only the 
+>> abstract parts that do not depend on the specific service you end up 
+>> using, so you can have one buyer that talks to any potential seller 
+>> and vice versa. If I follow that best practice, I don't see any value 
+>> for this level of indirection.
+>
+>
+> I completely agree with you that the extra indirection is unnecessary 
+> if XML Schema and WSDL are *ABSTRACT ENOUGH*. I post some questions 
+> about that in the following but haven't got any feedback yet.  
+> http://lists.w3.org/Archives/Public/www-ws-desc/2003Apr/0007.html
+>
+> Since I'm not sure, so I propose this extra indirection layer that I 
+> know for sure will work.
+
+Conceptually I don't see why this problem would exist. You can define 
+abstract messages with WSDL, and you can define abstract types with XSDL 
+and then extend them in various ways (derivation, any content, 
+substitution, etc).  So my gut instict is that it's going to be a wild 
+goose chase to work out a solution to a problem that does not exist. I 
+would be more interested to see a specific use case which cannot be 
+solved using these technologies and then try to tackle, rather then 
+spend much time trying to work out a problem that can't be identified.
+
+I'm not saying WSDL and XSDL are perfect. We know there are a lot of 
+issues with WSDL 1.1 particularly in relation to abstraction (e.g. 
+inheritence is something that needs to be solved). The question is: are 
+these issues that cannot possibly solved in the framework of WSDL and 
+XSDL? Or are these things that can be solved. In the later case, should 
+every specification that depends on WSDL/XSDL work around these 
+limitations at the risk of further complication, or can we ask these 
+working group to tackle specific problems we have identified.
+
+My personal opinion is that there is no conceptual issue that prevents 
+WSDL from solving these problems, and further, that these problems are 
+not specific to choreography. Abstraction is not something you care 
+about only because you are doing choreography. Abstraction is important 
+in a variety of other cases. So that's something the WSD working group 
+need to address, and if we can identify a real use case we can give tham 
+that information as an input.
+
+Otherwise, we're just spinning a lot of wheels and not getting any work 
+done.
+
+arkin
+
+>
+> Rgds, Ricky
+>
+
+
+

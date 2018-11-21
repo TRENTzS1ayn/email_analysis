@@ -1,0 +1,178 @@
+docno="lists-018-2420754"
+received="Tue Oct 22 04:20:49 2002"
+isoreceived="20021022082049"
+sent="Mon, 21 Oct 2002 14:50:17 0400 (EDT)"
+isosent="20021021185017"
+name="Mike Brown"
+email="mike@skew.org"
+subject="Re: escapeuri() issues"
+id="200210211850.g9LIo8vt006139@chilled.skew.org"
+charset="ISO-88591"
+inreplyto="DFF2AC9E3583D511A21F0008C7E621060453DCAC&#64;daemsg02.softwareag.de"
+expires="1"
+
+
+To:"Kay, Michael"<Michael.Kay@softwareag.com>
+CC: Mike Brown<mike@skew.org>,public-qt-comments@w3.org, Ashok Malhotra<ashokma@microsoft.com>
+
+
+
+
+
+Kay, Michael wrote:
+> I'm not sure what your message refers to when it says that UTF-8 is defined
+> only for "new" schemes.
+
+RFC 2718, section 2.2.5.
+
+I should have also mentioned RFC 2277.
+
+> I agree that like everything to do with URIs, the
+> lack of clarity in the specs is quite extraordinary, and I also accept there
+> are legacy situations where other encodings are used. But it seems to me
+> that UTF-8 is clearly the intended direction, and I think this is what we
+> should support in the W3C recommendations. 
+
+Yes, UTF-8 is clearly the intended direction, which is why it should be the
+default and required to be supported, even if other encodings are allowed.
+
+> There's no harm in EXSLT
+> supporting other encodings if you think it useful.
+
+But I suppose there is harm in xf:escape-uri() supporting other encodings,
+since this is explicitly forbidden in new W3C specs by
+http://www.w3.org/TR/charmod/#sec-UniqueEncoding (though this is still a WD,
+apparently). If you want to fall back on that, then fine.
+
+To restate my case, the real problem is mainly in the HTML/HTTP space, where
+ASCII, iso-8859-1, or nonspecific encodings are assumed. This situation has
+*not* been corrected by any specs, except one edge case in HTML 4.01, and
+therefore it is inaccurate to say that these are "legacy" situations.
+
+Right now, it is *not* forbidden (nor mandated, for that matter) for every
+modern HTML user agent to do what they do when presented with an HTML form
+that uses x-www-urlencoded for data submission: use the encoding of the
+document containing the form as the basis for the URI-style escaping of the
+form data.
+
+Consequently, it is not forbidden for server-side APIs such as Java's
+javax.servlet.ServletRequest.getParameter() or
+javax.servlet.http.HttpUtils.parsePostData() to fail to specify how non-ASCII
+escaped octets are to be decoded, or for implementations of these APIs to make
+assumptions like iso-8859-1 or platform default encoding, which they often do.
+
+Until this situation is addressed to meet the goal of standardizing on UTF-8,
+we are going to continue to see URIs and URI references that use encodings
+other than UTF-8 for their non-ASCII characters. It seems to be the last
+hurdle, but it's a big one. Microsoft will not change IE to do the right thing
+if their customers have built mission-critical apps around platform-default
+encoding -- this is the reason they gave me for why they don't send the
+';charset=foo' parameter in MIME-encoded form data submissions!
+
+Nevertheless, I think there is a precedent for the W3C to retroactively
+address this issue (e.g., in HTTP/1.1, the IETF strongly encouraged 1.0
+implementations to support the Host header), but of course this is not the
+forum for that.
+
+> > 3. IRIs are not supported. In an IRI, the ASCII characters 
+> > that would be escaped in a URI are still escaped, but 
+> > non-ASCII characters are not escaped (forgive me if that's an 
+> > overstatement). In the EXSLT proposal, I suggest using an 
+> > empty string for an encoding name (in an optional final 
+> > argument) to indicate that non-ASCII characters are not to be escaped.
+> 
+> I'm not sure what you're referring to as your definition of "IRI".
+
+http://www.w3.org/International/iri-edit/draft-duerst-iri.html
+
+See also
+http://www.w3.org/2001/Talks/0912-IUC-IRI/paper.html
+
+These were mentioned on the EXSLT list by Craig Stewart.
+
+> [...]
+> This seems to suggest that an IRI reference doesn't require any characters
+> to be escaped. But I suppose that's misleading: you still need to escape the
+> characters that have a special meaning (such as "#"), if you are using them
+> without that special meaning.
+
+I'm not sure about this. In URIs, "#" is a special case because it is only
+part of the URI reference syntax. In a plain URI, or in the part of a URI
+reference before the 'fragment', it is always escaped because it is
+disallowed, being neither 'reserved' nor 'unreserved'.
+
+But in IRIs and IRI references, "#" is an 'idelims' which *is* allowed. "Note
+that the space character and various delimiters are allowed in IRIs and IRI
+references", it even says. This brings to light a possible flaw in the IRI
+draft. As far as I can tell, there's no way to know, based on the grammar,
+where the ifragment begins, if an IRI reference contains more than one "#". 
+I'll ask Martin if there's something I'm missing.
+
+> So this seems to suggest that there should be
+> a third option, effectively escape-reserved="only", which only escapes the
+> reserved characters and nothing else? On the other hand, escaping other
+> characters seems to do no harm. I'm having trouble seeing a real use case
+> for additional options in a function that's already complex enough as it is.
+
+Perhaps xf:escape-uri() should call its second argument
+$escape-reserved-and-mark, or split them up into $escape-reserved and
+$escape-mark. Even better, though no simpler, define classes of characters
+'reserved' 'mark' 'non-ascii' 'unreserved' and whatever is needed for IRIs,
+and make the argument be a string of tokens that name those classes.
+
+  xf:escape-uri('/~mike/r?sum?','reserved mark non-ascii')
+  = '%2F%7Emike%2Fr%C3%A9sum%C3%A9'
+  ...suitable for embedding in the query part of an http URL
+
+  xf:escape-uri('/~mike/r?sum?','reserved')
+  = '%2F~mike%2Fr?sum?'
+  ...suitable for use in the query part of an http IRI reference (I think)
+
+The use case where escaping the 'mark' characters is harmful is probably in
+the realm of equivalence ("http://foo/~mike/" != "http://foo/%7Emike/").
+Whether this is ever important in the real world, I don't know.
+
+My position has always been that it's a bad idea to encourage people to
+(continue to) think that they ought to be able to slap together a string and
+URI-ify the whole thing at once through some magic function that's supposed to
+know what components are being used for what purpose. If we eliminate that use
+case as bad practice, then it seems that escaping functions can be given more
+precision and a lot of this guesswork goes away.
+
+> We decided at the last meeting to add a function string-to-codepoints()
+> which gives you a sequence of integers representing the Unicode values of
+> the characters in the string. This rather takes the pressure of escape-uri()
+> since it will become possible for users to write implementations of encoding
+> variants that we've chosen not to support.
+
+That's a good idea. An equivalent function in EXSLT for the XSLT 1.0
+implementations may require some additional thought.
+
+> > 4. I prefer the function name "uri-escape" over "escape-uri", 
+> > as the former implies a type of action (URI-style escaping of 
+> > something), and the latter implies an action on a subject 
+> > (some kind of escaping of a URI), which would be more accurate.
+> 
+> Our general style of function naming, insofar as we have one, is verb-noun.
+> Of course there's a certain imprecision here, in that we aren't applying
+> escaping to the URI, but to a string that is destined to form part of a URI,
+> but I've always argued that we can't pack the entire specification of the
+> function into its name.
+
+Fair enough, but I'd argue that consistency is less important than accuracy.
+If the opportunity exists to fix it now so we won't be stuck with having to
+maintain this convention in the future for backward compatibility or
+convention's sake, it seems prudent to do so. Witness EXSLT's
+str:encode-uri(), which is an unfortunate name we're now stuck with. The
+intent with the proposal is to fix what's wrong with this function, but the
+changes we propose are not quite drastic enough to warrant a separate function
+with a new name, especially if we want to keep in sync with / base it on XPath
+2.0's xf:escape-uri() function, which is what you said we should do. :)
+
+   - Mike
+____________________________________________________________________________
+  mike j. brown                   |  xml/xslt: http://skew.org/xml/
+  denver/boulder, colorado, usa   |  resume: http://skew.org/~mike/resume/
+
+
+

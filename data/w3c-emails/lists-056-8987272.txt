@@ -1,0 +1,152 @@
+docno="lists-056-8987272"
+received="Fri May 16 07:16:23 1997"
+isoreceived="19970516111623"
+sent="Fri, 16 May 97 12:15:25 BST"
+isosent="19970516111525"
+name="Henry S. Thompson"
+email="ht@cogsci.ed.ac.uk"
+subject="Re: SD4 - Schema format"
+id="9374.199705161115@grogan.cogsci.ed.ac.uk"
+inreplyto="SD4 - Schema format"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+[This proposal owes a lot to discussions with Istvan Cseri, Andrew
+Layman and others at Microsoft]
+
+Although I realise the schema proposal could be seen as reopening the
+'DTD in XML vs. DTD as per SGML' debate which we settled 8 months ago,
+I think there is a lot of merit to doing so, particularly bearing in
+mind the following crucial point in Jean's message:
+
+> In other words, we propose to keep the existing DTD syntax for
+> compatibility reasons and to define another syntax which will
+> grand-father the current DTD features but will be using the current
+> instance syntax (i.e. well formed tags and attributes)
+
+My take on this is that the proposal I outline below must be
+algorithmically translatable back to vanilla XML declaration syntax,
+and I believe this to be true.  In other words, in the first instance
+you can think of this as a description of an XML application which
+could be written today, as an exploratory model for something which
+might be acceptable as an alternative syntax.
+
+What follows is only a bare outline -- I'm drafting an extended
+discussion of this at the moment and will make it available as soon as
+possible.
+
+Proposal:  Inheritance for Element Types
+
+In my view, a great many of the things we would like to see in XML can
+be achieved by one step:  introducing a class structure for element types.
+This simple step provides a unified mechanism which will not only
+address the issues raised by Jean with respect to schemas, but also support
+principled approaches to namespaces and structured attributes without
+(much :-) additional special-purpose syntax.  It should
+also virtually eliminate the need for disjunction ('|') in content
+models, and reduce considerably the use of parameter entities.
+
+Here's a VERY brief introduction:
+
+I propose that element type declarations, as expressed in XML, can
+inherit content models and/or attribute type declarations from other
+element types.  Content-model inheritance is restricted to a single
+super-class chain, but attribute inheritance can have multiple
+sources.  The appearance of an element type name in a content model
+not only allows elements of that type, but also elements of any of its
+sub-class types, to appear at the relevant point in instances.
+
+At the moment I distinguish abstract element types, which exist only
+to have their identity and attributes inherited, and which can't
+actually appear in instances, from ordinary element types with content
+models, but this may not actually be necessary.
+
+Here's a simple two-part example, abstracted from the common situation
+where you use parameter entities to implement a class structure.  The
+mechanisms for identifying external and internal subsets, document
+elements, etc. should not be taken seriously.
+
+Old Style:
+
+<!entity % sisters '%usersisters;c1|c2'>
+<!entity % sharedattrs 'fa (a|b) a'>
+<!element lev1 ((%sisters)*)>
+<!element c1 (xy)>
+<!attlist c1 %sharedattrs;>
+<!element c2 (yz)>
+<!attlist c2 %sharedattrs;>
+
+New Style (with pseudo-oldstyle as comments):
+
+ File simp.xtd:
+
+  <?XML version='1.0' rmd='all'?>
+  <?OOXML level='doctype'?>
+  <!--* A simple illustration of how to use abstract classes to build
+user-extendable disjunctions in DTDs *-->
+  <!doctype doctype SYSTEM 'file:doctype.dtd'>
+  <doctype>
+
+  <!--* <!element foo (fooc*)> *-->
+  <eltdcl gi='foo'>
+   <mgrp><elt exp='star' gi='fooc'/></mgrp>
+  </eltdcl>
+
+  <!--* <!element abstract fooc ANY> <!attlist fooc fa (a|b) 'a'> -->
+  <eltdcl gi='fooc' type='abstract'>
+   <attrs>
+    <enum name='fa' default='a'><eval val='a'/><eval val='b'/></enum>
+   </attrs>
+  </eltdcl>
+  <!--* Note there might be implicit namespaces here *-->
+
+  <!--* <!element c1 specialises fooc (xy)> *-->
+  <eltdcl gi='c1' super='fooc'>
+   <mgrp><elt gi='xy'/></mgrp>
+  </eltdcl>
+
+  <!--* <!element c2 specialises fooc (yz)> *-->
+  <eltdcl gi='c2' super='fooc'>
+   <mgrp><elt gi='yz'/></mgrp>
+  </eltdcl>
+
+  <!--* <!element xy any> <!element yz any> *-->
+  <eltdcl gi='xy'><any/></eltdcl>
+  <eltdcl gi='yz'><any/></eltdcl>
+
+  </doctype>
+
+The crucial point is that no parameter entity hacking is needed to add
+an additional element type to the possible daughters of 'foo' -- we
+just add another element type which specialises 'fooc':
+
+  <?XML version='1.0'?>
+  <?OOXML? level='instance'>
+  <!doctype instance SYSTEM 'file:instance.dtd'>
+  <instance>
+   <doctype name="foo" extsubset='file:simpplus.xtd'>
+    <!--* <!element c3 specialises fooc empty> *-->
+    <eltdcl gi='c3' super='fooc'>
+     <empty/>
+    </eltdcl>
+   </doctype>
+   <foo>
+    <c1 fa=b>
+     <xy>...</xy>
+    </c1>
+    <c3 fa=a/>
+    <c2>
+     <yz>. . .</yz>
+    </c2>
+   </foo>
+  </instance>
+
+Constructing the full vanilla DTD is left as an exercise for the
+reader :-).
+
+ht
+
+
+

@@ -1,0 +1,199 @@
+docno="lists-026-3565375"
+received="Thu May 22 01:01:47 2003"
+isoreceived="20030522050147"
+sent="Wed, 21 May 2003 21:58:55 -0700"
+isosent="20030522045855"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Co-ordination protocol and BPEL"
+id="3ECC590F.60506@intalio.com"
+charset="ISO-8859-1"
+inreplyto="4.3.2.7.2.20030521203151.0359cbe8&#64;franklin.cisco.com"
+expires="-1"
+
+
+To: Ricky Ho<riho@cisco.com>
+CC:public-ws-chor@w3.org
+
+
+Ricky Ho wrote:
+
+>
+> There are a couple of issues ....
+>
+> Lets say in the following process
+>
+> <process>
+>   <sequence>
+>     ....
+>     <receive/>
+>     ....
+>     <reply/>
+>     ....
+>     <receive/>
+>     ....
+>     <reply/>
+>     ....
+>   </sequence>
+> </process>
+>
+> 1) Lets say the first <receive> pass in a transaction context.  What 
+> is the "scope of work" ?  Between the first request and first reply ?  
+> or everything after the first receive ?
+
+That depends on how you define the importing of the context.
+
+If you define the scope as the entire sequence then it will start with 
+the first receive but it will end all the work after the last activity 
+has occurred (i.e. after the second reply). The sender is not just 
+waiting for a reply, the sender is also waiting to later on either 
+receive a completed, exited, or failed message indicating that all 
+further work done after the reply has completed/failed.
+
+If the scope is for a single activity than only that activity is 
+performed, but again after the reply is sent you still need to send 
+completed/exited/failed which you could potentially piggyback on the 
+reply message (though not allowed in WS-TX currently).
+
+
+> 2) Lets say after receiving the first <reply>, the caller want to 
+> commit the transaction.  What scope of work has been committed ?  Does 
+> the caller wait for this whole process to be completed before the 
+> caller's transaction can commit successfully ?
+
+If we are talking BA then there are two modes: either you tell the 
+process when all work has been completed so it can wrap up things on its 
+side and send a completed/exited message, or you wait for it to tell you 
+when it completes and then wait for all others to tell you they 
+completed. In case of aborting, you would just tell working scopes to 
+cancel and completed scopes to compensate.
+
+The important thing here is that you should say what you mean and mean 
+what you say. If what you meant is that no work could be completed 
+unless you received two requests, then that's what should happen. If 
+someone tries to commit before you completed all the work you consider 
+this to be an inconsistent state and vote to rollback. This means that 
+you will never do part of the work - either all or nothing.
+
+If what you meant is that only some work needs to be done and the rest 
+is optional, you should write it as such, perhaps by using an event handler.
+
+
+> 3) If instead the caller want to cancel the transaction.  How does the 
+> process cancel its work ?  Where is the compensation handler defined ?
+
+Since you haven't yet completed the sequence you can't compensate for 
+it. Instead you get a terminate fault and handle it. However, since you 
+already did some activities you may have nested scopes with their own 
+compensation handlers which you would invoke from the event handler of 
+the sequence.
+
+
+> 4) What if the second <receive> pass in a different context ?  (the 
+> only way to prevent this happening is to use the context itself as the 
+> correlation set)
+
+Good question.
+
+In EJB if you have a session bean and you call it twice in two different 
+transactions then the access would be serialized or you would get an 
+error. I don't exactly remember which case is true, but you won't get 
+two invocations from two transactions for the same bean if one 
+transaction has not completed yet.
+
+So I would tend to believe that the rule should be that all incoming 
+messages should either be part of the same scope, part of a child scope 
+(if that activity is defined as part of a child scope), or not 
+associated with any scope. But it can't be part of a different scope 
+unless it observes a parent-child relationship.
+
+>> So it would work like the transaction attribute requires in an EJB 
+>> bean. Either you start a new transaction if none was started by the 
+>> caller, or you participate in the caller's transaction.
+>
+>
+> BPEL <Receive> is quite different from the EJB scenario.  The EJB 
+> doesn't have a pre-establish transaction context, it either starts a 
+> new context or inherit the caller's context.  In EJB, you never run 
+> into the situation of the above question 4.
+
+I think you do. If you think of a session bean, once you access it from 
+a transaction it is owned by that transaction until it commits. You can 
+keep calling it from that transaction, but you can't call it from 
+another transaction at the same time. That would just confuse the hell 
+out of it ;-)
+
+The case here is of course more complex because you have more explicit 
+sequencing rules, a problem you also have with EJB but don't notice 
+because there is no language to write the behavior, and because you have 
+nesting.
+
+>> For atomic transactions you don't need prepare or commit, you are 
+>> working at a higher level than the code and all that needs to be 
+>> prepared or committed should be done by the engine for you. For BA 
+>> transactions you don't have prepare or commit, every response is an 
+>> indication that all previous steps have been completed (prepared and 
+>> committed). You do need a way to cancel, but this can be done by a 
+>> fault handler (the terminate fault). And you do need a way to 
+>> compensate and this is done by a compensation handler.
+>
+>
+> I'm talking about BA, not atomic.  Effectively, you restrict the 
+> choices by forcing every scope of work must be compensatable. 
+
+> Lets say I'm an airline company.  I don't want to reserve the seat for 
+> a lengthy period and later cancel it when the passenger change his 
+> mind.  So my strategy is to only book the seat when the customer 
+> commits its purchase.  After that, I don't refund (so not 
+> compensatable from the passenger's perspective).
+> The original state of the seat is "available".  When the passenger 
+> invoke my "TicketBookingService", the seat is marked 
+> "potentially-booked".  When the transaction commit successfully, the 
+> seat status to be "booked".  After that, it is non-compensatable.
+>
+> How do I achieve this if I only have the CompensationHandler ? 
+
+You have one activity (possibly a sequence) that changes the seat 
+assignment to "reserved". Afterwards it can be cancelled by the customer 
+or it can be cancelled because the customer did not send a booking 
+request within a well defined time frame (e.g. use a switch with message 
+event and time-out event). If it gets cancelled then you invoke the 
+compensation of the first activity changing it back to "available". If 
+you do receive a request to book the seat you proceed to the next step. 
+At this point the state is "booked" and there is no compensation 
+associated with the previous state.
+
+I think as a basic shell you would have to write something like:
+
+process
+  compensationHandler
+    empty
+    (note: very important to write something here so it doesn't
+     automatically compensate reserveToBook)
+
+   receive reservation request
+   scope name=reserveToBook
+     invoke name=reserve
+      compensationHandler
+       ... change back to available
+     ... this is where we talk to a service that changes state to reserved
+  pick
+     branch 1: booking request
+        change to booked
+     branch 2: alarm
+        throw a fault
+do anything else after reservation
+
+arkin
+
+>
+>
+> Rgds, Ricky
+
+
+
+-- 
+"Those who can, do; those who can't, make screenshots"
+
+
+

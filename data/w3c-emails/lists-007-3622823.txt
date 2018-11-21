@@ -1,0 +1,177 @@
+docno="lists-007-3622823"
+received="Mon Mar 18 13:02:40 2002"
+isoreceived="20020318180240"
+sent="Mon, 18 Mar 2002 13:02:06 -0500"
+isosent="20020318180206"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: how to perform undeletion"
+id="3906C56A7BD1F54593344C05BD1374B103F8B07E@SUS-MA1IT01"
+charset="iso-8859-1"
+inreplyto="how to perform undeletion"
+expires="-1"
+
+
+To:"Ietf-Dav-Versioning@W3. Org"<ietf-dav-versioning@w3.org>
+
+   From: Sohn, Matthias [mailto:matthias.sohn@sap.com]
+
+ I think when the resource version to be revived in order to
+ undelete the resource has been found the undelete operation can be
+ done in the following way :
+
+ - check out the collection which shall contain the resource
+ to be undeleted, this yields a working collection which is
+ bound to an activity (since I want to track all changes in
+ activities)
+
+ - issue VERSION-CONTROL on the resource version contained in
+ the old collection version before the deletion of the
+ resource took place
+
+      A collection version does not contain resource versions, it
+      contains a DAV:version-controlled-binding-set property that
+      contains a set of name/version-history pairs.
+
+   Sorry it seems that my sentence was too sloppy. 
+   - I meant that by using some report provided by my server I can
+   find out to which version of the deleted resource the VCR has
+   pointed to just before the resource has been deleted.
+
+Yes, you could define such a custom report.
+
+   - Since the resource has been deleted before the undeletion is done
+   there is no VCR for the version history of the deleted resource in 
+   my workspace. 
+
+Agreed.
+
+   By issueing VERSION-CONTROL on the version I want to put back to
+   life.  I thought I can create a new VCR in the checked out
+   collection (which belongs to my workspace) which will then point
+   again to the same version the old VCR pointed to before it has been
+   deleted.
+
+If your server supports workspaces (with checked-out
+version-controlled collections), then yes, that is exactly what you
+would do.  But if you are using working collections, you need to use a
+different set of requests, because working collections do not contain
+version-controlled resources, and therefore cannot have members added
+to them with the VERSION-CONTROl request.
+
+      Also, you don't issue VERSION-CONTROL requests to members of a
+      working collection, because a working collection does not
+      contain version-controlled resources (and VERSION-CONTROL
+      creates a version-controlled resource).  The VERSION-CONTROL
+      request is used to restore resources to checked-out collections
+      (i.e. to collections that can be checked-out in place), not to
+      working collections.
+
+   I don't want to issue VERSION-CONTROL to a member of the working
+   collection but to the resource version I want to revive in order to
+   create a new VCR for it.  This version I found using a report.
+
+This VERSION-CONTROL request takes two parameters: the request-URL
+(indicating where the new version-controlled resource should be
+created), and the version (indicating what should be the
+DAV:checked-in version of the new VCR).  So yes, you do indicate
+the version, but you also have to indicate where the new VCR should
+be located.  And it can't be located in a working collection,
+because working collections do not contain VCRs.
+
+   I only want to checkout the target collection in order to allow the
+   recreation of the resource (which shall become a member of 
+   the checked out collection).
+
+A VCR can be a member of a checked-out version-controlled collection,
+but it cannot be a member of a working collection.  So the requests
+you need to issue to manipulate working collections will be different
+from the requests you need to issue to manipulate checked-out
+version-controlled collections.
+
+      ... with working resources, you have to CHECKOUT a collection
+      version that identifies the version history of the desired
+      version in its DAV:version-controlled-binding-set.  Then you can
+      MOVE that version history from that working collection into the
+      destination working collection, DELETE the source working
+      collection, and then CHECKIN the destination working collection.
+
+   Huh, I feel this partial move is ugly. 
+
+   First this needs 5 requests to do a simple undeletion:
+   - two CHECKOUTs (of the source and target collection versions) 
+   - (partial) MOVE 
+This is a regular MOVE, not a "partial" MOVE.
+   - DELETE (or UNCHECKOUT) on the source working collection 
+   - and a CHECKIN on the target collection. 
+
+The working group did not believe that this "restore of a deleted
+resource" is sufficiently common to merit defining a special request
+for the purpose.
+
+   In addition this would require that MOVE is not an atomic
+   operation (either done completely or not at all).
+
+There are no "partial" or "non-atomic" MOVEs here.  The only sense
+in which the MOVE is partial is that the working collection that is
+the source of the MOVE is deleted following the MOVE. 
+
+   If MOVE is
+   not atomic I expect that the probability of inconsistencies 
+   on the server will increase if some client issues a similar 
+   partial MOVE for a different purpose. Since we use a stateless
+   protocol it's no option for the server to wait for the DELETE
+   and CHECKIN until the transaction doing the MOVE is committed.
+   Without waiting for DELETE and CHECKIN the server has no chance
+   to find out that this request sequence is an undelete operation 
+   (which should be atomic as well).
+
+I see no reason for the "undelete" operation to be atomic.  To the
+contrary, a user is likely to have several adjustments they want to
+make to the collection before committing the changes via a "CHECKIN".
+
+   I would prefer if there is some solution which only needs CHECKOUT 
+   and CHECKIN of the target collection (this seems to be necessary 
+   with versioned collections) and only one atomic command (e.g. UNDELETE 
+   or VERSION-CONTROL with additional semantics) which does recreate 
+   the deleted VCR and ensures that the same version is revived which 
+   has been in the workspace just before the resource has been deleted. 
+
+The version that appeared in the workspace at the time the VCR was
+deleted is not necessarily an especially interesting version, since
+someone in a different workspace (that hasn't seen the deletion yet)
+might have produced a variety of more interesting successors to that
+version.  We discussed whether or not to require that a particular
+version be restored, and the consensus was that this should be left
+up to the server.  So your server is welcome to restore the version
+that was visible before it was deleted, but clients cannot assume
+that to be the case (nor can the assume that a server will keep track
+of that version).
+
+   This would mean 3 requests instead of 5,
+
+This was not considered a sufficiently common use case to warrant
+concern over an additional couple of round trips.
+
+   less chance for inconsistencies (since MOVE is atomic)
+
+Only normal (atomic) MOVE semantics are used here.
+
+   and clearer semantics for the sake of an additional method (or
+   additional semantics for VERSION-CONTROL ?).
+
+It is highly desireable for a particular request to have
+consistent semantics.  In the case of VERSION-CONTROL, one of the
+postconditions is that a version-controlled resource exist at the
+request URL when the request succeeds.  We could have made that
+postcondition context sensitive (i.e. creates a VCR normally, but
+creates a version history in a working collection), but this use case
+was not considered sufficiently common to merit introducing a new
+method or increasing the complexity of VERSION-CONTROL, just to avoid
+a couple of round trips for an infrequent use case.
+
+Cheers,
+Geoff
+
+
+

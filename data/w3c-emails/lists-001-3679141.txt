@@ -1,0 +1,316 @@
+docno="lists-001-3679141"
+received="Thu Apr 12 13:23:58 2001"
+isoreceived="20010412172358"
+sent="Wed, 11 Apr 2001 06:52:26 -0400 (EDT)"
+isosent="20010411105226"
+name="basel shishani"
+email="bshishani@yahoo.com"
+subject="On Pre-processing and Other Issues"
+id="20010411105217.34510.qmail@web9603.mail.yahoo.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+
+Hi,
+
+I have a couple of points that can be added to the
+wish
+list, and probably won't cost a lot of coding effort.
+
+- issue: preprocessing
+
+I use a preprocessor with my html files - ePerl
+embedded perl tool, which also has preprocessing
+directives similar to CPP. I also use JSP and server
+side java.
+
+Since tidy cannot handle files that contain
+preprocessing directives and special tags, I would
+like
+to suggest the following two approaches to handle
+these
+cases in a generic way.
+
+one approach is to introduce stream based translations
+that are applied before passing the text to the
+parser,
+these will be regex based:
+
+
+eg: in the config file
+    note: regexes are perl style
+
+1: begin translations 
+2:   "$#include\s+body\.txt\s*^""<body>"
+3:   "$#include\s+.*^"""          
+4:   "<!--#include\s+\"body.txt\"\s*-->""<body>"    
+5:   "<:.*?:>"""
+6:   "<eperl>.*?</eperl>"""
+7: end translations
+
+
+some explanations on the above:
+
+2: the author has defined a file for a lengthy body
+tag, just insert a body tag to keep parser happy. the
+preprocessor uses a CPP style directive at line
+beginnings.
+
+3: the rest of the includes are just for general well
+balanced html fragments, so they can be safely blocked
+from the parser.
+
+4: similar to 2:, but for a tag based directive
+
+6: eperl style tags should be ignored by parser
+
+7: the tags and the contents to be ignored.
+
+
+
+some rules and restrictions:
+
+  order is significant, rules that come first are
+  applied first.
+
+  minimal matching: quantifiers are not greedy - this
+  can be made the default or left to user to specify
+  (?).
+
+  no overlap: there is no overlap in matched stream
+  segments. this is not allowed to happen in
+  implementation.
+ 
+  the first string is a regex while the second is just
+  an ordinary string. Or maybe the second string can
+  use values from the regex string as in perl back
+  references, in case needed.
+
+implementation suggestion: 
+
+  tri-tree structure: each regex match divides stream
+  into three nodes: pre / match / post. we start with
+  the whole stream in one node.
+
+  translations are run in order, a pass for each rule.
+  
+  translations do not cross node boundaries, to
+prevent
+  overlap of matched segments - as mentioned above.
+
+  generated segments are wrapped in special tags that
+  are acceptable to the parser or maybe html comments,
+  and contain refs to original segments, such as to
+  tree nodes. eg:
+
+  
+  <!--#tidy begin-trans id=some-ref --> 
+
+  generated segment . . .
+
+  <!--#tidy end-trans --> 
+
+  the tree is traversed to generate the input stream
+to
+  the parser
+
+  on output and after the parser is done, the original
+  content is inserted instead of the generated
+  segments,using the refs in the wrapper tags , and
+  wrapper tags removed. any style changes or
+  indentation within the special tags is discarded, or
+  not applied to start with.
+
+
+for debugging purposes, there can be generated a log
+file for translations that occurred, or the pre-parser
+stream.
+ 
+Also, to give users flexibility, we can have command
+line options and named sections to allow switching
+certain rules on or off.
+
+eg
+
+
+begin translations jsp
+  . . . 
+end translations    jsp 
+
+
+begin translations eperl
+  . . .
+end translations eperl
+
+
+then on the command line (or in the config file
+itself)
+
+> tidy -translate jsp . . .
+> tidy -translate jsp eperl . . .
+
+order of rules will be significant across sections.
+
+
+
+A second approach: or can be used in addition to the
+above one.
+
+control directives for tidy, where everything in
+between is affected by the directives. Authors will
+insert these tags to direct tidy to apply some action
+to a given section: eg:
+
+<!--#tidy translate="" //ignores everything in between
+-->
+
+
+<?php >
+. . . 
+
+<!--#tidy end-translate -->
+
+this will replace everything in between with null.
+ 
+
+
+<!--#tidy translate="<body>" //replace with a body tag
+for 
+                        the purposes of validation -->
+. . .
+<!--#tidy end-translate -->
+
+
+
+in implementation, translation can be performed
+without
+interference with the parser.  the above can be
+entered
+into the parser as for example:
+
+
+<!--#tidy id="23"  translate=""this ignores everything
+in between  -->
+<!--#tidy end-translate -->
+
+and
+
+<!--#tidy id="24"  translate="<body>" //replace with a
+body tag for 
+                        the purposes of validation -->
+<body>
+<!--#tidy end-translate -->
+
+where the id's are references to original content
+between tags saved in some structure.
+
+on output, we remove the id tags, and re-translate
+back
+to original segment content.
+
+no modifications are made on content or style of the
+original segments in between tags.
+
+of course this approach can be too verbose if we are
+talking wrapper tags around tags containing
+preprocessor style attributes.
+
+
+I understand that the above two approaches can have
+many inter-actions with existing functionality, but I
+wish that others take a look, and see if such
+techniques would handle situations that there are
+facing.
+
+
+- issue: compact style
+
+a compaction options: since some browsers have weird
+behavior based on the physical layout of tags, eg
+white
+spaces.  rather than having that affect readability,
+we
+can use two versions of a file, a fully compact
+version
+is used for testing in a browser or for final
+deployment, while a fully indented version can be used
+for editing.
+
+by fully compact we mean no line breaks at all and no
+white spaces outside tags. so the whole stream is a
+single line.
+
+not sure if this single line code will be safe for all
+browsers, maybe there can be another option to
+generate
+a compact version ` but with all line breaks within
+tags and no breaks on tag boundaries.
+ 
+eg
+
+ 
+  tidy --indent compact/yes/no/auto  --nocomments  . .
+.
+    
+I find this much easier than trying to keep track of
+which <br> or <img> has spaces or newlines and what
+causes blue whiskers or ugly tables and the like.
+  
+
+this can be further enhanced by an option for removing
+comments.
+
+eg 
+ 
+  tidy --indent compact/yes/no/auto  --nocomments  . .
+.
+
+
+there exists another tool called htmltidy
+[http://people.itu.int/~lindner/] which implements
+something close, but it also tries to trim some
+attributes and code deemed redundant. it sees to rely
+on patterns, so the output is not completely clean
+
+
+- issue: files containing html fragments: 
+  
+usually, a file containing shared sections of html is
+maintained separately, and included within other files
+using preprocessors or SSI. it would be nice to have
+these validated and pretty-printed separately.
+
+the fragments can be restricted to a tree or a forest,
+as a reasonable design style is to have the fragments
+well balanced.
+
+since tidy is using a parser, I think implementing
+this
+won't be a problem. so a fragment will be validated as
+a sub-tree of a full html document. eg
+
+tidy --html-fragment  . . .   frag1.txt
+
+this command will enforce well balanced tree/forest
+and
+valid html tags.
+
+some options that apply to full html files might be
+meaningless for this case.
+
+
+---------------
+Basel Shishani
+
+
+
+__________________________________________________
+Do You Yahoo!?
+Get email at your own domain with Yahoo! Mail. 
+http://personal.mail.yahoo.com/
+
+
+

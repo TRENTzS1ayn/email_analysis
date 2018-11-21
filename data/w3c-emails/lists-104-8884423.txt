@@ -1,0 +1,69 @@
+docno="lists-104-8884423"
+received="Thu Mar 28 18:24:17 2002"
+isoreceived="20020328232417"
+sent="Thu, 28 Mar 2002 15:54:40 -0700"
+isosent="20020328225440"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: Issue Xpath-30: Reusing result sets"
+id="4D62A7266F41D611B92C00E018C1C19C0DD4E7@thor.aeathtl.com"
+inreplyto="Issue Xpath-30: Reusing result sets"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+> On Thursday, 03/28/2002 at 01:11 MST, "Arnold, Curt" 
+> <Curt.Arnold@hyprotech.com> wrote:
+> > The second concern is that allowing reuse makes it unsafe to provide
+> access
+> > to a result set that is part of the state of an object
+> 
+> No different from any other mutable object, right? If this is 
+> a concern for the user, s/he passes in null and obtains a new 
+> instance. If they _know_ they can safely reuse, they do so.
+
+The potential for reuse does make any XPathResult effectively mutable and so
+would suggest that any public method that would return an XPathResult return
+a defensive copy of its state and not the XPathResult that it holds (per
+item #18 or so in Effective Java, I need to order another copy).  The same
+way that you would return a clone of an array instead of the array itself to
+prevent a careless or hostile caller from changing an object's state without
+the object's participation.
+
+Unfortunately, there is not an easy way to create a defensive copy of an
+XPathResult short of evaluating the query again, which could be expensive or
+wrapping the result in a read-only wrapper, which is an pretty advanced
+technique.
+
+Relying on the caller to honor its contract not to reuse the XPathResult
+that you returned could be prone to failure.  For example, if there were
+code like:
+
+XPathResult result;
+while(something) {
+   if(cond1) {
+     //  result is safe to reuse
+     result = xpathEval.evaluate(...);
+   }
+   else {
+     //
+     //    result is not safe to reuse
+     result = myFoo.getBarElements();
+   }
+   ...
+   //
+   //  much later code, could dork myFoo
+   //    
+   //    
+   result = xpathEval.evaluate(...,result); 
+}
+
+Providing a mechanism to clone a result set would probably be a better
+solution than the canAllowReuse that I mentioned in the earlier message.  If
+an implementation knew that its XPathResult was immutable, it could just
+return "this", otherwise it could do some lightweight copy of the
+XPathResult.
+
+
+

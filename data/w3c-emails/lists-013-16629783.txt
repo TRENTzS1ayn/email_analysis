@@ -1,0 +1,203 @@
+docno="lists-013-16629783"
+received="Sun Jun 30 17:02:52 1996"
+isoreceived="19960630210252"
+sent="Sun, 30 Jun 1996 14:02:33 0700"
+isosent="19960630210233"
+name="Paul C. Kocher"
+email="pck@best.com"
+subject="Re:  IETF mtg discussion comments"
+id="199606302102.OAA11590@shellx.best.com"
+inreplyto=" IETF mtg discussion comments"
+expires="1"
+
+
+To:ietf-tls@w3.org, Bennet Yee<bsy@cs.ucsd.edu>
+Cc:pck@cryptography.com
+
+Bennet Yee writes:
+1.  Does pre-encryption prevent MACs from being encrypted?
+> First, Paul Kocher said that in order to support pre-encrypted data,
+> the MAC (independent of whether it is an on-the-fly computed MAC or a
+> pre-computed MAC) must be left outside of the encryption.  That is,
+> the record format will include a header, pre-encrypted data, and an
+> un-encrypted MAC.
+>
+> This is not quite correct.
+>
+> What -is- required is that the MAC must go to the end of the record
+> (true for SSLv3.x / PCT / now-dropped TLS-draft) and that per-record
+> IVs be permitted for block ciphers -- or have the IV for the next
+> record be the last data block, excluding the MAC block(s).
+>
+> Consider first the case of a stream cipher.  To have encrypted MACs,
+> we simply run the stream cipher to generate enough output to encrypt
+> (xor with) the MAC and store that with the "compiled" or pre-encrypted
+> version of the data.  When we've sent the encrypted data and it's time
+> to send the MAC, we can grab the saved stream cipher output and xor it
+> with the MAC prior to transmission.
+>
+>  [Long description of how to do this for a block cipher deleted.]
+
+I was well aware of this, but assumed that since it was such a grotesque
+layering violation it was not an acceptable option.  Changing
+the MAC around is a relatively minor change anyway (and happened to
+be virtually the only change which *doesn't* really cause layering 
+messes...)
+
+> 2.  Constancy of Communication Channel Security
+>
+>  [ Deleted]
+>
+> 3.  Symmetry Breaking
+>
+>  [ Deleted ]
+>
+> 4.  Channel Security Constancy and Pre-encryption
+>
+> It may seem that the Channel Security Constancy principle would argue
+> against the use of pre-encryption.  (This was what Eric Rescorla
+> referred to during the meeting as Bennet's Law, but I bet the idea
+> predates me.)
+>
+> [...]  Furthermore, the
+> point of pre-encryption is actually two fold: first, the more widely
+> recognized desire to increase (web/ftp/etc) server performance, and
+> second, the security of multiply retransmitted data.
+>
+> The first is pretty obvious.  If we can pre-encrypt data (via a sort
+> of compilation process) on servers, the servers can save on cycles
+> that would otherwise have to be used to do on-the-fly encryption.
+>
+> The second is slightly subtler.  For oft retransmitted data,
+> re-encrypting them under different keys, especially weak, 40-bit keys,
+> for many transmissions provides attackers with more partial
+> information about the plaintext.  If there is only one encrypted
+> version of the data that is always re-sent, less partial information
+> about the data is leaked.
+
+TLS/SSL and other cryptosystems using 40-bit keys always include
+a nonce or salt with the key to prevent birthday-paradox style 
+attacks against messages encrypted with more than one key.
+
+While having multiple copies of the plaintext encrypted under
+different keys could theoretically help for some kinds of 
+cryptanalytic attack, this sort of data could be collected
+using a chosen plaintext attack as well (which the protocol
+must be able to resist).
+
+> [...]
+>
+> 5.  Modularization and Layering, and Pre-encryption
+>
+> As a general purpose cryptographic protocol, TLS's embodiment in an
+> implementation should make it easy to use but difficult to misuse.
+> Furthermore, the implementation should be cleanly engineered, so that
+> security reviews are feasible.  Does pre-encryption violate
+> "layering", a sound engineering principle?
+>
+> As I've mentioned in other email to this list, transforming a
+> plaintext file into a pre-encrypted file may be thought of as a
+> compilation process.  This translator is intimately bound with the
+> record layer, since it must know the record format as well as the
+> ciphers to use, and the key management layer simply passes the
+> compiled file down to the record layer uninterpreted except for
+> extracting (and sending) the pre-encryption key and verifying that the
+> cipher spec matches.
+>
+> I don't view this as a terrible layering violation -- it's nothing
+> more than viewing the data transmission process as incorporating a
+> just-in-time data compiler that caches, with the key management layer
+> specifying a fixed encryption key for the file.
+
+In the server it sounds as though you're merging all the layers 
+into one to avoid the problem, which isn't pretty though I suppose
+that's more of an implementation issue.  The protocol-level layering
+issues revolve around the question of how to send the pre-encrypted 
+data/MAC keys over the wire, how the keys get injected, how to
+avoid killing pipelined implementations, etc.
+
+> 6.  Pre-MAC-ing Data
+> 
+
+[ Longish but interesting description of the two pre-MACed data 
+constructions omitted since pre-MACing currently seems to be
+off the agenda. ]
+
+>
+> 7.  Cryptographic "Linking" of the Password with the Master Secret
+
+If password authentication is supported, there are three general
+approaches:
+
+1)  Send the password (hashed under the Randoms) encrypted under
+    the standard encryption key.  Advantage:  Cleaner, simpler,
+    can be done by clients without altering the protocol.
+    Disadvantage:  Someone can break the encryption key then
+    attack the password using brute force.
+
+2)  Send the password hashed under the master secret or some
+    value derived from it.  (I don't necessarily recommend the MAC 
+    secret; its job is to protect data from being altered, and 
+    probably shouldn't be used for other things.  One possible
+    way to implement it would be to add a field in the data fed
+    into the handshake hashes to for the password, if password
+    authentication is supported.  Disadvantage:  Protocol
+    changes required.  Advantage: Breaking encryption does not
+    allow brute force attack against the password.
+
+3)  Applications could get the master secret and hash the password 
+    with it, then send the result across the wire.  Disadvantage: 
+    major layering violations in applications.  Advantage:  No
+    protocol changes required.
+
+Two issues we need to decide:
+
+  - Whether to support password authentication at the TLS level.
+     (Type 2 can be done today by applications using SSL 3.0)
+     I think everyone here wants to see a certificate-based
+     infrastructure get developed as quickly as possible, but it
+     isn't clear whether giving people an alternative to certs
+     is good (because it helps them make the transision to
+     certs more smooth) or bad (because it gives them a way to
+     avoid switching to certs).
+
+  - Whether passwords have to be protected from brute force
+     attacks.
+
+
+> 8.  Features are Optional
+>
+> Pre-encryption, pre-MAC-ing, ans password authentication are all
+> independent options that are (typically) server configuration choices.
+> If you don't want them, clients should be able to leave these out of
+> the crypto function negotiation.  (Though pre-encryption, in my
+> opinion, should always be used since it -helps- security when the
+> cipher strength matches [pre-encryption uses the same cipher as normal
+> encryption].)
+
+Pre-encryption selection will require significant changes to how the
+ciphersuites are negotiated, since some can support pre-encrypted data
+and others probably won't be able to (i.e., Fortezza).
+
+I don't really agree that pre-encryption helps cryptographic security --
+it actually introduces new potential weaknesses.  For example, there
+is the risk that the encryption mechanism (probably based on a hash 
+function) used to send the key over the wire could be broken.  Its
+only real advantage is improved performance.  (Which I do think could be
+useful for some applications as secure FTP servers.)
+
+
+> 9.  Misc
+>
+[...]
+
+
+Cheers,
+Paul
+
+____________________________________
+Paul Kocher (pck@cryptography.com) |     Voicemail: +1-(415)-354-8004
+Crypto consultant                  |           FAX: +1-(415)-321-1483
+
+
+

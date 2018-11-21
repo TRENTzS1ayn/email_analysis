@@ -1,0 +1,193 @@
+docno="lists-052-14887283"
+received="Fri Jul 18 13:53:24 2003"
+isoreceived="20030718175324"
+sent="18 Jul 2003 18:52:39 +0100"
+isosent="20030718175239"
+name="Brian McBride"
+email="bwm@hplb.hpl.hp.com"
+subject="RDF Handling of XML fragments"
+id="1058550759.2525.119.camel@dhcp-91-136.hpl.hp.com"
+expires="-1"
+
+To: i18n<w3c-i18n-ig@w3.org>
+Cc: Martin Duerst<duerst@w3.org>, rdf core<w3c-rdfcore-wg@w3.org>
+
+
+
+Over the past few weeks, there has been discussion of RDF's handling of
+XML fragments.  I would like to take this opportunity to try to make the
+case that the current design is acceptable.  In doing this, I am
+speaking on my own behalf; I have not reviewed this message with
+RDFCore.
+
+I will argue that:
+
+  - the current design meets the requirements, including those that have
+emerged as most important to I18N during recent discussions
+
+  - where the current design has seemed less than ideal to I18N, it is
+so for good reason and in ways that best support internationalization.
+
+  - it is an acceptable tradeoff of various conflicting design
+parameters
+
+For this discussion, we need to know the following about RDF:
+
+  - RDF is a language for stating the values of properties of resources
+  - RDF's syntax is a graph where the nodes are either resources or
+literal values linked by arcs that represent properties
+  - sometimes those literal values are fragments of XML, which often
+represent text
+
+The term "strings of characters" is used for sequences unicode
+characters.  The term "text" is used for sequences of characters which
+may have additional attributes such as language, font, weight, italic
+etc.
+
+A key point of concern from I18N's perspective is that handling of text
+should be uniform; that there should be no discontinuity when additional
+attributes in the form of markup is introduced to text.
+
+So for example, if we have a property whose value is the title of a
+document, then we should not have to use a different type of value when
+the property value is markup, rather than when it is a simple string of
+characters.
+
+An important point to note here, is that we do not expect much RDF to be
+written by hand.  It will be written by tools.  Thus any such
+discontinuity needs to be understood by programmers, not by end users. 
+However, lets accept that, even for programmers, such a discontinuity is
+a bad thing.
+
+It has been suggested that RDF plain literals and RDF XMl literals
+should be the same thing, so that no discontunuity between simple text
+and marked up text exists.  Unfortunately, all the current RDF
+implementations of which I am aware, treat plain literals as sequences
+of characters, not as text.  To see the difference, consider the XML
+describing a property value in RDF/XML
+
+  <eg:prop>&lt;em<&gt;></eg:prop>
+
+This describes a property whose value is "<em>".  If plain literals were
+text, this property value should be "&lt;em&gt;" to distinguish it from
+the markup "<em>".
+
+The fact is that to start treating plain literals as markup would be to
+break every implementation of RDF of which I am aware.  Whatever folks
+think was said in the RDF M&S specification, most if not all
+implementors interpretted it to mean that plain literals were sequences
+of characters, not text or markup.
+
+Rather than break existing implementations, the RDFCore design offers an
+alternative way of representing text.  Plain literals are simply
+sequences of characters, but XML Literals represent XML, including
+markup and text.  This text may be a simple sequence of characters, but
+it may also contain markup, and the distinction between markup and
+content is correctly maintained.  So, the property with an XML Literal
+value:
+
+  <eg:prop rdf:parseType="Literal">&lt;em&gt;</eg:prop>
+
+describes an XML Literal "&lt;em&gt;" which is properly different from:
+
+  <eg:prop rdf:parseType="Literal"><em></eg:prop>
+
+that describes an XML Literal whose value is "<em>".
+
+Thus users who wish to have a uniform mechanism for representing text,
+with no discontinuity between simple text and text with markup that I18N
+desires, should use this parseType="Literal" mechanism.  RDFCore are
+planning to modify the RDF primer and concepts documents to bring this
+fact to the attention of users.
+
+And so I claim that I have made the first point of my argument, that RDF
+provides a uniform mechanism for representing text as required by I18N.
+
+Turning to the second point.
+
+Perhaps it could have been made clear in M&S that literals were really
+text, not just strings of characters.  But it wasn't, and so one reason
+for this design is to avoid breaking existing RDF implementations.
+
+Another concern of I18N has been that the value of an XML literal is
+unaffected by an inscope xml:lang tag when written as RDF/XML.  Thinking
+of this from the point of view of the RDF graph, then either:
+
+  a an XML literal is a pair (lang, XML frag)
+  b the lang tag is part of the XML frag
+
+Considering (a) first.  Think of a graph containing the xml literal
+
+  (en, "<span xml:lang='fr'>chat</span>")
+
+Here we have introduced another discontinuity, this time in the handling
+of language tags.  Implementations are likely to be developed, that when
+they do a search for a literal containing the substring "chat"@en, i.e.
+"chat" with a lang tag "en", they will return the literal in this
+example, which is of course the wrong thing to do, particularly from an
+internationalization point of view.
+
+Perhaps then, (b) is better, to add the lang tag to the xml fragment
+itself.  Because the fragment may be mixed text, e.g. "a<em>b</em>c",
+there may be no outer element to attach the lang tag to, so we must
+invent one, by adding a wrapper element.  The literal described by
+
+  <rdf:Description xml:lang="en">
+    <eg:prop rdf:parseType="Literal">a<em>b</em>c</eg:prop>
+  </rdf:Description>
+
+is "<wrapper xml:lang='en'><a<em>b</em>c</wrapper>".
+
+This approach does provide a uniform handling of the language tag but
+has a number of other disadvantages.  
+
+  - The appearance of this extra wrapper element will surprise the user.
+  - It means that RDF cannot represent arbritary XML fragments, only
+those with an outer <wrapper> element.
+  - it is likely to give API designers some grief, because they will try
+to hide the wrapper element from client code.
+
+Whilst, to be fair it is a judgement call, it seems to me that it is a
+much cleaner design to require the user that cares about the lang tag in
+an XML fragment, to explicitly specify it in that fragment.  The use
+case we are most concerned about is text, and XHTML conviently provides
+the <span> element which can be harmlessly inserted to carry the lang
+tag.
+
+It is correct to argue that this requires the redundant specification of
+lang tags in when the RDF graph is written as RDF/XML.  Each individual
+fragment must carry its own lang tag definition.  This could be a burden
+on the user writing RDF/XML by hand, but here I fall back on the RDF
+design centre, that writing RDF/XML by hand is rare, and this is not a
+significant burden for the tool developer.
+
+Another argument against this design is that it will confuse those
+experienced with XML when they read this automatically generated RDF/XML
+who will expect that an inscope lang tag will affect an xml literal
+fragment.  However, RDF writers typically don't use global lang tags, so
+the question is unlikely to arise.   We could require an xml:lang=""
+attribute next to each parseType="Literal which would remove any such
+confusion, but I suspect that we would agree that is not a useful thing
+to do.
+
+So here I have argued that the simpler design of regarding XML fragments
+in an RDF graph as isolated from context, and requiring them to create
+any context on which they rely is superior to both options (a) and (b),
+and that the disadvantages are not significant.
+
+I suggest that:
+
+  - the current RDFCore design meets I18N's key requirements
+  - it is an acceptable tradeoff of various conflicting design
+paramaters
+  - I18N should support it
+
+If you are still here, thank you for your patience.
+
+Brian
+
+
+  
+
+
+

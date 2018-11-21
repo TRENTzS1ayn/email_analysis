@@ -1,0 +1,191 @@
+docno="lists-011-7609915"
+received="Sun Aug 10 06:04:57 1997"
+isoreceived="19970810100457"
+sent="Sun, 10 Aug 1997 08:02:32 0500 (CDT)"
+isosent="19970810130232"
+name="Klaus Weide"
+email="kweide@tezcat.com"
+subject="Re: REVERSION"
+id="Pine.SUN.3.95.970810012315.27651B100000@xochi.tezcat.com"
+charset="USASCII"
+inreplyto="9708090425.aa26104&#64;paris.ics.uci.edu"
+expires="1"
+
+To:"Roy T. Fielding"<fielding@kiwi.ics.uci.edu>
+Cc: HTTP Working Group<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+On Sat, 9 Aug 1997, Roy T. Fielding wrote:
+
+[Josh Cohen <josh@netscape.com>:]
+> >To summarize, the draft now indicates that the response version
+> >should be the highest version supported by the server, NOT
+> >the version of the actual HTTP response.
+> 
+> To reiterate, it has been that way since 1993.
+> 
+> >My problem with this is based on the assumption in the draft
+> >which dictates that the response version is hop-by-hop.
+> 
+> It is not an assumption -- it is a requirement of HTTP.
+[ -- snip -- ] 
+> 
+> >Worse, if a 1.0 proxy is in the stream, it will blindly pass
+> >the 1.1 response code back to the client, and clearly fails
+> >to honor the hop-by-hop nature of the response.
+> >(this is the case with squid, netscape proxy, and presumable others)
+> >Previously, the 1.0 didnt clearly define what the behaviour
+> >should be in this case.
+> 
+> That simply isn't true unless you have changed the proxy recently.
+> 1.0 required that the proxy send it's own version in any forwarded
+> request or response.  The CERN, Netscape, and Apache proxies all obeyed
+> that restriction last time they were checked.  If Squid managed to scew
+> that up even after three RFCs have been published on the subject, then
+> they can't be trusted to have implemented anything right.
+
+A quick check with reality.  localhost:8080 is CERN/3.0, localhost:squid
+is Squid 1.1.1, none of them "changed recently".
+
+$ telnet localhost 8080
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+HEAD http://www.apache.org/ HTTP/1.0
+
+HTTP/1.1 200 OK
+Date: Sun, 10 Aug 1997 06:45:08 GMT
+Server: Apache/1.3a2-dev
+Cache-Control: max-age=86400
+Expires: Mon, 11 Aug 1997 06:45:08 GMT
+Connection: close
+Content-Type: text/html
+
+Connection closed by foreign host.
+$ telnet localhost squid
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+HEAD http://www.apache.org/ HTTP/1.0
+
+HTTP/1.1 200 OK
+Date: Sun, 10 Aug 1997 06:47:07 GMT
+Server: Apache/1.3a2-dev
+Cache-Control: max-age=86400
+Expires: Mon, 11 Aug 1997 06:47:07 GMT
+Connection: close
+Content-Type: text/html
+
+Connection closed by foreign host.
+
+I have also checked, for both proxies, that
+- this is not a particularity of the HEAD method (It happens with GET,
+  too)
+- for GET, if the request is repeated and the response served from the
+  proxy's cache, the response is still sent with "HTTP/1.1".
+
+This shows that at least these two 1.0 proxies do not send their own
+version in a forwarded (OR cached) RESPONSE.
+
+Now for whether they downgrade the version to their own in a REQUEST -
+yes, they both do: (only shown for CERN/3.0)
+
+$ telnet localhost 8080
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+HEAD http://www.apache.org/ HTTP/1.1
+Host: www.apache.org
+
+HTTP/1.1 200 OK
+Date: Sun, 10 Aug 1997 07:07:25 GMT
+Server: Apache/1.3a2-dev
+Cache-Control: max-age=86400
+Expires: Mon, 11 Aug 1997 07:07:25 GMT
+Connection: close
+Content-Type: text/html
+
+Connection closed by foreign host.
+$
+
+This is what goes over the wire:
+
+        HEAD / HTTP/1.0
+        Host: www.apache.org
+        User-Agent: Proxy gateway CERN-HTTPD/3.0 libwww/2.17
+
+So both proxies act according to the expectation (aka: requirement) in one
+direction but not in the other.
+
+A HTTP 1.0 client accessing a 1.1 origin server through such a proxy
+will never improperly receive (for example) a chunked response, since the
+server won't send it through that proxy.
+
+The only harm I can see is with a HTTP 1.1 (or higher) client, which could
+be misled into believing that it is talking to a 1.1 proxy.  As a result
+it might attempt to use a 1.1-only feature in a later request through that
+proxy - for example sending a chunked request body in a POST.
+
+> We simply cannot get around this requirement. ANY proxy which fails
+> to indicate its own HTTP-version is incapable of supporting ANY
+> future enhancements to the protocol, period.  HTTP will be dead.
+> Think about it: the only thing that does not get forwarded by a
+> valid proxy is the Request-Line/Status-Line.  ANY other indication
+> of a version number, e.g. some version number in a header, WILL be
+> forwarded by an old proxy.  
+
+And, as shown above, so will version numbers _in responses_, by at least
+two 1.0 proxy implementations.
+
+> If we can't rely on HTTP-version, what
+> makes you think we can rely on anything else?
+
+In general I think the definition of HTTP-version is fine, as set out in
+RFCs 1945, 2068, and 2145.  But the existence of old (pre-1945) proxies
+which do not obey RFC 1945
+                                     "Since the protocol version
+   indicates the protocol capability of the sender, a proxy/gateway must
+   never send a message with a version indicator which is greater than
+   its native version;"
+for response messages should not just be denied.
+
+Higher version clients and servers could work around it by agreeing on a
+special connection token for detection, as described below.  Admittedly
+it's ugly and wastes bytes - but as far as I can see it would work, under
+the stated assumptions.  (It would make all proxies of this kind 
+detectable reliably by any >1.0 client if all >1.0 servers would implement
+it.  Of course it's already too late for that.)
+
+Assuming that only (some) 1.0 proxies are broken, in the way shown above,
+that such proxies still downgrade the REQUEST version correctly, and that
+they do NOT understand the Connection header:
+
+   All HTTP/1.N, N > 0 servers send the following IF and only IF the
+   request was a HTTP/1.0 request [possible addition: AND it is NOT known
+   that the next-hop client is NOT a "broken" 1.0 proxy], AND IF the
+   server does not choose to downgrade its response version to HTTP/1.0
+   (as allowed by RFC 2145 2.3 last para):
+
+   Connection: If-you-are-gt-1.0-Dont-trust-Version-gt-1.0-for-next-hop
+
+   If a HTTP/X.Y, X.Y > 1.0 client receives this token in a HTTP/1.N, N>0
+   response to a request (for it did not downgrade its request version to
+   1.0 as allowed by RFC 2145 2.3 third para), it can assume that the
+   next-hop server is really a 1.0 proxy.
+
+   And of course in reality the token should be shorter.  Maybe more like
+
+   Version-kludge: my.host.name.com 1.1  (thrown in for debugging)
+   Connection: version-kludge, close
+
+This is one idea that would require cooperation (or a protocol change) from
+servers not directly involved.  However, since the problem is only with
+detecting the correct version of a next-hop proxy, there often will be
+other means - out-of-band information or configuration, checking directly
+with OPTIONS or TRACE if a proxy appears to be >1.0, or similar.
+
+
+    Klaus
+
+
+

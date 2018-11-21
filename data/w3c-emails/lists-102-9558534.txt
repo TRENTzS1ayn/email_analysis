@@ -1,0 +1,145 @@
+docno="lists-102-9558534"
+received="Tue Oct 13 07:35:59 1998"
+isoreceived="19981013113559"
+sent="Tue, 13 Oct 1998 12:30:59 +0100"
+isosent="19981013113059"
+name="Miles Sabin"
+email="msabin@cromwellmedia.co.uk"
+subject="Relation between core DOM and HTML DOM"
+id="c=US%a=_%p=Cromwell_Media%l=ODIN-981013113059Z-21171@odin.cromwellmedia.co.uk"
+expires="-1"
+
+
+To:"'Don Park'"<donpark@quake.net>,"'DOM list'"<www-dom@w3.org>
+
+This might belong on Don's 'grey areas' list, but I think the issue is a
+bit more fundamental.
+
+The REC doesn't (unless I've missed it) give any advice on the
+relationship between HTML DOM classes and core DOM classes. On the face
+of it the HTML classes are, roughly speaking, convenience classes,
+supplying convenience methods over and above those provided by the core.
+If that were the case then we ought to expect that the following two
+DOMs ought to be, to all intents and purposes, equivalent ...
+
+  import org.w3c.dom.*;
+  import com.cromwellmedia.dom.*;
+
+  Document doc = new BasicDocument();
+  Node html = doc.appendChild(doc.createElement("HTML"));
+  Node head = html.appendChild(doc.createElement("HEAD"));
+  Node title = head.appendChild(doc.createElement("TITLE"));
+  title.appendChild(doc.createTextNode("The title"));
+  Node body = doc.appendChild(doc.createElement("BODY"));
+  Element image = doc.createElement("IMG");
+  body.appendChild(image);
+  image.setAttribute("src", "foo.gif");
+
+and,
+
+  import org.w3c.dom.*;
+  import org.w3c.dom.html.*;
+  import com.cromwellmedia.dom.html.*;
+
+  HTMLDocument doc = new BasicHTMLDocument();
+  HTMLFactory fact = doc.getHTMLFactory();
+  Node html = doc.appendChild(fact.createHtmlElement());
+  Node head = html.appendChild(fact.createHeadElement());
+  doc.setTitle("The title");
+  Node body = html.appendChild(fact.createBodyElement());
+  HTMLImageElement image = fact.createImageElement();
+  body.appendChild(image);
+  image.setSrc("src", "foo.gif");
+
+both representing,
+
+  <HTML>
+    <HEAD>
+      <TITLE>
+        The title
+      </TITLE>
+    </HEAD>
+    <BODY>
+      <IMG src="foo.gif">
+    </BODY>
+   </HTML>
+
+However, typical core DOM implementations are not going to be aware of
+the special characteristics of HTML, so various operations defined over
+these two DOMs will behave differently, viz.
+
+  image.getAttributeNode("SRC")
+
+will return non-null for the HTML DOM, because HTML attribute names are
+case-*insensitive*, whereas it will return null for the core DOM,
+because core attribute names are case-*sensitive*. The fact that the
+behaviour differs demonstrates pretty conclusively that the HTML DOM
+interfaces don't simply represent convenience methods.
+
+Here's another case which illustrates some of the problems which might
+crop up for implementors. Suppose we have a DOM which combines instances
+of classes from both the core and the HTML DOM, owned by a core DOM
+document,
+
+  Node table =
+    someCoreDoc.appendChild(someCoreDoc.createElement("TABLE"));
+  HTMLTableSectionElement tbody =
+    new BasicHTMLTableSectionElement("TBODY")
+  table.appendChild(tbody);
+  tbody.insertRow(0);
+
+As far as I can see there is nothing in the spec which excludes this
+scenario, and, indeed, given the abscence of any portable way of
+creating the HTMLXXX classes, DOM users might well be tempted to use the
+portable core DOM factory methods to create HTML elements.
+
+Now, a typical implementation of HTMLTableRowElement might want to
+define getRowIndex() along the following lines,
+
+  HTMLTableElement parentTable =
+    (HTMLTableElement)getAncestor("TABLE");
+
+  HTMLCollection rows = parentTable.getRows();
+  Node row;
+  for(int i = 0; (row = rows(i)) != null; ++i)
+    if(row == this)
+      return i;
+
+But this will, of course, fail for the example given, because
+the ancestor TABLE element is an instance of a core DOM class, obtained
+from a core DOM document factory method. In other words, an HTMLXXX
+element cannot safely assume that its ancestors, siblings or descendents
+implement HTMLXXX interfaces because it has no way of knowing how they
+were created. As far as I can see HTML DOM implementors have two
+choices: they can either make some assumptions about the context of
+HTMLXXX instances, simplifying their implementation at the risk of
+fragility; or they can code defensively, leading to a significant
+complexity.
+
+I would be inclined to say that this was a straightforward 'quality of
+implementation' issue, but for the fact that it's really not clear that
+there *is* any correct behaviour as the spec is currently written. At
+the very least it would need an additional requirement that HTMLXXX
+elements can only be owned by documents which implement the HTMLDocument
+interface. If that were the case then implementations of HTMLDocument
+could override the Document factory methods to ensure that all nodes in
+the tree were instances of classes which implement the appropriate
+HTMLXXX interfaces.
+
+As an addendum, I think it is a matter of some urgency that a portable
+method for creating instances of Document, HTMLDocument and of the
+various HTMLXXX elements is devised.
+
+Cheers,
+
+
+Miles
+
+-- 
+Miles Sabin                          Cromwell Media
+Internet Systems Architect           5/6 Glenthorne Mews
++44 (0)181 410 2230                  London, W6 0LJ
+msabin@cromwellmedia.co.uk           England
+
+
+

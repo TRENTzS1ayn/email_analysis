@@ -1,0 +1,101 @@
+docno="lists-013-7745512"
+received="Mon Feb 23 16:34:05 2004"
+isoreceived="20040223213405"
+sent="Mon, 23 Feb 2004 14:34:02 0700 (MST)"
+isosent="20040223213402"
+name="Alex Rousskov"
+email="rousskov@measurementfactory.com"
+subject="Re: Meaning of Vary header applied to nonexistent headers"
+id="Pine.BSF.4.58.0402231348010.78349@measurementfactory.com"
+charset="USASCII"
+inreplyto="20040223204041.GA32719&#64;mail.shareable.org"
+expires="1"
+
+To: Jamie Lokier<jamie@shareable.org>
+Cc:ietf-http-wg@w3.org
+
+
+
+
+On Mon, 23 Feb 2004, Jamie Lokier wrote:
+
+> 1. When an origin server selects the response by looking at a request
+>    header, and the header does not exist, is it correct for the server to
+>    add the name of that header to Vary?
+
+If cachable response depends on header X, the server must add a
+Vary: X
+or
+Vary: *
+header. This behavior should be independent from actual headers
+present in the request (IMO).
+
+> 2. How should a cache treat missing requests headers which are
+>    mentioned in Vary, when deciding if a stored entity matches a
+>    request?
+
+As you know, RFC 2616 defines Vary matching based on the existence of
+a LWS/merge transformation. Such transformation cannot add new or
+remove existing headers. Thus, IMO, a present header can never match
+an absent header. An absent header matches an absent header.
+
+> ...
+> I would imagine that in case a, the entity matches, and in cases b
+> and c, the entity doesn't match and must be revalidated.
+
+I agree.
+
+>    The selecting request-headers from two requests are defined to match
+>    if and only if the selecting request-headers in the first request can
+>    be transformed to the selecting request-headers in the second request
+>    by adding or removing linear white space (LWS) at places where this
+>    is allowed by the corresponding BNF, and/or combining multiple
+>    message-header fields with the same field name following the rules
+>    about message headers in section 4.2.
+>
+> Is this supposed to mean that an absent header is equivalent to an
+> empty header, or that an absent header is semantically a distinct
+> value from an empty header, or that an absent header is not considered
+> at all in the decision, or that an absent header cannot be matched
+> even with an absent header in the original request for the cached
+> entity?
+
+If both requests lack a varied header X, then a null transformation
+(i.e., transformation that does nothing) matches them.
+
+To match a header without a field-value with an absent header one
+would need to add a header name to one of the requests, which is
+probably not a part of the allowed transformation. However, a header
+without field-value and/or a header without field-content (RFC 2616
+BNF is ambiguous in this context) are strange animals, and I would not
+recommend counting on any specific implementation of related
+requirements.
+
+> 3. Does this mean that server code which inspects a header value, and
+>    finds the header missing, should look like this instead?
+>
+>        IF exists request_headers (Accept-Language) THEN
+>            reponse_headers (Vary) = "Accept-Language"
+>        ELSE
+>            response_headers (Vary) = "*"
+>        ENDIF
+>
+>        IF request_headers (Accept-Language) contains "ja" THEN
+>    serve the japanese page
+>        ELSE
+>            serve the english page
+>        ENDIF
+
+I would add Vary header unconditionally. Whether you want to disable
+caching depending on request properties is a question that goes beyond
+protocol semantics. The right thing to do would depend on the
+trade-off between more hits and fewer incorrect objects delivered.
+
+Note that a valid Accept-Language cannot be empty. It is not clear,
+however, how an invalid header is supposed to be treated by the
+matching algorithm in the RFC.
+
+Alex.
+
+
+

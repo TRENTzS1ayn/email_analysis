@@ -1,0 +1,86 @@
+docno="lists-105-1660455"
+received="Sat Jan  3 20:09:39 2004"
+isoreceived="20040104010939"
+sent="Sat, 03 Jan 2004 20:08:39 -0500"
+isosent="20040104010839"
+name="Steve Schafer"
+email="steve@fenestra.com"
+subject="Re: L3 LS: Configuration parameter to enable/disable application specific  DOM"
+id="gllevvog3us87uu2gvlu6ja8dlltkj6sfv@4ax.com"
+charset="us-ascii"
+inreplyto="3FF74F8B.9060401&#64;houston.rr.com"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+
+On Sat, 03 Jan 2004 17:26:03 -0600, Curt Arnold <carnold@houston.rr.com>
+wrote:
+
+>I'd like comments on this if anyone has thought this through.  Assume 
+>that you have an implementation that supports Core on generic XML 
+>documents and application specific DOM, such as L2 HTML, SVG or MathML.  
+>If you automatically created the application specific elements when you 
+>encounted recognized elements, you may incur additional overhead in DOM 
+>building and may reject documents that are valid XML but aren't valid 
+>XHTML or SVG.  However, if you don't automatically do that, you always 
+>get a generic DOM implementation.  I think that doing this right would 
+>require an additional configuration parameter in LSParser, but I haven't 
+>thought through what that would look like.
+
+I'm not sure I understand what you're asking, but let me see if this is
+it:
+
+You want a configuration switch that tells the parser to behave as an
+"application-aware" parser vs. a generic parser. If set to
+"application-aware," and it encounters an invalid element or attribute,
+it would presumably fail in some way, or attempt some kind of recovery,
+etc. If set to "generic," it would succeed as long as the document is
+well-formed (you said "valid" in your message, but I think you meant
+"well-formed," no?), but the downside is that the final result is a
+generic DOM object tree, devoid of any language-specific semantics or
+functionality.
+
+Is that a reasonable elaboration?
+
+In my own work, I've put together a system that instantiates elements
+and attributes on a purely namespace+scoping basis. "Smart" elements are
+instantiated based on their qualified names, and "smart" attributes are
+instantiated based on the combination of their qualified names plus the
+qualified names of the elements that own them (this is necessary for
+SVG, where the same name is used for attributes having different
+semantics when contained within different elements).
+
+If a qualified name is not recognized by the parser, it "falls through"
+and a generic DOM element or attribute object is instantiated. So, in a
+limited sense at least, the parse always succeeds, in that the parser
+never fails because of invalidity. However, it's possible that an
+attempt to insert the wrong kind of content or attribute into an element
+might cause an exception to be raised. For example, assuming my parser
+understands both SVG and XHTML:
+
+ <!--namespace declarations omitted for brevity-->
+ <svg>
+   <html/>
+ </svg>
+
+Here, the <html> element will be instantiated successfully, but an
+exception will be raised upon the attempt to insert it as a child of the
+<svg> element. Note that the exception is not raised by the parser, but
+by the "smart" <svg> element itself, which knows that it shouldn't have
+an <html> element as a child.
+
+Anyway, back to your question: I'm not sure that I would consider this
+to be as much a parser configuration setting as an application
+configuration setting. At least part of my rationale for this is because
+of the way my parser works, as described above--it's left up to the
+"smart" elements themselves, rather than the parser, to decide what's
+right and what's not.
+
+Steve Schafer
+Fenestra Technologies Corp
+http://www.fenestra.com/
+
+
+

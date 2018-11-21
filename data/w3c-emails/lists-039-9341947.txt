@@ -1,0 +1,205 @@
+docno="lists-039-9341947"
+received="Sat Sep 25 00:44:10 1999"
+isoreceived="19990925044410"
+sent="Sat, 25 Sep 1999 00:44:06 -0400"
+isosent="19990925044406"
+name="Geoffrey M. Clemm"
+email="gclemm@tantalum.atria.com"
+subject="Re: DELETE leaving a lock-null resource; was LOCK Scenarios"
+id="9909250444.AA08814@tantalum"
+inreplyto="078292D50C98D2118D090008C7E9C6A603C9668C&#64;STAY.platinum.corp.microsoft.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+   From: "Yaron Goland (Exchange)" <yarong@Exchange.Microsoft.com>
+
+   <gmc/> The proposed protocol would allow a server to lock the namespace,
+   but would not *require* it to do so.  This lets a low-end server
+   just lock the namespace, while letting a high-end server support
+   versioning and multiple bindings while ensuring a low-end (or any)
+   client access to his/her locked resource.  A win/win, I believe.
+
+   <yg/> It is lose/lose if you are a client writer. When I write my
+   client I MUST know EXACTLY what the behavior is. I can not have a
+   situation where I am editing a document in Word, I lock the document
+   and then the damn name changes! When I lock a resource I am also
+   locking the name I am editing that resource under. It MUST NOT ever
+   change. Any other behavior makes writing a simple client impossible.
+
+First, let's be clear on what the proposal is:
+
+When you issue a write lock request on a URL that maps to a resource
+R, the state (i.e. body and properties) of R can only be updated by
+PUT and PROPPATCH when the request is accompanied by the lock token.
+Furthermore, until an UNLOCK is performed, a GET, PUT, PROPFIND, and
+PROPPATCH to the original URL when accompanied by that lock token will
+always apply to that resource, even if that resource has been MOVE'd
+or DELETE'd subsequent to the LOCK request.
+
+One way a server can implement these semantics is to fail any MOVE's
+or DELETE's that would modify this URL mapping.  Another way would be
+to just remember what resource the URL with that lock token maps to.
+Same protocol, different implementation choices.
+
+In either case, the desired effect, namely that I can:
+  LOCK U => token-55
+  GET U, token-55 => entity
+  PUT U, token-55, body
+  PUT U, token-55, body
+  UNLOCK U, token-55
+with the guarantee that all the GET's and PUT's will refer to the same
+resource, and that only a client with token-55 can update U after the
+LOCK request until the UNLOCK request has been issued.
+
+I admit that the requirement that the token be used with the GET
+statement is an incompatibility with the old spec, but it is by
+no means complex for clients to handle.
+
+   One of the really scary things I have heard both you and JimA say is how
+   glad you are that WebDAV will offer many choices and allow for various
+   gradations of service. THIS IS A MISTAKE! We are in the standards business,
+   not the buffet business. Choice kills interoperability. That is what makes
+   standard writing so damn hard. You can't give everyone everything and have
+   interoperability so you have to screw over everybody. Hence the definition
+   of compromise as "When no one gets what they want."
+
+There are two very separate issues here.  The first is whether the protocol
+should be compatible with a variety of server implementations.  I (and
+I'm sure JimA) feel that is a good thing.
+
+The second is whether a protocol should have many or any "optional"
+parts.  If there's anything that JimA has been adamantly opposed to,
+it is any "optional" protocol parts.  I share that view entirely (for
+all the obvious reasons having to do with interoperability and
+minimizing client complexity).  It is only with great anguish
+(easily commensurate with that involved in making locking optional)
+that we have broken the versioning protocol into "core" and "extended"
+functionality.  But that is not what is going on here with locking,
+so lets defer that discussion until we're dealing with the versioning
+protocol.
+
+For the locking protocol, the flexibility that is being discussed
+is only of the first kind, i.e. there being one single (simple)
+protocol definition, that admits a variety of implementation choices
+by servers.
+
+   <yg/>I would remind everyone of two very important WebDAV maximums:
+   1) The spec is done when there is nothing left to cut.
+   2) There are two types of features, mandatory and not in the spec.
+
+<gmc/> I am a strong believer in both of these maxims.  In particular, the
+main changes I want to make to 2518 is in the "cutting" area.  For
+example, lock-null resources.  As for optional features, it is
+only as a *very* last resort that a protocol is split into two
+pieces, but as can be seen in the 2518, sometimes the last resort
+is the only place you can go.
+
+   <yg/> Just making locking optional required six months of debate and almost
+   resulted in bloodshed.
+
+<gmc/> Our experience with versioning as well, on the issue of breaking
+the spec into "core" and "extended".
+
+   <yg/> This is what I mean about thinking out of the box. Someone said "this
+   resource is versioned." Once you have an affirmative command like that you
+   can do anything you want. For example, you can say "A DELETE on a versioned
+   resource without the magic foobar header deletes all links but the one to
+   the history, not the resource."
+
+<gmc/> The versioning example was just an example.  The decision by
+the advanced collection team to propose that DELETE be "unbind" was
+done independently of any needs of versioning.  John Stracke recently
+posted a simple authoring example of why unbind is the "right"
+semantics in the presence of multiple bindings.
+
+   Yaron: A DELETE on a versioned resource without the magic foobar header
+   deletes all bindings but the one to the history, not the resource.
+
+<gmc/> The presence of magic foobar headers that significantly change the
+semantics of basic operations is not in my view a recipe for success.
+One then has to define the correct behavior of all those magic headers
+when combined in various ways, and the likelihood of two servers doing
+all the magic in compatible ways decreases severely.  Just look at all
+the mail about the behavior of depth locking and URI protection and
+null resource locking in the presence of multiple bindings.  Imagine
+trying to make sense of this if there was a magical header that
+changed the meaning for versioning, and another magical header that
+changed the locking behavior of MOVE.
+
+   Notice the difference. The default behavior for DELETE is still to nuke the
+   resource. But in a case where we have positive affirmation that the behavior
+   is to change then change away.
+
+<gmc/> I have seen no convincing reason for having DELETE nuke the
+resource.  For downlevel clients and servers that do not support
+multiple bindings, there is no difference between unbind and destroy.
+What incompatibility are you trying to avoid by making the semantics
+be destroy?
+
+   <yg/> Also notice that this DOES NOT mean that DELETEing a resource with
+   references only deletes the reference. It only applies to the particular
+   case of a versioned resource.
+
+As above, special casing is not a path that leads to simplicity, either
+for clients or for servers.
+
+   <gmc/> In a file system, if you move a resource, it keeps its permissions.
+   I don't consider a file system something provided by only a super high
+   end provider, but they have no trouble moving permission 
+   style information
+   along with a resource (I know permissions are not locks, but analogous
+   implementations can be used).
+
+   <yg/> True but it doesn't keep its locks.
+
+That's fine.  Then it just fails the move, and the client has to
+unlock before moving.
+
+But just for my own edification, I'd *really* be interested in knowing
+what these file system locks are that you refer to.  What locks??
+I've seen no user visible locks (in the WebDAV sense, with lock
+tokens) in either Unix file systems or the Windows95 file system.  I
+don't say that there aren't any, but I've never seen them exposed.  Is
+this some internal implementation thing that is under the hood?  Did
+I just miss them (I believe you've seen this question from me before :-).
+
+   The file system has no way to maintain
+   the lock across moves. This becomes especially important for the average
+   case where you need to expose that lock through multiple protocols. These
+   are the sorts of nitty gritty issues you only live and breath if you ship
+   file systems for a living. The problem is that none of the active members
+   seem to do that.
+
+If a server can't support a move of a lock, it simply fails the move.
+The client gets the error code back, unlocks the resource, and then
+performs the move.  Easy for the client, easy for the server.
+I continue to fail to see any problem here.
+
+   > I need at least one example of such an unimplementable
+   > feature of the protocol before I can address the issue.
+
+   How about locks surviving moves? 
+
+A server is free to refuse a move request it cannot honor for any
+reason, whether because it cannot move locks, or because it cannot
+perform cross-server moves, or whatever.  In the former case, the
+client unlocks and retries the move.  In the latter case, the client
+tries a copy/delete if that is OK.  Easy for server to detect and
+implement, well defined error codes, simple client responses.
+
+   How about allowing the name of a file to change when locked?
+
+If you have the request-URL for the lock and the lock-token that was
+returned, you are guaranteed to be able to keep using them to access
+the locked resource.  That's the key use case, and it still works.
+
+So I'm still waiting for something hard for the server or the client (:-).
+
+Cheers,
+Geoff
+
+
+

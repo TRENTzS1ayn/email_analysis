@@ -1,0 +1,236 @@
+docno="lists-056-1666238"
+received="Fri Jun 20 14:19:40 1997"
+isoreceived="19970620181940"
+sent="Fri, 20 Jun 97 11:56:06 CDT"
+isosent="19970620165606"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.UIC.EDU"
+subject="Re: Parameter entities vs. GI name groups"
+id="199706201819.OAA03677@www10.w3.org"
+inreplyto="Thu, 19 Jun 1997 08:28:08 -0400 (EDT)"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+This is just to register (again) my views on parameter entities in XML.
+
+1 The claim that they are hard to implement is simply bogus.  I can't
+believe I'm hearing it from people whose technical judgement I take
+seriously.
+
+The only thing I can see that's hard to implement about PEs in 8879 is
+the odd requirement that they can begin and end at *almost any* but *not
+quite any* white space; this requires (a) that in a yacc/lex parser the
+parameter entities be expanded by the lexer, but that (b) the parser
+include various ad hoc rules for checking that (i) the PE begins and
+ends in legal places and (ii) the PE does not cross any forbidden
+boundaries (in a content model, its parentheses match; it doesn't begin
+and end in different declarations; etc.); also (c) that the yacc
+grammar be encrufted with ps nonterminals and the like.
+
+
+All of this is gone in XML.  To implement PEs as defined in XML-lang
+970331, all that's needed is a very simple pattern, similar to that
+required by matching parentheses:
+
+* In the parser, when transcribing the grammar, replace each %
+expression in the right-hand side of a rule with a single non-terminal
+with a name beginning with the prefix 'pe_'.  Define the pe_
+non-terminal as
+
+  pe_foo : PE_START optional_s foo_expression optional_s PE_END
+
+where 'foo_expression' is the expression governed by the % operator,
+after recursive substitution of nested %-expressions.
+
+* In the lexer, insert rules like the following
+
+"%"{Name}";"    { yyin = OpenEntity(yytext);
+                  /* i.e. set yyin to the appropriate external data
+                     stream or internal buffer; push old yyin onto stack
+                  */
+                  return PE_START;
+                }
+<<EOF>>         { yyin = CloseEntity(); /* pop the entity stack */
+                  if (yyin==NULL) {
+                     yyterminate(); /* if we just closed the outer
+                                       entity */
+                  } else {
+                     return PE_END;
+                  }
+                }
+
+That's all.  So what part of this is supposed to be so hard that a
+computer science graduate student is supposed to need more than fifteen
+minutes for it?  (Oh, right.  Doing this means finding and reading
+the relevant part of the flex manual.  OK:  45 minutes for finding the
+place in the manual; 20 minutes to read and grasp it; 10 minutes to
+write the code.)
+
+This is not rocket science; it's not even news, since this came up in
+April on xml-dev, when Norbert Mikula was having trouble making NXP's
+parser generator handle the PE rules.  He solved it, and since for
+better or worse he *is* a graduate student in computer science, I think
+the evidence shows (a) that PEs do not present impossible implementation
+loads, and (b) the canary in the mineshaft is still alive and chirping.
+
+Frankly, I think the fact that an amateur like myself can figure
+this out qualifies it for 'not-that-hard' status.  I studied
+comparative literature, for crying out loud!  Can PEs really be
+easy for a fluffy like me and hard for hardened veterans like Tim
+Bray?
+
+2 Losing PEs means giving up entirely on our second design goal:  "XML
+shall support a wide variety of applications", because it means XML will
+be usable primarily as a delivery mechanism for material maintained
+outside XML.  I haven't seen any reason to give up on this design goal.
+
+3 Losing PEs entirely means:
+
+  - no conditional marked sections in DTDs or elsewhere (and thus no
+serious customizable DTDs in XML, only frozen snapshots of Full-SGML
+DTDs after application of the customization layer)
+  - no method for embedding DTD modules in DTDs constructed of such
+modules (the TEI is not the only one, but the TEI is the one I am
+thinking about right now)
+  - no method of embedding the ISO entity sets in a suitable XMLified
+version
+
+The proponents of this meataxe have yet to point out as an advantage
+that losing PEs reduces our work load: we no longer have to bother
+making an XML version of ISOLat1, ISOLat2, etc., because they won't be
+usable anyway.
+
+In that case, do we need *general entities* any more, either?
+
+And all this because PE_START ... PE_END bracketing is too hard?
+
+Perhaps we should get rid of start-tag and end-tag bracketing, too?
+Then we could just call it troff and be done with it.
+
+4 The effect of simplifying PEs varies with the proposal:
+
+4a Lose the 8879 restrictions.  A non-starter:  valid XML documents,
+including their prologs, need to be valid SGML.  I agree that this
+would be an improvement for 8879, since the rules in 8879 don't seem
+to me to achieve their goal of preventing obfuscation (they can
+always be evaded by adding another level of obfuscation, so in fact
+to the extent people do want to do bizarre and reprehensible things
+in the DTD, the 8879 rules make matters worse by preventing simple,
+straightforward expression of bizarre and reprehensible constructs,
+while allowing bizarre and convoluted expressions of those same
+constructs -- a lesson not likely to be lost on the devious minds who
+want to do those things in the first place).  I assume it's too late for
+the TC, though (we missed our chance:  if we had had the % notation in
+XML-ling-961114, we would have noticed that the TC could help us out
+here).
+
+4b Restrict parameter entity references to occurring *between*
+declarations, or as conditional-section keywords, and require PEs to
+contain some integral number of declarations, or the keywords 'INCLUDE'
+or 'IGNORE'.  I believe this is James Clark's suggestion.
+
+This amounts to restricting the % operator to productions
+29 (markupdecl) and 56-57 (conditional sections) and losing it in
+
+  39 (where PEs can currently provide for indirection in the element's
+generic identifier, the tag-omissibility needed by most Full-SGML
+systems, and the content specification),
+  42-45 (PEs within content models)
+  46-47 (gi, attribute definition, parts of the attribute definition)
+  52 (notation names)
+  53 (enumerated types within an attribute's Atttype)
+  54 (attribute default and whether it's FIXED or not)
+  63 (entity name and replacement text)
+  67 (notation name on entity declarations)
+
+This approach means XML can at least use XMLified versions of the ISO
+entity sets, but I can't imagine any serious DTD maintenance taking
+place in XML.  Any DTD which needs easy customization or maintenance
+(and I don't know of any other kind except toy DTDs) will have to be in
+Full-SGML, not XML; as a result, no authoring or markup management or
+data enrichment can usefully take place in XML, only in Full SGML.
+
+There goes goal 2.  This approach does have the advantage of making
+XML a usable language for delivery of material on the Web, and a
+reasonable toy language for markup.  Without this, XML isn't even a
+good toy language.
+
+4c Restrict the use of PEs more than 8879 does, and more than XML
+currently does, but not as much as 4b; I think this is Bernhard
+Weichel's suggestion.
+
+This is at least less damaging than the other options, and I've never
+wanted to use a parameter entity for the notation name on an entity
+declaration (though now that I think of it, that might solve a problem
+I'm now having in a production system ... ).  So maybe restricting the
+use of PEs to (say) productions 39, 42-47, and 54 wouldn't be a
+catastrophe.  But I don't think it will satisfy those who claim
+(simultaneously!) that PEs are too complicated, but that the various
+namespace proposals we've seen are *not* (!), and (b) it reduces the
+regularity of the grammar, where right now you can virtually always use
+PEs to replace (a) any single token, and (b) any major top-level part of
+a declaration.
+
+5 Losing PEs in the syntax means losing DTDs in practice.
+
+This one's a multi-step argument; bear with me.
+
+If we lose PEs, I am confident that no DTD designer of sound mind and
+not forced to it with whips and cattle prods will ever attempt to build
+a DTD in XML except by automatic translation from a Full-SGML DTD.
+
+Since XML DTDs won't be customizable, except in trivial and error-prone
+ways, XML won't be much use as a format for document maintenance.
+
+Since XML won't be much use for document maintenance, it will be used
+primarily (in my case, solely, just like HTML) for document delivery on
+the Web.
+
+Since serious information publishers will tend to validate documents
+before serving them on the Web, XML document instances for which DTDs
+actually exist will tend to have been validated against that (Full-SGML)
+DTD before publication; strictly-XML processors will hardly ever need to
+validate any documents, because strictly-XML processors will hardly ever
+see documents being changed or maintained, only frozen documents
+converted from a full-SGML system.
+
+Since most XML documents will be prevalidated, and most XML processors
+will choose to rely on that prevalidation, the document type declaration
+in an XML document will not be of much more use than the document type
+declaration in an HTML document today.  It will, that is, be purely
+decorative (a way to detect the cognoscenti among information providers)
+and fundamentally irrelevant to processing.
+
+This is a very serious topic, and I dissent from Eve's view that we need
+to gather usage experience before including PEs in XML.  If PEs are not
+in version 1.0, there won't be any usage that requires PEs, ever,
+because we will have driven all such usage to Full SGML or over to other
+non-standard subsets of SGML, and set up a neon sign rivaling those in
+Times Square, saying XML DOES NOT CARE ABOUT DOCUMENT MAINTENANCE OR
+VALIDATION.  DTDS IN XML ARE STRICTLY DECORATIVE.  SO FORGET XML, ALL
+YOU WHO ARE LOOKING FOR WAYS TO *WORK* WITH YOUR DOCUMENTS.
+
+Me, I think DTDs are not merely decorative.  If the XML spec loses PEs,
+it will (for my purposes) be XML, not the DTD, which becomes decorative.
+
+XML should be a real language for real documents. That means it has
+to have real, serious DTDs.  That means PEs.  Without it, I don't see
+that we've got ourselves a serious improvement over the current system:
+maintain in SGML, down translate, deliver in &web-markup-lang-of-month;.
+
+Apologies to those who don't like the sight of grown men screaming in
+agony on the network.
+
+-C. M. Sperberg-McQueen
+
+*****************************************************************
+* "SGML doesn't have lookahead because ?N.N.? couldn't make     *
+* lookahead work in his parser.  And now XML is going to lose   *
+* parameter entities because ... ?"                             *
+*                        -Name withheld to protect the Guilty   *
+*****************************************************************
+
+
+

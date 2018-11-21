@@ -1,0 +1,146 @@
+docno="lists-040-5072519"
+received="Fri Dec  8 21:52:24 2000"
+isoreceived="20001209025224"
+sent="Fri, 8 Dec 2000 18:55:05 -0800"
+isosent="20001209025505"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: PUT and Lock"
+id="20001208185504.U30644@lyra.org"
+charset="us-ascii"
+inreplyto="B99BE740B488D311B4AA00805FBB776750A705&#64;gbrwgcms03.wgc.gbr.xerox.com"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+On Fri, Dec 08, 2000 at 03:09:03PM -0000, Hall, Shaun wrote:
+> Greg Stein wrote:
+>...
+> > A precondition with a no-tag-list 
+> > refers to all
+> > URIs involved in the operation. In this case: the Request-URI 
+> > and the parent
+> > collection. The no-tag-list is asserting a lock token on 
+> > *both* resources,
+> > the but the Request-URI does not have any locks associated 
+> > with it (it is a
+> > null resource).
+> 
+> Err where does it state that a no-tag-list refers to all URIs involved in
+> the operation?
+> 
+> Section 7.6 "...the If header for all locked resources that a method may
+> interact with or the method MUST fail."
+> 
+> Well, the null-resource isn't locked, so this statement doesn't apply.
+
+You took that out of context. The statement indicates that you must supply
+locktokens "in the If header ...". The statement does not indicate what the
+If: header *applies* to.
+
+> Section 9.4.1 No-tag-list states "If a method, due to the presence of a
+> Depth or Destination header is applied to multiple resources, then the
+> no-tag-list MUST be applied to each resource ...".
+> 
+> We don't need Depth or Destination headers with a PUT. So how do you
+> conclude that all URIs are involved?
+
+I consider the spec to be deficient. You didn't quite quote it properly, and
+the commas and complete sentence are important:
+
+  "If a method, due to the presence of a Depth or Destination header, is
+   applied to multiple resources then the no-tag-list MUST be applied to
+   each resource the method is applied to."
+
+I read "..., due to the presence of a Depth or Destination header, ..." as
+an appositive. It is suggesting a way that multiple resources are involved,
+but I do not view it as the canonical/complete list. For example, a MOVE
+applies to a whole tree of resources, even when a Depth: header is not
+present.
+
+Second, the last phrase "... each resource the method is applied to." While
+the "null resource" is not truly a resource, so it makes the above phrase a
+bit confusing to tell whether it applies or not (e.g. it isn't a valid
+resource, so it doesn't apply; or a null resource is a *type* of resource,
+so it does apply), I consider that the PUT method *does* apply to the null
+resource in question.
+
+> I interpreted (IMHO) the no-tag-list to be applied to just the parent in
+> this scenario.
+
+To use your argument ... where does it say it must be applied to the parent?
+hehe :-)
+
+If you submit a request with an If: header, then I've got to believe that it
+applies to the resource (or lack thereof) identified by the Request-URI.
+
+[ the parent thing does come up in S7.5, actually; it just isn't stated or
+  clarified in the If: header description ]
+
+> Perhaps 9.4.1. should state "...MUST be applied to each non-null resource"?
+
+Or the spec should state "null resources have no associated locks." I tend
+to believe this statement (it *is* "null" after all!), and this is why a
+no-tag-list fails against a null resource in mod_dav.
+
+I think it would be a mistake to change the phrasing to refer only to
+non-null resources. Consider the case where I issue a PUT to an existing
+resource, and I use the If: header to assert an etag on that resource, using
+the no-tag-list format. But! Somebody has gone and deleted the resource. I
+want my PUT to fail because the If: gets applied, and the etag assertion
+fails. (under the premise that a null resource has no locks and no etags)
+
+We could restate the above problem using a shared lock on the resource (not
+the parent), and I assert a shared lock token via a no-tag-list. I want the
+PUT to fail because the asserted lock token no longer exists.
+
+[ note that it would fail for two reasons: the no-tag-list would apply to
+  the parent on a PUT to a null resource and the parent doesn't have that
+  locktoken, and it would fail on the null resource because it, too, does
+  not have the lock token ]
+
+> The IF header is meant to have similar functionality as the If-Match header,
+> which RFC2616 states "is to allow effecient updates" and "prevent
+> inadvertent modification of the wrong version of a resource". Well since the
+> PUT is being attempted on a null-resource, it can't be the wrong version and
+> the user obviously wants to udpate the null-resource, therefore "effecient
+> update" should be interpreted as "I cannot be effecient because it ain't
+> there, so go ahead".
+
+The last paragrph of RFC2616, S14.25 implies that the If-Match header
+applies to the resource identified by the Request-URI. I would expect the
+If: header to also apply to the resource identified by the Request-URI.
+
+> As you've guessed, I interpreted it to be Kevin's Choice #1 (201).
+
+Yup :-) ... and all in-between-the-lines reading of the exact choice of
+words in RFC 2518 is beside the point, in my mind. I simply feel that the
+intuitive operation of a no-tag-list in the If: header should apply to the
+(possibly null) resource identified by the Request-URI.
+
+IMO, there should be a clarification somewhere that a null resource has no
+etags and no locks. That has a particular meaning/influence/purpose when
+using If: headers and operations that affect more than the resource
+identified by the Request-URI.
+
+> PS Greg, do you return 412 for other operations that can also be performed
+> in this PUT-like scenario on a null-resource i.e. MKCOL and LOCK (LNR) ?
+
+For a null resource, the If: header must match the resource *and* its
+parent. For a locknull resource, the If: header must match the resource
+only. Operations on the locknull resource don't check the parent because
+that was checked when the locknull was created (the creation modified the
+parent, but the later operation has no further effect on the parent).
+
+My suggestion for a PUT/MKCOL/LOCK against a null resource with a lock
+parent is to use a tagged-list specifying the parent and its locktoken.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

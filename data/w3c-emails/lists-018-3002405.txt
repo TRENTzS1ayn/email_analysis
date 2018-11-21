@@ -1,0 +1,120 @@
+docno="lists-018-3002405"
+received="Thu Oct 31 09:58:39 2002"
+isoreceived="20021031145839"
+sent="Thu, 31 Oct 2002 09:58:03 0500"
+isosent="20021031145803"
+name="Jonathan Robie"
+email="jonathan.robie@datadirecttechnologies.com"
+subject="Re: Group by"
+id="5.1.0.14.0.20021031083831.04137e78@ncmail.datadirecttechnologies.com"
+charset="usascii"
+inreplyto="49FCDC8730A25C459F818F417BEC225601FEF7&#64;bp01.blackpearl.com "
+expires="1"
+
+
+To: Eddie McGreal<emcgreal@BlackPearl.com>,"'public-qt-comments@w3.org'"<public-qt-comments@w3.org>
+
+
+At 02:42 AM 10/31/2002 -0500, Eddie McGreal wrote:
+
+>Although the spec includes a "Group by" example we have found that such an
+>xquery performs very poorly. The reason for this is that the number of
+>comparisons explode as it behaves quadratically.
+>Since there is a sort by expression why not a group by as well - it would
+>also make mapping to SQL a little easier.
+>At the moment we have implemented group by as a function - with enormous
+>performance gains
+
+Hi Eddie,
+
+Several companies have proposed or implemented group by extensions, and 
+these extensions differ. It would be helpful to have information on the 
+group by function that you have implemented. One of the big questions is a 
+central semantic one - what exactly is a group, given the definition of FLWR?
+
+Earlier in the WG's history, we had some group by proposals. One of the 
+issues was defining exactly what is meant by a group, and what relationship 
+a group has to the tuple stream of FLWR and its variable bindings. Several 
+of us felt that trying to add group by, at least in the given proposals, 
+was complicating and muddling the language, without adding functionality. 
+This may or may not be true of the group by that you have developed - more 
+details would be helpful.
+
+In one proposal we examined, GROUP BY would be used in the RETURN clause as 
+follows:
+
+for $b in document("http://www.bn.com")/bib/book,
+     $a in $b/author,
+     $y in $b/@year
+return  groupby $a, $y
+         in <result>
+               { $a, },
+               <year>{ $y }</year>,
+               <total>{ count($b) }</total>
+            </result>
+
+But to make this work, the return clause needs access to more than one 
+tuple, which it does not have. Another possibility would be to make group 
+by a separate clause in FLWR, eg:
+
+for $b in document("http://www.bn.com")/bib/book
+group by
+     $a in $b/author,
+     $y in $b/@year
+return
+     <result>
+               { $a, },
+               <year>{ $y }</year>,
+               <total>{ count($b) }</total>
+     </result>
+
+This is more plausible, but defining the interaction between the tuple 
+stream and the groups is somewhat problematic. Do you want the return 
+clause to be executed once per group? Do you want the above query to be 
+equivalent to this:
+
+for $a in distinct-values($b/author),
+     $y in distinct-values($b/@year)
+let $b := document("http://www.bn.com")/bib/book[author=$a and @year=$y]
+return
+     <result>
+               { $a, },
+               <year>{ $y }</year>,
+               <total>{ count($b) }</total>
+     </result>
+
+If so, then arguably the group by example should have used let rather than 
+for to bind the variable. What exactly is the definition of for and let in 
+the presence of group by? Should we allow both group by and for to exist in 
+the same FLWR expression? Is the group by version any clearer for the user? 
+Is the version that doesn't use group by really that hard to optimize?
+
+In your mail, you suggest that the number of comparisons explodes 
+quadratically without group by. What comparisons would you make for the 
+query with group by, and what comparisons would you make for the query 
+without group by?
+
+In other words, should we just teach the people who want group by to use 
+the idiom shown above? Many of the proposals I have seen for grouping show 
+equivalent XQueries without grouping that are just awful. That may be a 
+matter of just learning the appropriate idioms.
+
+I believe that the main reason for group by is to aid optimization. When I 
+write queries that do grouping, I generally see clear patterns that can be 
+identified - when all the for bindings use distinct-values(), and a let 
+clause filters by all a set of these variables, that's probably an 
+indication that your optimizer could do something useful, probably 
+something not much different from what you want to do with group by.
+
+I think that grouping is something we should explore further in XQuery 2.0, 
+but it's way too late for us to be adding features of this magnitude in 
+XQuery 1.0. We spent a lot of time exploring grouping early in the WG 
+history, and we didn't come up with an approach that was particularly 
+helpful. Perhaps vendors will go out and implement various grouping 
+extensions that we can learn from in our XQuery 2.0 design work, or perhaps 
+we will find that what we have works fine without a grouping operator.
+
+Jonathan
+
+
+

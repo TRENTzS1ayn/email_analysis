@@ -1,0 +1,177 @@
+docno="lists-049-14666594"
+received="Fri Feb 15 14:20:54 2002"
+isoreceived="20020215192054"
+sent="Fri, 15 Feb 2002 11:20:18 -0800"
+isosent="20020215192018"
+name="Ronald Daniel"
+email="rdaniel@interwoven.com"
+subject="Provenance usage scenario - releaseTime"
+id="145C1D60907A4944ABAE75DE3FF6418C2C7FD6@xchanger3.interwoven.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:w3c-rdfcore-wg@w3.org
+
+As I mentioned, I'm not real clear on just what the impact of
+deciding on 'stating' vs. 'statement' would be, so here's an
+example of the sorts of things I think PRISM's users might want
+to do re. provenance.
+
+
+Problem to be solved:
+=====================
+
+PDQ Publications sends electronic copies of their content
+to an aggregator/distributor who makes them accessible along
+with lots of other articles. Each article has a metadata
+record that provides information including the embargo date
+for the article. One of the records contains:
+
+<rdf:RDF  ... namespace decls...>
+ <rdf:Description rdf:about="someArticleURI">
+  <dc:rights rdf:parseType="Resource">
+   <prism:releaseTime>2002-02-14T18:00:00-05:00</prism:releaseTime>
+   <!-- 6:00 PM EST on Valentine's Day -->
+  </dc:rights>
+  <dc:title>Valentine's Day Ideas</dc:title>
+  <dc:publisher>PDQ Publications</dc:publisher>
+ </rdf:Description>
+</rdf:RDF>
+
+Someone connected with the publisher does a search on the
+distributor's site and finds the article before they think
+it should have been available. They call the distributor
+to demand an explanation. The distributor needs to be
+able to search and find out a few things:
+  1) What is the embargo time in their system?
+  2) What embargo time was in the original metadata provided
+     by the publisher?
+  3) If they differ, who changed it and when - did the publisher
+     send an updated metadata record or was the change made by
+     someone at the distributor?
+
+
+Possible solution:
+==================
+(This does not have to be the way it happens, but this shows the
+sort of stuff I think needs to be represented.)
+
+To enable such searches, the Distributor archives not only
+the articles but also the incoming metadata descriptions of
+the articles. It also maintains a simple 'provenance' database
+recording the association between things, and the time the
+records were received. The triples below are part of that
+provenance database. They show the initial reception of the
+article and metadata, and also that the metadata for the article
+was updated by the publisher the next morning.
+
+  <someArticleURI> <D:describedBy> <MD-record-URI>
+  <MD-record-URI>  <prism:receptionTime> "2002-02-13T18:00:27.43"
+  <MD-record-URI>  <dc:source>  "PDQ Publications"
+  <someArticleURI> <prism:receptionTime> "2002-02-13T18:00:27.45"
+  <someArticleURI> <D:describedBy> <MD-record2-URI>
+  <MD-record2-URI>  <prism:receptionTime> "2002-02-14T09:12:34.56"
+  <MD-record2-URI>  <dc:source>  "PDQ Publications"
+
+
+Checking the releaseTime provenance is a common operation, so the
+person who gets the irate phone call brings up the web form for checking
+it. They ask the caller for info like the title and publisher,
+then search to get info on the article. That web form is converted
+into a query:
+
+     ?X  <dc:title> "Valentine's Day Ideas"
+     ?X  <dc:publisher> "PDQ Publications"
+
+      => X = <someArticleURI>
+
+(of course, exact match searching would not be used, and the user
+would probably have to pick the article from a list of results,
+but I digress)
+
+and then the system queries the provenance database (plus the
+stored metadata records, probably no need to extract all their
+triples into the prov. DB, but that's an implementation detail):
+
+      <someArticleURI> <D:describedBy> ?M     # M is metadata record URI
+      ?M   <prism:receptionTime>  ?Tgot
+      ?M   <dc:source>  ?FromWho
+      ?M   <x:contains> ?_S                   # _S is statement URI
+      ?_S  <rdf:type>  <rdf:Statement>
+      ?_S  <rdf:subject> <someArticleURI>
+      ?_S  <rdf:predicate> <prism:releaseTime>
+      ?_S  <rdf:object> ?Trel
+
+      => [
+          M = <MD-record-URI>
+          Tgot = "2002-02-13T18:00:27.43"
+          FromWho = "PDQ Publications"
+          _S = <intStmtId1234567>
+          Trel = "2002-02-14T18:00:00-05:00"
+         ]
+         [
+          M = <MD-record2-URI>
+          Tgot = "2002-02-14T09:12:34.56"
+          FromWho = "PDQ Publications"
+          _S = <intStmtId987654321>
+          Trel = "2002-02-14T09:12:33.01-05:00"
+         ]
+
+
+Those results are formatted for display. They show something like
+
+  Title:  Valentine's Day Ideas
+  Records:
+    Initial reception:  Feb. 13, 2002, 6:00:27.43 PM EST
+    Source: PDQ Publishing
+    Stated embargo time:  Feb. 14, 2002, 6:00 PM EST
+
+    First update received: Feb. 14, 2002, 9:12:34.56  AM EST
+    Source: PDQ Publishing
+    Stated Embargo time: Feb. 14, 2002, 9:12:33.01  AM EST
+
+Thus it looks like when the publisher sent an update for the
+article's metadata the release time was replaced by the
+current time on their end. (We don't know exactly when the
+publisher sent something, we just know when we got it and
+what it contained. But since the embargo time in the second
+record is a second before the time we got it, it seems a
+reasonable assumption for a person to make)
+
+The user handling the complaint asks for the caller's email
+address. The report above, as well as copies of the two
+received metadata records, are emailed to the caller.
+
+
+Requirements:
+=============
+
+1) It must be possible for the receiver to give an identity to a
+   received RDF serialization and store it for later queries.
+2) It must be possible for the receiver to search stored RDF
+   records for statements with particular subjects, objects, and/or
+   predicates.
+     a) it must be possible to give at least a temporary identity
+        to each 'statement' in a received RDF record
+        (By 'statement' I do not mean to imply anything about Brian's
+         'stating' vs. 'statement' terminology)
+    b) It must be possible to indicate which serialized RDF document
+       contains a statement and vice versa. 
+    c) it should be possible for creators of metadata records to
+        assign IDs to statements
+    
+Thanks,
+
+Ron Daniel Jr.
+Standards Architect
+Interwoven, Inc.
+Tel: 408-530-5922
+Cell: 925-368-8371
+Email: rdaniel@interwoven.com 
+
+Visit www.interwoven.com
+The Leader in Enterprise Content Management
+
+
+

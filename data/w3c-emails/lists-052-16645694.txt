@@ -1,0 +1,135 @@
+docno="lists-052-16645694"
+received="Wed Jul 30 05:27:48 2003"
+isoreceived="20030730092748"
+sent="Wed, 30 Jul 2003 09:33:54 +0100"
+isosent="20030730083354"
+name="Graham Klyne"
+email="gk@ninebynine.org"
+subject="Re: first pass parseType=&quot;Literal&quot; text for primer"
+id="5.1.0.14.2.20030730093211.02caee50@127.0.0.1"
+charset="us-ascii"
+inreplyto="4.2.0.58.J.20030729164148.068d9cf0&#64;localhost"
+expires="-1"
+
+
+To: Martin Duerst<duerst@w3.org>, Brian McBride<bwm@hplb.hpl.hp.com>
+Cc: rdf core<w3c-rdfcore-wg@w3.org>, i18n<w3c-i18n-ig@w3.org>
+
+
+At 17:21 29/07/03 -0400, Martin Duerst wrote:
+>>C(x) is cannonicalization of x, encoded as a UTF8 octet sequence, e.g.
+>>C("&") is the octet sequence corresponding to "&amp;".
+>
+>This is dangerous, because you have missed one escaping level.
+>What is C("&amp;")? If this works the same as C("<br/>"), it
+>should be "&amp;" (in UTF-8 if we still keep that, but I think
+>Patrick said that was removed).
+
+I think that's fine.  To answer your question:
+
+   C("&amp;") = UTF8("&amp;amp;")
+
+(where UTF8(x) is the UTF-8 encoding of character sequence x)
+
+Moving on two your examples, assuming we're talking about the current 
+specifications, I disagree with:
+
+>(3)
+>Concrete Syntax: <eg:prop pt="L">&lt;br/&gt;</eg:prop>
+>(additional example)
+>
+>Abstract Syntax: "&lt;br/&gt;"^^rdf:XML
+>
+>Denotation:
+>     sequence(character('<'), character('b'), character('r'),
+>          character('/'), character('>'))
+
+(a) it's not a character sequence, but an octet sequence,
+(b) in the canonical XML representation the '<' and '>' should be escaped.
+
+>(4)
+>Concrete Syntax: <eg:prop pt="L"><br/></eg:prop>
+>
+>Abstract Syntax: "<br></br>"^^rdf:XML
+>
+>Denotation:
+>     sequence(markup('<br>'), markup('</br>'))
+
+I don't understand what you mean by markup(x).  If you mean something like 
+C(x), I would agree, so we would have:
+
+    UTF8("<br></br>")
+
+... <breaks off>:
+
+Now I see what you're doing, I think:  using character() and  markup() not 
+as mapping functions but as type designators.
+
+If I may lapse into Haskell [2] for a moment, our current design has the 
+denotation of a literal being:
+
+    type XMLLiteralDenotation = [Octet]
+
+What you are doing here is changing the type of the denotation to something 
+more like:
+
+    data XMLAtom = Character Char | Markup String
+    type XMLLiteralDenotation = [XMLAtom]
+
+(The data statement defines a new datatype that is a kind of discriminated 
+union:  a string labelled as "Character" or a string labelled as "Markup". 
+See [2] for more about the notation)
+
+I think there is a possible approach here that satisfies your goals, but it 
+represents a fundamental redesign of the way that literals are handled in 
+the formal semantics:  plain literals are no longer self denoting.
+
+Using Haskell type notation again, a plain literal is:
+
+    type PlainLiteral = [Char]
+    type PlainLiteralDenotation = [Char]
+
+and the mapping function is:
+
+    PlainLiteralL2V :: PlainLiteral -> PlainLiteralDenotation
+    PlainLiteralL2V = id   -- identity function
+
+Your proposal changes this quite radically:
+
+    type PlainLiteral = [Char]
+    type PlainLiteralDenotation = [XMLAtom] -- XMLAtom as above
+
+    PlainLiteralL2V :: PlainLiteral -> PlainLiteralDenotation
+    PlainLiteralL2V = map Character  -- force character interpretation
+
+My earlier positing [1] on this topic was quite clear that the position I 
+was stating was one of proceeding on the basis of no such fundamental 
+change.  I think there's a real danger that if we make a fundamental design 
+change this late in the process we'll inadvertently introduce some more 
+damaging error.
+
+#g
+--
+
+[1] http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2003Jul/0339.html
+
+[[
+The only way we're going to be able represent this kind of data, *and* to
+handle markup in the same uniform framework, is to completely revisit the
+design of RDF literal data so that a lexical form is not just a sequence of
+Unicode characters, and is self-denoting.  To change that would be a
+late-stage fundamental change to the design with who-knows-what kinds of
+repercussion.
+]]
+
+[2] http://www.haskell.org/tutorial/
+     (sections 2.2 and 2.3 cover the type notation used above.)
+
+
+-------------------
+Graham Klyne
+<GK@NineByNine.org>
+PGP: 0FAA 69FF C083 000B A2E9  A131 01B9 1C7A DBCA CB5E
+
+
+

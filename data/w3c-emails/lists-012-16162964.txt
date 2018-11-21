@@ -1,0 +1,324 @@
+docno="lists-012-16162964"
+received="Mon Jan  8 14:51:56 2001"
+isoreceived="20010108195156"
+sent="Mon, 8 Jan 2001 15:49:48 +0100"
+isosent="20010108144948"
+name="Joris Dobbelsteen"
+email="joris.dobbelsteen@mail.com"
+subject="RE: Logout"
+id="000601c07982$52d89950$01ff1fac@Joris2K.local"
+charset="usascii"
+inreplyto="Pine.LNX.4.30.0101061719110.30194100000&#64;peterw"
+expires="1"
+
+To:"WWW WG (E-mail)"<http-wg@cuckoo.hpl.hp.com>
+
+
+>-----Original Message-----
+>From: Peter W [mailto:peterw@usa.net]
+>Sent: Saturday, 6 January 2001 23:33
+>To: Joris Dobbelsteen
+>Cc: WWW WG (E-mail)
+>Subject: RE: Logout
+>
+>
+>> >    - the "cookie standard" has progressed quickly and
+>> >supports all of the
+>> >things that regular authentication should have supported a
+>> >long time ago:
+>> >
+>> >        - passing a "server key" to be added to the digest,
+>> >which can then
+>> >be expired on the server
+>> >        - setting expiration times
+>>
+>> An issue with IE is the fact that passwords with forms are 
+>still stored.
+>
+>Can be overcome/forbidden with HTML code.
+>
+>The big problem with http + Basic auth is the static authentication
+>information is sent cleartext. Easy replay. I've outlined a
+>application-based solution in Bugtraq. Basically:
+>
+Basic is completely insecure. Digest has some security hazards:
+Server sends a 'key' to use with hashing. When the same 'key' is used,
+the hashed password captured can be reused.
+Also doesn't digest authentication (nor basic authentication) provide
+data integrity.
+
+>- login to https://server/login/path
+>- get at least two cookies:
+>  insecure "ticket" contains server-generated unique value that
+>    can be used to lookup user info when requesting protected pages
+>  secure ticket "check", only to login server, only to login path
+>  [if you serve https content, an "httpsticket" as well]
+>- central repository matches "ticket" to user, various stateful info
+>- at logout, the server marks the ticket as invalid; no replay
+>- periodically, content server can redirect user back to
+>  https://server/login/path/verify?sendbackto=http://content/foo.html
+>  - /login/path/verify checks for presence of both "ticket" 
+>and "check";
+>    a net-sniffing bandit will lack "check"; at that point the "ticket"
+>    is marked in the repository as 'tainted'; when the good 
+>user requests
+>    another document, that user is warned about the taint, required to
+>    log in again
+>
+You get one 'public' ticket for use over HTTP, and one 'secret' that is
+used only over the HTTPS for validation of the originator of the
+request. That is what I understand....
+HTTPS can be used to rotate 'public' ticket (not really public, but
+anyone can read it anyway once transmitted over HTTP).
+
+Seems securely enough to me for general purposes, however there are
+still some real vulnerabilities...
+The 'public' ticket CAN be used, in some occasions, for a (limited)
+time.
+
+Next there is no garantee of data integrity. This part I'm missing. I
+can hijack a connection and alter it's (unsecured) data, thus sending
+damaging messages on your behalf (or someone else).
+
+As for webmail, when this security is implemented on this pad, later on
+I can still alter the data, when send over the SMTP 'network'. So in
+this case, it's not a real requirement, but when data is send using
+SMTP, probably too many messages are send for the adversery to care
+about them all.
+
+I would prefer a scenario of an employee downloading and uploading data
+from his company, that doesn't require data confidence (there's no data
+confidence when using HTTP).
+
+>The login system can be any system you prefer. user/pass, 
+>hardware token,
+>client certificate, whatever. The key is
+> - attackers can't see the authentication data
+> - they can't replay the insecure cookie, not for long, anyway
+>
+>> Next, what if an adversary finds a way to use his cookie 
+>(obtaining it
+>> using spoofing or a man-in-the-middle attack (proxies are 
+>suitable for
+>> this)), the adversary can use that cookie on the victim's behalf.
+>
+>See above.
+
+Think I got it. But still vulnerable, see above...
+>
+>As for webmail, I've also suggested ways to protect 
+>authentication tickets
+>from hostile email scripting by using one-time tickets for documents
+>containing untrusted code, e.g. mail reading frames.
+>
+>> The next version of HTTP should have better security functions than
+>> currently provides. The current standard doesn't satisfy the 
+>requirements
+>> of many servers, today.
+>
+>This is the place to make suggestions...
+>
+>...IMO, with a little creativity the current infrastructure 
+>suffices; or,
+>at least it can't be significantly improved upon.
+>
+>-Peter
+>
+>
+
+The obvious thing that is still bad is:
+* lack of data integrity validation
+* possibility to use a 'ticket' for a (limited) time
+
+The all-in-one solution for this problem is this (maybe can be proposed
+as a security extension to HTTP):
+[Have a good time reading - 20 kB mail message]
+
+
+===
+Hope I didn't make too much typo errors. and the goal/purpose is
+clear...
+If you find the word "of" and you think it should not appear here, try
+whether "or" fits better. The Dutch "of" is the English "or". I tend to
+mix these up sometimes (why I don't know).
+===
+
+
+It relies fully on public-key encryption and looks simuliar to S/MIME.
+Note that also proxies should be aware of the use of this feature. Maybe
+they can be told using cache-control directive not to manipulate the
+message?
+I suppose "Cache-control: no-transform" can do the job, but fearing many
+proxies will not obey to the directive.
+
+In the case that data confidence is required, using HTTPS is required.
+
+*** REQUIREMENTS
+SERVER
+* Valid certificate to ensure data integrity and orgin authentication.
+* Optional: Hardware hashing and hash signing support, to improve
+performance dramatically.
+CLIENT
+/ None
+PROXY/GATEWAY
+/ None
+
+
+*** PART ONE: LOGON
+The client should generate a key-pair: private key with according public
+key. Next the client should be aware of the user's authentication
+credentials (user/pass), and should not save these (without explicitly
+asking the user). A HTTP connection can be used to ask the sever for a
+SessionID, and at the same time send the user's authentication
+credentials and the public key. The client can purpose a lifetime of the
+session and for the key. Also the algorithms used must be agreed on by
+the client and server. In case of unsecured transmission (HTTP, not for
+HTTPS), the HTTP message should be signed.
+In case of the correct credentials are used, and the server agrees on
+the methods/protocols used, the server sends his certificate (with
+public key) and a session ID.
+
+In reality this can be done over HTTPS, using Digest authentication by
+preference.
+The client connects to a HTTP server using HTTPS. Next it sends it's
+authentication credentials, with the password hashed (standard digest
+authentication), but also includes the public key. No need to sign the
+message (already secure channel).
+Assuming the correct ID and server accepts methods used...
+The server responds with a a SessionID, and a certificate. Also the
+server specifies where the SessionID should/can be used and gives
+servernames with the according certificates, or a group that uses the
+same certificate. Also expiration of the sessionID and maybe the key is
+included (when using 1024-bit or larger keys, this is not required).
+Messsage doesn't need be signed, because the connection is secure.
+
+
+If the user has a certificate already, this can be used, instead of the
+custom-generated key-pair. The entire certificate should be send in this
+case, instead of only the public key.
+With the appropiate methods, HTTPS will not be needed. This sample used
+the old authentication methods in combination with the new features
+provided by this security extension.
+
+It is possible to use certificate authentication together with the
+user/password authentication, but allowing a higher level of access when
+using certificate authentication.
+
+The server must send the certificate to identify itself, as it has no
+user/password authentication possibility, but the certificate alone will
+be enough for the job.
+
+Note that the rule (for certificates) is that the private key NEVER
+leaves the local computer, but only the public key. When I say, send the
+certificate, only the certificate with the public key and withOUT the
+private key. This applies through all this specification. No confusion
+on this...
+
+
+*** PART TWO: HTTP MESSAGE SIGNING
+
+On unsecure channels, we sign the HTTP message.
+We need to sign data that is affected, this includes the Request/Reponse
+line and non-modifiable headers. The headers that can be signed are
+outlined in section 13.5.2 (Non-modifiable Headers). Also the header
+including the sessionID should be signed.
+
+We need a hash of the request/response line, headers and, of course, the
+content (data). Next the hash should be signed with the private key. The
+public key cannot be used for signing, because the adversery also knows
+the public key.
+
+This means the remote side can check the data intigrity. The SessionID
+will be used to check the user credentials.
+
+
+*** PART THREE: LOGOFF
+Logoff occurs quire simply by expiration of the SessionID or sending an
+instruction to the server to logoff. The server can also instruct the
+client to logoff.
+Logoff includes the expiration of the SessionID and erasing the key-pair
+on the client. Most important is the expiration of the SessionID to
+succeed on the server-side.
+This means LOGOFF IS REQUIRED using either expiration or user-actived
+logoff!!!
+
+
+*** PART FOUR: EXTENDING SESSION LIFETIME
+Resons for ending a session without intension of the user is expiration
+of the SessionID. Before extending the session, the user should be aware
+of it, by asking him/her/it first. Closing the browser should retire the
+SessionID and key-pairs and preferably, the server should send a message
+to retire the session.
+
+A signed message with this request can be issued to the (original)
+authentication server in order to extend the session for a specific time
+(maximum limit by the server). The server may refuse. Adding user
+credentials again is not needed but may be requested by the server. Also
+key rotation or sessionID rotation may be requested/done by the server.
+
+
+*** PART FIVE: WEAKNESSES/DISADVANTAGES OF THE PROTOCOL
+The protocol requires on the strength of the security protocols used.
+Known-plaintext attacks are possible, and security protocols used should
+be designed to be properly (heavily) protected against this type of
+attack. Such attacks can result fast into many known-plaintexts with
+there accompanying ciphertext.
+
+Servers require significanly more performance to do the job.
+
+Key- and session-management is required and probably will get more
+complex.
+
+Requires browser and server support.
+
+Expire-times should be relatively short (couple minutes), to improve
+security. Long expire-times give the adversery a good chance to do
+damage. This is because delivery is still not ensured, and thus
+retirement of sessions by the user is not garanteed to happen (you can
+easily filter such messages out).
+
+
+*** PART SIX: FEATURES OF THE PROTOCOL
+Provides orgin authentication
+
+Provides data integrity
+
+Extended security over existing methods, by eliminating some severe
+weaknesses that exist in the cookies-implementation.
+
+Long sessionkeys (256-bits would probably allow you to have almost
+certainly unique IDs)
+
+A (e.g. authentication) server can have a different certificate that the
+other servers.
+
+
+*** PART SEVEN: WORK TO DO
+- How on chunked transfers
+- How to sign headers and the request/response line.
+  These probably change due to proxies, gateways, firewalls and such
+things.
+- .....
+
+
+
+That was the mail for today...
+Hope you like it.
+
+If you have some other suggestions, send them...
+maybe some protocol errors, but it probably needs to be reviewed, when
+we want to implement such functionality.
+Maybe I forget thinks where, I did or didn't think about...
+
+
+
+- Joris
+
+
+
+
+application/x-pkcs7-signature attachment: smime.p7s
+
+
+
+

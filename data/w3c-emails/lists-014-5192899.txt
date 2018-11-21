@@ -1,0 +1,147 @@
+docno="lists-014-5192899"
+received="Mon Feb 24 17:37:03 1997"
+isoreceived="19970224223703"
+sent="Mon, 24 Feb 1997 14:36:33 +0000"
+isosent="19970224143633"
+name="Ned Smith"
+email="nsmith@ibeam.jf.intel.com"
+subject="Proposal to extend TLS spec to allow nonX.509 certificate types"
+id="3.0.32.19970224143633.00928d00@ibeam.intel.com"
+charset="iso-88591"
+expires="1"
+
+
+To:ietf-tls@w3.org
+Cc:John_H_Wilson@ccm.jf.intel.com,awk@ibeam.jf.intel.com,djriss@ibeam.jf.intel.com,cox@ibeam.jf.intel.com, Ron Rivest<rivest@theory.lcs.mit.edu>, Bob Blakely<blakley@vnet.ibm.com>, Phil Zimmerman<prz@pgp.com>,prz@acm.org,cme@cybercash.com
+
+To the IETF TLS community,
+
+Below is a proposal to allow non-X.509 certificates be passed during TLS
+handshaking
+in a fully backward compatible extension to the TLS spec. 
+
+Thank You,
+Ned Smith
+nsmith@ibeam.intel.com
+----------------------------------------------------------------------------
+
+Proposal to Extend TLS Specification to Include non-X.509 Certificate Types
+
+
+The TLS specification unnecessarily restricts the format of certificates
+used for authentication to X.509v3. TLS is intended to provide public-key
+based channel security infrastructure to the Internet community. We believe
+that standardizing TLS on X.509v3 certificate types was not primarily
+intended as a judgment on the value of X.509v3, but rather, a decision
+based on implementation and time to market pragmatism. However, this choice
+is not necessarily broadly applicable within the Internet community.
+
+For this reason, we propose the TLS specification be enhanced to include a
+fully backwards compatible modification enabling the use of  alternative
+certificate infrastructures  in the TLS protocol. The modifications add an
+optional ClientCertificateType identifier to the end of the Certificate
+message. This enables the recipient to choose an appropriate certificate
+parsing utility for certificates in certificate_list. The
+ClientCertificateType enumeration is extended to include identifiers for
+SDSI, SPKI and PGP public-key certificate structures.  
+
+Specifically the modifications to the TLS specification are as follows:
+
+6.4.2 Server certificate
+
+Structure of this message:
+
+       opaque ASN.1Cert<1..2^24-1>;
+       struct {
+           ASN.1Cert certificate_list<1..2^24-1>;
+           ClientCertificateType cert_type;*
+       } Certificate;
+
+* Indicates optional field. 
+
+   certificate_list
+       If cert_type is non-existent then this is a sequence (chain) of 
+       X.509.v3 certificates, ordered
+       with the sender's certificate first followed by any certificate
+       authority certificates proceeding sequentially upward, with a
+       self-signed certificate for the root CA coming last in the
+       list.
+
+  cert_type
+       If the identifier is not present then the certificate type 
+       is interpreted as X.509v3. 
+       If present the  cert_type field is used to interpret the 
+       opaque contents of certificate_list.
+
+       If cert_type is PGP then certificate_list contains a PGP 
+       certificates where the sender?s certificate is first followed 
+       by a sequence (set) of signers of the sender?s certificate.
+
+       If cert_type is SPKI then the certificate_list contains an SPKI 
+       binary certificate. (It is assumed there will only be a single 
+       SPKI certificate since the certificate structure embeds the location
+       of issuers within the certificate).
+
+       If cert_type is SDSIv1 then the certificate_list contains an 
+       S-Expression representing the sender?s "Cert:" or "Delegation-Cert"
+object. 
+       (As with SPKI, SDSI certificate objects contain references to issuing 
+       principals. Therefore, it is assumed only a single certificate will
+be sent).
+
+
+6.4.4 Certificate request
+
+   Structure of this message:
+
+       enum {
+           rsa_sign(1), dss_sign(2), rsa_fixed_dh(3), dss_fixed_dh(4),
+           rsa_ephemeral_dh(5), dss_ephemeral_dh(6), pgp(21), spki(22),
+sdsi_v1(23)
+           (255)
+       } ClientCertificateType;
+
+     opaque DistinguishedName<1..2^16-1>;
+
+       struct {
+           ClientCertificateType certificate_types<1..2^8-1>;
+           DistinguishedName certificate_authorities<3..2^16-1>;
+       } CertificateRequest;
+
+
+   certificate_types
+         This field is a list of the types of certificates requested,
+         sorted in order of the server's preference.
+
+  certificate_authorities
+         A list of the distinguished names of acceptable certificate
+         authorities for certificate type values between (1) and (6) which 
+         correspond to X.509v3 certificate authority names.
+
+         If certificate_types includes pgp, spki or sdsi_v1 then fields in 
+         the Distinguished Name structure are overloaded in the following
+manner:
+
+  PGP - A Distinguished Name containing:
+               [Org=PGP Certificate Authority, Org Unit=<a PGP key finger
+print>,
+                Common Name=<name of a trusted PGP key signer>]
+
+  SPKI - A Distinguished Name containing:
+               [Org=SPKI Certificate Authority, 
+                Org Unit=ISSUER-CERT:<URL of acceptable certificate issuer>]
+
+  SDSI - A Distinguished Name containing:
+               [Org=SDSIv1 Certificate Authority, 
+                Org Unit=(Principal: (?)) or <any standard SDSI global root
+names                (i.e. VeriSign!!, USPS!! Etc.)>]
+
+Note: The negotiated ciphersuite contains the key exchange policy
+information. It is not believed that certificate type identifiers need to
+be overloaded with key exchange policy. For this reason the new certificate
+types do not contain instances for each key exchange method.
+----------------------------------------------------------------------------
+------
+
+
+

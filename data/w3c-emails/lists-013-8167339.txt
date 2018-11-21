@@ -1,0 +1,309 @@
+docno="lists-013-8167339"
+received="Tue Mar 16 01:00:39 2004"
+isoreceived="20040316060039"
+sent="Tue, 16 Mar 2004 06:00:35 +0000"
+isosent="20040316060035"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Re: Can the response entity be transmitted before all the request entity has been read?"
+id="20040316060035.GA13637@mail.shareable.org"
+charset="usascii"
+inreplyto="Pine.BSF.4.58.0403151542181.17944&#64;measurementfactory.com"
+expires="1"
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+Cc: HTTP WG<ietf-http-wg@w3.org>
+
+
+
+Thanks for your detailed response.
+
+Alex Rousskov wrote:
+> >      write "Status: 200\n\n";
+> >      write "Thank you for your submission.\n";
+> >
+> >      while ($x = read (...)) { store ($x) }
+> >
+> >      write "Great, all done.\n";
+> 
+> While it is easy to imagine such an application, tasking a proxy to
+> "rewrite" or "fix" application logic to fit HTTP restrictions seems
+> like a bad idea. IMO, upon receiving "Status: 200\n\n" and sending off
+> response headers, your proxy should become a "tunnel" and not try to
+> second-guess the application intent.
+
+Part of the mixed message here is that I'm simultaneously writing a
+server which is intended to be well written, robust, protocol
+compliant, persistent when possible, no deadlocks, and so forth; and
+I'm also writing an application or two.  The applications are actually
+the motivation for the server.
+
+So the question of whether the above kind of application is worth
+supporting is important, because I intend to try it out.
+
+By the way, pure tunnelling leads to deadlock: the application can get
+stuck writing if the client isn't reading the response until it
+transmits all the request, and all the TCP windows fill up.  I don't
+like that deadlock because it isn't necessary and it is practical to
+eliminate it in the server.  It's messier to eliminate it in the
+application, and anyway why do it once per application instead of once
+in the server?
+
+You're thinking: out of memory.  Actually no.  To avoid deadlock, this
+is what I do: If writing would block, and there is data available to
+read, read it.  The buffer holds _read_ data, and is therefore limited
+by the maximum permitted request entity size.  The maximum is asserted
+both for content-length and chunked requests.  The buffer is required
+*somewhere*, either in the server or in the application itself, or in
+backing storage for them, so there is no added resource consumption
+from this technique when it's implemented properly.
+
+> > I'd rather put the hard requirements, and every feature that will
+> > help with robustness, in the _server_, rather than document it as a
+> > requirement that applications have to follow.  It's the server's job
+> > to keep the communication good as reliable as possible, insulating
+> > the application.
+> 
+> IMO, the "Do No Harm" rule trumps the "Try to change the world to the
+> better" rule, especially for proxies (which is what you are
+> implementing in this context). If you can reliably convert garbage
+> into compliant output, do so. If your smart conversion algorithm
+> silently breaks a few innocent applications, then do no smart
+> conversion.
+
+:) Well, you'll be glad to know that for now, especially as I want to
+try it out, the server allows the application to read and write as it
+likes.
+
+It's not entirely a tunnel: as said above, the server takes care of
+deadlock avoidance for clients which aren't reading until they've
+finished writing.  That simplifies the app code, without changing
+anything unless that situation arises and the deadlock would really
+occur.
+
+Obviously the server is in change of chunking, (de)compression,
+boundary checks against content-length etc.  I'll take that as understood.
+
+> If you need a negative example, consider Apache 2.x problems with
+> smart content-length guessing algorithm that, AFAIK, still stalls a
+> few simple CGIs that work fine with Apache 1.x:
+> http://nagoya.apache.org/bugzilla/show_bug.cgi?id=23528
+
+Yeah, that's a bug in Apache.  It's not at fault for being smart, it's
+that it's code simply has a bug.  The idea is good as it allows some
+HTTP/1.0 connections to be persistent when they otherwise wouldn't be.
+
+> Specifically, if your server will be able to detect and reject
+> applications that write before reading, fine. If your server delays
+> any application output until it thinks there is no more input, your
+> feature is probably going to be a popular target for denial of service
+> attacks (for example) and you are probably going to deadlock
+> applications that write more than one buffer worth of data (another
+> example).
+
+Presently I am allowing the app to write before it's finished reading,
+because I'd like to try out that capability.  I might add a
+per-request option to buffer all the input before writing anything -
+it's fits easily with the deadlock-avoidance buffering, and could be
+useful to some applications.
+
+If I did restrict writing until reading was complete, the DOS attack
+would be no different than the DOS where people try to send maximum
+size request entities, e.g. uploading lots of large files.  That's the
+only effect on the buffering algorithm: it ends up buffering up to one
+maximum size request entity per request, and the overall memory and
+disk management for that can certainly be constrained.
+
+Note that the response doesn't get buffered infinitely.  Response
+generation is blocked while the request is being buffered up for
+whatever reason.
+
+It's not possible to omit the buffering *somewhere*: for clients which
+send a whole request before reading the response, the entire request
+has to be buffered or stored *somewhere*, either in the server or in
+the application, to resolve the deadlock.
+
+> It is possible to have an HTTP-to-Applications API with enough logic
+> and controls that optimizations you mention are very appropriate and
+> safe. Is CGI such an interface? Do CGI specs document these things?
+
+There is a CGI spec draft (1.2 at the moment), but it is not so well
+written as HTTP/1.1.  Not to mention that quite a few of the CGI
+meta-variables are implemented in various ways, and even the spec'd
+ones miss out important info, so everyone adds a few more non-standard
+variables.  (Like REQUEST_URI).
+
+But that's beside the point, I'm not writing a CGI interface, I'm
+writing and designing an HTTP-to-Application API with enough logic
+etc. to do as you suggest.  At the same time, trying to keep it as
+simple as possible - only the necessary controls.
+
+> > That's contrary to most server implementations: they do give the
+> > application control over when to read and write, which is the
+> > opposite of what you're suggesting here.
+> 
+> Am I? A tunnel is exactly what gives the application unlimited ability
+> to read and write at any time, at will.
+
+Exactly.  Too much control over the HTTP, like you said to avoid ;)
+(Facetious comment; please ignore ;)
+
+> The latter [100 Continue for PUT and POST] is a pro-active behavior
+> intended to help RFC 2068 agents.  Unfortunately, it requires
+> compliant RFC 2616 support for 100 Continue in proxies. My bet that
+> sending 100 Continue pro-actively will hurt in more cases than it
+> will help, but I have no data to prove that.
+
+Hmm.  Maybe follow that SHOULD only if Via isn't defined?
+
+If the client delay is small I'm not bothered.  Do you have any data
+on how long those RFC 2068 agents will delay sending the request
+entity?
+
+> Moreover, there was a paper that formally proved that 100 Continue
+> leads to deadlocks in certain compliant environments, so we are
+> probably talking about a partially broken mechanism here anyway.
+
+Hmm.  I'd like real data on what to do here.  If you can find the
+paper or any other info, that would be very helpful.
+
+I don't see any deadlock scenarios with the way I have implemented it.
+Perhaps the deadlock occurs when it's coded in a different way (I've
+been careful, most http implementors aren't half as cautious, judging
+by the code I've read).  Or maybe I just have yet to see it.
+
+I will have a peek at Apache's code to see what it does for the RFC
+2068 clients. Squid won't give reliable answers: it's HTTP/1.1 support
+is still in the development phase.
+
+(I've looked at enough implementations to find loads of other quirks;
+may as well see if anyone put in a comment about this).
+
+  look..look..look
+
+Hmm.  Apache 2 doesn't satisfy the MUST of 8.2.3.  It won't sent
+100-continue if the request has Content-Length: 0.
+
+Both Apache 1.3.29 and 2.0.48 (current versions) apply the rule that
+Expect: 100-continue with HTTP-Version >= 1 causes 100-continue to be
+sent.  Neither of them apply the rule for supporting RFC 2068 clients.
+
+Apache 1.3.29 won't send it with error responses, according to a quick
+skim of the code, but a couple of servers I poked at didn't behave
+like maybe I misunderstood something, or those servers are configured
+to be more complicated.
+
+A quick try at www.microsoft.com :) reveals IIS/6.0 in their setup
+sends 100-continue to a POST with Expect: 100-continue, despite the
+404 response.  More checking: it sends 100-continue to a POST without
+Expect: 100-continue, despite the 404 response.
+
+phttpd-1.10.4, thttpd-2.25b and lighttpd-1.0.3 don't send it ever,
+despite all of them claiming to offset some level of HTTP/1.1.  I
+guess they predate RFC 2616.
+
+> > That's a crucial question.  Should I either enforce that in the
+> > server, by insisting on reading the whole request before allowing
+> > any text of a non-error response to be sent (error can be sent
+> > immediately), or document it as an application requirement: that the
+> > application must do all its reading before it writes anything?
+> 
+> You cannot enforce this at the server without deadlocking or killing
+> the application or running out of server memory. Imagine an
+> application that writes more than you can buffer before it reads
+> anything.
+
+No.  The application can't do that: it will block when writing blocks.
+The server's large buffer is the size of a maximum _request_ entity,
+and that storage is unavoidable one way or another.  Everything else
+is limited to an appropriate I/O block size.
+
+> > It seems that existing servers, e.g. Apache, thttpd and all the
+> > others don't do either: they allow request to be read by the
+> > application when it likes, the response to be sent before all the
+> > request is read if the application likes, and don't document this as
+> > a problem.  It's for application writers to be aware of it.
+> 
+> That's what I would do too, as far as code is concerned. Documenting
+> potential problems is always good, of course, especially if you can
+> give specific real-world examples.
+
+I will document it as well.  If there are clients which accept the
+non-error response before all the request is read, that is certainly a
+feature worth letting the app have access to.
+
+The reason I asked all this is that if practically all real clients
+fail with it (I haven't reached the stage of testing yet), then the
+server may as well constrain the app, probably by complaining at it.
+
+> > I'd simply like to know whether it's best to program the server to
+> > enforce that, knowing it's a common/rare client weakness, or to not
+> > enforce it but recommend it in the application interface
+> > documentation, or to permit it if it actually works in practice.
+> 
+> Make your HTTP-to-application proxy as simple as possible. Warn of
+> possible problems if the tunnel interface is abused. Let applications
+> decide how they want to deal with those problems.
+
+Ok.  Now give me advice as application author: I'd like to know
+whether it a common or rare client weakness, so whether I should
+consider using that technique or not.
+
+If there's only some well known, old clients which don't like it, then
+a match on the User-Agent string which activates the request entity
+buffer will be the right thing to do.  The server can include it in
+the plethora of other User-Agent quirks it already works around.  (I'd
+rather put such knowledge in the server which already has that buffer
+for deadlock avoidance, than in N applications).
+
+If, however, lots of clients don't like it, then it isn't worth using
+the technique at all, and it would be better for the server to
+complain when the app erroneously tries it -- even if it's just a
+warning which can be disabled.
+
+> > My strategy is to copy Apache's well-tested "lingering close":
+> > shutdown(fd,SHUT_WR) followed by reading everything for up to 30
+> > seconds, or until 2 seconds passes with no incoming data, then the
+> > full close().
+> 
+> Cool. I hope this well-tested algorithm is not what breaks CGIs in
+> Apache 2 :-).
+
+The algorithm has been in Apache 1 for quite a while.
+
+But maybe  Apache 2's version of it is to blame. :/
+
+Apache 2's algorithm is different -- I think it is a coding error, not
+intentional.  Apache 1 does what I describe above.  Apache 2 tries to
+read with a 2 second timeout up to 30/2 times, and each read is 512
+bytes max.  That means if the socket's receive buffer _already_ has
+512*15 bytes in it, Apache 2 will terminate the lingering close
+immediately, even if there is more data incoming from the client.
+That seems very wrong: incoming data from the client after close is
+what causes the transmitted data to be lost, which is why Apache 1
+keeps trying until it sees a 2 second gap, which heuristically means
+the client has stopped sending.
+
+> Also, FWIW, I recall half-close causing many problems
+> for Squid proxies for a while. It is probably fixed now.
+
+I don't see how it could be a problem: server half-close with a
+timeout (the 30 seconds timeout is still important) is invisible to
+the client, except in terms of the timing.  The sequence of events the
+client is able to observe is identical (unless the client is _so_
+clever that is queries the socket to learn how much data has been
+acknowledged by the server, but I'm sure Squid doesn't do that).
+
+In effect, half-close with a 30 second timeout is equivalent, at the
+socket interface level, to the network deciding to delay data flowing
+from the client to the server for 30 seconds, so that the TCP RST
+effect where response data disappears can't happen.  A real network
+can cause a similar effect, so if half-close was causing Squid
+problems, those problems would occasionally occur with real network
+delays too.
+
+Thanks,
+-- Jamie
+
+
+

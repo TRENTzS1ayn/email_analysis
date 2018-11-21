@@ -1,0 +1,343 @@
+docno="lists-037-6587364"
+received="Tue Dec 17 17:40:24 1996"
+isoreceived="19961217224024"
+sent="Tue, 17 Dec 1996 15:40:20 -0700"
+isosent="19961217224020"
+name="Andre van der Hoek"
+email="andre@bigtime.cs.colorado.edu"
+subject="Another approach to versioning with relevance to WEBDAV"
+id="199612172240.PAA06933@bigtime.cs.colorado.edu"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+Precursor commentary: 
+
+   1. This is a long, long, posting, excuses, but I think it is 
+      needed.
+   2. This posting presents a separate research project that seems
+      to deal with many of the same issues that WEBDAV is dealing
+      with, and as such seems to have tremendous relevance.
+   3. Jim asked me to post this, disclaimers to him....., but we 
+      definitely would like to be involved in hashing out the issues 
+      addressed below.
+
+Here we go:
+
+
+WEBDAV group,
+
+over the past year, our research group has been developing an interface 
+that is similar to the interface the WEBDAV group is developing.  Our 
+goal was to come up with a versioning interface that was generic enough 
+to model various versioning policies (for example, check-in/check-out 
+such as in RCS, branch and merge such as in CVS, etc).  A pointer to 
+this work (NUCM) can be found at the WEBDAV webpage maintained by Jim.  
+It should be noted that our work is not specific to any implementation, 
+but simply specifies an interface.
+
+As I understand it, the WEBDAV group is developing an interface for 
+versioning on the WWW that is also policy-neutral.  No surprise there,
+Jim and I have been buddies for a while now. Anyways, only recently I 
+got a chance to read up on the WEBDAV work and compare it with our 
+current efforts.  I noted one of the main decisions was that the group 
+would concentrate on versions only at first, and then move on to 
+incorporate the notion of configurations lateron.  However, when I 
+carefully read the specs (both the one by the Netscape people and the 
+one by Jim and Yaron), I can't help but notice that most of the needed 
+structure for support for versions *and* configurations is already 
+there.  Important to this is that access, locks, attributes, and 
+versions are orthogonal in both models:
+
+   access      --  GET
+   locks       --  LOCK/UNLOCK
+   attributes  --  ATTRIBUTE SHEETS, ATTRIBUTE HEADERS
+   versions    --  CHECKIN/CHECKOUT
+
+These primitives pretty much work separate, and mostly do not need
+each other to successfully complete.  However, the separation is not
+quite clean yet.  To me, having gone to a similar effort, the danger
+now in just dealing with versions and not dealing with configurations
+is that the spec now can prescribe something that will be completely
+valid and logical to versions, but lateron will cause a slightly 
+different treatment of configurations.  In our approach, this is 
+exactly what happened, even though we tried to unify both in our first
+attempt, we did not succeed; and only very recently we have been able
+to redefine the interface and straighten out the differences.  
+
+My point: I believe the working group should pay attention to 
+configurations, and hash out the issues now rather than later,
+especially since most of the support is already in place.
+
+Below I will show our current interface, that we believe deals cleanly
+and simply with both versions and configurations, in the hope that
+the WEBDAV group can take advantage of this work, and not make the
+same mistakes we made the first time around.
+
+First though some preliminary comments about our work:
+
+   1. NUCM takes a similar approach as WEBDAV: everything is as 
+      orthogonal as possible, i.e., access, versioning, locking, etc
+      all are separate.
+   2. It assumes a server + workspace type of approach.  Clients 
+      contact the server to get certain operations done; however,
+      some of the work can be done by the client itself without
+      the need to contact the server.
+   3. NUCM could very well be used in an implementation of the WEBDAV
+      spec, i.e., our implementation could very easily be hooked up
+      to an existing Web server to provide versioning.  The Web
+      server simply translates the WEBDAV requests to NUCM (our work)
+      requests.  Even better, if we can develop a one-to-one mapping,
+      this translation would not be needed.
+
+Anyway, there is the interface (somewhat annotated).  First some 
+definitions that will be used later:
+
+   artifact      -> an atom or a collection
+   atom          -> something that does not have structure to the
+    versioning model, only versions of this artifact
+    make sense to the versioning model
+   collection    -> a container, or for that matter a configuration.
+    basically groups atoms and collections.  The
+    grouping points to individual versions of its
+    members. 
+
+All artifacts can be versioned, and our versioning model simply 
+assumes a directed graph type of structure (no cycles allowed though).
+To address artifacts, we have two ways:
+
+   target        -> has to be resolved to something in the workspace
+    (in WEBDAV terms: an artifact at the client site,
+    that has been retrieved with a GET).
+    For example: /bla/bli/foo.bar
+   path          -> an artifact that directly points to something in
+    the complete versioning space.
+    For example: //bla:6/bli:3/foo.bar:7
+
+The workspace typically is a slice through the complete versioning
+space, hence no version numbers needed in specifying a target, a
+simple path is usually enough.
+
+The first set of primitives deals with *access* to the complete
+versioning space that resides at the server.  The following primitives
+exist (annotates: R -> recursive, D: has to go to versioning space
+to do something, L -> can be done in local workspace):
+
+   open(path, prefix-target)D
+   close(target)RL
+   list(path)L
+   iscollection(path)L
+
+The most important one is "open": it opens a particular path on a 
+particular artifact and brings this artifact to the client site.  For
+example:
+
+   open("//bla/bli:4/foo.bar:7", some-directory-here)
+
+puts the foo.bar version 7, that is a member of bli version 4, that
+is a member of the current/latest version of bla, in the directory
+specified.  Open works for both atoms and collection, in case an
+atom is opened, the file is transported to the client site.  In case
+a collection is opened, at the client site a directory is created 
+mimicing this collection, and in the directory some meta-information
+about the collection is maintained (such as a list of its members).  
+However, the members themselves are *not* retrieved; as opposed to
+WEBDAV where this currently is the case.  It is our believe that
+retrieving members would be bad, because recursively this could lead
+to a large retrieve operation; even if done only for the current
+directory this could be a large operation.  Assume 10 executables
+of 1 meg each are in the directory and the user is interested in
+the header file that is 1K, this scheme is much better in this case.
+
+"close" removes (recursively) the target specified from the workspace;
+only if no members are currently checked-out; our model forces one to
+either abort or commit the changes before allowing a close.
+
+"list" lists the members of a collection.
+
+"iscollection" checks whether the specified path denotes an atom or
+a collection.
+
+
+
+To manipulate atoms, one would use vi, emacs, or whatever favorite
+editor one would like to use.  For collections, NUCM's interface 
+specifies a limited set of operations that they support (these
+operations are only allowed when initiatechange has been used on
+the collection beforehand, see below):
+
+   add(new-target)D
+   remove(target)RL
+   rename(target, new-name)L
+   import(path, new-target)D
+   replace(target, path)RD
+
+"add": the user has created a new artifact, and would like this to
+be added to the collection, the collection is implicitly defined by
+the place where the user created the artifact.  This function is
+not in the current WEBDAV spec.
+
+"remove": obvious, removes an artifact from the collection.  The
+current WEBDAV delete/destroy can be enhanced to do this.
+
+"rename": obvious, allows an artifact to be renamed in the current
+collection.  WEBDAV allows this.
+
+"import": very important function.  To share the history of an artifact
+across multiple collections, one needs to have the capability to 
+import an artifact from somewhere in the versioning space in the
+current collection; import does this.  Basically an "add" of an 
+existing artifact as opposed to a new artifact.  WEBDAV does not 
+support this at this moment, and hence can only make a copy of an
+artifact and then lose its shared versioning history once modifications
+are made to both artifacts.
+
+"replace": replaces an existing artifact with another artifact in the
+versioning space. This can either simply be a replacement of a version
+(i.e., this collection should point to version x instead of y of this
+artifact), but can possibly replace an existing artifact in the 
+collection with any other artifact from the versioning space.  
+Basically replace is a "remove" followed by an "import".
+
+This limited set of functions has all the capabilities needed to
+manipulate collections at will.
+
+
+
+Now for the tricky part: versioning.  Versioning functions are
+completely orthogonal to the access functions: once something is
+"open", the functions below become available.  Opened artifacts
+typically are readonly, the functions below are used to get permission
+to manipulate the artifacts and to store the new versions of the
+various artifacts.  The functions below do not care whether the
+artifact is an atom or collection, that is taken care of by the
+functions above (rename, replace, add, import).  The WEBDAV work
+could and in our opinion should take a similar approach....
+
+   initiatechange(target)L
+   abortchange(target)L
+   commitchange(target)D
+   commitchangeandreplaceold(target)D
+   version(path)L
+   isinitiated(target)L
+   lastversion(path)D
+   existsversion(path)D
+
+"initiatechange", same as "check-out".  However, does not have
+a lock attached to it at all. Simply announces that this artifact
+might chance lateron, and then allows the user to edit the artifact
+(chmod +w for an atom, for collections enables the functions add,
+import, etc).
+
+"abortchange", same as "uncheck-out".  Says: abort this change,
+and return artifact to previous state.  Could not find this in
+current WEBDAV, should be there I believe.
+
+"commitchange", takes all the changes made to an artifact (i.e.,
+the edits of an atom., or the new membership list of a collection),
+and creates a new version in the versioning workspace with the
+new contents.  This does not automatically link this new version to
+its parent collection (if it belongs to a parent collection), the
+"replace" should be used for this.  Also, this function brings the
+atom back to a state in which it can not be changed.  This basically
+is the "check-in" in WEBDAV.
+
+"commitchangeandreplace", same as commitchange, but replaces the 
+version that was worked on with the new version, i.e., no new 
+version is created.
+
+the other functions are simply information retrieval functions.
+
+Notice one more time: no locks associated with this interface,
+and the functions work on both atoms and collections.
+
+
+
+Some garbage collection primitives:
+
+   destroy(path)D
+
+User can explicitly destroy a specific version of an artifact
+using the "destroy" function.  Most of the garbage collection can
+take place automatically though, as artifacts that are not a member
+of any collection can simply be removed by the server (they are
+not reachable anymore).
+
+
+
+We have taken the approach of locks being completely separate from
+versioning, and have generalized its approach.  Basically, arbitrary
+attributes can be set and changed with the following primitives:
+
+   testandsetattribute(path, attribute, value)D
+   getattributevalue(path, attribute)D
+   removeattribute(path, attribute)D
+
+"testandsetattribute" first tests whether an attribute is set, if so,
+returns that it can not set the attribute, otherwise sets the attribute.
+The other two functions have the obvious semantics.  The value of an
+attribute then can contain basically anything, such as "lock set by
+XXX, expires YYY", or "comments to this version", or whatever.  
+WEBDAV currently separates out locking and attributes, and given its
+situation that might be good; however, a more generic approach could
+be applicable.
+
+
+
+The following primitives are used to provide distribution in our
+interface; for WEBDAV currently probably not relevant.....
+
+   mount(remote-path, new-target)D
+   getlocation(path)D
+   export(path, remote-site, permissions)D
+   revokeexport(path, remote-site)D
+   move(path)D
+
+
+
+Now for the conclusion.  Looking at the current state of WEBDAV,
+I see a lot of the above functionality trickle in: "we need COPY,
+MOVE, DELETE", and also already a "MKDIR" in some places.  However,
+the addition of these are still on an ad-hoc basis, and we believe
+the above example interface is consistent from the ground up, and
+we strongly recommend WEBDAV to take a look at the functions, 
+realize that most of what is needed is already there in WEBDAV.
+Hopefully the above presentation can help WEBDAV to include 
+configurations in the current spec, and thus unify its approach
+to both versions and configurations.
+
+Notice also that even though our approach is based on workspaces,
+this does not limit its applicability.  First of all, if in future
+clients are versioning aware, some of the functionality (mostly the
+"L" annotated functions above) can all be taken care of at the client
+site, without the need to contact a server.  However, even when 
+clients are not aware of versioning, a server can simply set up the
+workspace at its site, and filter the information through there to
+the client without much extra cost.
+
+
+I hope this helps to resolve some of the WEBDAV issues, any comments
+on the above opinions are welcome, and I would be happy to throw in
+any additional explanations that might be needed.
+
+Greetings,
+
+=== Andre ===
+
+-- 
+ =====================================================================
+=                                                                     =
+= Andre van der Hoek.                                                 =
+= E-mail: andre@cs.colorado.edu    University of Colorado at Boulder  =
+= Phone : 303-492-4463             Dept. of Computer Science          =
+= Fax   : 303-492-2844             P.O. Box 430  Boulder, CO  80309   =
+= WWW   : http://www.cs.colorado.edu/users/andre      =
+=      =
+= Somebody has to be brilliant, but it ain't me, although I hoped so. =
+=      =
+ =====================================================================
+
+
+

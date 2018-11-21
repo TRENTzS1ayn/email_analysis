@@ -1,0 +1,182 @@
+docno="lists-010-7008545"
+received="Mon Aug 12 11:05:11 1996"
+isoreceived="19960812150511"
+sent="Mon, 12 Aug 1996 19:59:50 +0200 (MET DST)"
+isosent="19960812175950"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Nonnumeric feature tags"
+id="199608121759.TAA20763@wsooti04.win.tue.nl"
+charset="USASCII"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc: Koen Holtman<koen@win.tue.nl>
+
+
+The need for non-numeric feature tags has recently been discussed on
+the list.  This is my proposal for adding them to the content
+negotiation draft.
+
+The mechanism below allows a feature tag to have multiple values,
+which need not be numeric.  By allowing for multiple values, you can
+say something like
+
+ Accept-features: paper=a4, paper=a5
+
+if you can handle two different paper sizes.  
+
+What follows are updated versions of Sections 6.2 and 6.3 of the
+content negotiation draft (see http://gewis.win.tue.nl/~koen/conneg/).
+Changebars were added by hand.
+
+----snip----
+
+6.2 Accept-Features header
+
+   The Accept-Features request header can be used by a client to give
+   information about the presence or absence of certain features.
+
+|      Accept-Features = "Accept-Features" : 
+|                  #( [ "!" ] ftag [ "=" value ]
+|                   | ftag "=" "{" value "}"
+|                   | ftag "<=" number
+|                   | "*"
+|                   )
+|
+|      value  = token
+
+       number = 1*DIGIT
+
+|  Values are case-insensitive.   An example is:
+|
+|      Accept-Features: blex, !blebber, colordepth<=5, !screenwidth,
+|                 UA-media={stationary}, paper=a4, !paper=a0, *
+|
+|  The different syntactical forms have the following meaning:
+|
+|     ftag     ftag is present, but with no values
+|     
+|     !ftag    ftag is absent
+|
+|     ftag=V   ftag is present with the value V
+|
+|     !ftag=V  ftag is present, but not with the value V
+|   
+|     ftag={V} ftag is present with the value V, and not with any
+|              other values
+|
+|     ftag<=N  ftag is present with the numeric values from 0 up to
+|              and including N, and not with any other values
+|
+|     *        makes true all feature predicates (Section 6.3) which
+|              were not assigned truth values by other elements of the
+|              header
+
+   Absence of the Accept-Features header in a request is equivalent to
+   the inclusion of
+
+       Accept-Features: *
+
+
+6.3 Feature predicates
+
+   Feature predicates are used in the features attribute of a variant
+   description.
+
+|     fpred = [ "!" ] ftag [ "=" value ]
+
+   Examples feature predicates are
+
+|     blebber, !blebber, paper=a4, colordepth=5, !blex=54
+
+   The network negotiation algorithm can compute the truth value of a
+   feature predicate by using the contents of the Accept-Features
+   header of the current request.
+
+|  The truth value of a predicate is assigned as follows, depending on
+|  its form:
+|
+|     ftag     true if the feature is present, false if the feature is
+|              absent according to the Accept-Features header
+|
+|     !ftag    true if the feature is absent, false if the feature is
+|              present according to the Accept-Features header
+|
+|     ftag=V   true if the feature is present with the value V,
+|              false if the feature is not present with the value V
+|              according to the Accept-Features header
+|
+|     !ftag=V  true if the feature is not present with the value V,
+|              false if the feature is present with the value V
+|              according to the Accept-Features header
+|
+|  If the Accept-Features header does not contain sufficient
+|  information to assign a value using the above rules, then the value
+|  is true if there is a "*" in the Accept-Features header, false
+|  otherwise.
+
+   As an example, the header
+
+|      Accept-Features: blex, !blebber, colordepth<=5, !screenwidth,
+|                UA-media={stationary}, paper=a4, !paper=a0, *
+
+   makes the following predicates true:
+
+|      blex, colordepth=4, !colordepth=6, colordepth, !screenwidth,
+|      UA-media=stationary, paper=a4, !paper=a0, paper=a5
+|      frtnbf, !frtnbf, frtnbf>=4, frtnbf<4
+
+   and makes the following predicates false:
+
+|      !blex, blex=0, blebber, colordepth=6, !colordepth,
+|      screenwidth, screenwidth=640, !screenwidth=640
+|      !UA-media=screen, paper=a0
+
+
+----snip----
+
+Note that the mechanism above allows a smooth transition between use
+of `paper' as a single-value tag to its use as a multi-value tag.
+This is crucial because, as a general rule, the first feature tags for
+an area of negotiation will be registered _before_ this area is well
+understood.  If there were no transition to use as a multi-value tag,
+then an initial incorrect decision to create something as a
+single-value tag could block progress far to easily.
+
+Also note that the `<=' has moved from the feature predicate syntax to
+the Accept-Features header syntax.  With both '<=' and '=' being legal
+in the feature predicate syntax, I think that a CGI programmer could
+too easily make the error of writing
+
+  {features colordepth=8}
+
+instead of the correct
+
+  {features colordepth<=8} .
+
+With '<=' in the Accept-Feature header, it will be up to user agent
+authors to make the mistake of generating
+
+  Accept-features: colordepth=8, *
+
+instead of the correct
+
+  Accept-features: colordepth<=8, *
+
+and user agent authors are generally in a better position to find the
+error through testing.
+
+A final note: I'm open for suggestions for improving the "ftag={V}"
+notation.  It is a bit yucky, but at least has some mnemonic value
+(being the notation for a one-element set).  Other things I considered
+were
+
+  ftag:=V  ftag@V  ftag==V  ftag:V  ftag=V!
+
+
+Koen.
+
+
+

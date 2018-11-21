@@ -1,0 +1,223 @@
+docno="lists-014-1126681"
+received="Mon Sep 30 22:20:09 1996"
+isoreceived="19961001022009"
+sent="Mon, 30 Sep 1996 19:19:07 0700"
+isosent="19961001021907"
+name="Barb Fox"
+email="bfox@microsoft.com"
+subject="Shared Key Authentication for the TLS Protocol&ndash;&ndash; an Alternative"
+id="c=US%a=_%p=msft%l=RED-99-MSG-961001021907Z40882@mail2.microsoft.com"
+expires="1"
+
+
+To:"'ietf-tls@w3.org'"<ietf-tls@w3.org>
+
+Shared Key Authentication for the TLS Protocol--an Alternative
+
+1.  Introduction
+
+This document presents an alternative to the shared-key authentication 
+mechanism proposed for the TLS protocol on the IETF TLS mailing list in 
+late July 1996.  This alternative mechanism accomplishes the same goals 
+(including enabling three-party "pass-through" authentication) in a 
+slightly more straightforward manner.  A discussion of the arguments for 
+and against the inclusion of shared-key authentication in the TLS 
+protocol can be found in that original shared-key authentication 
+document.
+
+
+2.  Summary of Changes From the Previous Proposal
+
+In the previous proposal, a key derived from the master key and several 
+other inputs was used in a stream-cipher-like manner to protect a 
+shared-key authentication response from eavesdroppers.  In this 
+proposal, a separate secret, called an authentication secret, is derived 
+directly from the master secret and incorporated into the authentication 
+response.  Thus in the case of pass-through authentication, the server 
+must pass not only the authentication response but also this 
+authentication secret to the authentication service verifying the 
+response.
+
+The previous proposal also reused the CertificateRequest handshake 
+message for shared-key authentication requests.  In the new proposal, 
+all shared-key-related data is contained in new handshake messages 
+(implementations that support the proposed changes can thus be made to 
+interoperate with implementations that do not, but ignore invalid 
+handshake messages).  Also, a "private" shared-key authentication 
+response format, originally proposed to allow arbitrary authentication 
+response formats between co-operating clients and servers, has been 
+removed from this proposal.  Since the response field is in any event 
+opaque, implementations of an alternative shared-key authentication 
+format for a particular authentication service can simply have clients 
+detect the specific authentication service, and construct their 
+authentication responses accordingly.
+
+Finally, extra challenge and display string fields have been associated 
+with each authentication service name provided by the server, the former 
+to facilitate pass-through authentication with service-supplied 
+challenges, and the latter to help the implementation to identify the 
+authentication service to the user.
+
+
+2.  Proposed Protocol Additions
+
+Starting from SSL version 3.0 notation and formats, the following two
+new HandshakeTypes would would be added, and included in the Handshake 
+message definition:
+
+shared_key_request(31), shared_key_verify(32)
+
+The SharedKeyRequest message would have the following structure:
+
+struct { DistinguishedName auth_service_name;
+         opaque display_string<0..65535>;
+         opaque challenge<0..255>;
+} AuthService;
+
+struct {
+     AuthService auth_services_server<1..65535>;
+} SharedKeyRequest;
+
+This optional message would be sent immediately following the server's 
+first set of consecutive messsages, which includes the ServerHello and 
+(possibly) the Certificate, CertificateRequest and ServerKeyExchange 
+messages.  The auth_services_server field would contain a list of 
+distinguished names of shared-key authentication services by which the 
+client can authenticate.  The challenge field accompanying each 
+authentication service name would contain an optional extra 
+authentication challenge, in case the server needs to obtain one from an 
+authentication service for pass-through authentication.  If none is 
+required, then it would simply be an empty (zero-length) field.  
+Similarly, the display_string field could contain an extra field to be 
+displayed to the user during authentication, if needed. 
+
+The SharedKeyVerify message would be sent in response to a 
+SharedKeyRequest message from the server, and would have the following 
+structure:
+
+struct {
+     AuthService auth_service;
+     opaque identity<1..65535>;
+     opaque shared_key_response<1..255>;
+} SharedKeyVerify;
+
+The value of auth_service would be required to be selected from the list 
+in SharedKeyRequest.auth_services_server.  The format of the identity 
+field would be left to the implementation, and should be inferable from 
+the accompanying value of auth_service.  The value of 
+shared_key_response would be defined as
+
+SharedKeyVerify.shared_key_response
+     hash (auth_write_secret + pad_2 + 
+            hash (auth_write_secret + pad_1 + hash (handshake_messages)                   
+                  + SharedKeyVerify.auth_service.auth_service_name
+                  + SharedKeyVerify.auth_service.display_string
+                  + SharedKeyVerify.auth_service.challenge
+                  + SharedKeyVerify.identity + shared_key) )
+     
+Here "+" denotes concatenation.  The hash function used (hash) would be 
+taken from the pending cipher spec.  The client_auth_write_secret and 
+server_auth_write_secret values would be obtained by extending the 
+key_block by CipherSpec.hash_size bytes beyond the server_write_key (or 
+the server_write_IV, if it is derived from key_block as well), and using 
+this extended portion as the client_auth_write_secret value.  The value 
+of handshake_messages would be the concatenation of all handshake 
+messages from the first one sent up to (but not including) the 
+shared_key_verify message.  The pad1 and pad2 values correspond to the 
+ones used for MAC computation in the application_data message.  The 
+fields from the SharedKeyVerify message would be input with their length 
+prefixes included.  
+
+
+3.  Normal Authentication
+
+A shared-key-based client authentication would proceed as follows:  the 
+server would send a SharedKeyRequest handshake message containing a list 
+of names of one or more authentication services.  The client, on 
+receiving the SharedKeyRequest message, would select an authentication 
+service from the server's list and construct the appropriate 
+authentication response as described above, sending it back, along with 
+its identity and choice of authentication service, in a SharedKeyVerify 
+handshake message.  The server would also itself construct the correct 
+authentication response using the known shared key, and check it against 
+the one provided by the client.  The authentication would be successful 
+if the two matched exactly.  Note that if the shared key is password-
+based, then it would typically be derived from the password using a one-
+way cryptographic hash function, rather than being the password itself, 
+so that the original password need not be remembered by anyone but the 
+client.
+
+
+4.  Pass-through Authentication
+ 
+In some circumstances, it is preferable for shared keys to be stored in 
+one place (a central, well-protected site, for instance) while servers 
+that actually communicate with clients are elsewhere (possibly widely 
+distributed, but maintaining secure connections to the central shared-
+key server).  One of the advantages of the shared-key authentication 
+method proposed here is that it allows "pass-through" authentication by 
+a third party, if the server accepting the public-key key exchange and 
+the server sharing the key with the client happen to be different.  (The 
+use of a separately derived authentication key in the response 
+computation makes this possible.)  
+
+Pass-through authentication might work as follows:  The server would 
+either collect random challenges in advance from its authentication 
+services, or request them as needed.  The server would then send a list 
+of authentication services and associated challenges in a 
+SharedKeyRequest message.  The client would then select an 
+authentication service (if more than one is offered), compute the 
+correct authentication response using the above proposed formula, and 
+send it to the server in a SharedKeyVerify message.
+
+The server, on receiving a response from a client, would pass it through 
+to the authentication service, along with the values necessary to 
+recalculate it:  the client_auth_write_key, the hash of all the 
+handshake messages and the identity field from the certificate verify 
+message.  The authentication service would then use the values provided, 
+along with the secret key it shares with the client and the challenge it 
+supplied, to reconstruct the correct value of the response.  If this 
+value exactly matches the one provided by the server, then the 
+authentication would succeed; otherwise it would fail.  
+
+
+5.  Addendum--The SharedKeys Message
+
+In cases where pass-through authentication is used, it would be useful 
+for clients to be able to notify servers in advance of one or more 
+authentication services sharing a key with the client, so that the 
+server need only fetch (or use up) a challenge from a single service for 
+that client.  An additional optional message accompanying the 
+ClientHello would accomplish that purpose.  It is proposed here for 
+consideration, with the following HandshakeType:
+
+shared_keys(30)
+
+The SharedKeys message would have the following structure:
+
+struct {
+     DistinguishedName auth_services_client<1..65535>;
+} SharedKeys;
+
+This optional message would be sent immediately following the 
+ClientHello message, and would contain a list of distinguished names of 
+authentication services to which the client is willing to authenticate.  
+This message could also be useful in non-pass-through situations; for 
+example, the client may share several keys with the server, associated 
+with identities on different systems (corresponding to different 
+``authentication services'' residing on the same server).  If a server 
+receives a SharedKeys message, then any subsequent SharedKeyRequest 
+message could contain a single authentication service selected from the 
+client's list.  
+
+Note that sending a SharedKeys message does not in itself normally 
+reveal significant information about the client's as-yet-unspecified 
+identity or identities.  However, if information about the set of 
+authentication services supported by a particular client is at all 
+sensitive, then the client should not send this message.
+
+Barbara Fox
+bfox@microsoft.com
+
+
+

@@ -1,0 +1,130 @@
+docno="lists-045-16159096"
+received="Wed May  8 15:00:01 2002"
+isoreceived="20020508190001"
+sent="Wed, 8 May 2002 11:59:26 -0700"
+isosent="20020508185926"
+name="John Boyer"
+email="JBoyer@PureEdge.com"
+subject="RE: A simple test of XPath filter performance"
+id="7874BFCCD289A645B5CE3935769F0B523286EB@tigger.PureEdge.com"
+inreplyto="A simple test of XPath filter performance"
+expires="-1"
+
+
+To:"merlin"<merlin@baltimore.ie>
+Cc:<w3c-ietf-xmldsig@w3.org>
+
+
+
+Hi Merlin,
+
+Yes it should be an enveloped signature.  
+
+Our software automatically adds an XFDL type signature element and
+populates with all of the information you see in the signed leave
+request form.  It also automatically omits the 'mimedata' element that
+contains the results of the signature.  So, there will be some
+differences, but it does look like your output  has no meaningful
+differences.  The main question is how long it took for the signature to
+be created.  My hope is that it was very fast; the ideal would be to
+match or beat the performance of the current PureEdge software, which
+means less than half a second on a 500MHz intel machine for filtering,
+c14n, hashing/cryptography, and signature element completion.
+
+As for the triggeritem, it does not appear in the sample because we are
+simulating a piece of future work that must be done to the form.  So,
+you should be able to change "<page sid="PAGE1">" to "<page
+sid="PAGE1"><triggeritem>SubmitButton</triggeritem>" without breaking
+the signature.
+
+However, note that I did make an error in the suggested filter
+expression.  Internally, our document tree representation has the
+triggeritem as a grandchild of the page (because it puts all page global
+options into an implicit page global item).  In the actual markup,
+though, the triggeritem is a child of the page, distinguishable from
+regular items like 'button' and 'field' by the fact that triggeritem has
+no scope identifier attribute (i.e. it has no 'sid').  The correct XPath
+Filter 2.0 transform should be:
+
+<XPath xmlns="http://www.w3.org/2002/04/xmldsig-filter2"
+Filter="subtract">
+        /XFDL/page[@sid="PAGE1"]/*[@sid="CHECK16" or @sid="CHECK17" or
+@sid="FIELD47" or @sid="BUTTON2" or @sid="FIELD48"] |
+        /XFDL/page/triggeritem[not(attribute::sid)]
+</XPath>
+
+Note, however, that this change of filter should make this example
+*faster* than what can be achieved with the current PureEdge software,
+which treats the triggeritem filter as mostly a grandchild test (i.e. it
+eliminates triggeritem elements with no sid from the page child level
+*and* it eliminates triggeritem grandchildren of the page element).  To
+truly simulate what the PureEdge software does, the following transform
+would be required:
+
+<XPath xmlns="http://www.w3.org/2002/04/xmldsig-filter2"
+Filter="subtract">
+        /XFDL/page[@sid="PAGE1"]/*[@sid="CHECK16" or @sid="CHECK17" or
+@sid="FIELD47" or @sid="BUTTON2" or @sid="FIELD48"] |
+        /XFDL/page/triggeritem[not(attribute::sid) |
+/XFDL/page/*/triggeritem]
+</XPath>
+
+I mention this only to illustrate that there is no magical,
+hyper-optimized code behind the PureEdge software's processing of the
+'signoptions' filter. It is essentially a subtree subtract filter that
+visits a lot of nodes.
+
+Thanks,
+John Boyer
+
+
+-----Original Message-----
+From: merlin [mailto:merlin@baltimore.ie]
+Sent: Wednesday, May 08, 2002 10:36 AM
+To: John Boyer
+Cc: w3c-ietf-xmldsig@w3.org
+Subject: Re: A simple test of XPath filter performance 
+
+
+Hi John,
+
+I attach a tgz file with signatures that covers the spec
+examples and your XFDL document. The XFDL signature is
+just stuck in the middle and has:
+
+  URI=""
+    enveloped-signature
+    subtract /XFDL/page[@sid="PAGE1"]/*[@sid="CHECK16" or @sid="CHECK17"
+or @sid="FIELD47" or @sid="BUTTON2" or @sid="FIELD48"] |
+/XFDL/page/*/triggeritem
+
+Is this the manner of signature desired? Is the triggeritem
+a child of page/*? Should it be an enveloped signature or
+subtract /XFDL/page/dsig:Signature?
+
+[Christian: your examples work fine for me]
+
+Merlin
+
+
+------------------------------------------------------------------------
+-----
+The information contained in this message is confidential and is
+intended
+for the addressee(s) only.  If you have received this message in error
+or
+there are any problems please notify the originator immediately.  The 
+unauthorised use, disclosure, copying or alteration of this message is 
+strictly forbidden. Baltimore Technologies plc will not be liable for
+direct, special, indirect or consequential damages arising from
+alteration
+of the contents of this message by a third party or as a result of any 
+virus being passed on.
+
+This footnote confirms that this email message has been swept for
+Content
+Security threats, including computer viruses.
+http://www.baltimore.com
+
+
+

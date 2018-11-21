@@ -1,0 +1,147 @@
+docno="lists-012-12284479"
+received="Mon Nov  8 08:19:48 1999"
+isoreceived="19991108131948"
+sent="Mon, 8 Nov 1999 08:18:55 0000"
+isosent="19991108081855"
+name="Aliza"
+email="aliza_blue@yahoo.com"
+subject="Failure to do persistent connection"
+id="003c01bf29c2$0c556320$04010180@sazou.com"
+charset="iso-88591"
+expires="1"
+
+
+To:"Mailing List"<http-wg@cuckoo.hpl.hp.com>
+
+Hi,
+
+I'm implementing a program to connect a site and walk through
+the first few pages. To do this I choose my.yahoo.com as my
+target, and start to implement as follows:
+
+I use a URL instance to connect to "http: file://my.yahoo.com" url.
+It responses with a single cookie header as:
+
+  Set-Cookie: B=somevalue; expires=date; path=/ ; domain=.yahoo.com;
+
+My program parses this cookie and prepare the following string
+to return back in the next POST request:
+
+  Cookie: $version=0; B=somevalue; $path=/; $domain=.yahoo.com
+  (The 'B=samoevalue' format is tested too)
+  
+The program will attach a parameter list for logging in to
+MyYahoo in the following format:
+
+  param1=value1&param2=value2&...
+
+(The parameters list is complete and all parameters name are
+spelled correctly), but the server will response with a new
+cookie and send a page that contains a message which says "An
+Error Occurred Setting Your User Cookie".
+
+I tried every thing I guessed, but no success. I don't know
+what is the problem. The last tested code is attached bellow.
+
+Thank you in advance for your kind attentions.
+@liz@
+
+---------------------------------------
+
+ System.getProperties().put( "proxySet",  "true" );
+ System.getProperties().put( "proxyHost", "128.1.1.1" );
+ System.getProperties().put( "proxyPort", "80" );
+ 
+ URL url = new URL("http://my.yahoo.com");
+ HttpURLConnection connection = (HttpURLConnection)url.openConnection();
+   
+ connection.setRequestMethod("GET");
+ connection.setRequestProperty("Connection", "Keep-Alive");
+ connection.setRequestProperty("Proxy-Connection", "Keep-Alive");
+ connection.setRequestProperty("Cashe-Control", "no-cashe");
+ connection.setDoOutput(true);
+ connection.setUseCaches(false);
+ Object content = connection.getContent();
+   
+ Cookie cookie = null;
+ int    index  = 0;
+ String header = connection.getHeaderField(index);
+ String key    = connection.getHeaderFieldKey(index);
+  
+ StringBuffer cookieStr = new StringBuffer("");
+   
+ while (header != null) {
+  if ("Set-Cookie".equalsIgnoreCase(key)) {
+   // parses the cookie header
+   cookie = parseCookie(header);
+   if (cookieStr.length() > 0) {
+    cookieStr.append(",");
+   }
+   // converts the cookie to this format:
+   //    $version=1; name=value; $path=path; $domain=domain
+   cookieStr.append(toRFC_2109(cookie));
+  }
+    
+  index++;
+  header = connection.getHeaderField(index);
+  key    = connection.getHeaderFieldKey(index);
+    
+ }
+
+ BufferedInputStream in = (BufferedInputStream)content;
+ OutputStream out = new FileOutputStream(args[0]);
+ int c;
+ while ((c=in.read())>= 0){
+  out.write((char)c);
+ }
+ out.close();
+   
+  
+ url = new URL("http://login.yahoo.com/config/login");
+ connection = (HttpURLConnection)url.openConnection();
+   
+ SimpleDateFormat formatter = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'");
+ Date now = new Date();
+ String dateStr = formatter.format(now);
+ System.out.println("Date=<" + dateStr + ">");
+   
+ connection.setRequestMethod("POST");
+ connection.setRequestProperty("Cashe-Control", "no-cashe");
+ connection.setRequestProperty("Connection", "Keep-Alive");
+ connection.setRequestProperty("Proxy-Connection", "Keep-Alive");
+ connection.setRequestProperty("Date", dateStr);
+ connection.setDoOutput(true);
+ connection.setUseCaches(false);
+   
+   
+ if ( ! "".equals(cookieStr)) {
+  connection.setRequestProperty("Cookie", cookieStr.toString());
+ }
+
+ String params = URLEncoder.encode(".tries")      + "=" + URLEncoder.encode("1")  + "&" + 
+   URLEncoder.encode(".done")       + "=" + URLEncoder.encode("http://my.yahoo.com") + "&" +
+   URLEncoder.encode(".src")        + "=" + URLEncoder.encode("my") + "&" +
+   //... other parames
+   
+
+ connection.setRequestProperty("Content-Length", Integer.toString(params.length()));
+ DataOutputStream o = new DataOutputStream(connection.getOutputStream());
+
+ o.writeBytes(params);
+ o.flush();
+ o.close();
+   
+ content = connection.getContent();
+   
+ in = (BufferedInputStream)content;
+ out = new FileOutputStream(args[1]);
+ while ((c=in.read())>= 0){
+  out.write((char)c);
+ }
+ out.close();
+   
+ System.out.println();
+ 
+
+
+

@@ -1,0 +1,251 @@
+docno="lists-055-0602981"
+received="Tue Sep 24 00:44:01 1996"
+isoreceived="19960924044401"
+sent="Tue, 24 Sep 96 00:15:01 EDT"
+isosent="19960924041501"
+name="lee@sq.com"
+email="lee@sq.com"
+subject="Re: questions about element declarations"
+id="9609240415.AA29788@sqrex.sq.com"
+inreplyto="questions about element declarations"
+expires="-1"
+
+
+To:kimber@passage.com,w3c-sgml-wg@w3.org
+
+What follows is a little lengthy, but I hope that it will be of use.
+
+I should say at the outset that in saying that SGML can't or doesn't do
+something, I am stating (what I believe to be) a fact -- that is, there is
+no implied criticism.  We must work with what we have, and not ask for it
+to have been otherwise.
+
+
+>> *  Should XML restrict the use of #PCDATA to content models of the form
+>> (#PCDATA), or of the form (#PCDATA | A | B | ...)*, as a way of avoiding
+>> the mixed-content trap (11.2.4) and/or of simplifying RE handling (7.6.1)?
+> 
+[Eliot...]
+> I think this would be a good thing (assuming we allow mixed content at
+> all).  SGML effectively requires this anyway, so why not formalize it?  
+Agreed.
+
+>> * Should XML prohibit the use of inclusion and exclusion exceptions in
+>> element declarations? (11.2.4, 11.2.5)?
+> 
+> Yes.  Exclusions are, with very rare exceptions, a bad thing, causing much
+> more trouble than they're worth. Inclusions, while expressing a useful
+> semantic, also cause more trouble then they're worth and require DTD
+> processing.
+
+I don't agree here.  Some things are hard to do in other ways.
+Exclusions are good for preventing recursive inclusions.  I noticed that
+in the GCAPAPER DTD, the only way to get text in a caption of a figure was
+to use HIGHLIGHT, which was an inclusion... but I think it's a mistake.
+Inclusions are hard to use.
+
+>> * Should XML forbid use of the '&' connector in content models
+>> (11.2.4.1)?
+> 
+> How much does AND complicate validation?
+
+There are essentially three approaches I've seen.
+(1) build an NDFA ind compile down to a DFA using the normal published
+    algrithms.  If there are n terms and'd together, you get n! states to
+    handle them.  This means that using a & b & c & d & e & f uses
+    1 * 2 * 3 * 4 * 5 * 6 =  720 states.
+    But if the model was more complex, e.g.
+    (A,B,C) & d & e & f
+    you are likely to get many more states than that, because you have
+    to account for all the possible insertion points.
+
+(2) treat it as an or group and then do a check afterwards
+    (requires either lookahead or, probably more efficiently if most
+    documents are valid, backtracking)
+
+(3) modified DFA, essentially using annotations (in the graph theory sense)
+    to note where such intrusions may occur, and pushing another automaton
+    to deal with them.
+
+Probably there are other ways.  Number (3) is the most efficient of the
+three, as far as I can tell, but I don't know a good way to deal with this.
+
+Unfortunately, as far as I know, there is no way to express
+    (A,B,C) & d*
+to mean that
+    (A, d, B, d, C)
+is acceptable.
+
+We ended up using inclusions and exceptions to model the HTML HEAD in
+the IETF HTML WG, because and-groups weren't expressive enough.
+
+A lot of the difficulty of SGML content models stems from
+(1) the lack of non-terminal symbols -- e.g. consider the YACC
+    Chapter:
+    TITLE p_list
+;
+    
+    p_list:
+    P 
+|   P p_list
+;
+
+   Here, p_list is a non-terminal that would never appear in the input.
+   The (D S) problem recently posted to comp.text.sgml is easily solved
+   using this paradigm, but adds the cost of having a shift-reduce stack.
+
+   Another way to look at this is to say that SGML doesn't offer an
+   expression language for recognising text.  SHORTREF and DATATAG are not
+   general tools for this.
+
+   For example, you can't specify the syntax of a C expression using SGML
+   as you can with YACC.
+
+(2) the lack of scope
+    
+    consider:
+
+    <!Element (TITLE within Bibliography) - -
+(#PCDATA|SmallCaps)
+    >
+
+    <!Element (TITLE) - -
+(#PCDATA|FnRef|Emphasis|SmallCaps)
+    >
+
+    You could use exclusions to do this:
+    <!Element Bibliography - - (....) -(FnRef|Emphasis)>
+    and then adding Emphasis and FnRef as inclusions back where they
+    made sense, e.g. in Bibliography.Remarks in an annotated bibliography.
+
+(3) the ambiguity rules
+
+    Consider a report that may have Scope, Requirements, Proposal and
+    Summary, but may have any number of other sections between them:
+
+    <!Element Report - -
+(
+    Scope?,
+    Section*,
+    Requirements?,
+    Section*, --* actually this is illegal *--
+    Proposal?,
+    Section*, --* actually comments are illegal here too! *--
+    Summary?
+)
+    >
+
+    Well, this is illegal because of the multiple sections.  Of course, the
+    model could cause rather large amounts of look-ahead, too.  In many
+    applications that's fine.  But for delivering documents over the
+    internet, avoiding look-ahead may be a good thing, reducing the delay
+    before The User Sees The First Screen.
+    Another way to avoid lookahead is to give up the notion that you need to
+    distinguish between a Section in any of the different groups for any
+    reason other than to match the content model.  To me, this goes along
+    with dropping the ambiguity rule.  Then you cando this withoug look-ahead,
+    as described below.
+
+    I imagine that the bug forbidding comments in model groups will be
+    fixed in the next update (assuming it's just a bug).  Mail me privately
+    on this rather thanbothering the list; suffice it here to note that
+    a comment is not in fact a special case of whitespace, and is not
+    invisible to the parser, the two more usual choices.
+
+Now, it is not clear to me that XML can or should address these issues.
+But if you are talking about removing any one feature, you must understand
+clearly (as I am sure you do, Eliot, but we are not all Eliots) how that
+affects the expressivity of the language.
+
+Posix regular expressions allow e\{n,m\} to  represent between n and m
+occurrences (inclusive) of expression e.  With that, you can eliminate
+"?", and if you have a notation for infinity, you can also eliminate * and +.
+But I would not claim that
+    CHAPTER: (TITLE{0,1}, P{1, LOTS})
+is sufficiently clearer than
+    CHAPTER: (TITLE?, P*)
+to justify the simplification.
+
+On the other hand, you cannot simulate \{...\} in terms of + and * without
+getting into some very ugly situations.
+
+In the same way, getting rid of inclusions and exclusions will reduce the
+set of expressible content models, as will removing &.  So the important
+question is whether the loss is worth the gain.
+
+>> * Should XML allow nondeterministic content models (11.2.4.3)?
+> 
+> Again, how much does this complicate validation? I'm not ambiguity expert,
+> but could the problem be solved simply by stipulating that a token is
+> always matched to the first place in the content model it can match,
+> without lookahead? 
+
+Yes, you could do that, but my content model above would then never work,
+because if you omitted a Requirements, you'd be stuck on the first Section*,
+and the Proposal would be an error.
+
+I think that my Report can be matched with no lookahead if you don't care
+about distinguishing sections in the various groups, but you'd have to use
+a somewhat more sophisticated approach, I'm afraid, than shortest match.
+An NDFA -> DFA conversion ala Aho et. al. would do it.  Here's the model
+again, followed by the reduced DFA:
+
+    <!Element Report - - (
+Scope?, Section*, Requirements?, Section*,
+Proposal?, Section*, Summary?
+    )>
+
+start:
+    Section -> start
+    Scope -> seenScope
+    Requirements -> seenRequirements
+    Proposal -> seenProposal
+    Summary -> seenSummary
+
+seenScope:
+    Section -> seenScope
+    Requirements -> seenRequirements
+    Proposal -> seenProposal
+    Summary -> seenSummary
+
+seenRequirements:
+    Section -> seenRequirements
+    Proposal -> seenProposal
+    Summary -> seenSummary
+
+seenProposal:
+    Section -> seenProposal
+    Summary -> seenSummary
+
+seenSummary:
+    EOF -> accept
+    * -> error
+
+So although this is ambiguous in SGML terms, there is no look-ahead needed.
+Question to brave sould who made it to here: are there any cases where
+look-ahead _would_ be needed?  If so, do they matter?
+Is it a problem with common prefixes, as in
+    (A B B)* A B C
+No, I can reduce that to (A B) (B->start | C).  Hmmm.
+
+Would it help to change the rule for XML to be
+    look-ahead of more than one token may not be practical.
+    Therefore, the parser may forbid content models that require it.
+    Parsers accepting such a model shall produce a warning; the parser may
+    provide an option to disable such warnings, but the default must be
+    to issue the warning.
+
+?
+
+If ambiguous content models are allowed, does that affect + - and &, and
+if so how?
+
+If scoping rules were introduced, could + and - be eliminated?
+What is the expressive loss in elmiminating "&"?
+
+I hope this rather lengthy analysis helps.
+
+Lee
+
+
+

@@ -1,0 +1,222 @@
+docno="lists-044-1442063"
+received="Wed Nov 17 18:05:07 1999"
+isoreceived="19991117230507"
+sent="Wed, 17 Nov 1999 15:04:08 -0800"
+isosent="19991117230408"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="Simplified syntax proposal, was RE: Omitting Location and Transforms from SignedInfo"
+id="NDBBLAOMJKOFPMBCHJOIMEDLCCAA.jboyer@uwi.com"
+charset="iso-8859-1"
+inreplyto="3.0.5.32.19991117094401.0092d4a0&#64;localhost"
+expires="-1"
+
+To:"Joseph M. Reagle Jr."<reagle@w3.org>
+Cc:"DSig Group"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Joseph,
+
+I would tend to agree that having to do a non-local data access is quite a
+stretch for me.  The problem is that we've  used the same general method to
+obtain data regardless of whether it is in the current document containing
+the signature or some other document on the web.
+
+I personally have no problem saying that if you want to sign a stylesheet,
+then grab a copy and put it as an object in your signature.  But I do
+'object' to being unable to indicate all or most of the elements residing
+outside of the Signature element but in the same document as the signature
+element.  If I were forced to put a copy of the bytes I want to sign inside
+of the signature, then I have one of two undesirable consequences:
+
+1) I must make a copy (which can occupy several megabytes more space)
+2) I must put the form inside the signature, which forces me to put aside
+the notion that the root element of a document defines the document's type.
+This seems anti-XML as well as anti-object-oriented.  The mental model I
+have is that I have a document, I call its "Sign" method, and the document
+now contains a signature.  I don't want it to change type.  This would be
+like the result of signing HTML not starting with the HTML tag.
+
+So, if we can preserve the ability to refer to stuff outside of the
+Signature element but in the same document, then eliminating the data
+retrieval step entirely would be just fine by me.  If someone wants to sign
+a resource outside of the current document, then put that in a manifest and
+make it an application problem.  Our core requirement is to sign a single
+XML document in whole or in part, not sign an arbitrary subgraph of the web.
+
+Finally, if you want to know the design decision that is most irksome to me,
+it is the fact that the *encrypted* hash appearing in SignatureValue does
+not directly cover the data that the signer actually wants to sign.  This
+two step process is unnecessary if you throw out the retrieval problem.
+Suppose core behavior could only refer to things inside the document.  If
+that is true, then here's what we can do:
+
+1) Throw out the XSLT and base-64 transforms
+2) Keep the c14n, but it can be
+2) Keep the XPath transform for arbitrary filtering of the current document
+3) Apply the transform to the document, ignoring the transform if it says to
+drop out pieces of the Signature that are needed for security.
+4) Render the portion of the document marked as included by the XPath (if
+there is no XPath, then it is just the whole document minus the
+SignatureValue).
+
+If someone wants to associate a stylesheet with the XML, they can either put
+a copy in the Signature as an object, or they can use a Manifest and use
+application logic to sign both.
+
+<Signature>
+<CanonicalizationMethod/>
+<XPathFilterOnCurrentDocument/>
+<Object>+
+<KeyInfo/>
+<SignatureMethod/>
+<SignatureValue/>
+</Signature>
+
+Processing Rules:
+1) All of the elements must exist except SignatureValue prior to signature
+creation
+2) The document will be canonicalized by the given method
+3) The XPath filter will be applied, marking which elements should be kept
+and which should be omitted
+4) The Signature element markers will be turned on, except for
+SignatureValue, which will be turned off.
+5) The marked portions of the document will be rendered to text.
+6) The text will be hashed by the given hash algorithm given by the
+SignatureMethod
+7) The signature will be created using the SignatureMethod and KeyInfo
+
+For verification, follow steps 1 through 6, then
+
+7) Compare the hash with the one in SignatureValue, using the
+SignatureMethod and KeyInfo for decoding purposes.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+-----Original Message-----
+From: w3c-ietf-xmldsig-request@w3.org
+[mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of Joseph M. Reagle
+Jr.
+Sent: Wednesday, November 17, 1999 6:44 AM
+To: John Boyer
+Cc: Greg Whitehead; DSig Group
+Subject: RE: Omitting Location and Transforms from SignedInfo
+
+
+At 09:54 99/11/12 -0800, John Boyer wrote:
+ >This is quite problematic.  Our core processing rules state that we verify
+ >SignedInfo, then we verify the digest values of the ObjectReferences.  HOW
+ >IS CORE BEHAVIOR GOING TO DO THIS IF CORE BEHAVIOR DOESN'T KNOW
+ >HOW TO
+ >RETRIEVE THE DATA?
+
+Just wanted to comment that I think this core behavior was a mistake. We've
+inextricably link the idea of resource validation (does the content when
+dereferenced at a URI and transformed appropriately) with signature
+validation (does the signed blob (SignInfo) when plugged into the specified
+digest and signature method with a key result in a SignatureValue.) We
+specified this core resource validation behaviour because people wanted to
+ensure the signature was over the actual content. We did this because we
+only allowed references and not the actual content. Consequently to force
+signature validation of the actual content we had to (1) include signer
+created validation rules in the ObjectReferences or (2) make that a default
+behaviour of SignedInfo. I didn't like (1) because I don't think we our
+trust model is well thought out; unfortunately (2) has led to a string of
+design decisions that involves us in resource resolution problems which are
+just as nasty ...
+
+Going back to the simple signature meaning, the signature provides
+integrity, authentication, and non-repudiability over some bucket of bytes.
+The main reason we defined something called SignedInfo is because we needed
+a bucket and a place to include C14N and Signature Method for security
+purposes.
+
+I see two main requirements people have:
+
+R1. Force validation over critical content (presently mandated as resource
+validation core behaviour.)
+R2. Do not force assertions of dereferencing/transforming the content to be
+bound to the signature.
+
+I see the following options:
+1. Keep status quo and use a URI that will properly dereference and
+transform the target without including that info in the signature.
+2. Permit transforms over SignedInfo. (Doesn't seem to be well liked.)
+3. Introduce "omit" tags in the SignedInfo (No we have two inconsistent ways
+of transforming content, previous discussion on this topic also is
+relevant.)
+4. Permit people to sign content directly.
+
+<!-- This SignedInfo includes the actual object which is processed via the
+     null canonicalization -->
+
+   <SignedInfo CanonicalizationMethod="http://www.w3.org/.../xml-c14n"
+               SignatureMethod="&dsig;dsaWithSHA-1"/>
+      <Object ID="1">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+         <Transforms IDREF="3"
+            <Transform Algorithm="&dsig;/xml"/>
+         </Transforms>
+         <Inline ID="3">
+            <name xmlns="http://www.imc.org/vcard">
+               <first>Joseph</first>
+               <last>Reagle</last>
+            </name>
+         <Inline>
+      </Object>
+   </SignedInfo>
+
+(Or they can still sign things remotely.)
+
+<!-- This SignedInfo referenced one object which is decoded,
+     canonicalized, deriving the content IS bound to the signature.-->
+
+   <SignedInfo CanonicalizationMethod="&dsig;/xml-c14n"
+               SignatureMethod="&dsig;/dsaWithSHA-1"/>
+      <Object ID="2">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+         <Transforms>
+            <Decode Algorith="&dsig;/base64"/>
+            <Transform Algorithm="&dsig;/xslt"/>
+         </Transforms>
+         <Target URI="http://www.mypage.com/hello.base64"/>
+      </Object>
+   </SignedInfo>
+
+5. Permit people to move the dereferencing/transformation outside SignedInfo
+(The Target Reference="..." means go to that reference to figure out how to
+derefence/transform the content.):
+
+<!-- This SignedInfo referenced one object which is decoded,
+     canonicalized, deriving the content IS NOT bound to the signature -->
+
+   <SignedInfo CanonicalizationMethod="&dsig;/xml-c14n"
+               SignatureMethod="&dsig;/dsaWithSHA-1"/>
+      <Object Name="2">
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+         <Target Reference="4"/>
+      </Object>
+   </SignedInfo>
+   ...
+   <Object ID="4">
+      <Target URI="http://www.mypage.com/hello.base64"/>
+      <Transforms>
+         <Decode Algorith="&dsig;/base64"/>
+         <Transform Algorithm="&dsig;/xml"/>
+         <DigestValue Algorithm="&dsig;sha1"/>a23bcd43</DigestValue>
+      </Transforms>
+   </Object>
+
+
+Did I miss anything or some other option?
+
+_________________________________________________________
+Joseph Reagle Jr.
+Policy Analyst           mailto:reagle@w3.org
+XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

@@ -1,0 +1,161 @@
+docno="lists-011-2296759"
+received="Fri Apr 18 16:42:29 1997"
+isoreceived="19970418204229"
+sent="Fri, 18 Apr 97 16:32:24 MDT"
+isosent="19970418223224"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 1xx Clarification"
+id="9704182332.AA24636@acetes.pa.dec.com"
+inreplyto="9704171747.AA22929&#64;pachyderm.pa.dec.com"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Regardless of the possible need for a "notification mechanism",
+as Jim Gettys discusses, there is confusion over the use of
+100 (Continue) messages as specified in RFC2068 section 8.2
+(Message Transmission Requirements).
+
+This section is indeed confusing.  Even though I wrote a lot
+of the words here, when I read it last week, I couldn't
+understand exactly what was intended.  Another week passed,
+and then I recalled why this was written the way that it is.
+(I tried arguing, last year, that the RFC needed to include some
+rationale statements, but the "it's too long already" camp won the
+argument.)
+
+Here's the historical background, as close as I can remember:
+
+Roy was concerned that some servers might not want to accept
+certain requests with very large bodies (e.g., a POST or PUT).
+
+The "100 Continue" response code was introduced for this purpose.  The
+idea was that when a client sends, e.g., a POST with a large body, it
+would first send the headers, then it would wait for the server's 100
+response before sending the body.  This would allow the server to
+reject the request (e.g., with a 4xx response status) before reading
+the whole thing.
+
+I believe we called this a "two-phase" method (although the term
+doesn't appear in RFC2068).
+
+Other people objected to this simple design, since it effectively adds
+an entire round-trip to each POST.
+
+The "compromise" that I proposed is this:
+
+    The client first tries to send its request without pausing
+    between the headers and the body.  This results in optimal
+    performance if the server is willing to receive the
+    request, except that the spec requires the server to stick
+    a "100 Continue" line just before the real response (so
+    we waste a few header bytes).
+    
+    If the server is happy, fine.  That's it.  No extra delay.
+    
+    If, however, the server is unhappy, it can immediately close
+    the connection.  I.e., the server can punt on reading any
+    of the request body, and let the client's TCP stack notify
+    the client application that something when wrong.  Since,
+    in the persistent-connection model, the server is *always*
+    free to close a connection with a request in progress, the
+    client is *always* allowed to retry the request (after opening
+    a new connection).
+    
+  However (and this is the tricky part):
+    If the client sees the connection close prematurely (i.e.,
+    before it sees a response status code), AND if the request it sent
+    has a body, AND if it knows (based on a previous response) that
+    the server is an HTTP/1.1 server, THEN it must wait for the "100
+    Continue" response after sending the request header.
+
+    This means that, after one failed attempt, the client switches
+    from using the one-phase approach to using the two-phase
+    approach.
+
+As far as I can tell, this is a hop-by-hop mechanism, NOT an end-to-end
+mechanism.  The two-phase interaction is between the proxy and the
+server, not the server and the proxy's own client.  The reason for this
+is that use of the two-phase approach is triggered by the "client"
+(which in this case is the proxy) seeing the TCP connection close
+before it receives a response status.  But just because the server
+closes the server-to-proxy TCP connection does NOT mean that the proxy
+needs to close the proxy-to-client connection.  From the client's point
+of view, there is a long delay, but nothing else is unusual.
+
+Of course, if the *proxy* wants its own client to use a two-phase
+approach, then it can trigger this by prematurely closing the
+proxy-to-client TCP connection.  But this is hop-by-hop, this
+is independent of the proxy-to-server behavior.
+
+And, because it is hop-by-hop, the "server" in question need
+not be an origin server; it might be an intermediate proxy.
+
+And, if this isn't obvious: any HTTP/1.1 proxy, when communicating
+with an HTTP/1.1 client, is a "server" from the point of view
+of this section, and so needs to send a "100 Continue" before
+it sends a response to a request with a body.  Since it might
+have received the response from an HTTP/1.0 server, the proxy
+might have to add the "100 Continue" on its own initiative;
+similarly, if it is forwarding a response from an HTTP/1.1
+server to an HTTP/1.0 client, it needs to remove the "100
+Continue" response.  I.e., the "100 Continue" message is
+really hop-by-hop, not end-to-end.
+
+Section 8.2 says:
+   Upon receiving a method subject to these requirements from an
+   HTTP/1.1 (or later) client, an HTTP/1.1 (or later) server MUST either
+   respond with 100 (Continue) status and continue to read from the
+   input stream, or respond with an error status. 
+which implies that it MUST NOT simply send a "200 OK" response without
+sending a "100 Continue" response.  The reason for this is that,
+in the persistent-connection model, a server might close the TCP
+connection without realizing that the client has already sent
+a new request (because of network delays), and so the client might
+have to retry a request for reasons other than the server wishing
+to switch to a two-phase approach.  But since section 8.2 requires
+the client to wait, possibly forever, for a "100 Continue" before
+it sends the request body, and the server cannot send an actual
+response to the request before it receives the body, without the
+mandatory "100 Continue" we would have a deadlock.
+
+On the other hand (to finally get to the question that started
+this whole thread), I couldn't think of any harm that would
+come from sending spurious "100 Continue" responses, as long
+as proxy implementors realize that these have to be treated
+as hop-by-hop messages.  Since the HTTP response stream over
+a connection is fully synchronized with the request stream
+(i.e., the order is exactly the same in both directions), an
+"extra" 100 response can always be ignored by the recipient.
+
+The key issue is that if the server sends just one "100 Continue"
+response for a request, and if it might sends it before the request
+actually arrives, then a client which reads ahead on a persistent
+connection must "remember" that the most recent response was a
+"100 Continue", so that if its next request has a body, then it
+won't wait forever for the next "100".  This seems like reasonably
+sound defensive coding, although it's only required if we allow
+servers to send the mandatory "100" before receiving the corresponding
+request.
+
+Probably we should either rewrite section 8.2 entirely, or we
+should include some sort of note explaining the purpose of this
+setup.
+
+-Jeff
+
+P.S.: Or we should eliminate "100 Continue" and the two-phase
+mechanism entirely.  We added it because Roy (and maybe a few
+other server implementors?) wanted to be able to reject long
+requests without reading the whole message.  But it clearly
+has led to a lot of complexity for all implementors (clients,
+servers, and proxies) and introduces some unavoidable overheads.
+My own feeling is that it is probably not such a big deal for
+a server to have to bit-bucket a large request body once in
+a while.  Especially compared to the added complexity that
+the two-phase model implies.
+
+
+

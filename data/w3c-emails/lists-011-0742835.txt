@@ -1,0 +1,77 @@
+docno="lists-011-0742835"
+received="Thu Mar 27 14:04:20 1997"
+isoreceived="19970327190420"
+sent="Thu, 27 Mar 97 13:57:40 PST"
+isosent="19970327215740"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: pipelining vs. deferred content"
+id="9703272157.AA29930@acetes.pa.dec.com"
+inreplyto="9703271142.aa29566&#64;gonzo.ben.algroup.co.uk"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Regarding the issue of how one might defer the retrieval of
+an inlined image that will require a long time to generate
+(at the server), Ben Laurie <ben@gonzo.ben.algroup.co.uk> writes:
+
+    Isn't this problem effectively solved by multiplexing, which is on
+    the agenda for HTTP-NG?
+
+    I agree that we are unlikely to solve it before DS time! I also
+    shudder to think of how we'd have to restructure Apache to handle
+    it.
+
+    We are planning changes to Apache to be able to do this kind of
+    thing in V2.0, ETA sometime next century at the current rate of
+    progress.
+    
+Given the time already spent on HTTP/1.1, I would also not
+want to count on deployment of HTTP-NG before the next century :-).
+
+But this is not really the same as multiplexing, because it's not
+an attempt to reorder requests and responses, or to interleave
+chunks of different messages.  Multiplexing would solve this problem,
+but you don't need anything like the full complexity of multiplexing.
+
+If we ignore the issue of compatibility with HTTP/1.0 clients (just
+for the sake of this particular speculation), I don't think the
+implementation of my "503 + Retry-After" approach would be so bad.
+
+On the server side, this can be done entirely in CGI.  E.g., suppose
+we have a CGI script that generates a perspective view of the
+topology of a certain locality.  Suppose that the user can ask
+for any variation on perspective (e.g., height, viewing angle,
+width of scene, latitude/longitude, and lighting model), so it's
+going to take some CPU time to generate the scene.
+
+The first time the CGI script is invoked with a request for the
+image, instead of generating the image, it estimates how much time
+it would take to generate it.  This is probably not that difficult,
+and certainly shouldn't require much computation itself.  Suppose
+that this estimate is "10 seconds".  So the CGI script does two
+things:
+(1) fires up a background process to generate the image,
+and store it in a private server-side cache.
+(2) returns "503 Service Unavailable" with "Retry-after: 10"
+Note that the HTTP server itself is entirely uninvolved in this
+decision.
+
+10 seconds later, the client makes the same request, so the server
+invokes the same CGI script.  This time, the CGI script checks its
+private cache, and finds a fully-computed image that matches the
+request.  So it simply spits out "200 OK" and the file.  Again,
+no involvement from the HTTP server code.
+
+Unfortunately, if the client doesn't understand "Retry-After",
+then it will simply treat the first 503 response as an unrecoverable
+error, and will never retry the request.  So I don't think this
+exact approach will work in real life, at least not until the
+current population of browsers is replaced.
+
+-Jeff
+
+
+

@@ -1,0 +1,179 @@
+docno="lists-104-2625931"
+received="Sat Sep 29 23:14:39 2001"
+isoreceived="20010930031439"
+sent="Sun, 30 Sep 2001 05:13:31 +0200"
+isosent="20010930031331"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="CSS DOM woes"
+id="qb3drts04k70tqv5ffidcucftt2f9hm4og@4ax.com"
+charset="ISO-8859-1"
+expires="-1"
+
+To:www-style@w3.org
+
+
+Hi,
+
+   The more I try to implement the current DOM Level 2 Style
+recommendation in Perl, the more I dislike it. I asked a lot of
+questions in mid April 2001, but I didn't get any answer, so I ask them
+again and new ones, this time bugging www-dom, www-style *and* the
+editors (with exception of Vidur Apparao, the recommendation doesn't
+list any of the editors email addresses and I don't know his... :-( ).
+
+Genericalism:
+
+  The CSS DOM is very focussed on CSS Level 2 thus making it hard or
+  nearly impossible to implement it in a generic fashion. This is
+  allowed at least implicitly by the CSSStyleDeclaration definition in
+  the specification. So, my questions assume, that the implementation
+  doesn't know anything about things specific to a certain level of CSS.
+
+The cascade:
+
+  Some methods provide access to properties by their name, this implies
+  that the cascade has to apply somewhere, but it isn't specified where.
+  What rules apply to a CSS DOM implementation? Is it
+
+    * only the last declaration counts
+    * !important declarations override non-!important declarations?
+
+  If this is the case, a call like
+
+    CSSStyleDeclaration::setProperty('coolness', 'root', '')
+
+  doesn't do anything if there was already a
+  'coolness: kiddie !important'?
+
+Typing:
+
+  What constitutes a CSSValueList? It can't be the property's definition
+  (since generic implementations don't know nothing about them), so this
+  information must lie in the CSS tokens, but how is this supposed to
+  work in a case like
+
+    font-family: Arial Unicode MS, Trebuchet MS, sans-serif
+
+  We have 6 CSS_IDENT values here, there are no other CSS types, that
+  could be used to represent the comma but CSS_UNKNOWN, however, the
+  comma is not specified as CSS value in the normative reference CSS
+  Level 2. The comma will be lost in the DOM, an application is unable
+  to know about what values make a singe font family name, the cssText
+  attribute is useless, since the DOM application is supposed to
+  re-stringify the property, in fact, the original text isn't available
+  if the DOM builder used SAC to parse the style sheet. The
+  specification could have said commas to create new CSSValueLists, but
+  CSSValueList::item returns only CSSValue object, so this is no
+  possible implementation.
+
+Constructors:
+
+  Where are create* methods? Why is there no interface to create
+  CSSValues, CSSValueLists, etc. Actually this question should be,
+  where are the objects in this object model? I/O via strings may be
+  ok for values and selectors, but certainly not for rules and
+  declarations, this just complicates implementations. Stringifycation
+  is a job for serializers, but not for a DOM.
+
+Error Treatment:
+
+  It is not specified, how implementations are supposed to treat errors
+  in string input, raising a DOMException with SYNTAX_ERR is not
+  compatible with the forwared compatibility rules of the normative
+  reference CSS Level 2. Consider some application tries to set
+  CSSStyleDeclaration.cssText to
+
+    "font-size: 2em; font-family: 'sans-serif'"
+
+  A CSS parser will ignore the infalid font-family declaration, the DOM
+  Interface would probably raise the mentioned DOMException and ignore
+  the whole declaration. Or would it set font-size? But how should the 
+  application then catch the error?
+
+Selector API:
+
+  Why is there no API for W3C Selectors? How should applications find
+  out about what rules they want to manipulate, if they can't find out
+  if the selector matches their needs, or how are simple modifications
+  to some selectors to be done? The XPath DOM3 module also lacks of a
+  feature to access XPath expressions. I think some task force should
+  try to give them both a shareable API; this should be possible, since
+  they share functionality and have similar syntax. Of course they need
+  also specialised APIs to access their full potential, but if they'd
+  have something in common, the learning curve of both and
+  implementations of possible translators between W3C selectors and
+  XPath expressions could be built more easily.
+
+CSSStyleDeclaration:
+ 
+  attribute item: "Used to retrieve the properties that have been 
+  explicitly set in this declaration block. The order of the properties
+  retrieved using this method does not have to be the order in which
+  they were set." How does this interact with setProperty()?  If I add a
+  new property via setProperty(), which index number does it get? length
+  i.e. it is inserted at the end of the 'list'? Or doesn't that matter,
+  i.e. the order may be changed through calling setProperty() or
+  removeProperty()? In general, it doesn't make much sense to make
+  CSSStyleDeclaration some type of list if this list is only accessed by
+  property names, but this is a general DOM disease.
+
+Font Descriptors and more typing:
+
+  Given ist the following style sheet:
+
+    @font-face {
+      font-style: normal, italic;
+    }
+
+  How to present this in the DOM? I _very_ dislike the current
+  situation, that font descriptors are treated as properties, however,
+  according to the CSS grammar we have here [IDENT, DELIM, IDENT] in the
+  property value. In the DOM is a CSSFontFaceRule for the 
+  @font-face-rule created and CSSStyleDeclaration for it's content. Ok,
+  but what about the value? I thought individual tokens make individual
+  CSSValues, then we have a CSSValueList with
+
+    [CSS_PRIMITIVE_VALUE, CSS_UNKNOWN, CSS_PRIMITIVE_VALUE]
+
+  Is that the way to go, or is it
+
+    [CSS_PRIMITIVE_VALUE, CSS_PRIMITIVE_VALUE]
+
+  only for the 'normal' and 'italic' IDENTs? Which DELIM tokens would
+  then not go into the DOM? How to present something like
+
+    elem { twinkle: 6 > 7 }
+
+Value Unit Conversion:
+
+  The units [cm, mm, in, pt, pc], [hz, khz], [s, ms], [deg, rad, grad]
+  allow mutual conversion, are other conversions possible? Can a CSS_URI
+  be a CSS_STRING? Can CSS_DIMENSION and CSS_NUMBER be converted into
+  something else?
+
+Unicode Ranges:
+
+  The specification does not provide any way to access Unicode Ranges.
+  Why this omission? Representing them as CSS_UNKNOWN types doesn't
+  really make sense.
+
+Actual Values:
+
+  The current CSS DOM doesn't provide any means to access the actual
+  value for properties, why?
+
+I'm sure I've missed a lot of issues (maybe others post ), but I'd be
+very happy to get some clarifications on the mentioned points. The CSS
+DOM will become more important since SVG users are likely to use it, but
+that's IMO impossible, with a CSS DOM specification like the one
+provided.
+
+regards,
+-- 
+Bj?rn H?hrmann { mailto:bjoern@hoehrmann.de } http://www.bjoernsworld.de
+am Badedeich 7 } Telefon: +49(0)4667/981028 { http://bjoern.hoehrmann.de
+25899 Dageb?ll { PGP Pub. KeyID: 0xA4357E78 } http://www.learn.to/quote/
+
+
+

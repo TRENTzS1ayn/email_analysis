@@ -1,0 +1,138 @@
+docno="lists-000-7893207"
+received="Tue Jun 20 14:11:10 2000"
+isoreceived="20000620181110"
+sent="Tue, 20 Jun 2000 13:10:38 -0500"
+isosent="20000620181038"
+name="html-tidy@war-of-the-worlds.org"
+email="html-tidy@war-of-the-worlds.org"
+subject="Re: &lt;caption&gt;&lt;h1&gt; nested - Mac BBTidy"
+id="p04320400b5755c09f372@[216.229.13.10]"
+charset="us-ascii"
+inreplyto="3936CF59.8AD8724A&#64;get2net.dk"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+mac.bjarnedm@get2net.dk wrote:
+
+>the following
+><table>
+><caption align="top" ><h1>indhold</h1></caption>
+>gives:
+
+Okay, maybe I can explain it by showing the process that Tidy goes through
+correcting each error.
+
+You started with:
+
+<table>
+<caption align="top"><h1>indhold</h1></caption>
+
+and presumably some other table content following it.  After each error
+I'll illustrate what Tidy does by reprinting the markup as edited, with a +
+to indicate where Tidy is in the parsing.
+
+Just before the first error, you have:
+
+<table>
+<caption align="top">
++
+<h1>indhold</h1></caption>
+
+>line 14 column 23 - Warning: missing </caption> before <h1>
+
+Because:
+
+<!ELEMENT CAPTION  - - (%inline;)*     -- table caption -->
+
+and H1 is not an element of %inline;.  This implies closure of the caption.
+
+<table>
+<caption align="top">
+</caption>
++
+<h1>indhold</h1></caption>
+
+>line 14 column 23 - Warning: trimming empty <caption>
+
+<table>
++
+<h1>indhold</h1></caption>
+
+>line 14 column 23 - Warning: <h1> isn't allowed in <table> elements
+
+Tidy moves unexpected content in a table to occur before the table.
+
+<h1>
+<table>
++
+indhold</h1></caption>
+
+>line 14 column 27 - Warning: plain text isn't allowed in <table> elements
+
+<h1>
+indhold
+<table>
++
+</h1></caption>
+
+>line 14 column 34 - Warning: </h1> isn't allowed in <table> elements
+
+<h1>
+indhold
+</h1>
+<table>
++
+</h1></caption>
+
+Some internal knowledge is needed here.  Tidy doesn't really keep track of
+end tags when building its internal document tree.  That information is
+derivable directly from the structure.  The </h1> isn't really
+moved/copied.  Similarly for the </caption> above.
+
+>line 14 column 34 - Warning: trimming empty <table>
+>line 14 column 34 - Warning: discarding unexpected </h1>
+
+This is a combination error.  It parsed the table, so it's in the document
+tree, but it encountered a closing tag that isn't open.  This appears to
+have implied to Tidy internally that the table has closed structurally,
+resulting in what it sees as a table with no children
+
+<h1>
+indhold
+</h1>
+<table>
+</table>
++
+</caption>
+
+
+<h1>
+indhold
+</h1>
++
+</caption>
+
+>line 14 column 39 - Warning: </caption> isn't allowed in <body> elements
+>line 14 column 39 - Warning: inserting implicit <table>
+
+<h1>
+indhold
+</h1>
+<table>
++
+</caption>
+
+>line 14 column 39 - Warning: discarding unexpected </caption>
+
+<h1>indhold</h1>
+<table>
++
+
+And then it will go on to parse the rest of the table.
+
+Solution:  don't put H1 inside CAPTION; it can't go there.
+
+
+

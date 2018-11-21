@@ -1,0 +1,207 @@
+docno="lists-102-14440485"
+received="Fri Mar  5 10:34:36 1999"
+isoreceived="19990305153436"
+sent="Fri, 5 Mar 1999 15:26:39 -0000"
+isosent="19990305152639"
+name="Miles Sabin"
+email="msabin@cromwellmedia.co.uk"
+subject="Re: Level 2 iterators"
+id="c=US%a=_%p=Cromwell_Media%l=ODIN-990305152639Z-17059@odin.cromwellmedia.co.uk"
+inreplyto="Level 2 iterators"
+expires="-1"
+
+
+To:"'DOM list'"<www-dom@w3.org>
+Cc:"'Ray Whitmer'"<ray@imall.com>
+
+Ray Whitmer wrote,
+> Miles Sabin wrote:
+> > The increase is in complexity in the big-oh sense 
+> > ... that is, fixups (and even notifications of 
+> > invalidation) have serious performance consequences, 
+> > either for next/prevNode(), for tree mutation 
+> > operations, or both. For those of us wanting to use 
+> > the DOM on the server- side this is a serious issue, 
+> > and would probably rule out the use of iterators in 
+> > the same way that it now rules out the use of 
+> > NodeLists. Worse still, it could also rule out the 
+> > use of current or future APIs that are specified in 
+> > terms of NodeIterators.
+> 
+> I currently use NodeLists in very high demand server 
+> code.  It all depends upon the efficiency of the DOM 
+> implementation and the specific use cases.
+
+I'm afraid I don't really understand this ... Maybe we
+don't understand the word 'efficency' in quite the same
+way: there's an ambiguity here, between the efficency
+of an _algorithm_ (or a data structure which supports
+an algorithm), and the efficiency of an _implementation_
+of an algorithm (or data structure). The former is
+usually characterized in big-oh terms; the latter in
+terms of the constant factors between run times (or
+memory usage or whatever) and some normalized, ideal run 
+time.
+
+Anyhow, the upshot is that an implementation of an
+O(log n) algorithm (no matter how efficient) will always
+be slower than an implementation of an O(1) algorithm
+(no matter how _inefficiently_ implemented) for some
+suitably large value of n.
+
+I suspect that the drafters have underestimated the 
+extent to which the iterator requirements would have
+an impact on performance, partly because I think it's
+possible that they believe that iterators could be
+adequately defined in terms of the NodeLists we already 
+have. Those have been deemed (however grudgingly) 
+acceptable, hence NodeIterators will be too, eventually.
+
+Unfortunately this isn't the case: the differences 
+between the semantics of NodeLists and NodeIterators are 
+such that the timestamp based mechanism for NodeList 
+maintenance (which gets you O(log depth-of-node) for 
+node insertions and deletions) isn't sufficent. An 
+implementation of iterators in terms of NodeLists using 
+timestamps would result in O(number-of-iterators-on-
+subtree * depth-of-subtree-from-root) for insert and 
+delete. Given that, in Java at least, both NodeLists and 
+NodeIterators can hang around long after they're 
+finished with from the programmers point of view (due to
+the vagaries of GC, Java2 weak refs notwithstanding) 
+this additional multiplier would be significant if 
+iterators were heavily used on large trees.
+
+Here's an illustration of fixup which is a bit more
+realistic than the one given in the draft (which 
+only discusses sequences of siblings!!!),
+
+                   A
+                 /   \
+              B         G
+            /   \     /   \
+           C     D   H     I
+               /   \        
+              E     F
+
+Let's create a tree iterator rooted on A. The sequence
+this iterator generates, in document order, is,
+
+  ABCDEFGHI
+
+We advance the iterator to node E,
+
+  ABCDEFGHI
+      ^
+Now we delete node B from the tree. I would assume that 
+the intended behaviour would be that the sequence and
+iterator position become,
+
+  AGHI
+  ^
+So what has to go on behind the scenes for this to 
+happen? Well, when B is deleted all iterators positioned 
+on B or on nodes in the subtree under B have to be 
+relocated to the document-order predecessor of B. To do 
+this we must be able to identify all the iterators 
+active on the subtree under B. There are a number of
+ways of doing that,
+
+1. We maintain a list of all iterators active on the
+   the tree. When a node is inserted or deleted we scan 
+   that list searching for and fixing up any iterators 
+   active on the subtree. 
+
+2. For each node we maintain a list of all iterators
+   that are currently active in its subtree. When a
+   node is inserted or deleted we run through all the
+   iterators on that list and fix them up. On this
+   model iterator next/prevNode are very expensive.
+
+3. For each node we maintain a list of all iterators
+   that are pointing to it. When a node is inserted or 
+   deleted we visit all the nodes in the subtree and 
+   then run through all the iterators on the lists 
+   maintained at each of those nodes.
+
+I sat down to do an analysis of these options but (ahem)
+it's a bit hard ;-) My guesstimate is that none of these
+come out any better than iterators implemented in terms
+of NodeLists, and at least one is much worse.
+
+> I tend to use NodeLists mostly in documents which 
+> don't mutate until after I stop using the NodeList.  
+
+But what are you saying here? You're saying that you
+don't mix NodeLists with tree mutation! And quite right 
+too! Do you really want NodeIterators to turn out
+the same way?
+
+Ray Whitmer wrote,
+> Miles Sabin wrote:
+> > The spec should be amended to allow for more 
+> > lightweight implementations (currently it can only 
+> > be read as requiring that any and every
+> > NodeIterator implementation support fixup), even if 
+> > the default implementation behaves as currently 
+> > described for hand-holding purposes (however 
+> > spurious).
+> 
+> Although I once advocated this, I now believe that 
+> implementations which behave differently from the 
+> stated spec should implement a proprietary interface, 
+> not a w3c dom interface.
+>
+> It doesn't achieve much if you say at the end of the 
+> day, "well, isn't it great that I used the DOM APIs 
+> everywhere".  But then you try plugging in another DOM 
+> and the iterator behaviors are all different so that 
+> all the users of iterators get unexpected behaviors.  
+
+But this is *not* the point at issue. The point is 
+whether the _draft_ should be _revised_ to allow more 
+flexibility, so the DOM can be applicable across a 
+broader range of applications than currently appears to 
+be envisaged. I accept that there is cost: the draft
+would have to make slightly weaker guarantees on
+iterator behaviour. The question is, is that cost worth
+the gain? I maintain that it is.
+
+Where are new DOM implementations coming on stream at
+the moment? In interactive browsers and document 
+processors, certainly, but also in XML parsers, XSL 
+processors, and database interfaces used by heavily
+stressed server-side applications. These implementations
+have different requirements, both in terms of the sort 
+of operations on a DOM tree that they are likely to 
+perform (ie. lots of tree construction and modification) 
+and in terms of the size of documents that they are 
+likely to be dealing with. Performance issues which might 
+have no noticeable impact in an interactive application 
+will be greatly magnified in these environments.
+
+> It should be a proprietary interface to start with so 
+> that at least it is clear up front that the two 
+> iterators are not interchangable even if the method
+> signatures happen to be the same.
+
+At one time or another a number of contributors to this 
+list have proposed forking a server-side DOM-style API. 
+I, like many others took the view that this was ill-
+advised, and it saddens me to hear a contributor to the 
+current draft expressing an opinion which can only
+encourage that.
+
+Cheers,
+
+
+Miles
+
+-- 
+Miles Sabin                          Cromwell Media
+Internet Systems Architect           5/6 Glenthorne Mews
++44 (0)181 410 2230                  London, W6 0LJ
+msabin@cromwellmedia.co.uk           England
+
+
+

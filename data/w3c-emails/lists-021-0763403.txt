@@ -1,0 +1,89 @@
+docno="lists-021-0763403"
+received="Fri Mar 26 15:06:38 2004"
+isoreceived="20040326200638"
+sent="Fri, 26 Mar 2004 11:42:07 -0800"
+isosent="20040326194207"
+name="Rob Shearer"
+email="Rob.Shearer@networkinference.com"
+subject="RE: mapping a relational database as RDF"
+id="CFE388CECDDB1E43AB1F60136BEB4973028055@rome.ad.networkinference.com"
+charset="us-ascii"
+inreplyto="mapping a relational database as RDF"
+expires="-1"
+
+
+To:"Chris Bizer"<chris@bizer.de>,<public-rdf-dawg@w3.org>
+
+
+I think we're getting a little distracted by the actual RDBMS-to-RDF
+mapping implementation, which seems pretty obviously beyond our scope.
+The transformation might as well be done by hand in some arbitrary
+fashion, and I'm not addressing doing anything at all "clever" or
+"semantic" with a database.
+
+Concrete example: a database with two tables:
+
+Cars:
++-------+-------+-------+------+
+| Owner | Make  | Color | Year |
++-------+-------+-------+------+
+| 1     | Honda | Red   | 1998 |
+| 2     | Ford  | Black | 2004 |
+| 2     | Kia   | Blue  | 2000 |
++-------+-------+-------+------+
+People:
++-----+-------+-----+
+| Key | Name  | Age |
++-----+-------+-----+
+| 1   | Steve | 41  |
+| 2   | Ed    | 25  |
++-----+-------+-----+
+
+Now consider that this data has been translated to:
+
+_:C1 hasMake  "Honda"^^xsd:string
+_:C1 hasColor "Red"^^xsd:string
+_:C1 hasYear  "1998"^^xsd:int
+_:C2 hasMake  "Ford"^^xsd:string
+_:C2 hasColor "Black"^^xsd:string
+_:C2 hasYear  "2004"^^xsd:int
+_:C3 hasMake  "Kia"^^xsd:string
+_:C3 hasColor "Blue"^^xsd:string
+_:C3 hasYear  "2000"^^xsd:int
+_:P1 hasName  "Steve"^^xsd:string
+_:P1 hasAge   "41"^^xsd:int
+_:P1 ownsCar  _:C1
+_:P2 hasName  "Ed"^^xsd:string
+_:P2 hasAge   "25"^^xsd:int
+_:P2 ownsCar  _:C2
+_:P2 ownsCar  _:C3
+
+This may not be your favorite way to transform the relational data to
+RDF, but in my experience it's a not-entirely-unrealistic example of
+what users do. We only need to agree that the same basic knowledge is
+encoded in both formats.
+
+Some queries on the original relational data:
+
+1. "Find me the names and ages of all people who own red cars"
+   SELECT DISTINCT People.Name People.Age FROM People, Cars
+     WHERE Cars.Owner=People.Key AND Cars.Color="Red"
+
+2. "Find the names of all people who are young, or own a new or
+sporty-colored car"
+   SELECT DISTINCT People.Name FROM People, Cars
+     WHERE People.Age < 26 OR
+       (People.Key = Cars.Owner AND
+          (Cars.Color = "Red" OR Cars.Color = "Yellow" OR
+           Cars.Year >= 2003))
+
+3. "Find the names of all people who own more than one car"
+   SELECT People.Name FROM People
+      WHERE (SELECT COUNT * FROM Cars
+             WHERE Cars.Owner = People.Key) > 1
+
+Users would like to be able to perform similar queries (to return the
+same results) on the RDF data.
+
+
+

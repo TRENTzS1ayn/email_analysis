@@ -1,0 +1,205 @@
+docno="lists-014-4776958"
+received="Sun Feb  9 15:23:11 1997"
+isoreceived="19970209202311"
+sent="Sun, 09 Feb 1997 15:24:06 0500"
+isosent="19970209202406"
+name="David P. Jablon"
+email="dpj@world.std.com"
+subject="RE: Shared Secret Authentication"
+id="1.5.4.16.19970209202406.087f47d4@world.std.com"
+charset="usascii"
+inreplyto="Shared Secret Authentication"
+expires="1"
+
+
+To: Dan Simon<dansimon@microsoft.com>,ietf-tls@w3.org
+
+[ Continued discussion of shared-key authentication for TLS
+  compares Bellovin & Merritt-style methods (DH-EKE, SPEKE, etc.)
+  to the randomized hash exchange in the Microsoft proposal
+  (passauth-00.txt).  Includes a short review of the methods. -- dpj ]
+
+At 01:36 PM 2/7/97 -0800, Dan Simon <dansimon@microsoft.com> wrote:
+
+> I know of no sense in which our shared-secret authentication proposal is
+> less secure than Bellovin-Merritt-style [EKE] authentication. ...
+
+I'll show several ways that EKE methods can improve the
+strength of your proposal.  For one: EKE can block the
+"name-spoofing" attack of Felton, etc.
+
+> ...  The major difference between the two is
+> that our proposal ["HASH"] only authenticates *one*
+> party (the TLS client) using the shared key; the other party (the TLS
+> server) must still have a certified public key to authenticate.  In
+> Bellovin-Merritt-style ["EKE"] authentication,
+> *both* sides authenticate using
+> the same shared key.  This second authentication actually *reduces* the
+> security of the protocol; for example, *both* sides (not just the
+> server) must guard against online brute-force attacks on the shared key.
+>  (On the "plus" side, it eliminates the need for one party to have a
+> certified public key.)
+
+Your analysis seems misleading.  It blurs the distinction
+between the shared-key techniques (HASH & EKE) by using
+them in different systems.  Head-to-head, EKE is always
+stronger.  I'll show two cases for a clearer comparison:
+
+  1)  shared-key plus server "anonymous" public-key authentication,
+  2)  shared-key with *no* stored PKs or certs on either side.
+
+Case 1:  Shared-key with anonymous public-key server auth.
+----------------------------------------------------------
+When the server first proves himself using public-key
+authentication, EKE gives added proof of the server's
+identity, where HASH does not.  The public-key
+just proves that the server is who he *claims* to be,
+but with problems in the user-interface or user habits,
+the server's name may be mistaken with an enemy's in
+a "name-spoofing" attack.
+
+With HASH, a single, short-lived, name-spoof permits an
+unlimited off-line brute-force attack.  This makes the
+spoofer's job easier, since he doesn't have to sit in
+the middle of a prolonged session to do damage.
+
+With EKE, *nobody* gets to do an off-line dictionary attack,
+not even a spoofer.  The strong two-way proof of the
+shared secret also gives direct confirmation of the server's
+identity.  This added proof may also be reassuring if
+there are any doubts about the integrity of the public-key
+"chain of trust".
+
+You state that on-line brute-force attack against the
+client "reduces the security of the protocol".  But this
+is blocked if the server is first PK-authenticated, and it
+applies to HASH as well as EKE, or any other method
+used to prove the client's knowledge.  In any case,
+client on-line attack requires many spoofing acts
+(100's or 1000's?) against the user, who is likely get
+suspicious or give up in frustration before the secret
+is revealed.
+
+Although Microsoft considers the "no certificate" case
+unnecessary for their applications, maybe others would like
+to see the comparison.  (I wasn't sure if the current MS
+proposal ruled out this case.)
+
+Case 2:  Shared-key with no public-keys or certificates
+-------------------------------------------------------
+A HASH method without anonymous public-key (or other)
+assistance is as weak as the vulnerability of the
+password to brute-force attack.  Off-line attack is
+possible for any eavesdropper.  
+
+An EKE method performs a *mutual* password verification
+with no chance for off-line brute-force attack.  Both
+eavesdropper and other "man-in-the-middle" attacks are
+blocked.
+
+With both methods, direct bad guesses should be limited
+by the server and by the client, as in all small-secret
+proofs.
+
+[Dan Simon:]
+> We decided that for the applications we had in mind, requiring that the
+> server obtain a certificate was not as problematic as worrying about
+> attacks on the client.  Of course, if people are very enthusiastic about
+> having Bellovin-Merritt [EKE] two-way shared-key authentication as an
+> option in TLS, then I would invite them to write up a proposal in
+> Internet Draft form and submit it to the ietf-tls list.  I, for one,
+> would certainly not oppose its inclusion, provided it is incorporated in
+> as secure a manner as possible.
+
+As noted above, mutual EKE authentication even with
+"anonymous" PK authentication has big advantages,
+with no added risk.
+
+In the "no PK" case, I think your worries about
+on-line spoofing against the client can be largely
+mitigated if the client software discourages too
+many retries for access failures.  Of course, if
+you have certified PK's, you've got another strong
+factor.  In any case, I'm glad to hear that you're
+open minded about it.
+
+Quick review of EKE methods
+---------------------------
+For those unfamiliar with EKE-style methods, there
+are actually several families of them.
+In this example of SPEKE, P is the shared secret,
+all exponentiation is done modulo a huge prime
+m = 2q+1, q is also prime, and Ra, Rb are random
+numbers.
+        Client creates Ra, sends P^(2 Ra)
+        Server creates Rb, sends P^(2 Rb)
+        Both compute K = P^(2 Ra Rb)
+        Server sends hash("server", K)  [with prior message]
+        Client sends hash("client", K)
+        Each verifies that the other's hash is correct
+            to prove knowledge of P.
+
+The P^(2 Rx) messages reveal nothing about P, due to the
+difficulty of the discrete log problem.
+
+Quick review of HASH methods
+----------------------------
+The "time-honored" HASH method is basically:
+
+        Server creates and sends Rb.
+        Client sends hash("client", Rb, P)
+        Server verifies the hash to prove knowledge of P.
+
+This can be repeated in the reverse direction, but
+either way it's open to an eavesdropper computing
+brute-force trials of hash("client", Rb, X) offline.
+
+Further refinement
+------------------
+There are also extensions to EKE-style methods where
+the server stores a one-way hashed secret H(P), and
+proves knowledge of P by the client.  With
+these extensions, theft of H(P) won't allow an
+attacker to masquerade as a client, without first
+completing a brute-force attack to get P.
+This is scalable security that grows nicely
+with the strength of P.
+
+>>-----Original Message-----
+>>From:David P. Jablon 
+>>Sent:Thursday, February 06, 1997 3:52 PM
+>>To:ietf-tls@w3.org
+>>Subject:Shared Secret Authentication
+>>
+>>Earlier threads on this list seem to have focused debate on
+>>weak methods for password/passphrase/shared-secret authentication.
+>>
+>>Methods that are immune to unconstrained dictionary attack
+>>have been around since 1992, from Bellovin & Merritt's EKE family
+>>of protocols, to the SPEKE method developed by myself.
+>>I find it curious that the debate has settled down upon
+>>demonstrably weaker alternatives, as in the current drafts.
+>>
+>>I would suggest that the passauth-00.txt "Addition of
+>>Shared Key Authentication" document be modified to use
+>>strong password authentication.  Presenting weak password
+>>authentication as an alternative to strong public-key
+>>methods seems sloppy.
+  [In retrospect, this wording was sloppy.  I really found
+   passauth-00 to be clear and honestly written, even if
+   in need of improvement. -- dpj]
+>>
+>>I really prefer the combination of strong public-key AND
+>>strong memorizable passwords, as two independent factors for
+>>authentication ...
+
+------------------------------------
+David P. Jablon
+Integrity Sciences, Inc.
+Westboro, MA
+Tel: +1 508 898 9024
+http://world.std.com/~dpj/
+E-mail: dpj@world.std.com
+
+
+

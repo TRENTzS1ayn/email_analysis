@@ -1,0 +1,98 @@
+docno="lists-024-4938367"
+received="Thu Aug 15 05:53:43 2002"
+isoreceived="20020815095343"
+sent="Thu, 15 Aug 2002 04:47:25 -0400 (EDT)"
+isosent="20020815084725"
+name="Atanas Kiryakov"
+email="naso@sirma.bg"
+subject="Literal sameClassAs Literal in DAML+OIL"
+id="02d701c24438$7a53ba00$c980a8c0@nasko"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:public-webont-comments@w3.org
+Cc:"stenly"<stenly@sirma.bg>,"Kiril Simov"<kivs@bultreebank.org>
+
+Hello,
+
+as part of our work on RDF(S) repository based DAML+OIL reasoner we run into some problems with the DAML+OIL schema (http://www.daml.org/2001/03/daml+oil) that seem to be important enough to be discussed here. 
+
+Some context, before going to the core of the problem:
+    - The DAML+OIL reasoner: http://www.ontotext.com/BOR
+    - The RDF(S) repository is Sesame: http://sesame.aidministrator.nl/ 
+    - Sesame works according to the Model Theoretic Semantics (MTS) of RDF(S), see http://www.w3.org/TR/rdf-mt/
+
+It is a problem with the so called "Importing terms from RDF/RDFS" part of the DAML+OIL schema, which appears even without the MTS of RDFS. However we found it while trying to integrate BOR with SESAME, letting the later to be aware of the semantics of DAML+OIL, via explication of the taxonomy (properly build after the concept/class definitions by BOR) and the instance classification. Next we let Sesame to provide its standard RDF(S)-semantics-based access API and query engine (RQL) to the "enriched" ontology. It seems there are no many people doing similar things, otherwise they would run into the same problems. The "Importing terms" as they are now are wrong and it seems nobody imported nothing automatically using them.
+
+Here is the problem:
+
+1. It is defined in the schema that 
+  <daml:Class, subClassOf, rdfs:Class>
+if we simplify it a bit, it is because the RDF(S) notion for class is much weaker - it includes any sorts of classes in contrast to the DAML+OIL one which takes just "object classes", without datatype classes (such as Literal) and relation classes (such as Property).
+
+2. What is said in the "Importing terms"
+  <rdfs:Class rdf:ID="Literal">
+    <sameClassAs rdf:resource="http://www.w3.org/2000/01/rdf-schema#Literal"/>
+  </rdfs:Class>
+is INTUITIVELY OK, it can distilled into triples as follows:
+  <daml:Literal, type, rdfs:Class>
+  <daml:Literal, sameClassAs, rdfs:Literal>
+3. However the domain and range of daml:sameClassOf according to the schema are 
+  <sameClassOf, domain, #Class>
+  <sameClassOf, range, #Class>
+and as part of the daml+oil schema "#Class" means "daml:Class"
+
+
+4. From 3 both the MT semantics of RDF(S) and (all sorts of) DAML+OIL semantics support the inference that:
+
+        <X, sameClassAs, Y> => <X, type, daml:Class> and <Y, type, daml:Class>
+
+
+If 3 and 4 correctly represent the intended semantics of sameClassAs, i.e. sth that declares two daml+oil "object classes" being equivalent, than no one should use it for rdfs:Class-es, without realizing that it implicitly defines them being also daml:Class-es. This is the case with Literal, as follows
+
+5. From 2 and 4 it follows that:
+  <rdfs:Literal, type, daml:Class>
+which is confusing because it is much stronger (and incorrect) than what we already know about the Literal, namely
+  <rdfs:Literal, type, rdfs:Class>
+
+It is the very same problem with the way rdfs:Property is imported in the DAML+OIL schema.
+
+What can be done?
+
+First option: It seems to me that the definition of sameClassOf should be relaxed wrt to the domain and range restrictions, becoming:
+  <sameClassOf, domain, rdfs:Class>
+  <sameClassOf, range, rdfs:Class>
+It seems to us, however, that this is going to be problematic with the MTS of daml+oil. 
+
+Second option: If sameClassOf domain and range restrictions cannot be relaxed, than the Importing Terms in the daml+oil spec have to be reformulated in a way, especially the one for Literal and Property. It can be done as follows:
+  <daml:Literal, type, rdfs:Class>
+  <daml:Literal, equivalentTo, rdfs:Literal>
+And even better we can more precisely say that Literal is a data type class rather then a general one, so, replacing the first triple above with:
+  <daml:Literal, type, daml:Datatype>
+So, finally, I would propose the import of Literal to look like:
+  <Datatype rdf:ID="Literal">
+    <equivalentTo rdf:resource="http://www.w3.org/2000/01/rdf-schema#Literal"/>
+  </Datatype>
+For the sake of completness, it can aslo be added that <daml:Literal, subClassOf, rdfs:Literal>.
+
+I tried to quickly check is it an issue with OWL, but ... well, it seems there are still no Importing Terms :-)
+
+Cheers,
+Naso
+
+P.S.: the problem was first found by Stanislav Jordanov (CC), the lead developer on BOR.It was also discussed with Kiril Simov (CC), our DL guru, and other OntoText researchers.
+
+---------------------------------------------------------------
+Atanas Kiryakov,          http://www.sirma.bg/ak.htm
+Head of OntoText Lab.,    http://www.ontotext.com
+Sirma AI, Ltd. - Artificial Intelligence Labs
+Phone: (359 2) 981 23 38, http://www.sirma.bg
+---------------------------------------------------------------
+  neznaja nakyde sym trygnal           missing a whither
+  neznaja i zashto vyrvya              and also the Goal
+  no chesto vijdam, che sym byrzal     forgot in my hurry
+  tam gdeto trjabvalo e da pospra      the joy as a goal
+
+
+

@@ -1,0 +1,190 @@
+docno="lists-011-9431127"
+received="Thu Sep 25 19:12:44 1997"
+isoreceived="19970925231244"
+sent="Thu, 25 Sep 1997 18:47:04 0700"
+isosent="19970926014704"
+name="Roy T. Fielding"
+email="fielding@kiwi.ics.uci.edu"
+subject="Re: Age calculation in HTTP: two Internet Drafts"
+id="9709251900.aa08279@paris.ics.uci.edu"
+inreplyto="341EC670.8B9A45B6&#64;parc.xerox.com"
+expires="1"
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+I have been reticent to discuss this issue further because I already
+discussed it to death, twice.  Nevertheless, since Jeff spent some
+very valuable time generating a draft, I will make another attempt to
+explain the problem.
+
+>   Roy Fielding has taken issue with the statement ``HTTP/1.1 caches
+>   MUST send an Age header in every response.'' [2].  Fielding correctly
+>   points out that the use of the word ``caches'' in this sentence is
+>   incorrect.  He lists two possible rewordings for this sentence:
+>
+>      a) An HTTP/1.1 server that includes a cache MUST send an Age
+>         header field in every response.
+>
+>      b) An HTTP/1.1 server that includes a cache MUST include an Age
+>         header field in every response generated from its own cache.
+>
+>   There is, however, a third possible rewording, if one realizes that
+>   the original drafting error was to sloppily substitute the word
+>   ``cache'' where ``proxy'' was meant (mea culpa):
+>
+>      c) An HTTP/1.1 proxy MUST send an Age header field in every
+>         response.
+>
+>   Note that an HTTP proxy does not necessarily include a cache.  The
+>   other sentences referring to ``caches'' in that paragraph reflect the
+>   same drafting error.
+
+I excluded that possibility because it would require that all proxies
+implement complete compliance with the Cache-Control and Expires header
+fields, including those that do not and never will cache a message.
+Such a requirement cannot be justified.
+
+>3.1 Quantifying the error of the Age estimate: Interpretation C
+>   If interpretation (c) is used (i.e., the change proposed above in
+>   section 2), then the value of the Age header field might overestimate
+>   the actual amount of time since the response was generated at the
+>   origin server.  One can calculate the size of the estimation error
+>   for a path containing N HTTP/1.1 proxies:
+>
+>       Error_C = Mean_RTT * N * (N + 1)/2
+>
+>   where Mean_RTT is the mean round-trip time (RTT) between neighboring
+>   pairs of proxies.  Note that this measures the error in the Age value
+>   at the final recipient client, not the error at the last HTTP/1.1
+>   proxy on the path.
+
+That is entirely bogus.  I gave a complete summary of the age
+calculation, as defined in the RFC 2068, in my draft (Section 2).
+Because the age calculation involves the maximum of the clock difference
+between the proxy and the origin or the value of the received Age,
+the estimation error is unbounded with interpretation (c).  For N=3,
+it is in fact
+
+    max(skewUA,max(skewA,max(skewB,max(skewC,0)+d)+(c+d))+(b+c+d))
+
+where only the variables b,c,d represent round-trip time.  skewUA, skewA,
+skewB, and skewC, are all unbounded clock skew time errors.  It is those
+values that dominate the equation -- Mean_RTT is insignificant and
+irrelevant to this argument, aside from pointing out that interpretation (c)
+results in overestimation even when clock synchronization is perfect.
+
+What I find bizarre is that Jeff spent a great deal of effort demonstrating
+that the above is unbounded with present HTTP servers.  Clock skew is
+the enemy of the age calculation, which is why the Age header field must
+not have an additive dependence on the clock skew of every recipient.
+
+>3.2 Quantifying the error of the Age estimate: Interpretation B
+>   If interpretation (b) is used, then the value of the Age header field
+>   might underestimate the actual amount of time since the response was
+>   generated at the origin server.
+
+That is also true of interpretation (c).  The only difference is that
+a proxy is likely to have a better clock than a UA.
+
+>   The scenario that generates the
+>   greatest underestimate is when the path between the origin server and
+>   the HTTP/1.1 client's cache includes an HTTP/1.0 proxy cache, and the
+>   client has a skewed clock.  In particular, the client's clock is set
+>   into the past by some amount.
+
+Correction: The only scenario in which interpretation (b) *might* result
+in an underestimate of age which is worse than that of (c) is where one
+or more HTTP/1.0 caches are in the request chain AND the response came
+from one of those HTTP/1.0 caches in which it resided for some time AND
+the user agent's system clock is running behind the origin server's clock.
+In this one case, (c) would compensate for the clock skew if there existed
+an HTTP/1.1 proxy between the user agent and the HTTP/1.0 cache generating
+the response AND the HTTP/1.1 proxy is better-synchronized to the origin
+server clock.  All of these coincidences combined would still have NO
+impact on the correctness of the response unless the application required
+the freshness criteria to be strictly enforced for that response AND
+the current response would be different.
+
+>3.4 Implications of overestimating the Age value: Interpretation C
+>   What happens if the Age value is overestimated?  If this happens,
+>   some "fresh" responses appear to be "stale", and so unnecessary cache
+>   misses may be generated.  Except in the case where the network is
+>   partitioned, this is a performance problem, but does not lead to the
+>   delivery of responses with the wrong body or headers.  (When the
+>   network is partitioned, caches are allowed to return stale values
+>   with an appropriate Warning, so this is irrelevant to the current
+>   discussion).
+
+If the network is already congested, and caching is being used to reduce
+that congestion, then failure to cache will result in denial of service.
+That is denial of service for every protocol using the same network wire,
+not just HTTP traffic, and many corporations (and several nations) install
+proxy caches specifically to prevent this scenario.
+
+If inaccurate Age values cause such congestion, cache administrators
+will be compelled to ignore Age altogether.  That is why following (c)
+will result in less semantic transparency in the long run.  In order
+to be trusted, Age must be independent of clock skew.
+
+Other benefits of (b) that were not mentioned include that (b) is a more
+accurate (hence trusted) estimate for all other cases, and that lack of
+an Age header field in a response from an all-HTTP/1.1 chain would
+indicate that the response has been obtained from the origin.
+
+>3.5 Implications of underestimating the Age value: Interpretation B
+>   What happens if the Age value is underestimated?  If this happens,
+>   some "stale" responses appear to be "fresh", and are returned to the
+>   client without any Warning.  The client, in this case, naively
+>   obtains the wrong response value.
+
+No, it retains the stale value.  There is no implication that, just because
+a response is stale, that it necessarily is invalid or even different from
+what the client would have received directly from the origin.  The maximum
+length of time the response would remain stale is (Expires - Date) or
+the value of the max-age cache-directive, both of which are defined by
+the origin server and not subject to UA clock-skew errors.
+
+Furthermore, we can classify all applications of HTTP as either
+
+  1) requires freshness preservation to preserve correctness
+or
+  2) does not require freshness preservation to preserve correctness
+
+For the first case to work in practice, the origin server MUST prevent
+an HTTP/1.0 proxy from caching the response.  We even provided special
+means for an origin server to do so using max-age overriding of Expires,
+and using Via to indicate the presence of an HTTP/1.0 application.
+If such prevention is not implemented, then the HTTP/1.0 cache will
+provide stale responses to clients, thus contradicting the requirement
+of freshness preservation.  For the second case, underestimation of age
+is irrelevant.
+
+Since the above fact eliminates the only scenario in which (c) is useful,
+and in all other scenarios (c) is detrimental to the HTTP system,
+interpretation (b) is the only rational choice.
+
+>   In other fields of computer science (for example, compilers or
+>   multiprocessor caches), aggressive optimization always depends on a
+>   reliable understanding of the situation at hand.  That is, if one
+>   cannot be sure that the transformation done by the optimization
+>   preserves the semantics of the system, one cannot safely do that
+>   optimization (and, consequently, one may be prevented from doing a
+>   lot of other optimizations that are enabled by the first one).  Even
+>   when optimizations are done "speculatively", this always involves
+>   being able to check the results for semantic correctness before
+>   committing them.
+
+There are a lot of optimizations that one cannot do with HTTP.  Those
+optimizations were sacrificed for the sake of a system that does not
+depend on immediate connectivity and low latency, as do all of the systems
+to which you refer.  Sacrificing the benefits of HTTP in order to
+obtain the benefits of other existing protocols or non-HTTP applications
+is a mistake.  HTTP has very different design constraints, and should
+be judged according to those constraints, or replaced outright by one
+of those other protocols that better meets the application's needs.
+
+....Roy
+
+
+

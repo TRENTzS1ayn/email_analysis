@@ -1,0 +1,181 @@
+docno="lists-046-7726482"
+received="Fri Apr 11 16:59:23 2003"
+isoreceived="20030411205923"
+sent="Fri, 11 Apr 2003 16:59:18 -0400"
+isosent="20030411205918"
+name="Joseph Reagle"
+email="reagle@w3.org"
+subject="Re: From OASIS digital signatures services TC: request of comments"
+id="200304111659.19025.reagle@w3.org"
+charset="iso-8859-1"
+inreplyto="3.0.1.32.20030411174205.01100810&#64;popserver.ac.upc.es"
+expires="-1"
+
+To: Juan Carlos Cruellas<cruellas@ac.upc.es>,w3c-ietf-xmldsig@w3.org
+Cc:dss@lists.oasis-open.org
+
+
+
+On Friday 11 April 2003 11:42, Juan Carlos Cruellas wrote:
+> These two issues have been well summarized by
+> one of the members in the group as follows:
+
+Juan Carlos,
+
+Ed Simon did a good job of concisely addressing the issues, to which I hope 
+to add a few augmentations. This is not an easy topic though, you can find 
+much discussion on "document closure" in our archives while we tried to 
+come to our present understanding [1].
+
+[1]http://www.w3.org/Search/Mail/Public/search?keywords=document+closure&hdr-1-name=subject&hdr-1-query=&index=Public%2FFULL&index-type=t&type-index=w3c-ietf-xmldsig
+
+> 1. Securing Transform Chain -
+> So external transform data needs to be secured through some out-of-band
+> method, or needs to be covered by the XML-DSIG itself.  If the data is to
+> be covered by the XML-DSIG, should it be:
+>    a) referred to by a dsig:Reference in the dsig:Signature (and attached
+> as a signed attribute or something, if it's representable in XML)?
+>    b) referred to by a dsig:Reference in a dsig:Manifest to the
+> dsig:Signature?
+
+I don't think the dsig:Manifest buys you anything. In fact, to me it serves 
+as a loose (no reference validation) prototype/example that other 
+applications should extend/supercede with more explicit processing rules. A 
+serious application should ensure that as much as possible of the material 
+that effects the what-is-seen/signed-data *contributes* towards the 
+signature value. This depends on the application: is it using external 
+entities, inline embeds, images, objects, scripts, XLink, XSLT, etc. One 
+approach is to include references in the ds:SignedInfo. Something I've 
+proposed in the past is a (proper) secure cache/manifest. It'd be a signed 
+instance that defines *correspondences* between *contributing* URIs and 
+their dereferenced content (hash values), and maybe even a digest of the 
+final (implicit) data object.
+
+ For example:
+  <transormManifest id="sign me">
+    <references URL="...">
+       <dereferenceTime>20020228 15:35  UTC</dereferenceTime>
+       <digestValue>cafebabe...</digestValue>
+       <optional-object>...</optional-object>
+    </reference>
+    ...
+    <result>
+       <createdTime>20020228 15:35  UTC</createdTime>
+       <type>text/html</type> 
+       <digestValue>cafebabe...</digestValue>
+       <optional-object>...</optional-object>
+    </reference>
+  </transformManifest>
+Then the app would make sure that this transformManifest is signed in 
+ds:SignedInfo, and that there is a correspondence: a reference for every 
+contributing URL within the transform sequence. At the time there didn't 
+seem to be much support for this (folks obviously wanted to implement and 
+apply the 1st gen of xmlsec) and I've been waiting to see if anything in 
+the "XML Processor Pipeline" [2] issue gelled, perhaps an instantiation of 
+such a pipeline could be signed.
+
+[2] http://www.w3.org/XML/2001/07/XMLPM.html
+
+Regardless, while the ds:transform mechanism is powerful and flexible, no 
+unknown/arbitrary transform should be accepted without evaluation. Each 
+transform sequence is an "algorithm" as important to the validity of the 
+signature as the strength of the key and the crypto algorithms.
+
+>Even though the signer intends to sign Document 1, the attacker can 
+>trick the relying party into relying on Document 2.
+
+Yes, here's an example:
+
+o InputDocument1 (ID1) is a statement from the bank saying, "pay $50"
+o Transform1 (T1) is invoked from within ID1 and is an XSLT that turns ID1 
+into pretty HTML; it is located at a fixed URI (URI1).
+
+The owner of controlling domain name for URI1 decides to cause a little 
+mayhem and decides to serve Transform2 (T2) instead, that adds two zeros to 
+the amount before turning it into HTML. Now, when the bank see the 
+resulting document, it is signed by themselves, but they pay out more than 
+they should. The problem? The bank obligated itself to "unsigned" code 
+(i.e., the transform at URI1).
+
+The conclusion is that identifiers/URIs need to be secure/stable, transforms 
+need to be evaluated/standardized, and one should sign as much of the 
+contributing material as possible, or keep it really simple. (One of the 
+reasons I *don't* like URNs is that they are difficult to dereference and 
+consequently hash, even though URN proponents argue they are more 
+secure...)
+
+> 2. Signing Human-Readable data and XML -
+>
+> The client may want to sign both an XML document and its human-readable
+> transformed version, for use in dispute resolution.  How should this be
+> done?
+
+I discuss this question somewhat in [3].
+
+[3]http://www.w3.org/TR/md-policy-design#_Misunderstanding_Metadata_Agreements
+
+> One approach is to include two dsig:Reference elements in the signature,
+> the first to the XML document, the second to the same document with
+> human-readable transforms applied.  Then a "policy identifier" of some
+> sort should be added as a signed attribute to indicate the relation of
+> these documents.
+
+I'd suggest a "transformManifest" like I suggested above, but this is 
+similar.
+
+> This approach will fail if the human-readable transforms behave
+> inconsistently when applied by the signing and relying parties (perhaps
+> due to implementation differences in the transform engines), and a
+> canonicalization transform for the transform output data is
+> unavailable.  This is (apparently) the case with XSLT transforms
+> producing HTML.
+
+Right, or imagine simple HTML tricks (font size is really small), CSS tricks 
+(display:none), and browser bugs. The ambiguity of XML, the number and 
+complexity of specifications, and the presence of bugs or lack of interop 
+make this a difficult issue. While more formal assertion languages (e.g., 
+RDF) might mitigate some of these ambiguities there will always be a "GUI 
+gap" that must be addressed by law and human judgment. A court will use 
+various principles [3] to determine reasonable expectations, fault, and 
+liability. So the more clear, explicit evidence you have 
+(signatures/digests over the various documents, logs, etc.) the better. For 
+instance, if a particular XSLT is standardized by the banking industry for 
+rendering an XML payment into HTML (and they've done their homework with 
+all the rendering bugs and such) and its been used for 2 years, including 
+by me, I'm going to have a much harder time on my 100th time using it to 
+argue what was shown on my CRT was not what I thought I was signing.
+
+[3]http://www.w3.org/TR/md-policy-design#_Breach_and_Liability
+
+> This could be solved by the signer storing the transform output data at a
+> URL, or sending it with the signature, and referring to it explicitly
+> instead of requiring the verifying party reproduce the transform
+> process.  But that may be inconvenient.
+
+Yes, like my <result> element in the <transformManifest>.
+
+> A different approach is to have the signer add a signed attribute
+> containing "transforms that reproduce what I was looking at when I chose
+> to sign".  Since processing these transforms isn't required to verify the
+> signature, it avoids the problem of having the signature fail if the
+> signer and verifier's transform engines produce slightly different
+> output.  However, if the engines *are* producing different output,
+> there's now wiggle-room for the signer to claim "oh, my transform engine
+> produced something different, that's not *really* what I was looking at
+> when I chose to sign".  So this may just shift the problem of "transform
+> variability" to a different place, not remove it.
+
+Yep. This is why I don't see digital signatures as a useful consumer 
+technology. IMHO XML Signatures are useful in B2B transactions where the 
+transforms and sequences are standardized in their application contexts and 
+there is a log/history that demonstrates a norm for the expected 
+transactions...
+
+-- 
+Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature/
+W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+
+
+

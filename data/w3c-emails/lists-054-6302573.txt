@@ -1,0 +1,118 @@
+docno="lists-054-6302573"
+received="Tue Nov  5 17:49:16 1996"
+isoreceived="19961105224916"
+sent="Tue, 5 Nov 96 17:49:00 EST"
+isosent="19961105224900"
+name="lee@sq.com"
+email="lee@sq.com"
+subject="Re: Parameter Entities"
+id="9611052249.AA15718@sqrex.sq.com"
+inreplyto="Parameter Entities"
+expires="-1"
+
+
+To:tbray@textuality.com,dlapeyre@mulberrytech.com
+Cc:w3c-sgml-wg@w3.org
+
+> May I please hear the other side?  ARE they (particluarly the external) 
+> very hard to build into a parser or perl hack.  Please be specific?
+> Is the objection to external based on Web resolving?
+
+It depends on your purpose...
+
+The "obvious" way to parse XML in perl involves ignoring all comments and
+PIs and DOCTYPE lines, and assuming that there are no external entities or
+EMPTY elements or DEFAULT attributes.
+
+For example, PERL code to turn
+    <contact>
+        <name>
+            <first>Simon</first>
+            <last>Whitehead</last>
+        </name>
+        <phone>+39 (12) 42 196342 12 ext. 4210</phone>
+        <address>
+        .
+        .
+        .
+        </address>
+    </contact>
+into a comma separated file for a database is probably no more than
+ten minutes' work.  (and I've done this...)
+
+PERL code to parse a DTD just enough to extract which elements are empty and
+recognise them adds a few minutes:
+    if (/<!DOCTYPE/ .. /\]\]>/) {
+        # in the internal subset...
+        
+        # look for
+        # <!element NAME EMPTY>
+        # and add that name to our list:
+        if (/<!element ([^ ]+) EMPTY/) {
+            $EmptyElements{$1} = 1;
+        }
+    }
+This relies on there being no newlines there, by the way, and no optional
+- O thingies, although you can match those fairly easily like this:
+        if (/<!element ([^ ]+) (- O)? EMPTY/) {
+in the case of an EMPTY element, as no other combination is possible in
+an XML DTD (no element is ever required, so you can never omit an open
+tag in XML, as we do not have the "," connector, and always have PCDATA in
+an or group)
+
+This does not work if you do
+    <!entity boy23 'Simon'>
+    <!entity omit % '- O'>
+        <!-- for XML, always use - O, as it's ignored anyway -->
+    <!Element %boy23; %omit; EMPTY>
+
+What you can't do in perl very easily is handle the Ee stuff.
+E.g.
+    while ($theLine =~ /%([^ ;]+)([ ;])/) {
+        $theLine = $` . entityValue{$1} . $2 . $'; 
+    }
+would probably not work for IBMIDDOC, where there is nested use of quotes
+inside entitiy values, as after you've done the entity substitution, you
+have lost the boundaries of the entity.  I suppose you could use a control-D
+as an Ee...
+
+The way I would handle entities, if the language were defined sufficiently
+cleanly, would be with a pre-processor: first expand all the entities, and
+then handle the data.
+
+External entities in XML can certainly be handled this way;
+If you have to have macros, this is the best way to do them.
+
+Of course, one lesson from C++ is that the fewer macros you need and the
+more functions you have, preferably with strong typing and error checking,
+the more robust your system will be.  But SGML comes out of the
+Great Macro Processing Era... :-(
+
+Parsing the DTD properly in perl will probably produce a totally
+unmaintanable pile of punctuation that looks utterly pigeon-infested.
+But there is no point doing that unless someone spends a serious amount
+of time and writes a general perl module, like David Megginson's excellent
+SGMLS.pm.
+
+I hope this Little Diversion Into Perl is useful.  I don't know whether
+I should admit to doing Dirty Perl Hacking :-), but I want to see XML be
+used by people to whom it does appeal.
+
+Note, by the way, that my examples do not cope with things like
+<!Element
+x
+-
+O
+EMPTY
+>
+
+even though an SGML parser would.
+
+It might be much easier to deal with XML if tokenisation was specified
+separately from the grammar, which would then never need to include
+"S" in a production.
+
+Lee
+
+
+

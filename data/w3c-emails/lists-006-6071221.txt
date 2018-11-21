@@ -1,0 +1,304 @@
+docno="lists-006-6071221"
+received="Sun Feb  4 11:33:47 2001"
+isoreceived="20010204163347"
+sent="Sun, 4 Feb 2001 11:32:45 -0500 (EST)"
+isosent="20010204163245"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: FW: DeltaV Passthrough issues"
+id="200102041632.LAA19279@tantalum.atria.com"
+inreplyto="CNEEJCPIOLHKIOFNFJDPCEOOCCAA.lisa&#64;xythos.com"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+Note: Lisa asks a bunch of great questions here.  They are all
+good candidates for FAQ entries.  For the moment, I'll just
+do the easy thing and answer them in email.  I'll try to get
+this info transcribed to the FAQ.  If anyone else has a chance
+to enter this information in the FAQ, that would be greatly
+appreciated!
+
+   From: "Lisa Dusseault" <lisa@xythos.com>
+
+   In an earlier mail, Geoff said:
+
+      From: "Lisa Dusseault" <lisa@xythos.com>
+
+      What about getting the DAV:version property for the base
+      resource, which if pass-through is working to the current
+      target, should result in getting the DAV:version for the current
+      target?
+
+   > I'm not sure what you mean by "if pass-through is working to the
+   > current target", but in any case, as Greg pointed out, if you
+   > want the version URL for the DAV:checked-in or DAV:checked-out
+   > version of a version-controlled resource, you get that from the
+   > DAV:checked-in and DAV:checked-out property value.  There's no
+   > need to have a second way of getting the same information."
+
+   What I meant by "passthrough" is what has been talked about before in
+   the context of redirect resources, and now seems to be a feature of
+   versioning.
+
+In the versioning protocol, "passthrough" behavior is a characteristic
+of a particular method or header, not a characteristic of a resource.
+Each method or header that has some form of "passthrough" behavior
+states explicitly what this behavior is.  For example, the LABEL
+method is defined as redirecting to the DAV:checked-in version when it
+is applied to a version-controlled resource.
+
+But there is no "implicit" pass through by a version-controlled
+resource.  This is explicitly stated in section 2.1.
+
+   To recap:  When new kinds of resources that have targets,
+   like "Direct Reference Resources" or "Version controlled Resources"
+   (DRR/VCR), are exposed to clients that are not familiar with the new
+   kinds of resources, it's often beneficial to allow some of the methods
+   the client may send to "pass through" to the target of DRR/VCR.
+
+A version-controlled resource does not have a "target".  We
+explicitly got rid of this term because it was misleading people
+into thinking just what you describe above.  Pass through behavior
+only occurs when explicitly requested by a header, or when
+explicitly defined in the semantics of a new method.
+
+This has allowed us to avoid all of the complexity that caused
+the WebDAV working group to give up on defining a "direct reference
+resource" (i.e. no need to make the same mistake twice :-).
+
+   Also,
+   when RR/VCRs exist in collections along with ordinary resources,
+   PROPFIND can usefully show properties of the target resources, along
+   with properties of the DRR/VCR itself.
+
+The DAV:expand-property report has been defined to allow a client to
+get this result under explicit client control.  One of the reasons
+this has to be explicit is that there are many properties
+(modification date, locking, comment) that have different values on
+the version-controlled resource and the DAV:checked-in version,
+and it is important that a client not confuse the two values
+or the two resources.
+
+   So when I do a PROPFIND depth 1
+   on a directory asking for the "DAV:content-length" property, it would be
+   useful for me to see the content-length of ordinary resources, the
+   content-length of the targets of links, and the content-length of the
+   target version of each VCR.  I thought this was called "passthrough"
+   when bindings were being discussed, but apparently is no longer refered
+   to in this way.
+
+There is explicit client requested "pass through" for properties via
+the DAV:expand-property report.  This avoids the complexity and
+potential confusion that results from "implicit pass through".
+
+   Anyway, the idea for bindings at one time was to allow some kind of
+   reference resource to exist, which when queried, would respond "as if"
+   it was the target resource.
+
+Bindings (as they are currently defined in the Binding internet
+draft) explicitly are not a redirect resource, but are a way to
+give two different names to the same resource.  The key difference
+here is that there are not two resources, but rather just one
+resource with two names.  This avoids all the confusion related
+to "which resource the method gets applied to".
+
+   However, sometimes the client wants to
+   address the reference resource directly.  The server needs to know if
+   the client is addressing the reference resource, or the target of the
+   reference resource.  Thus, the "Apply-To-Redirect-Ref" header was
+   defined.  If the client includes this header, e.g. with a DELETE, the
+   server can understand this to mean that the client wishes to delete the
+   redirect reference itself, rather than get redirected to the target
+   reference.
+
+This "apply-to-redirect-ref" approach always produced confusing
+or counter-intuitive behavior in some cases (especially in conjunction
+with a Depth header), which was a significant factor in the
+abandonment of the direct reference resource effort.
+
+   All of this applies to versioning, because with the current state of the
+   draft, it's clear that a VCR is a kind of reference resource.
+
+Well, let's see what the first section of the core versioning semantics
+section has to say:
+
+       Note that a version-controlled resource and the current
+       DAV:checked-in version of that version-controlled resource are two
+       distinct resources, with their own content and properties.  When a
+       method is applied to a version-controlled resource, it is applied
+       to that version-controlled resource and not to the DAV:checked-in
+       version of that version-controlled resource.  Although the content
+       and dead properties of a checked-in version-controlled resource are
+       required to be the same as those of its current DAV:checked-in
+       version, its live properties may differ.  An implementation may
+       optimize storage by retrieving the content and dead properties of a
+       checked-in version-controlled resource from its current
+       DAV:checked-in version rather than storing them in the version-
+       controlled resource, but this is just an implementation
+       optimization.
+
+I'm not sure how we could be clearer that a version-controlled resource is
+not a reference to a version, and there is no implicit passthrough.
+
+   I quote:
+
+   "A PUT or PROPPATCH to a version-controlled resource with the
+   DAV:auto-version property set will automatically check out that resource
+   prior to executing the PUT or PROPPATCH.  If that resource is
+   write-locked, the resource remains checked-out until the resource is
+   unlocked, at which time the resource is checked in and a new version is
+   created in the version history of that resource."
+
+I don't see any pass-through behavior here.  All operations
+are on the version-controlled resource.  A new "version" resource
+is created, but the operations are on the version-controlled resource.
+
+   "For certain methods (e.g. GET, PROPFIND), if the request-URL identifies
+   a version-controlled resource, a label can be specified in a Label
+   request header to cause the method to be applied to the version selected
+   by that label from the version history of that version-controlled
+   resource."
+
+Yes, a Label header is one of the ways that a user can explicitly ask
+that a method be applied to a resource related to the request resource,
+but that is a case of explicitly requested pass through behavior
+(via the Label header).
+
+   This means that PUT and PROPPATCH are ALWAYS parsed as applying to the
+   version (passthrough), even though the URL was to the VCR.
+
+PUT and PROPPATCH are redirected only when the client explicitly
+requests it with the Label header.
+
+   It also
+   means that GET and PROPFIND _sometimes_ apply to the version
+   (passthrough).
+
+Only when explicitly requested via the Label header.
+
+   It's not as clear what other methods are applied to.  It seems MOVE
+   source is defined as the VCR (no passthrough), but the COPY source is
+   the defined as the default version.
+
+No, the COPY source is not the "default version" because there is no
+default version.  There is the content and dead properties of the
+version-controlled resource.  It is true that when a
+version-controlled resource is checked-in, that there is a version
+resource that has the same content and dead properties as that
+version-controlled resource, but that has no effect on the semantics
+of the COPY operation, which always applies to the version-controlled
+resource.  When a version-controlled resource is checked-out, it
+doesn't even have a DAV:checked-in version.
+
+   The language all seems to imply
+   that a COPY when the source URL is a VCR should be interpreted as
+   copying the latest version from the source, to the destination.
+
+Section 2.1 explicitly states that this is not the case, to avoid
+anyone making such an interpretation.
+
+   The consequence of a model that supports "pass through" to the target of
+   a reference resource is that the model must specify clearly when
+   passthrough occurs, and when it doesn't.
+
+That is correct.  Happily, the versioning model explicitly states that
+implicit pass through does not occur, so there is no need to deal with
+this issue.
+
+  In addition:
+    - What methods the Label: header can apply to (and what it _can't_)
+
+An interoperable client can count on the Label header applying to a
+method only when the protocol explicitly says it applies to that
+method.  Some future extension of the protocol may want to extend the
+number of methods that a header applies to, so we deliberately never
+say that a method MUST NOT have a given header.
+
+    - When the label header is absent, for each method, what does it apply
+   to -- the VCR or the target version?
+
+There is no implicit pass-through behavior, so this question does not
+arise.  If a particular method has some kind of pass-through behavior,
+it will be explicitly stated in the semantics of that method.
+
+    - Whether there is a way of overriding the default assumption of what
+   the method applies to
+
+The default assumption is the same default assumption of HTTP, namely
+that the method applies to the resource identified by the request-URL.
+The only way to override this assumption is to use a method or header
+that explicitly specifies some redirecting behavior.
+
+   Some of the specific questions that came up when I was reading the spec:
+    - If any PROPPATCH to a VCR actually creates a new version; how does
+   one proppatch the properties actually on a VCR, such as
+   DAV:auto-version, DAV:predecessor-set and DAV:precursor-set, which
+   aren't protected?
+
+The only time a PROPPATCH to a VCR creates a new version is when it is
+a dead property.  None of these properties are dead properties, so they
+never create a new version when they are modified.
+
+    - If a PROPFIND with a Label: header is applied to a non
+   version-controlled resource, what does "no effect" mean?  What happens
+   if the specified label wasn't found -- does PROPFIND then return the
+   properties of the target version?  Or the VCR?
+
+"No effect" means that the result is the same as if the request did
+not include the Label header.
+
+    - Does a PROPFIND to a VCR result ever result in a merge of the
+   properties of the VCR and its target version?
+
+No.  In general, if the protocol doesn't say it happens, it doesn't
+happen.  Note that we reserve this kind of information is appropriate
+for the FAQ, because the protocol would get a bit long if we had
+to define in the protocol everything that doesn't happen (:-).
+
+    - Since COPY seems to always get its content from a single version, I
+   would say that "passthrough" always seems to be on for COPY.  Is there
+   any way of NOT doing passthrough with COPY?  I.e, is there any way of
+   copying a VCR along with its VHR and VRs?
+
+COPY only is guaranteed to copy dead properties.  The versioning
+protocol explicitly states that a COPY MUST NOT copy the versioning
+properties.  If you want to create another version-controlled
+resource for the same version history, you must use the VERSION-CONTROL
+request.  If you want to create another version-controlled resource
+with a new version history, your server may do this for you
+automatically (by placing every new resource under version control),
+or you can do it explicitly with the VERSION-CONTROL request.
+
+   This would result in two
+   VCRs, two VHs and 2*n VRs, which would be the same initially, but could
+   diverge after.
+
+By "the same", I assume you mean "there is a version in one version
+history with the same content and dead properties as a particular version
+in the other version history".  If so, yes.
+
+   A related issue is one I brought up in a separate mail, but I'll explain
+   the relationship here too:  how does one define properties which apply
+   not to an individual version, but to the whole shebang -- to the VCR,
+   VHR and all VRs?  An example is "owner", which in its meaning of "the
+   person responsible for this resource", can be taken to mean that when
+   ownership of a VCR is transferred the new owner becomes responsible for
+   all old versions related to the VCR.  No?  But we can't go about
+   changing properties of old versions...
+
+It sounds like you're talking about properties on the version history
+resource.  Your server of course must then support the version history
+option, but then you PROPPATCH the version history resource just as you
+would PROPPATCH any other resource.
+
+Again, great set of questions, Lisa!  Now if you could transcribe this
+information to the FAQ ... (:-).
+
+Cheers,
+Geoff
+
+
+

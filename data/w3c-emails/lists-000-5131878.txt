@@ -1,0 +1,101 @@
+docno="lists-000-5131878"
+received="Mon Nov 29 09:47:33 1999"
+isoreceived="19991129144733"
+sent="Mon, 29 Nov 1999 17:47:27 +0300 (MSK)"
+isosent="19991129144727"
+name="Victor Wagner"
+email="vitus@ice.ru"
+subject="Fix: Tidy nov99 segfaults on some htmls"
+id="Pine.LNX.4.10L0.9911291744470.6631-100000@zinc.fe.msk.ru"
+charset="US-ASCII"
+inreplyto="Pine.LNX.4.10L0.9911291249260.6631-300000&#64;zinc.fe.msk.ru"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+On Mon, 29 Nov 1999, Victor Wagner wrote:
+
+> From: Victor Wagner <vitus@ice.ru>
+> Subject: Tidy nov99 segfaults on some htmls
+> 
+> Dear sir,
+> 
+> I've downloaded latest version of html-tidy to use as preprocessor in
+> our web-based publishing system, but found out that it segfaults
+> on some ill-formed html. Particular piece of html was produced by
+> RTF::Parser perl module ver 1.07, but I suspect that other converters
+> from office formats would give simular results.
+> 
+
+Investigation shows that sometimes after DiscardElement call lexer->token
+still point to the element which was just freed.
+
+When then GetToken tries to access lexer->token->type at line 1195,
+various weird things happen.
+ 
+Following patch seems to fix problem
+diff -ru tidy24nov99/lexer.c tidy-fixed/lexer.c
+--- tidy24nov99/lexer.cWed Nov 24 17:49:34 1999
++++ tidy-fixed/lexer.cMon Nov 29 15:01:20 1999
+@@ -1189,7 +1188,7 @@
+     Bool isempty;
+     AttVal *attributes;
+ 
+-    if (lexer->pushed)
++    if (lexer->pushed && lexer->token)
+     {
+         /* duplicate inlines in preference to pushed text nodes when appropriate */
+         if (lexer->token->type != TextNode || (!lexer->insert && !lexer->inode))
+diff -ru tidy24nov99/parser.c tidy-fixed/parser.c
+--- tidy24nov99/parser.cWed Nov 24 17:49:34 1999
++++ tidy-fixed/parser.cMon Nov 29 15:01:01 1999
+@@ -185,6 +185,9 @@
+             ReportWarning(lexer, element, null, TRIM_EMPTY_ELEMENT);
+ 
+         DiscardElement(element);
++if (element == lexer->token) {
++               lexer->token = NULL;
++}     
+     }
+ }
+ 
+@@ -793,6 +796,9 @@
+         {
+             ReportWarning(lexer, element->parent, element, DISCARDING_UNEXPECTED);
+             DiscardElement(element);
++    if (element==lexer->token) {
++ lexer->token = NULL;
++            } 
+             return;
+         }
+     }
+@@ -829,7 +835,9 @@
+                 PopInline(lexer, node);
+ 
+             FreeNode(node);
+-
++            if (node==lexer->token) {
++                lexer->token=NULL;
++            } 
+             if (!(mode & Preformatted))
+                 TrimTrailingSpace(lexer, element->last);
+ 
+@@ -2608,6 +2616,9 @@
+         /* discard unexpected tags */
+         ReportWarning(lexer, body, node, DISCARDING_UNEXPECTED);
+         FreeNode(node);
++if (lexer->token == node) {
++    lexer->token = NULL;
++}    
+     }
+ }
+ 
+--------------------------------------------------
+Victor Wagnervitus@ice.ru
+ProgrammerOffice:7-(095)-203-50-60
+Institute for Commerce Home: 7-(095)-135-46-61
+Engineering                     http://www.ice.ru/~vitus
+
+
+

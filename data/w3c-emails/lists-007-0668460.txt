@@ -1,0 +1,137 @@
+docno="lists-007-0668460"
+received="Mon Apr 22 14:40:19 2002"
+isoreceived="20020422184019"
+sent="Mon, 22 Apr 2002 20:39:06 +0200"
+isosent="20020422183906"
+name="Julian Reschke"
+email="julian.reschke@greenbytes.de"
+subject="RE: Label header vs PROPFIND depth 1"
+id="JIEGINCHMLABHJBIGKBCKEEGEHAA.julian.reschke@greenbytes.de"
+charset="iso-8859-1"
+inreplyto="FDEHJMOEIDFPFLBKEICGCEHBCGAA.tim&#64;ellison.name"
+expires="-1"
+
+To:<tim@ellison.name>,"'Deltav WG'"<ietf-dav-versioning@w3.org>
+
+
+> > From: ietf-dav-versioning-request@w3.org
+> > [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Clemm, Geoff
+> > Sent: 22 April 2002 19:02
+> > To: 'Deltav WG'
+> > Subject: RE: Label header vs PROPFIND depth 1
+> >
+> >
+> >    From: Lisa Dusseault [mailto:ldusseault@xythos.com]
+> >
+> >    Geoff said:
+> >    >    PROPFIND /a
+> >    >    Depth: 1
+> >    >    Label: labeltest
+> >    > Assuming /a is not version-controlled, then the effect of the Label
+> >    > header is undefined, so your implementation could just ignore the
+> >    > Label header and return the properties of /a, or it could indicate
+> >    > that it is an error for /a.
+> >    >
+> >    > Since /a/b is version-controlled, the effect is defined by section
+> >    > 8.6, and you would return the properties of the version labeled
+> >    > "labeltest".
+> >
+> >    This is interesting -- I thought that the RFC said that the label
+> >    header must be ignored if the resource is not version-controlled.
+> >    Thus, it would be *wrong* to return an error for /a.
+> >
+> > Lisa is of course correct.  Section 8.3 covers this case.
+> > So yes, it must be ignored for a non-version-controlled resource,
+> > so it would be wrong to return an error for /a.
+>
+> Right, so imagine what kind of answer you would get back in the
+> multistatus -- some would be from the unversioned resource propfinds and
+> some from version propfinds, and you wouldn't know which were versioned
+> (without explictly looking for a live property to distinguishe
+> them), _and_
+
+Yes -- I think this is what RFC3253 says.
+
+> it would contravene the 2518 depth result requirement I mentioned earlier.
+
+I don't think so.
+
+> a version-controlled resource for which the label doesn't exist?
+> >
+> > See section 8.6, the DAV:must-select-version-in-history precondition.
+> > It is an error if you request a label that does not exist on a
+> given VCR.
+
+So assume we have /a (collection, not-versioned), /a/b (not-versioned), /a/c
+(versioned, having a version labeled "x") and /a/d (versioned, without that
+label).
+
+I think we all agree that
+
+GET /a/c
+Label: x
+
+Should return the content of the version selected by the label x (including
+a vary header and probably a content-location header).
+
+GET /a/d
+Label: x
+
+will return 403 or 409 with an error element (precondition
+DAV:must-select-version-in-history failed).
+
+GET /a/b
+Label: x
+
+will just return b's content, and the vary header when present will NOT
+include "Label".
+
+Similarily, similar results will be returned for a PROPFIND/depth 0 on these
+resources. Note that the response element will be "/a/c" in the first case,
+even if the properties of a version with a different URI were reported.
+
+Finally, we have PROPFIND/depth 1 on /a:
+
+- as /a isn't version-controlled, the label header is ignored for *this*
+resource
+
+- Geoff and I claim that it *should* apply to the members then, so we'd get:
+
+<multistatus xmlns="DAV:">
+
+  <response>
+    <href>/a</href>
+    <propstat>
+      <prop>...</prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  <response>
+
+  <response>
+    <href>/a/b</href>
+    <propstat>
+      <prop>properties of resource /a/b</prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  <response>
+
+  <response>
+    <href>/a/c</href>
+    <propstat>
+      <prop>properties of selected version</prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  <response>
+
+  <response>
+    <href>/a/d</href>
+    <status>HTTP/1.1 409 Conflict</status>
+
+<responsedescription><error>must-select-version-in-history/></error></respon
+sedescription>
+  <response>
+
+</multistatus>
+
+
+

@@ -1,0 +1,96 @@
+docno="lists-009-1104149"
+received="Fri Dec 16 10:36:21 1994"
+isoreceived="19941216153621"
+sent="Fri, 16 Dec 94 10:26:04 PST"
+isosent="19941216182604"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="HTTP  why not multiple connections?"
+id="9412161826.AA10950@acetes.pa.dec.com"
+inreplyto="9412161737.AA12670&#64;hopf.math.nwu.edu"
+expires="1"
+
+
+To: John Franks<john@math.nwu.edu>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+The reason why Netscape's solution should be viewed as a short-term
+workaround, rather than the correct design for some future version
+of HTTP, is that it starts from scratch with each document.  That is,
+the use of parallel connections  does reduce the latency for inlined
+images, but it can't reduce the latency for retrieving the enclosing
+HTML file.  Which is especially a problem if the HTML file has no
+images (or if the client has them all cached).
+
+Persistent-connection HTTP, on the other hand, means that as long
+as a client is retrieving URLs from a given server (within a
+reasonable timeout period), the slow-start costs are paid once,
+and the inlined-image retrievals can be pipelined (thus parallelizing
+almost every aspect of their retrieval as well as Netscape can do.
+But see below for a slight wrinkle.)  Note that if you are at the end
+of a 56kbit/sec pipe, for example, retrieving images in parallel doesn't
+do any better than retrieving them sequentially with a "started-up"
+TCP connection, and in fact might do a lot worse.
+
+I pointed this out at the BOF last week, but it bears repeating:
+bandwidth is improving, computers are improving, but the speed of
+light is a constant (and the planet is not shrinking).  Netscape
+has to pay at least one extra RTT for each HTML file, over what
+persistent-connection HTTP would pay (after the first one).
+
+And if bandwidth *is* a problem, Netscape's approach doesn't help,
+because it generates a number of extra packets (TCP SYNs and FINs)
+for each image.  Also, the use of many short connections instead
+of one long connection is likely to foil attempts to improve
+congestion control by assigning per-connection resources at the routers,
+since the connections won't last long enough to make this pay off.
+
+Finally, multiple connections do impose real costs at the server.
+I'll send a separate message showing some preliminary simulation
+results that underscore this point.
+
+    The fastest way to get all the text is to send it first but it
+    can't be displaye until layout information like the size and shape
+    of all images is known.  This is the point of the Netscape multiple
+    connections.  They get the first few bits of each image which
+    contain the size information.
+    
+This is the one thing that Netscape's approach does help with.  I
+admit that it's nice to see the text laid out before the images arrive.
+But there is more than one way to solve this problem, and I think
+Netscape's solution causes more network-related trouble than necessary.
+
+For example, as long as we are making minor changes to HTTP anyway,
+how about definining a new method called "GET_BOUNDING_BOXES" (or
+pick a shorter name).  This would take a list of URLs, and the server
+would return the appropriate image attributes (height, width, maybe
+a few other parameters) for each image.  If the server doesn't want
+to do this, or if one of the URLs is in an unrecognized format, no
+problem; the client just has to wait until the real image is retrieved.
+
+In this model, a typical interaction would be:
+
+ClientServer
+
+sends GET
+sends HTML
+parses HTML
+sends GET_BOUNDING_BOXES
+  listing uncached images
+sends GETLIST
+  listing uncached images
+sends bounding boxes
+sends GIFs/JPEGs/whatever
+
+We're still looking at only two "necessary" round-trip times, plus
+network bandwidth latencies.  The server now has to "understand"
+the image formats enough to extract the bounding boxes, and I'm
+sure some of you purists will scream bloody murder about that.
+But look at how much code already exists in an HTTP server, and
+how much would have to be added to do this, and then try to tell
+me with a straight face that it's too hard to do.
+
+-Jeff
+
+
+

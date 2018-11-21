@@ -1,0 +1,85 @@
+docno="lists-093-3742313"
+received="Sat Mar  1 17:19:07 1997"
+isoreceived="19970301221907"
+sent="Sat, 01 Mar 1997 11:19:07 EST"
+isosent="19970301161907"
+name="Maciej Stachowiak"
+email="mstachow@mit.edu"
+subject="Finding THOTDIR"
+id="199703011619.LAA06169@mercy.mit.edu"
+expires="-1"
+
+
+To:www-amaya@w3.org,www-amaya-developers@w3.org
+
+
+The current way THOTDIR is determined is broken. Currently
+Thot/thotlib/base/registry.c just scans up from the location where it
+theinks the amaya binary was run from. In effect, the build tree, the
+installed location of the binaries and the installed location of the
+configuration files all have to be the same. For installation in a
+heterogenous networked environment, it should be possible to install
+the (platform-dependent) binaries in a different place than the
+(platform-independent) configuration files.
+
+To support this, registry.c should check a compiled-in value and/or an
+environment variable before doing the scan of the directory tree. Here
+is a diff to Thot/thotlib/base/registry.c which changes this behavior
+to first check the environment variable THOTDIR, and if it is set
+check if it is the Thot directory, and then check the value of
+COMPILED_IN_THOTDIR if this was defined at compile time, before doing
+the scan of the directory tree upwards from the binary. I compiled
+binaries of Amaya with this applied and they worked when run from
+different directories as long as THOTDIR was set in the environment.
+It is also possible to put something along the lines of
+-DCOMPILED_IN_THOTDIR='"/path/to/thot"' in the compiler options in the
+Makefile to make that directory get checked after the one pointed to
+by the environment variable.
+
+ - Maciej Stachowiak
+
+*** registry.c  Wed Feb  5 12:57:05 1997
+--- registry.c.fixed    Sat Mar  1 08:29:00 1997
+***************
+*** 907,912 ****
+--- 907,913 ----
+     char               *my_path;
+     char               *dir_end;
+     char               *appName;
++    char               *thot_dir_env;
+  
+  #ifndef _WINDOWS
+     struct stat         stat_buf;
+***************
+*** 1058,1063 ****
+--- 1059,1085 ----
+  
+     /* save the binary directory in BinariesDirectory */
+     strncpy (BinariesDirectory, &execname[0], sizeof (BinariesDirectory));
++ 
++    /* first check the THOTDIR environment variable */
++    thot_dir_env=getenv("THOTDIR");
++    if (NULL!=thot_dir_env) {
++        AddRegisterEntry ("System", "THOTDIR", thot_dir_env,
++                        REGISTRY_INSTALL, TRUE);
++        strcpy(execname,thot_dir_env);
++        goto load_system_settings;
++    }
++ #ifdef COMPILED_IN_THOTDIR
++    /* then check the compiled in value (if any) */
++    if (IsThotDir (COMPILED_IN_THOTDIR))
++      {
++        AddRegisterEntry ("System", "THOTDIR", COMPILED_IN_THOTDIR,
++                        REGISTRY_INSTALL, TRUE);
++        strcpy(execname,COMPILED_IN_THOTDIR);
++        goto load_system_settings;
++      }
++ #endif /* COMPILED_IN_THOTDIR */
++    /* if all else fails, scan up from where we found the binary */       
++    
+  
+     if (IsThotDir (&execname[0]))
+       {
+
+
+

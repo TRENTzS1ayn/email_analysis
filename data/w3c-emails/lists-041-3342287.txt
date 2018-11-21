@@ -1,0 +1,102 @@
+docno="lists-041-3342287"
+received="Tue Jun 18 19:22:03 2002"
+isoreceived="20020618232203"
+sent="Tue, 18 Jun 2002 16:22:29 -0700"
+isosent="20020618232229"
+name="Roy T. Fielding"
+email="fielding@apache.org"
+subject="Re: Collections and Request-URIs"
+id="422455F1-8312-11D6-9ED7-000393753936@apache.org"
+charset="US-ASCII"
+inreplyto="20020618153704.F1848&#64;lyra.org"
+expires="-1"
+
+Cc: Jim Luther<luther.j@apple.com>,w3c-dist-auth@w3c.org
+To: Greg Stein<gstein@lyra.org>
+
+
+
+>> Anyway, trailing slashes issue causes an interoperability problem for
+>> our WebDAV file system and Apache 2.0 servers.  Since Mac OS X's WebDAV
+>> file system doesn't know if the end path component passed to it is a
+>> collection or non-collection resource, it doesn't put a trailing slash
+>> on the Request-URI. This works on all servers except for Apache 2 which
+>> sends us a "301 Moved Permanently" response. We don't redirect because
+>> the HTTP spec (RFC 2616, section 10.3.2) says:
+>>
+>> "If the 301 status code is received in response to a request other than
+>> GET or HEAD, the user agent MUST NOT automatically redirect the request
+>> unless it can be confirmed by the user, since this might change the
+>> conditions under which the request was issued."
+>
+> Roy Fielding has previous stated that RFC 2616's language is incorrect. 
+> The
+> spec is supposed to allow things like PROPFIND. I forget the exact
+> terminology that Roy used (i.e. was it "*all* idempotent methods"? or
+> something else), but PROPFIND was among them.
+
+Please see the official errata:
+
+   http://world.std.com/~lawrence/http_errata.html#saferedirect
+
+> This topic was extensively discussed on the Apache development list when 
+> we
+> added that redirection code (actually, we fixed a bug that prevented the
+> "proper" behavior of redirecting for all methods). That was when Roy 
+> chimed
+> in about RFC 2616 being slightly incorrect, that a redirection is legal,
+> that Apache 2.0 "should" go ahead and redirect, and that the clients who 
+> are
+> *not* following the redirect are simply broken.
+>
+> And given that the non-following clients are "broken", we went ahead and
+> made the default behavior to do the redirection, and called out the broken
+> clients in the standard distribution of httpd.conf.
+
+That is correct.  And, BTW, RFC 2518 is in fact incorrect in the paragraph
+quoted, something which I stated numerous times when it was a draft.
+There are no known examples of HTTP servers for which the URI without a
+slash is the SAME RESOURCE as the URI with a slash.  Automatically
+providing two different URI for the same resource, particularly when
+they cross hierarchical syntax, instantly doubles the application
+name space (bad for IR and QA) and creates holes in access control.
+That is why ALL general HTTP servers provide PERMANENT REDIRECTS
+from a WRONG URL to a better URL for the sake of stupid authors of
+broken references.  They have never been the same resource on any
+server for which I have ever had readable code.
+
+It is completely idiotic for the protocol standard to state that a
+very expensive network round-trip correction needed because of indirect
+stupidity on the part of the server in providing the wrong URL to the
+client, or because clients have been encouraged to remove the trailing
+slash because some moron in UI thought it looked better without the
+slash, can be "worked around" by ignoring the difference between
+the two resources.  Any WebDAV server that does not return a redirect
+in that situation is a bad HTTP server.
+
+A WebDAV client cannot assume anything about the nature of the URI,
+since there is absolutely no requirement in HTTP that two URI that
+differ only by the trailing slash are in fact the same resource.
+An HTTP server cannot ignore the difference because the content of
+a representation is interpreted in relation to the URI that was used to
+access that resource.  Likewise, it often cannot ignore the difference
+because an HTTP server consists of many interoperating components
+that are configured according to the URI name space being accessed,
+not necessarily all within the same machine.  Therefore, the ONLY
+interoperable behavior when faced with a slashless collection request
+is to perform an external redirect, even if that means existing
+WebDAV clients will puke and die.
+
+A WebDAV client must therefore handle the redirect.
+
+
+Cheers,
+
+Roy T. Fielding, Chief Scientist, Day Software
+                  (roy.fielding@day.com) <http://www.day.com/>
+
+                  Chairman, The Apache Software Foundation
+                  (fielding@apache.org)  <http://www.apache.org/>
+
+
+

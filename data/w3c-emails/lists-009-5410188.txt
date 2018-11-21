@@ -1,0 +1,122 @@
+docno="lists-009-5410188"
+received="Mon Jul 24 12:30:40 1995"
+isoreceived="19950724163040"
+sent="Mon, 24 Jul 1995 15:28:36 0400"
+isosent="19950724192836"
+name="Roy Fielding"
+email="fielding@beach.w3.org"
+subject="Re: Content-TransferEncoding &quot;packet&quot;"
+id="199507241928.PAA00843@beach.w3.org"
+inreplyto="199507241441.AA110826899&#64;hplb.hpl.hp.com"
+expires="1"
+
+
+To: Dave Kristol<dmk@allegra.att.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+>Could you elaborate?  I'd be curious to know the tradeoffs you examined
+>before choosing this approach.  In particular, was the overhead of an
+>ASCII packet length (i.e., human readable) so onorous?
+
+An ASCII decimal format is, yes.  Human readable was not an issue
+in this case.
+ 
+The advantages that the one-byte packet-size has is that it takes up
+a minimal amount of space in the stream of bits to the transfer and
+is trivial for any system to produce or consume.  Allowing larger
+packets means we have to use decimal (with the additional CRLF delimiters)
+or hope that everyone remembers to read the number in network byte order.
+ 
+*NOTE*  We need to keep in mind that the CTE packet size has little
+        to do with the TCP packet size.  There is absolutely nothing
+        preventing an application from writing up to X CTE packets
+        per network write, where
+ 
+                      Usable Window
+                  X = -------------
+                          256
+ 
+It does have an impact on the receiving application's read buffer
+size, but that is usually not an issue these days (most systems are
+capable of reading data from the TCP buffers much faster than it gets
+filled, so the application's reads are not in the critical path).
+
+The BIG question is what effect it will have on the number of
+internal system calls and data copies required by the server or 
+the client.  That I do not know, and Jim Gettis (the W3C person who
+is about to start looking into HTTP/2.x) mentioned earlier today
+that they may overwhelm any gain from simplicity.  Of course, this
+is also dependent on the average size of dynamic data transfers
+(i.e., if the vast majority of transfers is "small", than a small
+packet size is preferable).
+
+===================================================================
+So, here is a task for the WG:
+
+   If you have a simulator handy (or just some free time on your
+   hands), please attempt to analyze the behavior of a representative
+   sample of dynamic responses, with the idea being a comparison
+   between the simple "256packet" implementation of my last message
+   <199507230403.AAA10044@beach.w3.org> and the following
+   "decimal packet" CTE:
+
+   Entity-Body = *( packet ) 
+                 "0" CRLF
+                 footer
+                 CRLF
+ 
+   packet      = packet-size packet-data
+ 
+   packet-size = ("1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9") *DIGIT
+ 
+   packet-data = packet-size(OCTET) CRLF
+ 
+   footer      = *( Entity-Header )
+
+and report your results back to the mailing list.  Keep in mind
+that the goal is consensus and submittal of a proposed standard RFC
+on HTTP/1.1 by September 21.
+===================================================================
+
+>1) If I understand correctly, there is always at least a blank line
+>following packetized data (for a null footer Entity-Header).  True?
+
+That depends on where you consider the beginning of the line to be.
+If you consider it to be after the zero (NUL), then yes, since the
+256packet scheme would end in
+   <last-packet> NUL CRLF
+if there is no footer.
+
+In the decimal packet scheme there would indeed always be an empty line,
+since it would end in
+   <last-packet> 0 CRLF CRLF
+if there is no footer.
+
+>2) Does the footer applies only for C-T-E "packet", or would it
+>apply to other (to be specified) C-T-E's?
+
+Only to CTE packet, unless we defined more new CTEs (unlikely,
+except for the possibility of a packet64 CTE for 7bit transfer).
+
+>3) What happens if (yes, it would be bizarre) one of the footers is
+>Content-Length?  (It looks like it gets overwritten with the one that
+>the packetizer computes.)
+
+It gets overwritten (in fact, it *must* be overwritten).
+
+>4) Will support for packetization be a required part of HTTP/1.1?
+
+Yes.
+
+>5) How will acceptable packet sizes be negotiated (or specified)?
+
+Well, if we have small packets, they won't be.  If we have decimal
+packets, then that is another matter for discussion.  Does it matter?
+
+
+ ....Roy T. Fielding  Department of ICS, University of California, Irvine USA
+                      Visiting Scholar, MIT/LCS + World-Wide Web Consortium
+                      (fielding@w3.org)                (fielding@ics.uci.edu)
+
+
+

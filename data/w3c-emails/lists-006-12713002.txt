@@ -1,0 +1,103 @@
+docno="lists-006-12713002"
+received="Thu Sep  6 12:34:25 2001"
+isoreceived="20010906163425"
+sent="Thu, 6 Sep 2001 12:45:19 -0400 "
+isosent="20010906164519"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="DAV:expand-property report (was RE: REPORTS)"
+id="3906C56A7BD1F54593344C05BD1374B1042AB38C@SUS-MA1IT01"
+expires="-1"
+
+
+To:"'DeltaV'"<ietf-dav-versioning@w3.org>
+
+The most important point is the one Tim made, namely
+that marking a feature as SHOULD rather than MAY does
+not substantively affect what a server or client needs
+to code up, but just represents guidance to server writers
+as to the importance of an optional feature.  This is
+clearly something that will not be unanimous (since otherwise
+the feature would either be removed or marked as a MUST).
+
+To substantiate my claim that DAV:expand-property
+is straightforward to implement, I'll submit the
+following pseudo-code (this assumes your implementation language
+supports recursion).
+
+Cheers,
+Geoff
+
+handleDepthExpProp(httpRequest:String) {
+   r: Resource;
+   expPropArgs: ParsedXML;
+   depth: Integer;
+
+   r = lookupResource(getRequestURL(httpRequest));
+   expPropArgs = xmlParse(getBody(httpRequest));
+   depth = getDepth(httpRequest);
+   # depth is -1 if Depth:infinity is specified
+   addInitialMultistatusBoilerplateToResponse();
+   doDepthExpProp(r, expPropArgs, depth);
+   addFinalMultistatusBoilderplateToResponse(); }
+
+
+doDepthExpProp(r:Resource, expPropArgs:ParsedXml, depth:Integer) {
+   i: Integer;
+   mem: Resource;
+
+   doExpProp(expPropArgs, r);
+   while (depth!=0) {
+      for (i=0; i<numInternalMembers(r); i++) {
+         mem=getInternalMember(r, i);
+         doDepthExpProp(mem, expPropArgs, depth-1); } } }
+
+
+doExpProp(r:Resource, expPropArgs:ParsedXml) {
+   i: Integer;
+   expPropArg: ParsedXml;
+   value: String;
+   parsedValue: ParsedXml;
+
+   addInitialResponseBoilderplateToResponse(r);
+   for (i=0; i<numChild(expPropArgs); i++) {
+      expPropArg = getChild(expPropArgs, i);
+      value = getPropValue(r, getProp(expPropArg));
+      if (numChild(expPropArg) == 0) {
+         addPropValueToResponse(value)
+      }else{
+         parsedValue = xmlParse(value);
+         addExpandedPropValueToResponse(parsedValue, expPropArg); } }
+   addFinalResponseBoilderplateToResponse(); }
+
+
+addExpandedPropValueToResponse(parsedValue:ParsedXml, expPropArg:ParsedXml)
+{
+   r: Resource;
+   i: Integer;
+   subValue: ParsedXml;
+
+   if (isHref(parsedValue)) {
+      r = getHrefResource(parsedValue);
+      doExpProp(r, expPropArg);
+   }else if (isText(parsedValue)) {
+      addTextToResponse(parsedValue);
+   }else{
+      addBeginXmlNodeToResponse(xmlRoot(parsedValue));
+      for (i=0; i<numChild(parsedValue); i++) {
+         subValue = getChild(parsedValue, i);
+         addExpandedPropValueToResponse(subValue, expPropArg); };
+      addEndXmlNodeToResponse(xmlRoot(parsedValue)); }}}
+   
+   
+The outer recursion handles the depth traversal.
+The inner recursion handles the nested expand property.
+Each routine just has one if statement to stop the recursion,
+and one loop to iterate over the appropriate children.
+Not trivial perhaps, but pretty straightforward.
+
+Cheers,
+Geoff
+
+
+

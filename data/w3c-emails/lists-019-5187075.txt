@@ -1,0 +1,70 @@
+docno="lists-019-5187075"
+received="Tue Nov 18 17:50:38 2003"
+isoreceived="20031118225038"
+sent="Tue, 18 Nov 2003 23:49:37 +0100"
+isosent="20031118224937"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="[XPath] Focus for evaluating E1/E2"
+id="DFF2AC9E3583D511A21F0008C7E62106073DD2BC@daemsg02.software-ag.de"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+I would like to make a proposal to change the rules affecting the focus when
+evaluating a path expression in the form E1/E2. Specifically, I propose that
+when evaluating E2, the context position and context size should both be set
+to 1 (one), not to the position of the context node in the list of nodes
+selected by E1 and the size of this list.
+
+There are very few expressions that will be affected by this difference.
+Because E2 must return a sequence of nodes, you need to find an expression
+that uses position() or last() but still returns nodes. It's not enough to
+use position() or last() within a predicate, because a predicate changes the
+context. You need to find expressions such as
+
+  a/b/remove($c, position())
+
+or
+
+  a/b/subsequence($c, position())
+
+or 
+
+  a/b/(for $i in 1 to last() return $c[$i])
+
+I have not found any expression in this category that is actually useful, or
+that cannot be written in a more natural way.
+
+But why change the rules? The reason is that the current rule makes the "/"
+operator non-associative. The result of (a/b)/remove($c, position()) is not
+the same as a/(b/remove($c, position()). Rewriting a/b/c as a/(b/c) can be
+an important rewrite for optimizers as it often reduces the need to perform
+a sort.
+
+To be fair, I should point out that
+
+(a) it's not difficult to detect path expressions that use position() or
+last() on the right hand side of "/", and
+
+(b) there are other situations that can make "/" non-associative:
+specifically, when one of the operands creates new nodes with distinct
+identity by means of a function call (or in XQuery, a node constructor) 
+
+However, I think it's not reasonable to ask implementations to do a lot of
+extra work for the sake of constructs that will only ever be found in
+conformance tests. The rule that position() and last() should both be set to
+1 is just as good as the present rule from a user perspective (there are
+plently of cases in XSLT where these values are always set to 1 already,
+e.g. when evaluating keys) and a lot easier from an implementor's
+perspective.
+
+There are no backwards compatibility implications, because XPath 1.0
+restricted the rhs of "/" to be a step, which could not contain calls on
+position() or last() except in a predicate.
+
+Michael Kay
+
+
+

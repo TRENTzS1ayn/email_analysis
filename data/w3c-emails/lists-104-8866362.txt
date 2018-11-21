@@ -1,0 +1,70 @@
+docno="lists-104-8866362"
+received="Thu Mar 28 15:11:09 2002"
+isoreceived="20020328201109"
+sent="Thu, 28 Mar 2002 13:11:40 -0700"
+isosent="20020328201140"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="RE: Issue Xpath-30: Reusing result sets"
+id="4D62A7266F41D611B92C00E018C1C19C0DD4E3@thor.aeathtl.com"
+inreplyto="Issue Xpath-30: Reusing result sets"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+There are two other concerns regarding reuse that come to mind.  
+
+The first concern is would be the potential surprise resource hit by keeping
+a result set around for potential reuse.  Quite a few of the result sets
+would have trivial costs to maintain for reuse (number values and the like)
+and an application might try to do some caching of XPathResult for future
+reuse.  However, a partially traversed iterator would keep the associated
+document from going out of scope and could have an very high cost to
+maintain in the cache.  This might suggest some sort of close()/detach()
+method that would release any resources locked by the result set and would
+cause most method calls to raise some type of invalid state exception.
+
+The second concern is that allowing reuse makes it unsafe to provide access
+to a result set that is part of the state of an object, since there is
+nothing to prevent code that gets access to a result set from reusing it for
+a totally random query.  Something like:
+
+class Foo {
+   private XPathResult snapshotOfBarElements;
+   public XPathResult getBarElements() {
+return snapshotOfBarElements;
+   }
+   //
+   //
+   public double getTotalCost() {
+//   some iteration over bars
+   }
+}
+
+XPathResult bars = myFoo.getBarElements();
+//
+//    this could really screw up the myFoo object
+//
+XPathResult count =
+xpathEval.evaluate("count(*)",docelem,null,NUMBER_TYPE,bars);
+//
+//    likely to fail
+double cost = myFoo.getTotalCost();
+
+
+This could be addressed by providing a mechanism that where the application
+can mark a XPathResult as not being reusable.  This might take the form of a
+read/write boolean property (allowReuse for example) where trying to set the
+value to true from false would be ignored.  So you could do
+
+   public XPathResult getBarElements() {
+snapshotOfBarElements.setAllowReuse(false);
+return snapshotOfBarElements;
+   }
+
+And would not have the possibility for the caller to corrupt the state of
+the object.
+
+
+

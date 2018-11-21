@@ -1,0 +1,531 @@
+docno="lists-039-5694906"
+received="Thu Jul 15 10:43:20 1999"
+isoreceived="19990715144320"
+sent="Thu, 15 Jul 1999 07:41:54 -0700"
+isosent="19990715144154"
+name="Yaron Goland (Exchange)"
+email="yarong@Exchange.Microsoft.com"
+subject="Advanced Collections &amp; the WebDAV Object Model"
+id="078292D50C98D2118D090008C7E9C6A601947374@STAY.platinum.corp.microsoft.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'w3c-dist-auth@w3.org'"<w3c-dist-auth@w3.org>
+
+So I'm of for vacation for two weeks but before I leave I thought I would
+drop a huge bomb on the group and then run screaming. You can thank me when
+I get back. =)
+
+When I do return from vacation I will follow up this paper with one looking
+at the details of advanced collections as modeled by this paper and I will
+finish out the paper. Note that bind becomes more about replication then
+NR(N1) = NR(N2) mapping and yes, the model for collections will work (I
+think) for versioning.
+
+Oh and this is obviously not a finished draft, it is very early draft and
+requires lots and lots of more work.
+
+Yaron
+
+The WebDAV Object Model
+
+by
+Yaron Y. Goland
+July 15, 1999
+
+Disclaimer
+
+Weasel words are always annoying but the following weasel words are
+important so please read them.
+
+There is no standardized formalization of the HTTP or WebDAV object models.
+Neither RFC 2616 nor RFC 2518 explicitly define their object models. Both,
+in fact, seem to spend quite a bit of time trying to not talk about their
+object models and rather to focus on presenting themselves as
+request/response protocols.
+
+This is unfortunate as it has lead to a lot of confusion regarding how these
+protocols should be extended. The author of this paper had some very
+definite ideas about how the HTTP and WebDAV object models worked as he
+helped to author RFC 2518. His ideas changed over time and the content of
+this paper is more rigorously defined than anything the author had actually
+thought of when helping to write RFC 2518. That is also unfortunate as RFC
+2518 probably would have been clearer had the author written this paper
+several years earlier.
+
+Therefore the contents of this paper represent the opinions of the author
+and the author alone. Anyone who references this paper as being in anyway
+authoritative will be making a fool of themselves. However it is the
+author's hope that this paper will lead to the creation of a normative
+document which formally and rigorously defines both the HTTP and WebDAV
+object models.
+
+The author of this paper assumes that the reader has read and understood RFC
+2616, RFC 2617 and RFC 2518, in that order.
+
+The Larry Masinter Disclaimer - The following document is not complete. I
+apologize for wasting your time with its meaningless prattle.
+
+Introduction
+
+The goal of this paper is to provide an object model that will completely
+describe the behavior of the URI namespace and HTTP resources as seen by
+HTTP clients. This model is completely unrelated to how one would actually
+implement an HTTP server. Rather it provides a robust model against which
+extensions to RFC 2616 and RFC 2518 can be judged so as to ensure that such
+extensions are consistent with the functionality already present in those
+two specifications. It is the expectation of the author of this paper that
+as future extensions are approved this paper will be extended to include
+them.
+
+[Will add a short summary of each major section.]
+
+1Namespace/Resource Space
+
+1.1In the beginning...
+
+There exists the namespace. The namespace is the set of all possible URIs.
+
+There exists the resource space. The resource space is the set of all
+currently existing resources.
+
+There exists a function NR() which maps from the namespace to the resource
+space. 
+
+There exists another function RN() which maps from the resource space to the
+namespace.
+
+NR() is read as "Namespace to Resource space mapping function". The input to
+NR() is N, which represents a single member of the namespace. The output of
+NR() is R, which represents a single member of the resource space.
+
+RN() is read as "Resource space to namespace mapping function". The input to
+RN() is R, which represents a single member of the resource space. The
+output of RN() is the set n which contains zero or more members of the
+namespace.
+
+NR() is a one-to-one function. For each value in the namespace there exists
+one and only one value that it can map to in the resource space. 
+
+RN() is a one-to-many function. For each value in the resource space there
+are zero to an infinite number of values it can map to in the namespace.
+
+For every N in the namespace there must be a value R as the output of NR(N).
+By default all NR(N) map to the NULL resource.
+
+For every R, RN(R) will output a set n but n may be empty.
+
+Thus while every N has an R not all Rs have Ns.
+
+1.2Form without...
+
+A resource is defined as an object able to accept requests and send
+responses. How a resource is actually implemented, how a namespace
+communicates with it and all other issues pertaining to the underlying
+nature of a resource are, by default, left completely undefined. Thus all we
+know about a resource is what we are able to learn by sending it requests
+via a member of the namespace and getting a response.
+
+1.3Call me Ishmael...
+
+RFC 2616 introduces the http URL subset of the URI namespace set. The basic
+form of the http URL is http://dest/segment/segment/...:port. Dest is either
+a domain name or an IP address.
+
+To send a message to a http name one first discovers the IP address for a
+domain name in dest or if an IP address is already provided then the message
+is sent directly to that IP address. A TCP port can also be specified, port
+80 is the default.
+
+The message form provided by RFC 2616 places the segment information inside
+of the message. So RFC 2616 processing can be thought of as a multiple level
+multiplexer. The first level of demultiplexing is based on the IP address
+and port. The second level of demultiplexing occurs when the message is sent
+to the specified IP address/port and the segment information is provided.
+
+1.4Sprechen Sie...
+
+As a bit of a side note, the request-URI of a RFC 2616 message can accept
+any arbitrary URI. Therefore it is possible to use HTTP to speak with any
+member of the namespace. That is the theory.
+
+The reality is that trying to put non-HTTP URLs in an RFC 2616 message is a
+dangerous business. For example, if one makes a RFC 2616 request with the
+request URI foo:bar and get back a 404, does that mean that NR(foo:bar) ==
+NULL?
+
+The answer is both yes and no, which is the problem. The answer is yes that
+for the specified IP address and port the processing system present there
+thinks that foo:bar is NULL but that doesn't mean that there isn't some
+other system someplace which could actually translate foo:bar.
+
+An example may help explain things better. Imagine one makes an HTTP request
+for ftp://foo/bar. Some HTTP systems can proxy this request properly and do
+something "intelligent." The rest will just reject it. So the value of
+NR(ftp://foo/bar) depends on who you ask.
+
+This problem doesn't exist with http URLs because there is a well defined
+master location. If you go to the specified IP address and port whatever you
+get in response is the definitive response from NR(http://whatever...). In
+the case of non-http URLs there does not, by default, exist a RFC 2616 based
+mechanism for determining if one is talking to the definitive processor for
+a particular non-http name.
+
+1.5Send in the methods...
+
+RFC 2616 defines a protocol called HTTP. HTTP provides a mechanism for
+sending requests, called methods, to a member of the namespace and receiving
+a response. The exact mechanism defined by HTTP is specified as:
+
+1)A client sends a method formatted as specified by RFC 2616
+to the member of the namespace specified by the request-URI.
+2)The namespace member N performs the function NR(N) and
+passes the method to the resulting R through an unspecified mechanism.
+3)R will return a result to N through an unspecified
+mechanism.
+4)N will then pass that response in the format defined in RFC
+2616 to the requestor.
+
+The key concept is that only resources can perform computations. The
+namespace only exists to forward requests to and send replies from
+resources.
+
+The format of a RFC 2616 request consists of a method name, a set of
+name/value pairs called headers and a byte stream called the body. In
+general RFC 2616 requests are called methods.
+
+The format of a RFC 2616 response consists of a response code, a response
+comment, headers and a body.
+
+It is possible for a resource to know the name of the namespace member who
+sends it a request. The resource may change its response based on the value
+of the namespace member who sent the request. So, for example, the foo
+method sent to N1 and N2, both of which map to R1, may end up with two
+different responses even though they were sent to the exact same resource.
+
+RFC 2616 also defines a set of standard methods - OPTIONS, GET, HEAD, POST,
+PUT, DELETE, TRACE and CONNECT. 
+
+The following summaries of the method's functionality are meant to
+concentrate on the effect and interaction of the method with the namespace
+and resource space. Thus many details are left out. Note that the "code"
+listed below is executed inside of the resource. Also note that if the
+resource doesn't support the particular method then an error will be
+returned.
+
+The following are not really namespace related methods - 
+
+OPTIONS(N) - Will return descriptive information about the functionality of
+R. Note that R may be aware of the value of N and therefore could return
+different information based the value of N.
+
+GET(N) - Will return a body whose value may or may not be chosen based on
+the value of submitted headers.
+
+HEAD(N) - Returns the headers, without the body, that would have been
+returned had the request been a GET(N).
+
+POST(N) - A well defined way to blow holes in firewalls.
+
+TRACE(N) - Ping for HTTP.
+
+CONNECT(N) - Just weird, don't worry about it.
+
+The following alter the value of NR() -
+
+PUT(N,G):
+R = NR(N);
+If (R != NULL) {
+   R.GET = G; // Future responses to GET will be G
+   return;
+}
+R' = R.CreateNewResource();
+NR(N) = R';
+R'.GET = G;
+return;
+
+The previous doesn't probably describe content negotiation, which will be
+discussed later in the paper.
+
+DELETE(N): If NR(N) = R is the NULL resource then the method will fail. If R
+is not the NULL resource then R is to be deleted from the resource space and
+all n in the output set to RN(R) are to have their NR(N) set to the NULL
+resource.
+
+1.631 Flavors...
+
+Resources, as has already been implied, come in a number of different
+flavors. 
+
+The first flavor of resource is the NULL resource. The NULL resource will
+reject all methods and their namespace representative will return a 404 for
+them.
+
+NULL should be thought of as a base type upon which many different resources
+inherit from. For example, a very common inheritor of NULL adds support for
+the PUT method. The PUT supporting NULL resource will accept PUT methods,
+will create a new resource and will set the GET output properly.
+
+RFC 2616 doesn't require that the NULL resource support OPTIONS so it isn't
+always possible to determine what sort of NULL resource one is talking to.
+
+1.7Moving on up...
+
+RFC 2616 does not provide for very much control over the output of NR(). PUT
+can be used to create a new R as a side effect and DELETE can be used to
+destroy a R, but that is it.
+
+For many applications more control is needed. Specifically, support for copy
+and move functionality. Copy and move allow one to change the NR() output in
+a manner that doesn't require clients to understand the fundamental nature
+of the underlying resources.
+
+The COPY and MOVE methods are defined by RFC 2518.
+
+COPY(Ns,Nd) - 
+Rtemp = NR(Nd);
+If ((Rtemp != NULL) && (Overwrite == FALSE))
+   return(FAIL);
+Create(Rd);
+Rs = NR(Ns);
+Rd.State = Rs.State; // Just copying state information from Rs to Rd, the
+resources are independent of each other.
+NR(Nd) = Rs;
+If ((Rtemp != NULL) && (RN(Rtemp) == Empty Set)) // THIS IS OPTIONAL
+   Destroy(Rtemp);
+
+MOVE(Ns, Nd) - 
+Rtemp = NR(Nd);
+If ((Rtemp != NULL) && (Overwrite == FALSE))
+   return(FAIL);
+NR(Nd) = NR(Ns);
+NR(Ns) = NULL;
+If ((Rtemp != NULL) && (RN(Rtemp) == Empty Set)) // THIS IS OPTIONAL
+   Destroy(Rtemp);
+
+1.8Good Fences Make Good Neighbors...
+
+RFC 2518 also provides for locking support that has some interesting effects
+on the relationship of the namespace to the resource space.
+
+LOCK(N,LockType) -
+R = NR(N);
+LockToken = R.Lock(LockType);
+return(LockToken);
+
+UNLOCK(N, LockToken) - 
+R = NR(N);
+return(R.UnLock(LockToken));
+
+The key point about locking to understand is that resources are locked, not
+namespace entries. The type of the lock then effects how the resource
+handles other types of requests.
+
+For example, if NR(N1) = NR(N2) and a write lock is executed on N1 then it
+will be impossible for a non-lock owner to delete N2 because N2 points to
+the same resource and write locks prevent deletion of the resource by
+non-lock owners.
+
+[Add an example of processing methods on locked resources in order to drive
+home the point that locks effect both the resource and the name under which
+the lock was sent in. So you could move N2 but not N1 if you had a write
+lock on N1. Actually, this should be a section on write locks in
+particular.]
+
+2Hierarchy
+2.1What We Have Here is a Failure to Communicate...
+
+The http URL namespace, as previously defined, consists of a series of
+segments that are separated by the "/" delimiter. This means that the http
+URL namespace is hierarchical. Thus hierarchical terminology applies.
+
+For example, http://foo/ is the parent of http://foo/bar.
+http://foo/bar/blah/ is the child of http://foo/bar/.
+
+An important subtlety of the http URL is that http://foo/bar and
+http://foo/bar/ are not necessarily the same resource. Therefore
+http://foo/bar/ and not http://foo/bar is the parent of http://foo/bar/blah
+and http://foo/bar/blah/. Also note that http://foo is not a legal http URL.
+
+2.2From Little Acorns...
+
+By default two resources related to each other through the namespace
+hierarchy do not necessarily have any semantic relationship. So just because
+R1 = NR(http://foo/) is the parent of R2 = NR(http://foo/bar) in the foo
+part of the http URL namespace this does not necessarily mean that R1 and R2
+have any other relationship.
+
+Nevertheless, in many circumstances the fact that R2 was made the child of
+R1 in the foo subset of the http URL namespace does have semantic meanings.
+A common example is the use of WebDAV to implement a file hierarchy.
+
+As such, a mechanism is needed to enumerate a resource's children in a
+particular namespace in order to have a complete list of all the resources
+which have some relationship implied by their membership in some namespace.
+
+The trivial solution to this problem would be to introduce the SillyChild()
+function which takes a member N of the namespace as an argument and returns
+a set c of children. However SillyChild(N) would have an output that
+consists of every possible legal combination of characters since every
+possible URI in the universe is contained in the namespace.
+
+What is needed is the following Child() function:
+Child(N) -
+Set c = NULL;  //c is a variable of type set that is initially empty
+for every child C of N
+   if (NR(C) != NULL)
+      add C to c;
+Return(c);
+
+In other words, one needs a way to list all children that map to a resource
+that does not inherit from NULL.
+
+RFC 2518 tackles this problem by introducing a new type of resource called a
+collection resource. Collection resources implement the Child function
+through the PROPFIND method. The actual functionality of the PROPFIND
+function is a bit more complex and will be discussed in detail later in this
+paper.
+
+Note that for a resource R for which NR(N1) == NR(N2) == R the answer R will
+give for PROPFIND when addressed through N1 will be different than the
+answer given for N2 assuming N1 != N2. This is because the child
+relationship is a function of the namespace and not of the resource space.
+
+This is a very subtle but important point so I will repeat it again - The
+child relationship is based on the naming relationships that exist within
+the namespace.
+
+That is why the same function can give totally unrelated answers for the
+PROPFIND method depending upon the name used to address the resource.
+
+Once one can list the children of a collection resource it is very temping
+to allow one to manipulate entire hierarchies of the namespace based on
+their child relations. RFC 2518 introduces the Depth header to provide this
+functionality. The Depth header, when used on a collection resource, allows
+one to specify that a method should apply to the resource and to its
+children for the number of levels specified by the Depth header. The Depth
+header current supports 0, 1 and infinite levels. Note that the Depth header
+is to be ignored if it is not used on a collection resource.
+
+RFC 2518 provides Depth support for the COPY, MOVE and DELETE methods.
+
+The following is an example of the COPY method enhanced to support Depth.
+Note that everything before the comment "Here is where we add depth support"
+is unchanged.
+
+COPY(Ns,Nd) - 
+Rtemp = NR(Nd);
+If ((Rtemp != NULL) && (Overwrite == FALSE))
+   return(FAIL);
+Create(Rd);
+Rs = NR(Ns);
+Rd.State = Rs.State; // Just copying state information from Rs to Rd, the
+resources are independent of each other.
+NR(Nd) = Rs;
+If ((Rtemp != NULL) && (RN(Rtemp) == Empty Set)) // THIS IS OPTIONAL
+   Destroy(Rtemp);
+// Here is where we add depth support
+if (Rs == Collection Resource)
+   switch (depth) {
+      case 0:
+         return;
+      case 1:
+         depth = 0; //We assume all further COPY calls get this new value
+      case infinity:
+         break;
+      default:
+         //We ignore illegal depth values
+         return;
+   }
+   for every child C of Ns
+      if (NR(C) != NULL)
+         COPY(C,Nd+Last_Segment(C));
+
+Nd+Last_Segment(C) is used to build up the destination of the new
+destination argument. Nd is the base and the Last_Segment function takes the
+last function of the URI name of C and concatenates it with Nd.
+
+The point of providing this code is to drive home the point that depth based
+functions such as COPY, MOVE and DELETE are based on relationships
+established in the namespace and not on any relationships established in
+resource space.
+
+[Add in code for MOVE and DELETE.]
+
+Having introduced a new resource called a collection RFC 2518 also
+introduced a means to create such a resource through the MKCOL method.
+
+MKCOL(N) -
+R = NR(N);
+If (R != NULL)
+   return(error);
+If (R != MKCOL supporting NULL resource)
+   return(error);
+Create Resource R' as a collection;
+NR(N) = R';
+
+2.3A little taxonomy...
+
+To understand the following conversation one needs to understand that RFC
+2518 divides the world into two types of resources, DAV compliant and
+non-DAV compliant.
+
+The DAV compliant world is divided into two parts, level 1 and level 2. 
+
+A level 1 DAV compliant resource support all the RFC 2616 methods plus COPY,
+MOVE, PROPFIND and PROPPATCH.
+
+A level 2 DAV compliant resource support everything a level 1 DAV compliant
+resource supports plus LOCK and UNLOCK.
+
+Level 1 and Level 2 DAV compliant resources also come in two flavors,
+collection and non-collection resources. A collection resource enforces the
+namespace consistency requirements defined below and support the Depth
+header.
+
+DAV Compliant ResourcesLevel 1Level 2
+Non-Collection ResourceRFC 2616 + COPY + MOVE + PROPFIND + PROPPATCH
+Non-Collection Level 1 Resource + LOCK + UNLOCK
+Collection ResourceNon-Collection Level 1 Resource + Consistency
+Requirements + DepthCollection Level 1 Resource + LOCK + UNLOCK
+
+The purpose of the previous was to drive home the point that in the world of
+RFC 2518 there are two classes of resource, DAV and non-DAV compliant.
+
+2.4A foolish consistency is the hobgoblin of little minds...
+
+[For completeness I should talk about namespace consistency. I'm not going
+to, but I really should.]
+
+3Inheritance
+
+[We need to talk generally about the idea that a resource can inherit from
+multiple types of resources such as a DASL/Level 2/Bind enabled/Versionable
+resources.]
+
+Neither RFC 2616 nor RFC 2518 provide generic mechanisms to create arbitrary
+types of resources. There is no way, for example, to specify that one wants
+a DAV compliant level 1 non-collection resource.
+
+In the same way there is no way to specify what sort of NULL resource one
+wants. For example, a user may want to specify that N and all its children
+will point to a type of NULL resource that will only produce DAV Level 2
+compliant resources.
+
+The only method current specified which sort of provide for the previous
+functionality is MKCOL. However even MKCOL doesn't allow the user to specify
+if the resulting collection should be Level 1 or Level 2.
+
+4WebDAV Properties
+PROPFIND
+PROPPATCH
+5Content Negotiation
+[Talk about the "client proposes - server disposes" model. Also talk about
+the difference between content-location and location. Focus on the ambiguity
+Henrik pointed out in content-location and content negotiation. You have the
+news paper problem and the language problem and the way you use
+content-location in each case is inconsistent with the other.]
+
+
+

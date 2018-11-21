@@ -1,0 +1,94 @@
+docno="lists-010-6798769"
+received="Fri Aug  9 16:54:05 1996"
+isoreceived="19960809205405"
+sent="Fri, 09 Aug 96 16:45:03 MDT"
+isosent="19960809224503"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: New document on &quot;Simple hitmetering for HTTP&quot;"
+id="9608092345.AA19887@acetes.pa.dec.com"
+inreplyto="199608092321.BAA19404&#64;wsooti04.win.tue.nl"
+expires="1"
+
+
+To: Koen Holtman<koen@win.tue.nl>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com,mogul@pa.dec.com
+
+    This is very interesting...  I wrote earlier that we need to
+    distinguish between two kinds of demographic data:
+    
+    1) Hit counts
+    
+    2) User's Referer field, IP address, User-Agent field, ...
+    
+    The proposed hit counting mechanism allows you to get 1) for all user
+    agents without cache busting, but not 2).  You seem to predict that
+    most advertising sites will want to have 2) in future.  That would
+    make the the proposed hit counting mechanism pretty ineffective at
+    reducing cache busting.
+
+This is not true.  For any field that appears in the client's
+request headers (i.e., not "IP address" but definitely User-Agent),
+you can obtain counts without cache-busting (which I would
+define as "completely disabling caching").
+
+E.g., suppose I (at an origin server) want to subdivide the count
+based on User-Agent.  I would send "Vary: User-Agent" with my
+responses, but I would still send the same Etag header with each
+response.
+
+So the first time the cache does a GET on the URL, e.g.,
+
+GET /foo.html HTTP/1.1
+User-Agent: Lynx
+Cache-control: use-count=0
+
+I would reply
+
+HTTP/1.1 200 OK
+Etag: "abc"
+Vary: User-Agent
+Content-Length: 10000
+Cache-control: max-uses=1000
+[...]
+
+Then when the cache receives another request from a Mosaic user, it
+would send
+
+GET /foo.html HTTP/1.1
+User-Agent: Mosaic
+Cache-control: use-count=0
+If-None-Match: "abc"
+
+and I would reply
+
+HTTP/1.1 304 Not Modified
+Etag: "abc"
+Cache-control: max-uses=1000
+
+I.e., the cache now knows that it can use the entity with Etag = "abc"
+for both Mosaic and Lynx User-agents, and that I want it to keep
+separate counts based on User-agent.  Only one copy of the body
+has been transmitted from the server to the cache, only one copy
+is stored at the cache, and the cache need not do any more conditional
+GETs unless new User-Agents appear.
+
+If the proxy is "cooperative" (as we define in our proposal), then
+when it finally removes this entity from its storage, it would have
+to send
+
+HEAD /foo.html HTTP/1.1
+User-Agent: Lynx
+Cache-control: use-count=97
+
+HEAD /foo.html HTTP/1.1
+User-Agent: Mosaic
+Cache-control: use-count=13
+
+(but of course these can be sent in one TCP packet, since we
+are presumably using persistent connections).
+
+-Jeff
+
+
+

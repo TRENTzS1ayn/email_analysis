@@ -1,0 +1,170 @@
+docno="lists-043-16223284"
+received="Sun Oct 24 18:49:53 1999"
+isoreceived="19991024224953"
+sent="Sun, 24 Oct 1999 18:48:21 -0400"
+isosent="19991024224821"
+name="Ed Simon"
+email="ed.simon@entrust.com"
+subject="Re: Canonicalization"
+id="01E1D01C12D7D211AFC70090273D20B101C4A8D6@sothmxs06.entrust.com"
+charset="iso-8859-1"
+inreplyto="Canonicalization"
+expires="-1"
+
+
+To:"'w3c-ietf-xmldsig@w3.org'"<w3c-ietf-xmldsig@w3.org>
+
+As I understand the W3C XML Canonicalization draft, the
+canonicalized form of the <SignedInfo> element in this context
+
+Listing 1:
+<Signature  xmlns="http://www.w3.org/Signature/core-19991020">
+<SignedInfo>
+<SignatureAlgorithm name="rsaWithSHA-1"/> 
+<ObjectReference>
+<Location HREF="http://www.w3.org"/>
+<Type>text/html; charset="us=ascii"</Type>
+<DigestAlgorithm name="sha-1"/>
+<DigestValue name="abc123def"/>
+</ObjectReference>
+</SignedInfo>
+<SignatureValue encoding="urn:base64">
+dd2323dd
+</SignatureValue>
+<KeyInfo>
+<KeyName>Solo</KeyName>
+</KeyInfo>
+</Signature>
+
+would be
+
+Listing 2:
+<SignedInfo>
+<SignatureAlgorithm name="rsaWithSHA-1"/> 
+<ObjectReference>
+<Location HREF="http://www.w3.org"/>
+<Type>text/html; charset="us=ascii"</Type>
+<DigestAlgorithm name="sha-1"/>
+<DigestValue name="abc123def"/>
+</ObjectReference>
+</SignedInfo>
+
+which means no changes.  However, in typical apps, we might see
+
+Listing 3:
+<MyApp xmlns:dsig="http://www.w3.org/Signature/core-19991020">
+<dsig:Signature>
+<dsig:SignedInfo>
+<dsig:SignatureAlgorithm name="rsaWithSHA-1"/> 
+<dsig:ObjectReference>
+<dsig:Location HREF="http://www.w3.org"/>
+<dsig:Type>text/html;
+charset="us=ascii"</dsig:Type>
+<dsig:DigestAlgorithm name="sha-1"/>
+<dsig:DigestValue name="abc123def"/>
+</dsig:ObjectReference>
+</dsig:SignedInfo>
+<dsig:SignatureValue encoding="urn:base64">
+dd2323dd
+</dsig:SignatureValue>
+<dsig:KeyInfo>
+<dsig:KeyName>Solo</dsig:KeyName>
+</dsig:KeyInfo>
+</dsig:Signature>
+</MyApp>
+
+which would lead to the canonicalized <SignedInfo> looking something like
+
+Listing 4:
+<n1:SignedInfo xmlns:n1="http://www.w3.org/Signature/core-19991020">
+<n1:SignatureAlgorithm
+xmlns:n1="http://www.w3.org/Signature/core-19991020"...
+...n2:name="rsaWithSHA-1"
+xmlns:n2="http://www.w3.org/Signature/core-19991020"/> 
+<n1:ObjectReference
+xmlns:n1="http://www.w3.org/Signature/core-19991020">
+<n1:Location
+xmlns:n1="http://www.w3.org/Signature/core-19991020"...
+n2:HREF="http://www.w3.org"...
+
+xmlns:n2="http://www.w3.org/Signature/core-19991020"/>
+<n1:Type
+xmlns:n1="http://www.w3.org/Signature/core-1999102.0">...
+...text/html; charset="us=ascii"</n1:Type>
+<n1:DigestAlgorithm
+xmlns:n1="http://www.w3.org/Signature/core-1999102.0"..
+n2:name="sha-1"
+
+xmlns:n2="http://www.w3.org/Signature/core-19991020"/>
+<n1:DigestValue
+xmlns:n1="http://www.w3.org/Signature/core-1999102.0"..
+n2:name="abc123def"...
+
+xmlns:n2="http://www.w3.org/Signature/core-19991020"/>
+</n1:ObjectReference>
+</n1:SignedInfo>
+
+rather like what Jim S. had in one of his notes on the subject.
+
+The sole purpose of canonicalizing the <SignedInfo> element is so
+that one gets the same hash for two <SignedInfo> elements that, though
+they may be different at the byte-level, are logically
+equivalent at the XML-level.  Understandably, applications may need
+to use namespace prefixes for <SignedInfo> as in the <MyApp> example
+for non-crypto reasons, but
+when it is time to hash <SignedInfo>, the namespace prefixes must be
+filtered out.
+
+Our core syntax document could say something like this:
+
+---------  START OF INSERTION ----------
+The content of the <SignatureValue> element is formed by
+signing the hash of the the <SignedInfo> element.  Before
+hashing the <SignedInfo> element, the element (or a copy
+of the element as would more likely be the case) needs to
+be canonicalized according to this procedure:
+
+1.  Remove namespace prefixes from element and 
+     attribute names.  Namespace prefixes within
+     attribute values remain as they are.
+     (For example, this would make the <dsig:SignedInfo>
+      element of Listing 3 look like that of Listing 2.)
+2.  Remove all leading and trailing whitespace including
+     whitespace between two tags, between
+     a tag and following text, and between text and a following
+     tag.
+3.  Apply the canonicalization rules defined in the
+     "W3C XML Canonicalization Recommendation".
+     (This really just means ordering the attributes consistently,
+      cleaning up intra-element whitespace, and converting to
+       UTF-8.)
+
+Once the element (or a copy) has been canonicalized according
+to the above steps, it may be hashed and signed to produce the
+value of the <SignatureValue> element.
+
+Note that implementations need not deliver the canonicalized
+form of <SignedInfo> to the verifying implmentation because the
+verifying implmentation must apply the above canonicalization
+steps to the version of the <SignedInfo> element it receives.
+----  END OF INSERTION --------
+
+So, for example, the value of <dsig:SignedValue> in Listing 3
+above is really the signed hash of Listing 2 (with the whitespace
+cleaned up).
+
+To paraphrase Phillip, "the canonicalization of namespace
+prefixes isn't the solution, its the problem; the solution is to
+filter out namespace prefixes before hashing".
+
+If the consensus of the work group is that the above steps
+look like a reasonable approach to canonicalizing
+<SignedInfo>, I'll write some code that performs them for
+reference.
+
+If I've not been clear in anything above, let me know.
+
+Regards, Ed
+
+
+

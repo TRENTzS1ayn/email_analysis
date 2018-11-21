@@ -1,0 +1,89 @@
+docno="lists-001-7873539"
+received="Thu Feb  8 16:34:39 2001"
+isoreceived="20010208213439"
+sent="Thu, 8 Feb 2001 16:31:26 -0500"
+isosent="20010208213126"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="Re: Null values changed to &quot;value&quot;?"
+id="002101c09216$89a6ce00$c89356cf@whizbang.com"
+charset="iso-8859-1"
+inreplyto="3A808AA9.35AEF9F0&#64;firstech.com"
+expires="-1"
+
+
+To:"Russell Gold"<russgold@acm.org>,"Gary L Peskin"<garyp@firstech.com>
+Cc:<html-tidy@w3.org>
+
+Gary L Peskin wrote:
+> 
+> Russell Gold wrote:
+> > 
+> > As of R6, I notice that the tag:
+> > 
+> > <input type=string name=something value=>
+> > 
+> > is now treated as though it said:
+> > 
+> > <input type=string name=something value="value">
+> > 
+> > which seems odd, to say the least. Is this related to the "bug-fix" described as
+> > "Fixed a bug where createElement() was not properly setting Node.tag if the tag to be added could not be found in the the
+> > TagTable. A generic entry is now used instead of leaving the entry set to null."?
+> > 
+> > I would have thought that treating it as an empty string
+> > 
+> > <input type=string name=something value="">
+> > 
+> > would have been a safer choice.
+> 
+> This should not have changed from that bug fix since "input" should have
+> been found in TagTable all along.  Can you provide the actual HTML page
+> along with your configuration file or command line options and I'll try
+> to reproduce the problem.
+
+I think Russell must be using -asxml.  I've reproduced this in both
+JTidy and the official 4-Aug-2000 Tidy.  Problems occur with both input
+and option elements.  Here's the test file:
+
+<html>
+<head><title>x</title></head>
+<body>
+ <form action="http://www.w3c.org/" method="get">
+  <select name="option">
+   <option value>option 1</option>       <!-- BAD VALUE -->
+   <option value="opt2">option 2</option>
+  </select>
+  <input name="input" type="text" value>    <!-- BAD VALUE -->
+  <input name="submit" type="submit" value="submit">
+ </form>
+</body>
+</html>
+
+Hitting the submit button in a browser produces the following URLs:
+
+  IE 5.5:        http://www.w3.org/?option=option+1&input=&submit=submit
+  Netscape 4.7:  http://www.w3.org/?option=&input=&submit=submit
+  (these are the only browsers I have ready access to)
+
+Tidy changes both of the valueless value attributes as follows:
+
+  default options:  value=""
+  -asxml:           value="value"
+
+So with default options, Tidy appears to be correct (for <option value>,
+Tidy has chosen to simulate Netscape's behavior).  However, with -asxml,
+Tidy appears to be plain wrong.
+
+One possible fix is to modify parseAttrs() in lexer.c to detect if the
+attribute name is "value" and it has no value and its owning element is
+either "option" or "input" (the owning element name would have to be
+passed in as an additional argument).  When this condition occurs, Tidy
+should set the value to "" or simply discard the attribute altogether.
+I've taken the "discard" approach and applied it to our local copy of
+JTidy, and it seems to work.
+
+Randy
+
+
+

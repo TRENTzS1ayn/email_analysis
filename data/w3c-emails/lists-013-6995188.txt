@@ -1,0 +1,77 @@
+docno="lists-013-6995188"
+received="Fri Apr 30 11:23:22 2004"
+isoreceived="20040430152322"
+sent="Fri, 30 Apr 2004 10:22:31 0500"
+isosent="20040430152231"
+name="Jim Luther"
+email="luther.j@apple.com"
+subject="Re: PATCH, gdiff, and randomaccess I/O"
+id="32B80AF8-9ABA-11D8-A729000A9577847A@apple.com"
+charset="USASCII"
+inreplyto="1083333188.30884.107.camel&#64;bog"
+expires="1"
+
+
+To: HTTP working group<ietf-http-wg@w3.org>
+
+
+
+On Apr 30, 2004, at 8:53 AM, Justin Chapweske wrote:
+
+>> I would not call the above "random I/O" pattern because you are doing
+>> a single fetch and a single patch operation as far as protocol is
+>> concerned. The proposed PATCH method and even existing diff formats
+>> seem to support the above use case reasonably well.
+>>
+>> Can you think of any reason why PATCH with common diff formats cannot
+>> support the above efficiently?
+>
+> I was simply raising this as a possible use-case, and it is encouraging
+> to hear some initial reports that the existing diff algorithms may be
+> able to efficiently support these types of operations.
+>
+>>
+>> I was under impression that you are talking about supporting large
+>> volume of micro updates (e.g., remove a single character in the middle
+>> of a 100MB file) that must be committed in real time, one by one.
+>> Doing so efficiently may require mechanisms different than proposed
+>> PATCH.  However, your example seem to be within PATCH scope! Sorry if
+>> I misunderstood the true meaning of the "random access I/O" term.
+>
+> I think large volumes of micro-updates should be efficiently
+> implementable as well.  One might expect a WebDAV file system driver
+> operating across a LAN to work in this fashion.  I think as long as you
+> do without the Content-MD5, and avoid extra copying on the server-side,
+> you could end up with reasonably efficient large volume micro-updates.
+>
+> However, semantically speaking, it probably isn't a good idea to PATCH
+> changes to a file while the file is in an unknown state - so I would
+> guess something like the write log mechanism might make a lot of sense.
+>
+> What do the DAV file system driver guys think of this?  Apple?
+
+In the current implementation of the Mac OS X WebDAV file system, 
+opening a file on a WebDAV file server causes a GET and the resource is 
+cached in a file on the root file system. While the file is open, all 
+changes are made to the local cache file. The cache file (if changed) 
+is pushed to the server with a PUT when the file system receives a 
+fsync or close request. So most of the time, there is a single PUT when 
+a file is changed on the server. Since the PUT replaces the complete 
+resource, a file is always in a consistent state after the PUT is 
+complete.
+
+If PATCH were available, I'd have to decide whether to use the existing 
+"cache file" model, or use the buffer cache used by the rest of the Mac 
+OS X file systems. If I were to stick with the cache file model, then 
+I'd keep track of what portions of the cache file have been changed and 
+send a single PATCH request to the server when a fsync or close is 
+received. If I were to switch to use the buffer cache, I'd send a PATCH 
+request whenever memory pressure causes the buffer cache to write a 
+file's dirty buffer(s) to the server. That would mean that the resource 
+on the server might be in an inconsistent state at times -- this would 
+not be different than other network file systems.
+
+- Jim
+
+
+

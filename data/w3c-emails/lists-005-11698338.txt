@@ -1,0 +1,155 @@
+docno="lists-005-11698338"
+received="Wed Oct 11 17:30:22 2000"
+isoreceived="20001011213022"
+sent="Wed, 11 Oct 2000 17:29:50 -0400 (EDT)"
+isosent="20001011212950"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: labels as DAV:target values (was Re: Fewer new versioning methods, please!)"
+id="200010112129.RAA19106@tantalum.atria.com"
+inreplyto="IAEBKAABDEIIBHMILFBPOEJDCAAA.lisa&#64;xythos.com"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: "Lisa Dusseault" <lisa@xythos.com>
+
+   Could somebody explain why locking of version selectors is a required
+   feature?
+
+Locking of version selectors (or anything else for that matter)
+is not a required feature of the versioning protocol.  But
+the versioning protocol is designed to be compatible with the
+locking protocol.
+
+   What is the purpose?
+
+It allows you to GET the current contents of a checked-out version
+selector, and then PUT your updates without having to worry about
+overwriting updates to that checked-out version selector by another
+client (potentially, another client running on your behalf).
+
+   What is the result?
+
+Just usual locking semantics.  I.e. can't modify content, dead properties,
+or MOVE it without holding the lock token.
+
+   Does it affect checkouts?
+
+Yes, you do need the lock token to checkout a locked version selector.
+(But not if you are applying the checkout to a version, only if you
+are directly checking out the version selector).  I personally voted
+against having CHECKOUT care about locks (since it doesn't change
+the content or dead properties of the version selector), but was
+outvoted (and I didn't care very much one way or the other).
+
+   I reason that if it was not possible to lock a version selector,
+   then it would be possible to use labels as DAV:target values, which seems to
+   me to be a very useful feature.
+
+Yes, compatibility with locking semantics is one of the reasons why we
+do not support the use of labels as DAV:target values.  Having locking
+work with versioning was deemed more important than having a label as
+a DAV:target value.
+
+   I would imagine that the only affect locking a version selector would have
+   is that it would prevent others from doing a PROPPATCH to one of the version
+   selector's own properties.
+
+A version selector only has its own properties (and its own content).
+Some of its properties (and content) happen to be the same as that of
+some version while it is in the checked-in state, but they are still
+its own properties and its own content.
+
+So locking a version selector has the usual semantics, i.e. it prevents
+modification to the content and dead properties of that version selector
+unless the lock token is specified.
+
+   It wouldn't prevent others from checking out one
+   of the versions related to the version selector;
+
+That is correct, a lock on a version selector does not prevent you
+from doing a checkout on any of the versions of the version history
+of the current target.  In particular, you can do a CHECKOUT/DAV:target
+on a locked version selector without the lock token (since that checkout
+is applied to the target version, and not to the version selector
+itself).
+
+   it wouldn't prevent others
+   from doing a PUT or a PROPPATCH to the version to which the version selector
+   points (that would have to be accomplished by doing a LOCK on the version
+   resource, rather than the version selector).
+
+You can't do a PUT or a PROPPATCH to the content or dead properties
+of a version (even a mutable version requires it to be done with a
+CHECKIN).
+
+It is true that a system that supports mutable versions will need to
+check the locks of every version selector whose target is that mutable
+version before allowing a CHECKIN/DAV:replace on that version, but
+that is avoidable by not supporting mutable versions (the sensible
+thing to do :-).  In any case, at least it is only one routine, CHECKIN
+where this check would have to be made, and none of the other update
+routines (PUT,PROPPATCH,MOVE,COPY,DELETE,MERGE,etc.)
+
+   Has anybody done some serious thinking, in general, about how they are going
+   to implement locking interacting with versioning?
+
+I know that we have.
+
+   What happens when a
+   versioning-unaware client tries to LOCK a resource, not aware that it is
+   actually locking a version selector?  Is the behaviour what that client
+   would expect?
+
+Yup.  That's been one of the challenges of designing the versioning protocol,
+because there are a large number of clients out there (e.g. office-2000
+clients) that will be trying to lock resources and will not be aware that
+they are actually locking a version selector.
+
+   Finally, I wonder why the draft specifically disallows using labels as
+   DAV:target values.
+
+One important reason is that it is incompatible with locking, and as
+indicated above, compatibility with locking was deemed more important
+(especially if you care about interoperability) than was having labels
+as DAV:target values.  In addition, all of the arguments that apply
+to locks are likely to apply to access control as well, so locking
+is just the most obvious reason.
+
+   Just because some implementations would find it
+   difficult doesn't mean all of them will.
+
+This is a problem for all implementations that care about locking,
+and that will care about access control.
+
+   Why not make it optional -- and if
+   a server doesn't support a value of <D:label>foo</D:label> then the server
+   can respond with an error meaning "unsupported value given for DAV:target
+   property".
+
+Defining a feature of the protocol that is known to be incompatible
+with another important feature of the protocol is a very serious
+source of non-interoperability.  Any client functionality or protocol
+extension based on one of the features will be incompatible with all
+functionality or protocol extensions based on the other feature.
+To work around the incompatibility, one ends up designing additional
+features that serve the same function but in a subtly different way
+to avoid the incompatibility.  But then all layered functionality must
+also be revisited and duplicated.  As the number of incompatible
+features increase, the problematic interactions increase combinatorially.
+
+Compare this to the question of making labeling optional.  Labeling
+is designed to be completely compatible with HTTP-1.1, WebDAV, core
+versioning, and all other advanced versioning features.  If any server
+encounters the need to provide labeling support, it can do so
+independent of what other optional features of the protocol it has
+chosen to support.
+
+Cheers,
+Geoff
+
+
+

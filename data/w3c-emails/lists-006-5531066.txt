@@ -1,0 +1,124 @@
+docno="lists-006-5531066"
+received="Fri Feb  2 00:03:59 2001"
+isoreceived="20010202050359"
+sent="Fri, 2 Feb 2001 00:03:04 -0500 (EST)"
+isosent="20010202050304"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: PROPFIND, VCRs, Label, Depth, href ... oh my!"
+id="200102020503.AAA05902@tantalum.atria.com"
+inreplyto="20010201030857.D25431&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Greg Stein <gstein@lyra.org>
+
+   I've been thinking a bit about PROPFIND and the Label: header. Let's say
+   that I do a PROPFIND against a VCR using a Label header:
+
+   PROPFIND /some/vcr
+   Label: foo
+
+   response...
+   <D:multistatus ...>
+     <D:response>
+       <D:href>/the/version/resource</D:href>
+   ...
+
+   The DAV:href element presumably has the version resource URI because you did
+   a PROPFIND against that resource (effectively).
+
+Sounds right.
+
+   Now, let's throw the Depth: header into the mix. What does it apply to? The
+   VCR or the Version? It is murky with the Label: header in there.
+
+It wouldn't make any sense to apply it to the version, because a
+version is never a collection, but we should make that clear.
+
+   Depth applies to the VCR:
+       The PROPFIND will return DAV:response elements for version resources
+       corresponding to those selected by the label, from each of the VCRs
+       according to the Depth.
+
+Yes.
+
+       DAV:href returns Version Resource URIs. How do we match them up against
+       the hierarchy defined by the VCRs?
+
+Well, if your server supports the version history option (which it
+should :-), you can do a Depth PROPFIND (without the label header) for the
+DAV:version-history property, which would pretty much get you what you need.
+
+   Depth applies to the Version Resource:
+       Presumably, you're selecting a collection version. Its children are
+       version histories, so you're going to get back whacky properties or
+       nothing at all for the children.
+
+Actually, collection versions are no longer collections (they just
+have the DAV:version-controlled-binding-set property), so you'd
+get back nothing at all, which makes this a not very useful
+interpretation.
+
+       The DAV:href probably would exist here, too: which DAV:response is for
+       the collection version, and which for the members?
+       [ you could tell by looking for errors :-) ]
+
+Yeah, don't go there.
+
+   Okay... let's try to fix the DAV:href thingy by saying you apply the Depth:
+   header to the VCRs (i.e. apply Depth to the VCR before linking thru to the
+   version resources) and the DAV:href returns the VCRs' URIs. That makes some
+   sense, but now we have a problem: how do we get the version resource URI? We
+   can't use DAV:checked-in because that is a VCR prop. And, oh darn! We just
+   nuked DAV:version.
+
+I think returning the VCR URL in the href would be very misleading.
+Those aren't the properties of the VCR, they are the properties
+of some totally different version resource.  I'd much rather say
+that servers that care about this should implement the DAV:version-history
+option.
+
+   My suggestion:
+
+   *) define Depth: on a PROPFIND of a VCR to apply to the VCR hierarchy rather
+      than the version resource (lack of) hierarchy
+
+Definitely.
+
+   *) the DAV:href returns the VCR's URI
+      [ I'm not sure that I like this, though :-( ]
+
+I'm *sure* I don't like it (:-).
+
+   *) bring back DAV:version
+
+I think the fact that we would need to bring it back is an
+indication that putting the VCR's URI in the href was a
+bad/misleading thing to do.
+
+   Hmm. I'm thinking that the use of a Label: header is rather spurious to the
+   above issue. It does make it a bit harder to figure out the version resource
+   URI (without the Label:, you could ask for the VCR's DAV:checked-in; there
+   isn't an easy equivalent to find the V.R. when you're trying to use a label)
+
+Note that using the Label header with Depth is basically bogus anyway
+when you have versioned collections, because you won't be traversing
+the collections that are selected by the label, but rather the
+collections that correspond to the current target of the
+version-controlled collections.  So I wouldn't torque the protocol
+around at all for this.
+
+Bottom line: Labels are for giving a version a human meaningful
+name.  Baselines are for capturing a set of versions.  A server can
+implement baselines with labels, but a client can't, and shouldn't
+try to.
+
+Cheers,
+Geoff
+
+
+

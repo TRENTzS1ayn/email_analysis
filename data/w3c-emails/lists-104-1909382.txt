@@ -1,0 +1,78 @@
+docno="lists-104-1909382"
+received="Thu Aug 23 17:44:49 2001"
+isoreceived="20010823214449"
+sent="Thu, 23 Aug 2001 15:42:32 -0600"
+isosent="20010823214232"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="DOM 3 Events comments"
+id="70E215722F6AD511820A000103D141D40AA508@thor.aeathtl.com"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+EventListener.handleEvent()'s signature requires that all known exceptions be captured within the handleEvent body.  Section 1.2.1 defines the action that the dispatch code should take in response to
+exceptions, so it seems reasonable to let the exception fall through to that handler and not require an exception handler within the handleEvent method.  So how about:
+
+interface EventListener {
+    void handleEvent(Event evt) 
+        throws Exception;  //maybe Throwable instead?
+}
+
+
+---------------------
+
+EventListenerList:
+
+This just seems dangerous.  If I'm using an event listener to synchronize a remote copy or to look for business rule auditing, this interface allows so other code to determine my identity and possibly
+remove me from the the event listener map for an object or send fake messages by attaching me to other documents.  I definitely could see some code identifing that other listeners were slowing it down
+and removing them.
+
+I guess as long as you don't provide an method to enumerate EventGroup's, you could be safe from removal if you use addEventListenerGroup but it wouldn't prevent the fake message attack.
+
+The use for this isn't obvious to me, could you explain why the plenary meeting wanted it.
+
+
+------------
+
+"The createEvent method is used in creating Events when it is either inconvenient or unnecessary for the user to create an Event themselves. In cases where the implementation provided Event is
+insufficient, users may supply their own Event implementations for use with the dispatchEvent method."
+
+The dispatching code would have no way to set the current target or phase on a user implemented Event, plus if it did, it would have to do a possibly remote method invocation instead of direct
+manipulation of member variables.
+
+It would also raise the expectation that a user could create a class that implements one of the Event interfaces, dispatch it and then coerce it in the handler back to the custom event class.
+
+I currently have a COM wrapper providing access to a C++ DOM + Level 2 events implementation.  When dispatching an event from the COM wrapper, the properties of the COM event are extracted, copied to
+a native C++ event and the native C++ event is dispatched.  If a C++ proxy for a COM listener handles the event, a COM shell is placed around the C++ Event.  The event seen by the listener would not
+identity compare with the original event and would not implement any of the custom interfaces.
+
+I think that it is a pretty compelling case to keep Event creation the responsibility of DocumentEvent and to maintain value, not identity, semantics for Event.
+
+If you want to enable users to create their own events, implementations could provide an implementation specific manner to extend the event types that DocumentEvent.createEvent() recognizes and/or you
+could provide a CustomEvent interface that allows you to access properties by name or index (you already can use the Event.getType() for some content.
+
+interface CustomEvent implements Event {
+     Object getProperty(int index);
+     void setProperty(int index, Object value);
+}
+
+
+
+
+------------
+
+I guess the issues raised on mailing list could include:
+
+Name collisions between EventTarget.addEventListener() and EventTargetGroup.addEventListener() and removeEventListeners().
+
+Method of creating generic Event (i.e. createEvent("Events")) in case you want to use Event dispatching, but don't care if the implementation supports any other feature.  createEvents("Events") could
+return whatever implementation that was most convienient for it.  For example, an HTML implementation could return an object that coincidentally supported HTMLEvent.
+
+Collapsing EventTargetGroup into EventTarget and DocumentEventGroup into DocumentEvent.  If you are going to extend EventTarget (which you have by adding eventListeners) and the functions in
+EventTargetGroup are not optional (which you haven't allowed by providing a hasFeature() pattern, then you should just merge the group registration methods into the L3 version of EventTarget.
+Likewise DocumentEventGroup.createEventGroup should go into DocumentEvent.
+
+
+

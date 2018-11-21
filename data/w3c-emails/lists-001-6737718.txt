@@ -1,0 +1,124 @@
+docno="lists-001-6737718"
+received="Thu Jan  4 15:07:18 2001"
+isoreceived="20010104200718"
+sent="Thu, 4 Jan 2001 15:07:03 -0500"
+isosent="20010104200703"
+name="J. David Bryan"
+email="jdbryan@acm.org"
+subject="[BUGFIX] Tidy doesn't process &quot;doctype&quot; and &quot;alt-text&quot; options in config file"
+id="200101042007.PAA13712@mail.bcpl.net"
+charset="US-ASCII"
+expires="-1"
+
+
+To: HTML Tidy List<html-tidy@w3.org>
+
+This report is for HTML Tidy version 4-Aug-00.  Problem description, 
+verification, and fix are contained within the appended HTML text.
+
+                                      -- Dave
+
+
+--------------------------- test case ---------------------------------
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+
+<!--
+                          bug-2000-12-27-b.html
+
+Problem:
+  The "alt-text:" and "doctype: <fpi>" options do not work when specified
+  in a config file with a quoted string parameter.
+
+Expected behavior:
+  The strings specified as parameters to these options should be processed
+  correctly.  Instead, they are ignored.
+
+Verification:
+  tidy -config config.ini bug-2000-12-27-b.html
+    
+  With a configuration file "config.ini" containing either of these lines:
+
+      doctype: "-//ACME//DTD HTML 3.14159//EN"
+      alt-text: "Alternate"
+
+Correction:
+  config.c (ParseString)
+  lexer.c (FixDocType)
+-->
+
+<html>
+
+<head>
+<title>Bug-2000-12-27-B</title>
+</head>
+
+<body>
+
+<p><img src="a">This image has no ALT attribute.</p>
+
+</body>
+</html>
+----------------------------- patch -----------------------------------
+diff -u tidy4aug00-orig/config.c tidy4aug00-fix/config.c
+--- tidy4aug00-orig/config.c    Fri Aug 04 15:43:02 2000
++++ tidy4aug00-fix/config.c     Thu Jan 04 01:14:35 2001
+@@ -683,27 +683,13 @@
+     SkipWhite();
+ 
+     if (c == '"' || c == '\'')
++    {
+         delim = c;
++        AdvanceChar();
++    }
+ 
+-    while (i < 8190 && c != EOF)
++    while (i < 8190 && c != EOF && c != '\r' && c != '\n')
+     {
+-        /* treat  \r\n   \r  or  \n as line ends */
+-        if (c == '\r')
+-        {
+-            AdvanceChar();
+-
+-            if (c != '\n' && !IsWhite(c))
+-                break;
+-        }
+-
+-        if (c == '\n')
+-        {
+-            AdvanceChar();
+-
+-            if (!IsWhite(c))
+-                break;
+-        }
+-
+         if (c == delim && delim != '\0')
+             break;
+ 
+@@ -733,6 +719,8 @@
+         ReportBadArgument(option);
+ #endif
+     *location.string = wstrdup(buf);
++
++    NextProperty();
+ }
+ 
+ void ParseCharEncoding(Location location, char *option)
+diff -u tidy4aug00-orig/lexer.c tidy4aug00-fix/lexer.c
+--- tidy4aug00-orig/lexer.c     Fri Aug 04 15:55:48 2000
++++ tidy4aug00-fix/lexer.c      Thu Jan 04 01:15:41 2001
+@@ -1226,7 +1226,11 @@
+     AddStringLiteral(lexer, "html PUBLIC ");
+ 
+     if (doctype_mode == doctype_user && doctype_str)
++    {
++        AddStringLiteral(lexer, "\"");
+         AddStringLiteral(lexer, doctype_str);
++        AddStringLiteral(lexer, "\"");
++    }
+     else if (guessed == VERS_HTML20)
+         AddStringLiteral(lexer, "\"-//IETF//DTD HTML 2.0//EN\"");
+     else
+--------------------------- end patch ---------------------------------
+
+
+

@@ -1,0 +1,75 @@
+docno="lists-011-15304222"
+received="Mon Jan 19 07:00:40 1998"
+isoreceived="19980119120040"
+sent="Mon, 19 Jan 1998 09:57:45 0500"
+isosent="19980119145745"
+name="Dave Kristol"
+email="dmk@belllabs.com"
+subject="Re: Some comments on Digest Auth"
+id="34C369E8.6F5992E1@belllabs.com"
+charset="usascii"
+inreplyto="3FF8121C9B6DD111812100805F31FC0D0113C645&#64;red-msg59.dns.microsoft.com"
+expires="1"
+
+
+To: Yaron Goland<yarong@microsoft.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+Yaron Goland wrote:
+> 
+> I wish someone would explain to me how having multiple outstanding attacks
+> could lead to degraded security assuming that the multiple nonces do NOT
+> have lifetimes greater than that of the previous single nonce. That is, the
+> server sends you a nonce and starts a hypothetical count down. Once the
+> count down is expired that nonce will not be accepted. My proposal is to
+> allow the server, using a separate header, to return multiple nonces.
+> However I suspect that the server should use the same count down for ALL the
+> previously returned nonces. Use 'em or lose 'em, as it were.
+> 
+> As for ordering of requests, I'm still not sure how big an issue this is. It
+> would be great if some server side implementers could weigh in on the issue.
+
+Here's my two grams' worth. :-)
+
+I'm ill-qualified to address the issue of degraded security, but let me
+try to address the server implementation issues.
+
+A nonce can be self-describing.  That is, the server can choose a form
+for a nonce that encodes its lifetime.  That's attractive, because it
+means the server can avoid having a database of nonces.  The lifetime
+can be made arbitrarily long or short, as the server's needs require.
+
+If, instead, the server provides a *list* of nonces in a
+WWW-Authenticate header, then it would be obliged to remember what they
+were.  Otherwise a rogue client could return a digest for a nonce of its
+own choosing, along with the nonce chosen, disregarding the list.  More
+particularly, it could replay a previous nonce.  If the nonces from the
+list are meant to be single-use, then the server must at least remember
+the set of nonces already used, or not yet used, so it can detect
+responses for nonces that have been used.
+
+Now consider the proposal where a set of nonces must be received by a
+server in the order it sent them.  A browser may open multiple
+connections.  On its first connection it gets a base page, a
+WWW-Authenticate, and a list of nonces.  It responds with an
+Authorization header and opens multiple new connections to retrieve
+images for the page.  Which nonce should the browser use on which
+connection?  How can it be sure that the server will process the
+connections and accompanying requests in the order that it sends them? 
+If the server's receive-order is different from the browser's
+send-order, the server must reject the out-of-order requests, even
+though the nonces are otherwise good.  If "the server" is really a farm
+of servers, the connections may be to multiple machines, and the
+inter-server communication may affect the apparent sequence of nonce
+use.
+
+Conclusions:  requiring a client and server to honor a sequence of
+nonces is hard.  Allowing them to pick from a list of nonces, as long as
+there's no reuse is easier, but still hard.  I don't see any particular
+added value in sending a list of nonces, all of which have independent
+(or simultaneous) time-out properties, instead of a single such nonce.
+
+Dave Kristol
+
+
+

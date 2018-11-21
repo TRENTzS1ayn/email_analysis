@@ -1,0 +1,183 @@
+docno="lists-056-11360509"
+received="Thu May 22 13:45:33 1997"
+isoreceived="19970522174533"
+sent="Thu, 22 May 1997 13:42:26 -0400"
+isosent="19970522174226"
+name="Steven J. DeRose"
+email="sjd@eps.inso.com"
+subject="On constraining/validating datatypes"
+id="2.2.32.19970522174226.0076d4f4@pop"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+The ERB yesterday discussed the issue of datatypes (among others). I was
+foolish enough to toss out a strawman proposal, so was granted the task of
+tuning it up (into a flaxman, perhaps?) for the WG to discuss.
+
+There seem to be two main axes along which we can differentiate approaches:
+
+1) The range of datatypes we choose to support.
+
+2) The place where datatypes get defined, and then where they get associated
+with particular data (individual element instance; elements that provide
+meta-information; or the DTD).
+
+NOTE: There is a third axis, namely whether datatypes can be applied to
+attributes, to content, or both; but I think a solution that only applies to
+one would look fairly silly so I show all examples in a way that can work
+for both.
+
+----------------------------------
+Along the first axis, there are several obvious points we can choose:
+
+a) Do nothing: have no types for #PCDATA, and only the existing attribute
+declared values.
+
+b) Define a small, fixed number of atomic types.
+
+c) Define a language for defining datatypes: regex (say, per POSIX), or
+perhaps HyLex. 
+
+d) Define a way to access *any* programming, scripting, or other language at
+all.
+
+For example, consider a datatype like DATETIME, and assume for the moment
+one of the ISO-standard forms, such as "1997-05-21 22:45:00". The four
+points just described enable different degrees of validation
+(well-formedness is not at issue; and we are talking here about validation
+*within* the purview of the system we are standardizing; individual
+applications can do any post-processing and checking they want). For the 4
+approaches above, respectively:
+
+a) No validation is provided; "foo" is a perfectly valid value for a
+DATETIME, since DATETIME has no standing in SGML (it's either a CDATA
+attribute or CDATA/RCDATA/#PCDATA content). If you make a separate element
+(not attribute) that contains only a DATETIME value, you could still
+associate a NOTATION attribute which could, in some implementation, invoke a
+validation processor outside SGML.
+
+b) If and only if we provide this DATETIME type, implementors of validating
+XML parsers would build it just as they build support for IDREFS now. 
+
+c) Validation of the lexical form can be defined by users who need it, but
+as MSM pointed out regexes can't catch February 29 of non-leap years (except
+via a *really* hideously long expression).
+
+d) Since in (d) you can access a complete language (like C or Java), of
+course you can implement the whole leap-year algorithm and invoke it.
+
+Of course, (c) or (d) could *also* provide predefined forms as in (b), and
+(d) could still provide one particular language as in (c). Regexes are so
+ubiquitous, and buy an essentially infinite mechanism for only slightly more
+(possibly less) effort than (b), so I think they should be included. I
+wouldn't mind (d), so long as we require support for regexes as an
+interoperable choice.
+
+NOTE: In following examples I include a NOTATION name as would be needed for
+(d). With (c) these could of course be deleted, since the constraint
+language would be a constant.
+
+----------------------------------
+Along the second axis, possible approaches are shown below. In any of these
+cases we could use entities or hyperlink references to keep the constraint
+definitions outside the actual physical document stream, which may be
+desirable so WF parsers need not waste time to parse past constructs they
+won't need.
+
+a) Associate datatypes with data via attributes. Provide a place to define
+the datatypes elsewhere (header, referenced file, etc). This is a lot like
+HyTime "lextypes", which do this rather nicely.
+
+   <datatype-def name="integer" expr="[0-9]+"     notation="regex">
+   <datatype-def name="letdig"  expr="[a-z][0-9]" notation="regex">
+   ...
+   <P XML-LEXTYPE="#CONTENT integer  TYPE letdig"  TYPE="p3">31415926535</P>
+
+This has the advantage that nothing in SGML has to be touched. It has the
+disadvantages of considerable indirection, reliance on DTDs, verbosity, and
+requiring internal structure for attributes (or in attribute lists if you
+split up XML-LEXTYPE into, say, XML-LEXTYPE-.PCDATA and XML-LEXTYPE-TYPE --
+like HyTime LINKENDS and the TC). It does make it possible to apply entirely
+different constraints to different instances of the same attribute, but this
+might be considered a liability as well as a benefit.
+
+Obviously the definitions could be expressed in elements, in new declaration
+types added by an amendment, or in PIs. There is also a variation where the
+*entire* datatype definition goes on the attributes, but that is more
+verbose, less clear, and obviates mnemonic names for datatypes. 
+
+b) State the relationships between datatypes and attributes or content right
+with the definitions, for example in header elements that apply for the rest
+of the document. This reduces clutter:
+
+   <datatype-def name="integer"    applies-to="P #PCDATA" 
+                 expr="[0-9]+"     notation="regex">
+   <datatype-def name="letdig"     applies-to="P TYPE" 
+                 expr="[a-z][0-9]" notation="regex">
+   ...
+   <P TYPE="p3">31415926535</P>
+
+
+c) In the DTD itself, via an amendment. Since SGML already has declarations
+for the objects we want to constrain, and those declarations already provide
+similar kinds of constraints (such as attribute declared values), this seems
+the conceptually appropriate place. It would also require the least
+complicated indirection and would be a near-trivial change technically. One
+way to do it is simply to adopt HyTime's lexical typing mechanism into SGML
+proper (that mechanism also becomes simpler in the process). For example:
+
+<!NOTATION    REGEX      PUBLIC "+//ISBN 0-123-45678-9//POSIX regexes//EN">
+
+<!DATATYPE    integer    "[0-9]+"     REGEX>
+<!DATATYPE    letdig     "[a-z][0-9]" REGEX>
+<!-- like entity dcls, one could allow the value to be an external ID, not
+just a literal -->
+
+<!ELEMENT     p          - - (#PCDATA(integer))>
+<!ATTLIST     p
+              type       CDATA(letdig)>
+
+This requires only a few, backward-compatible additions:
+
+i) A new DATATYPE declaration patterned after HyTime's lexical type
+definition AF (this does not introduce any broad dependency on HyTime, since
+the lexical typing is well modularized).
+
+ii) An optional (lextype-name) suffix on attribute declared values (at least
+CDATA) and on the keyword #PCDATA. I believe there is no syntax conflict
+with () in either place; if I missed one, some other delimiter could of
+course be substituted. The declared value name and/or #PCDATA keywords could
+of course be replaced rather than suffixed by the lexical type name, for
+example by #DATATYPE(name).
+
+I think this approach can get the full capability of HyTime's lextype,
+including the ability to hook to any external constraint language for
+arbitrarily complex constraints. It does not complicate *parsing* of XML
+document instances, since WFedness is unaffected (in just the same way that
+HyTime lexical types, which are managed entirely separate from SGML parsing,
+do not affect SGML validity or parsed results). *Validation* in this
+scenario is harder only by exactly as much as it take to support the new
+capability. So far as I can see, its sole relative disadvantage is that it
+requires an enhancement to SGML itself.
+
+So, that's a structuring of basic options. I favor providing one specific,
+powerful though not total constraint language, namely regular expressions,
+and a hook for getting to any others via NOTATION like SGML and HyTime
+provide for many other cases. I also favor proposing an amendment to move
+this compatibly into SGML proper, since it is a very small, backward
+compatible, but highly leveragable change, and is far cleaner than having to
+attach it indirectly somewhere else.
+
+Hope I've at least been clear.
+
+
+
+Steven J. DeRose, Ph.D., Chief Scientist
+Inso Electronic Publishing Solutions
+   (formerly EBT)
+
+
+

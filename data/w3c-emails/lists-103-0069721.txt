@@ -1,0 +1,148 @@
+docno="lists-103-0069721"
+received="Wed Oct  6 12:33:02 1999"
+isoreceived="19991006163302"
+sent="06 Oct 1999 09:32:29 -0700"
+isosent="19991006163229"
+name="Stephen R. Savitzky"
+email="steve@rsv.ricoh.com"
+subject="Re: The DOM is not a model, it is a library!"
+id="qczoxwqwki.fsf@congo.crc.ricoh.com"
+inreplyto="Wed, 6 Oct 1999 10:29:16 -0400"
+expires="-1"
+
+To:"DOM Mailing List"<www-dom@w3.org>
+
+
+keshlam@us.ibm.com writes:
+
+> >face the wrath of hundreds users when live nodelists turn out to
+> >be hopelessly inefficient, even though they were told up front that _this_
+> >implementation is specialized and that getElementsByTagName is deprecated.
+> 
+> If _your_ users react this way,  then this is probably a stong hint that you
+> either (a) haven't explained the issue well enough, or (b) made a bad guess
+> about their needs and should consider retuning your implementation.
+
+As an author of open-source software, I can't easily control the scope of my
+user community.  It will be better in the long run to use a different API
+that doesn't raise expectations that can't be met. 
+
+This is especially true when a fully compliant implementation would break
+the application.  
+
+> Minimal storage space may not be compatable with best performance. To take
+> an absurd example, consider a model which is singly-linked.  It could
+> implement getParent by searching downward from all the root nodes until it
+> finds a node which has the current node as a child. Obviously performance
+> will be abysmal, but code written to the DOM API will run, and
+> (eventually) generate the expected results, and that's all that DOM
+> compliance promises.
+
+That's nowhere near minimal enough.  I'm thinking of streaming applications
+and processors with limited or no secondary storage, where the whole
+document tree simply will not fit in memory no matter how far you shrink it.
+But if you're always traversing the document in order, you can use a
+TreeWalker and simply throw away a node after you've processed it.  At that
+point it's gone; previousSibling of the current node returns null.
+
+> As a more realistic example, consider a "proxy DOM" -- a DOM API wrapped
+> around a storage representation which bears no resemblence to the DOM's
+> structure at all. Allowing DOM access to a database would be a perfect
+> example of this. It may be inefficient, especially when compared to the
+> storage system's native API, and if performance is your primary goal you
+> might not want to go this route. 
+
+Consider the case where a huge document is being generated on-the-fly by
+some computation.  You can't just restart that computation to go back a
+node; things may have changed by then.
+
+> The DOM is interfaces. It's only interfaces. What's going on behind those
+> interfaces doesn't matter to the DOM as long as the expected results come
+> back. 
+
+This is simply false.  If the DOM were only interfaces it wouldn't be
+specifying behavior, for example live nodelists.  And as I've pointed out,
+even interfaces have implementation consequences, as in previousSibling,
+ownerElement, and ownerDocument.  Sure, the underlying representation may
+involve structure sharing, but once the application touches a node you have
+to make a real object someplace and keep it around forever.  Otherwise
+things like tests for equality don't work; they may not be part of the DOM
+but DOM objects still have to behave like objects in the underlying
+language.
+
+> It _may_ matter to the DOM user -- but sticking to the standard interfaces
+> serves their needs by allowing them to switch to another DOM if yours doesn't
+> perform well enough, or letting them move their code to yours if your
+> performance or features are a better fit than what they have been using.
+
+Yes; and if my application breaks, or even becomes unuseably slow or runs
+out of memory in five seconds, because it relies on an implementation with
+non-strict behavior, they'll blame me for it.  Better not to use the DOM
+interfaces at all.
+
+> Note that if the right answer for you is to provide only DOM Level 1
+> compliance, that's legitimate.
+
+I can't even provide full Level 1 compliance.  
+
+> It's up to you to understand the needs of your user community and the
+> impact on your market; if you guess wrong, they'll tell you and/or go
+> elsewhere.
+
+Right.  I don't want somebody pulling the parse tree package out of my
+open-source document-processing application and mistaking it for a DOM
+implementation. 
+
+> The same tradeoff exists for subset not supported by hasFeature. One model
+> I've experimented with implements only a few of the most essential DOM
+> interfaces. I don't claim it's a DOM, and it certainly won't run all DOM
+> applications... but I can promise the user that code written against it
+> will run on a DOM as defined by Level 1, Level 2, and (given the WG's
+> caution about backward compatability) probably future levels.
+
+That's essentially the situation I'm in, except that I can't make that
+guarantee because not all code written against my subset will run on a full
+DOM.  Some applications, like mine, may come to depend on nonstandard
+behavior of the standard interfaces (like the fact that EntityReference
+nodes have no children, or that EntityReference nodes are not automatically
+expanded in the values of Attr nodes).  Or they may come to depend on
+features of the implementation that aren't specified by the DOM, such as the
+fact that my implementation of a NamedNodeMap can be cast to a NodeList.
+
+> Significantly changing the syntax or semantics of C itself, or the
+> abstract model presented by the DOM, runs the risk of causing breakage in
+> both directions and probably deserves a warning to the user and a new name
+> in recognition of that departure.
+
+We're in complete agreement.  I believe that there are many applications
+that are better served by a simple, custom parse tree implementation than
+they are by the DOM; if any changes of any sort to the abstract model are
+needed, it's far better to make a complete break at the start.  It may only
+take a few days to implement a simple parse tree package; fully implementing
+the DOM is a major undertaking, and rest assured that if you only do a
+subset _somebody_ will come back in the future and demand the rest. 
+
+That's why I'd like to see a specification that's general enough to cover
+the widest possible range of applications, simple enough to provide basic
+functionality without dragging in the rest of the DOM's baggage, efficiently
+implementable in the most obvious way, and explicitly extensible so that you
+can add what your application needs without raising the spectre of
+portability.
+
+It's not hard to do this.  You can base the whole Node API on the InfoSet,
+and do all navigation using _unidirectional_ iterators and tree walkers so
+that you never have to represent trees at all, and can throw away nodes
+after you've seen them for the last time.  Bidirectional iterators and
+generic tree walkers would be optional.  There was a draft of the DOM that
+was somewhat like this, returning a NodeIterator instead of a NodeList
+wherever it made sense; it's what I rebuilt my application around.
+
+-- 
+Stephen R. Savitzky  <steve@rsv.ricoh.com>  <http://rsv.ricoh.com/~steve/>
+Platform for Information Applications:      <http://RiSource.org/PIA/>
+Chief Software Scientist, Ricoh Silicon Valley, Inc. Calif. Research Center
+ voice: 650.496.5710  front desk: 650.496.5700  fax: 650.854.8740 
+  home: <steve@theStarport.org> URL: http://theStarport.org/people/steve/
+
+
+

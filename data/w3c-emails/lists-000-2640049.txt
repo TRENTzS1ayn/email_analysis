@@ -1,0 +1,102 @@
+docno="lists-000-2640049"
+received="Sun Aug 15 09:06:09 1999"
+isoreceived="19990815130609"
+sent="Sun, 15 Aug 1999 14:09:05 +0100 (GMT Daylight Time)"
+isosent="19990815130905"
+name="Dave Raggett"
+email="dsr@w3.org"
+subject="Re: 26-Jul-99 bug: Bad &lt;font&gt; in &lt;tr&gt; causes crash"
+id="Pine.WNT.4.10.9908151406590.-308917@hazel.hpl.hp.com"
+charset="US-ASCII"
+inreplyto="l03130303b3c968e1b3d5&#64;[17.219.105.239]"
+expires="-1"
+
+To: Terry Teague<teague@mailandnews.com>
+cc: HTML Tidy Mailing List<html-tidy@w3.org>
+
+
+On Sat, 31 Jul 1999, Terry Teague wrote:
+
+> At 11:45 AM -0600 7/27/99, Randy Waki wrote:
+> >Thanks for the new release!  Incidentally, the bugs I recently reported in
+> >the 7-Jul-99 Tidy are reproducible in the new 29-Jul-99 version.
+> >
+> >Here's a new bug report:
+> >
+> >The HTML document below has a table row containing a bad <font> tag with no
+> >content, no ending </font> tag, and no enclosing table cell.  26-Jul-99 Tidy
+> >crashes (on Windows NT, at least) trying to access an illegal address.  Andy
+> >Quick's 7-Jul-99 Java version also crashes (with a NullPointerException),
+> >suggesting that the problem in the C version is with the value of prev in
+> >parser.c, TrimInitialSpace(), line 194:
+> >
+> >    if (prev->type == TextNode)
+> >
+> >-------- Example HTML document --------
+> ><html>
+> >  <head>
+> >    <title>t</title>
+> >  </head>
+> >  <body>
+> >    <table summary="s">
+> >      <tr>
+> >        <font>
+> >      </tr>
+> >    </table>
+> >  </body>
+> ></html>
+> >---------------------------------------
+
+This is caused by a bug in TrimInitialSpace() in parser.c
+which failed when the element is the first in the content.
+The revised routine is as follows:
+
+void TrimInitialSpace(Lexer *lexer, Node *element, Node *text)
+{
+    Node *prev, *node;
+
+    if (text->type == TextNode && lexer->lexbuf[text->start] == ' ')
+    {
+        if (element->tag->model & CM_INLINE &&
+            element->parent->content != element)
+        {
+            prev = element->prev;
+
+            if (prev && prev->type == TextNode)
+            {
+                if (lexer->lexbuf[prev->end - 1] != ' ')
+                    lexer->lexbuf[(prev->end)++] = ' ';
+
+                ++(element->start);
+            }
+            else /* create new node */
+            {
+                node = NewNode();
+                node->start = (element->start)++;
+                node->end = element->start;
+                lexer->lexbuf[node->start] = ' ';
+                node->prev = prev;
+
+                if (prev)
+                    prev->next = node;
+
+                node->next = element;
+                element->prev = node;
+                node->parent = element->parent;
+            }
+        }
+
+        /* discard the space  in current node */
+        ++(text->start);
+    }
+}
+
+
+Regards,
+
+-- Dave Raggett <dsr@w3.org> http://www.w3.org/People/Raggett
+phone: +44 122 578 2984 (or 2521) +44 385 320 444 (gsm mobile)
+World Wide Web Consortium (on assignment from HP Labs)
+
+
+

@@ -1,0 +1,253 @@
+docno="lists-099-15648187"
+received="Fri Mar 19 02:44:51 2004"
+isoreceived="20040319074451"
+sent="Fri, 19 Mar 2004 09:33:09 +0200"
+isosent="20040319073309"
+name="Patrick Stickler"
+email="patrick.stickler@nokia.com"
+subject="Graphs vs. Authorities vs. Warrants vs. Authentication vs. Certification etc."
+id="AB7B8C86-7977-11D8-A9CA-000A95EAFCEA@nokia.com"
+charset="US-ASCII"
+inreplyto="DD1F88E8-78D5-11D8-96B9-000A95EAFCEA&#64;nokia.com"
+expires="-1"
+
+
+To: ext Jeremy Carroll<jjc@hpl.hp.com>, Jeremy Carroll<jjc@hplb.hpl.hp.com>, Pat Hayes<phayes@ihmc.us>,"<www-archive@w3.org><www-archive@w3.org>"<www-archive@w3.org>, ext Chris Bizer<chris@bizer.de>
+
+
+
+Our recent interchanges about signatures, certificates, certification 
+authorities,
+etc. as well as the realization that multiple authorities may 
+publish/assert the same
+graph jointly yet use different certification schemes has led me to 
+think that we are
+blurring a necessary distinction between qualifications of the graph 
+versus characteristics
+of particular warrants which are used to verify/authenticate a graph.
+
+So, I've massaged/expanded the swp vocabulary a bit with the goal of 
+making warrants
+distinct objects which are associated with a graph, and inferring the 
+origin and/or
+asserting authorities of a graph from those (presumably valid) warrants.
+
+I.e.: (feel free to skip down first to the concrete examples)
+
+swp:Authority
+    a rdfs:Class ;
+    rdfs:comment "An authority, or origin, of a graph; such as a person 
+or company." .
+
+swp:Warrant
+    a rdfs:Class ;
+    rdfs:comment "A bundle of essential information needed to 
+authenticate a graph." .
+
+swp:Signature
+    a rdfs:Class ;
+    rdfs:comment "A signature used to authenticate a graph." .
+
+swp:Certificate
+    a rdfs:Class ;
+    rdfs:comment "A digital object by which an authority can be 
+authenticated." .
+
+swp:CertificationAuthority
+    a rdfs:Class ;
+    rdfs:comment "An authority which issues certificates." .
+
+swp:warrant
+    a rdf:Property ;
+    rdfs:comment "The object is a warrant by which the subject graph can 
+be authenticated and
+                  its assertional status and asserting or originating 
+authority determined." ;
+    rdfs:domain rdfg:Graph ;
+    rdfs:range swp:Warrant .
+
+swp:authority
+    a rdf:Property ;
+    rdfs:comment "The object is the authority, or origin, of the graph 
+with which the
+                  subject warrant is associated." ;
+    rdfs:domain swp:Warrant ;
+    rdfs:range swp:Authority ;
+    owl:cardinality "1"^^xsd:nonNegativeInteger .
+
+swp:assertingAuthority
+    a rdf:Property ;
+    rdfs:subPropertyOf swp:authority ;
+    rdfs:comment "The object is the asserting authority of the graph 
+with which the
+                  subject warrant is associated." ;
+    rdfs:domain swp:Warrant ;
+    rdfs:range swp:Authority .
+
+swp:signature
+    a rdf:Property ;
+    rdfs:comment "The object is the signature to be used to authenticate 
+the graph with
+                  which the subject warrant is associated." ;
+    rdfs:domain swp:Warrant ;
+    rdfs:range swp:Signature ;
+    owl:cardinality "1"^^xsd:nonNegativeInteger .
+
+swp:certificate
+    a rdf:Property ;
+    rdfs:comment "The object is a certificate by which the authority can 
+be authenticated." ;
+    rdfs:domain swp:Warrant ;
+    rdfs:range swp:Certificate ;
+    owl:maxCardinality "1"^^xsd:nonNegativeInteger .
+
+swp:certificationAuthority
+    a rdf:Property ;
+    rdfs:comment "The object is the certification authority issuing the 
+certificate specified using swp:certificate." ;
+    rdfs:domain swp:Warrant ;
+    rdfs:range swp:CertificationAuthority ;
+    owl:maxCardinality "1"^^xsd:nonNegativeInteger .
+
+swp:origin
+    a rdf:Property ;
+    rdfs:comment "The object is the origin of the subject graph." ;
+    rdfs:domain swp:Graph ;
+    rdfs:range swp:Authority .
+
+swp:assertedBy
+    a rdf:Property ;
+    rdfs:subPropertyOf swp:authority ;
+    rdfs:comment "The object asserts the subject graph." ;
+    rdfs:domain rdfg:Graph ;
+    rdfs:range swp:Authority .
+
+
+Note the cardinality constraints defined for swp:authority and 
+swp:signature. A
+warrant for a graph must have one and only one of each.
+
+The ability to explicitly specify a certificate and certification 
+authority for
+the authority of the warrant is simply a convenience, so that agents 
+need not
+have to go out and discover such information themselves based on the 
+URI denoting
+the authority -- though some paranoid agents may choose to do that 
+anyway, just
+to be sure.
+
+--
+
+OK, here's a concrete example:
+
+Graph G is published by four authorities with distinct authentication 
+credentials,
+one of which (Bill) is not asserting the claims expressed in the graph, 
+only sharing
+authorship/publication, and one warrant being external to the graph 
+itself:
+
+:G (
+
+      some:resource some:property some:value .
+
+      :G swp:warrant [
+         a swp:Warrant ;
+         swp:assertingAuthority ex:Bob ;
+         swp:signature "..."^^sig:PGPSignature .
+         swp:certificate "..." .
+         swp:certificationAuthority <http://www.certificates-R-us.com> .
+      ]
+
+      :G swp:warrant [
+         a swp:Warrant ;
+         swp:authority ex:Bill ;
+         swp:signature "..."^^sig:X509Signature .
+      ]
+
+      :G swp:warrant [
+         a swp:Warrant ;
+         swp:assertingAuthority ex:Mary ;
+         swp:signature "..."^^xyz:XYZSignature ;
+         xyz:policy xyz:blargh .
+      ]
+
+      :G swp:warrant 
+<http://www.foo.bar.com/us282uss82wsauia9whjrui.wnt> .
+
+    )
+
+Note how datatypes are used to differentiate the type of signatures 
+used.
+
+Note that in the third warrant, for Mary, an authentication scheme is
+used which requires explicit specification of a particular 
+authentication
+policy to successfuly authenticate the graph (and, no, I'm not going to
+suggest what that policy might be or why it would be required -- the 
+point
+is that this approach allows for extensibility where additional 
+information
+can be provided in the warrant which is specific to the authentication
+machinery and doesn't directly describe the graph itself).
+
+Note also that in the case of the external warrant, the agent is going
+to have to *first* validate/authenticate that external warrant before
+it can reliably apply it to the graph in question; so while this 
+approach
+allows for reference to external warrants, it has a higher operational
+cost.
+
+ From the above graph, if all of the warrants are valid (and let's 
+presume
+the external warrant contains [ swp:assertingAuthority ex:Jane ]), one 
+can
+apply the following two closure rules:
+
+IF   :G swp:warrant ?warrant .
+AND  ?warrant swp:assertingAuthority ?authority .
+THEN :G swp:assertedBy ?authority .
+
+and
+
+IF   :G swp:warrant ?warrant .
+AND  ?warrant swp:authority ?authority .
+THEN :G swp:origin ?authority .
+
+along with the relevant RDFS closure rules to infer that
+
+    :G swp:assertedBy ex:Bob .
+    :G swp:assertedBy ex:Mary .
+    :G swp:assertedBy ex:Jane .
+    :G swp:origin     ex:Bob .
+    :G swp:origin     ex:Bill .
+    :G swp:origin     ex:Mary .
+    :G swp:origin     ex:Jane .
+
+by which one can then apply ones trust policies to make determinations
+about whether to trust graph G.
+
+E.g.
+
+IF   ?graph swp:assertedBy ?authority .
+AND  ?authority rdf:type trust:TrustedAuthority .
+THEN ?graph rdf:type trust:TrustedGraph .
+
+etc.
+
+with all queries then being constrained to statements made within
+trusted graphs.
+
+Eh?
+
+Patrick
+
+--
+
+Patrick Stickler
+Nokia, Finland
+patrick.stickler@nokia.com
+
+
+

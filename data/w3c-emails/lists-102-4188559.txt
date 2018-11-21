@@ -1,0 +1,201 @@
+docno="lists-102-4188559"
+received="Sat Jun 27 02:32:15 1998"
+isoreceived="19980627063215"
+sent="Sat, 27 Jun 1998 02:32:36 -0400"
+isosent="19980627063236"
+name="Justin Wells"
+email="reader@semiotek.com"
+subject="critique of WD-DOM-19980416"
+id="19980627023236.53288@fever.semiotek.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+
+I've just looked over the most recent DOM. It seems like a good start, but 
+the design appears to be weak in quite a few places. No doubt this
+is the result of an attempt to try to make conflicting views of a
+document fit into the same model.
+
+Here are a few of my concerns:
+
+
+UNNECESSARILY WIDE TYPES
+
+None of the containers in the DOM are typesafe. Most of them deal with 
+really high level abstractions like "Node". This complicates the interface
+for the implementor, introduces the possibility of programmer error,
+and creates a performance problem:
+
+      Implementation is more difficult since the API must perform 
+      extra checks to determine whether an object actually has a 
+      valid type when passed as an argument. (eg: setParent).
+      
+      Programmer error is possible wherever an object of too abstract
+      a type is returned from a method; and programmers unknowingly 
+      pass invalid types to methods. 
+
+      A performance problem may be created by excessive type casting. Type
+      casts and calls to "instanceof" are not free in languages
+      such as Java, but instead are actually somewhat costly
+      operations.
+
+It would be much better if argument and return values were specified as 
+narrowly as possible. This would reduce the number of dangerous casts 
+performed by users, reduce the number of error conditions that API 
+implementors must test for, and eliminate some of the performance 
+problems associated with run time type identification and casting.
+
+The primary culrit in the DOM are the containers: things which hold 
+other objects routinely use "Node" as the type of their children. But 
+also methods such as getParent and setParent, getDocument, etc., return
+a very abstract type (Node) even though that doesn't seem necessary.
+
+
+
+INCORRECT ABSTRACTIONS
+
+Narrowing the type scheme, however, wouldn't fit in well with the general
+structure of the DOM as it stands now. "Node" appears to be overloaded 
+with two separate meanings: (1) a root object type for the DOM, (2) the 
+generic type for objects which can appear in an XML document. 
+
+Note that these are not the same thing, for example it doesn't make any 
+sense to have a Document inside an Element.
+
+Node is at the wrong level of abstraction, and has been given far 
+too many responsibilities. It appears to be a class which exists for the sole 
+purpose of containing some method which didn't fit anywhere else. This is not 
+good. 
+
+It would be better to intercede an "XML_Node" class as the supertype of 
+Element, Text, PI, Comment, and possibly CDATA. This type plays
+the role of "things that can be children". As such, it is the
+natural type to use as arguments for methods that get and set
+children in Element. Similarly, all XML_Node objects would have a 
+getParent() method that would naturally return an object of type Element.
+
+The general principle here is to push methods and properties as far down 
+the inheritence tree as possible. This reduces the number of points in the 
+code where dangerous casts occur, and increases the exactness of the types 
+returns by a methods.
+
+
+CONCATENATED APIS
+
+The DOM has thrown together two obviously different views of the structure
+of a document, without doing anything at all to integrate them. It appears
+as though two separate APIs were simply concatenated together to produce 
+much of the content of the DOM. 
+
+It would be better to try and integrate these views. Having multiple views
+makes the DOM seem unnecessarily complex, and will only confuse (and probably
+scare away) newcomers. One of the goals of XML was to provide a simple 
+language that unsophisticated users could exploit. I think that the goal 
+of the DOM should be similar: provide a simple, straight forward, 
+unconfusing interface to objects. 
+
+Looking at the way Attributes are handled by Element is a good
+example -- there are two totally different views here of what an
+Attribute is, and how one should be manipulated.
+
+In one version, attributes are directly manipulated through the Element API.
+In the other version, you must get an intance of an AttributeList and 
+manipulate that. Either of these seem equally good to me, and clearly 
+if you had one you could implement the other trivially. 
+
+So why have both?
+
+I can't think of any good reason. The argument, "Some of our WG members 
+have done it one way, and others have done it the other in their 
+existing product" doesn't fly. They're both going to have to go and 
+implement the other version in terms of what they already have in order
+to support the DOM. Picking one version over the other reduces the 
+amount of work, overall, that must be done in order to have multiple 
+compliant implementations. 
+
+And more significantly: People starting from scratch now have a larger 
+(thus more time-consuming) project ahead of them if they wish to create
+a DOM implementation.
+
+
+
+DOCUMENT FRAGMENTS ARE UPSIDE DOWN AND TOO EARLY
+
+Obviously the document fragment concept has been stuck into DOM because 
+people think its interface will be spelled out a bit more clearly in some
+future version. But then it would be better just to leave it out of the 
+specification entirely until some future version.
+
+What if it turns out that you have got it in the wrong place? By specifying
+it now, you're only going to cause trouble later on.
+
+I think that it may even be fairly likely that it is in the wrong place. 
+It seems to me that a Document is NOT a type of DocumentFragment. I am not 
+sure it is sensible to view this as an inheritence relationship at all. Or 
+if it is, it might make more sense to consider a DocumentFragment to be a
+type of Document.
+
+If none of this can be determined yet because none of it is well thought
+out enough -- well then just leave the whole thing out. It can't hurt. It
+won't break anything to introduce it in a future version as either an 
+extra interface above Document, or a new subclass of Document, or something
+with no blood relationship to Document that just happens to know about a 
+Document.
+
+The same comments apply to DocumentContext -- it has no useful methods as
+yet, so it doesn't really make sense to include it in the API. Putting 
+it in now restricts future design choices, without providing any 
+current benefit.
+
+
+
+XMLNode is tedious
+
+Why are all these methods in XMLNode there asking me to specify, each and
+every time I want to do something, whether I want entities expanded or not?
+Why can't I just set this once and be done with it?
+
+While I can see that I might want to expand some entities but not others, 
+I think I am unlikely to want to do this based on where I am in the tree.
+Instead I am likely to want to do this based on what type the entity is.
+
+These are not a big deal in the design sense. I just think that it's kind 
+of strange that I would have to keep passing it down. It's likely to make
+programming with these methods somewhat tedious.
+
+
+
+ATTRIBUTE LIST HAS SOME PROBLEMS
+
+Also as a minor point, why has getSpecified()/setSpecified() crept in here when
+all of the other DTD oriented material has been kept at bay? If the users of 
+Elements are to know whether the attribute was specified or not, shouldn't they
+also know whether elements are required? Whether Text is parsed or not? I think
+the best route is to leave ALL of this material out at this level, including
+whether or not an attribute is "specified".
+
+Secondly, I see no good reason for the "Attribute item(int index)" method
+of AttributeList. It seems to raise some troubling questions, since it 
+fundamentally asserts that there is a well defined order to an attribute
+list, and my understanding is that there is not. If you have a bunch of 
+implied attributes on an element, who is to say what order they should be
+represented in? Unless this is a well defined concept, the Attribute API 
+should make no assumption that a list of attributes has an order.
+
+Note that this method eliminate the use of a hashtable to represent
+an attribute list.
+
+
+Justin Wells
+Semiotek Inc. 
+
+(I am subscribed and posting via my list reader account. To mail
+me personally, address mail to the user justin at the same domain. I do 
+read my list mail, but I will not respond in as timely a manner to mail
+addressed to reader. All this to avoid spam.)
+
+
+

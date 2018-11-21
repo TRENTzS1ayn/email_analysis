@@ -1,0 +1,206 @@
+docno="lists-046-3046620"
+received="Thu Jan 31 04:40:18 2002"
+isoreceived="20020131094018"
+sent="Thu, 31 Jan 2002 07:47:04 +0000"
+isosent="20020131074704"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: History: Question on C14N list of nodes instead of subtrees"
+id="20020131074704.E31B543C56@yog-sothoth.ie.baltimore.com"
+inreplyto="7874BFCCD289A645B5CE3935769F0B52350085&#64;tigger.PureEdge.com"
+expires="-1"
+
+To:"John Boyer"<JBoyer@pureedge.com>
+Cc:reagle@w3.org,w3c-ietf-xmldsig@w3.org
+
+
+
+I've just had a chance to run some quick xpath document subsetting
+tests (using xerces and the xalan xpath processor in a fairly obvious
+manner, but I could be doing something nonoptimally):
+
+Using the xmldsig XPath transform I transform a whole document
+(URI="") through the following filter:
+  <Transform Algorithm="&xpath;">
+    <XPath>
+      ancestor-or-self::FooBarList
+    </XPath>
+  </Transform>
+
+I ran this on three documents; the first (~20KB, quite flat):
+  <Foo> ... <FooBarList>...</FooBarList> ... </Foo>
+
+The second (twice the size, 1 element deeper):
+  <Bar> <Foo> ..as above.. </Foo> <Foo> ..as above.. </Foo> </Bar>
+
+The third (twice the size again, another element deeper):
+  <Baz> <Bar> ..as above.. </Bar> <Bar> ..as above.. </Bar> </Baz>
+
+The timing (in arbitrary units on a loaded machine, so take salt):
+  2250 6177 20976
+
+Using alternative xpath#include and xpath#exclude transforms:
+  <Transform Algorithm="&xpath;#include">
+    <XPath>
+      (//FooBarList//. | //FooBarList//@* | //FooBarList//namespace::*)
+    </XPath>
+  </Transform>
+
+Timing on the same documents:
+  1053 1538 2469
+
+XPointer would be faster still (the expression being just //FooBarList,
+IIRC). A hybridized XPath option &xpath;#include-subtree and
+&xpath;#exclude-subtree could take the same expression.
+
+It is unfortunately a bit late in the day for me to try a
+here()-relative subset, which would be more interesting, as would be
+independent numbers.
+
+Merlin
+
+r/JBoyer@pureedge.com/2002.01.25/11:50:20
+>Hi Joseph,
+>
+>Aside from it having REC status, I don't think it is a mistake for C14N
+>to look at individual nodes of an XPath node-set, so changing that had
+>not crossed my mind.
+>
+>I'm not in on the full conversation that's going on regarding some of
+>these issues, but it sounds like some are finding speed issues when
+>using an XPath transforms (though I wish it had been noted sooner
+>considering the number of implementations, but better late than never).
+>
+>At least part of the problem is the current way we interpret the
+>expression (e.g. as a PredicateExpr that we automatically apply to every
+>node).  This seems to make things easier because everyone got to avoid
+>writing (//. | //@* | //namespace::*) into virtually every expression.
+>I had no aversion to this, but many felt it was cryptic.  Anyway,
+>eliminating it seems to have gotten rid of the most efficient method of
+>indicating a subtree.
+>
+>It did not seem that it would be a terrible speed problem to me because
+>of my perceptions about limited depth of XML in most practical
+>circumstances.  Moreover, perhaps it was good in that it put inclusive
+>logic (include a subtree in signature) and exclusive logic (exclude a
+>subtree from signature) on the same footing.
+>
+>However, if there is indeed a speed problem, then the XPath transform
+>itself needs to be fixed.  I don't think I agree with creating another
+>'intersect' transform for two reasons.  First, XPath is recommended, so
+>we will continue to 'recommend' something that is inherently unusable
+>for its stated purposes.  Second, what we need is more of a complement
+>or subtract than an intersect.
+>
+>Finally, the 'stability' of the spec/implementations seems orthogonal to
+>the issue at hand.  We have something that is approaching REC and
+>recommends the use of an essentially unusable feature (we can't hang up
+>servers for the length of time it sounds like this takes).  The fact
+>that the near-REC hasn't changed in a while has no bearing on this, and
+>I think we're obliged to fix things that we notice (albeit belatedly)
+>are broken using our implementations (otherwise why require
+>implementation?).
+>
+>Best regards,
+>John Boyer
+>PureEdge Solutions Inc.
+>
+>-----Original Message-----
+>From: Joseph Reagle [mailto:reagle@w3.org]
+>Sent: Friday, January 25, 2002 10:17 AM
+>To: John Boyer; merlin
+>Cc: w3c-ietf-xmldsig@w3.org
+>Subject: Re: History: Question on C14N list of nodes instead of subtrees
+>
+>
+>On Friday 25 January 2002 11:44, John Boyer wrote:
+>> Joseph, do you have any opinion on the ability to tolerate a change at
+>> this point?
+>
+>The question is a change in what? Canonical XML is already a REC and
+>can't 
+>be changed. xmldsig will be a REC in a couple of weeks but that's been 
+>stable for so long it can't change either. My goal has been that
+>exc-c14n 
+>be faster for subtree processing.
+>
+>As an aside, Don and I had a exc-c14n -> CR review meeting yesterday and
+>I 
+>still run into problems of people less familiar with the work assuming
+>that 
+>there is such a thing as a one-and-only-one form of Canonical XML -- 
+>perhaps we should've call them serializations 1 2 and 3 <smile/>. 
+>Regardless, my goal is for exc-c14n to be faster with some
+>implementation 
+>optimizations. (We've actually made this an exit criteria of the CR [1]
+>-- 
+>and it reference Merlin's earliest speed tests on exc-c14n [2]).
+>
+>For example, originally the python c14n *only* worked over a DOM node so
+>
+>that was good for sub-tree processing and we then worked on extending it
+>to 
+>support XPath expression. If there is an XPath expression you have a hit
+>on 
+>performing the XPath expression and walking the whole dom tree, checking
+>
+>each node (and building ancestor context) against the subset to see if
+>it 
+>should be omitted. However, if you only passed it a single DOM element 
+>node (representing a sub-tree) it serializes that subtree and walks up
+>its 
+>ancestors looking for xml:* attributes. My expectation/goal in exc-c14n
+>is 
+>that you don't have to even walk up your ancestors since you don't care 
+>about that context. (Our implementation would fail at this -- I think --
+>
+>because we don't have a proper XPath nodeset with namespace axis with
+>the 
+>necessary ancestor context; they are treated as attributes. But an 
+>implementation with a proper namespace axis node need only serialize the
+>
+>subtree (doesn't care about ancestor xml:*, and if the namespace is 
+>utilized then the prefix/value is right there in that elements namespace
+>
+>axis node -- it need not look at ancestors at all!) So I think we're
+>likely 
+>to end up with decent subtree c14n with exc-c14n.
+>
+>It doesn't solve any performance problems with respect to arbitrary
+>xpath 
+>filtering and I'm not sure if anything proposed in this thread would fix
+>
+>that ...? (I might've missed it, did you agree that Merlin's
+>intersection 
+>expression would be better?) So it's to say hard to say how that would 
+>affect existing specs beyond, again, xmldsig is extensible so it could
+>be 
+>done if necessary.
+>
+>[1] http://www.w3.org/Signature/Drafts/xml-exc-c14n.html 
+>(see greyed out status)
+>[2] 
+>http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2001JulSep/0108.htm
+>l
+>
+>-- 
+>
+>Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+>W3C Policy Analyst                mailto:reagle@w3.org
+>IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature/
+>W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+>
+
+
+-----------------------------------------------------------------------------
+Baltimore Technologies plc will not be liable for direct,  special,  indirect 
+or consequential  damages  arising  from  alteration of  the contents of this
+message by a third party or as a result of any virus being passed on.
+
+This footnote confirms that this email message has been swept by
+Baltimore MIMEsweeper for Content Security threats, including
+computer viruses.
+   http://www.baltimore.com
+
+
+

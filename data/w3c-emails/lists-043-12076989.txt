@@ -1,0 +1,159 @@
+docno="lists-043-12076989"
+received="Thu Aug 19 14:26:43 1999"
+isoreceived="19990819182643"
+sent="Thu, 19 Aug 1999 11:25:48 -0700"
+isosent="19990819182548"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="RE: Scenarios upgrade and Data Model RSN"
+id="NDBBLAOMJKOFPMBCHJOICEMKCAAA.jboyer@uwi.com"
+charset="iso-8859-1"
+inreplyto="37BC2B7A.CF8E1282&#64;nmcourt.fed.us"
+expires="-1"
+
+To:"Richard Himes"<rhimes@nmcourt.fed.us>,<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Richard,
+
+Good work!  Comments below...
+
+Thanks for the scenarios, they really helped me to understand the current
+status.
+I now firmly believe the <Package> element is just clutter.
+
+<JOHN>
+They seem to be clutter in your cases, but could be useful to those who
+don't want to create their own element.
+</JOHN>
+
+From the scenario in 2.1.1:
+
+<dsig:Package id='data'>
+   <dsig:ContentInfo type='urn:mime:image%2fjpeg'/>
+   <dsig:Value encoding="base64">...</dsig:Value>
+</dsig:Package>
+
+<dsig:Signature>
+   ...
+   <dsig:Locator href='#data'/>
+   ...
+<dsig:Signature>
+
+Would be cleaner as:
+
+<MyElement ContentType='urn:mime:image%2fjpeg' encoding='base64'
+      id='data'>...</MyElement>
+...
+   <dsig:Locator href='#data'/>
+...
+
+<JOHN>
+Yes, the example you give above is, for the most part, an instance of
+signing a portion of a document, which can be found at the beginning of
+section 2.4.  It turns out that signing a package is really a special case
+of signing a partial XML document.  The first scenario in section 2.1.1
+shows what to do when you have a file whose contents you would like to pull
+into the signature file, but for which you have no element name.  When you
+have no name, you could just use dsig:package.  If you have your own
+elements, just sign your own elements.
+The one thing that is different is that you only want to sign element
+content as opposed to the whole element including tags and attributes.
+</JOHN>
+
+In my understanding, this is a _valid_ construct (in the current spec) which
+signs only the base64 text (not the content type or the encoding).  I
+suspect
+that this is the way it will be used by applications, that is, without the
+Package.  If this is considered a security problem (the content type and
+encoding aren't included in the hash), then they should be included
+(duplicated) in the manifest.  Note that this also works as a direct
+envelopment, as in the <impp> example..
+
+<JOHN>
+Unless there are canonicalizer parameters that will allow you to drop the
+start and end tags from what gets canonicalized, then your expectation is
+not being satisfied.
+</JOHN>
+
+My primary interest initially will be in validating the document, that is,
+assuring it hasn't changed since it was filed with the court.  Assuming they
+have a signed manifest (<Signature> element), suppose an attorney downloads
+a
+copy of a PDF from the Internet (purporting to be an official copy), and
+wishes
+to validate that it is an exact copy of the official document.  In the
+<Package> scenario, they (the application) would have to wrap it in a
+Package
+element, hoping to construct it in exactly the same way (e.g. assuming there
+aren't multiple synonyms for the same content type), encode it, canonicalize
+it
+correctly, hash it, and compare it to the hash in the manifest.  This is a
+critical problem, in my view, with unnecessary clutter and difficulties for
+application developers.  More likely, the hash would be on the unencoded
+external document or the encoded internal document (does this lack of
+symmetry
+bother anyone else?)
+
+<JOHN>
+To validate the external document as you've described here is exactly the
+point of scenario 2.3.  Note that the Value contains the encoding attribute
+of base64.  This is not saying that the document had base 64 encoding
+applied to it.  This is saying that the hash of the document has been base64
+encoded (because the raw hash contains illegal bytes).
+
+Actually, I had you in mind specifically when putting this scenario
+together.  The scenario write-up could use improvement in pointing these
+things out.  Also, it should say that the absence of a canonicalizer element
+implies no canonicalization of the target document.
+
+So, if you want a validated legal document, the application would download
+the signature of that document, verify the signature, then verify that the
+Locator does indeed point at the desired document, then obtain the bytes of
+the desired document and store them locally.  Then, do a byte level hash of
+the document, and compare with the base64 decoded content of the Value
+element.
+</JOHN>
+
+Also, I would like the manifest to support an unencoded hash of an internal
+document.  All that would be required is a parameter such as
+reformat="ueb64"
+(unencoded base64).  So, in order to validate the document mentioned in the
+previous paragraph,  the only requirement (other than validating the
+signature
+of the manifest) would be to hash the PDF directly and compare it to the
+hash
+in the manifest.
+
+<JOHN>
+So what you're saying is that you'd like not to separate obtaining the
+signature from obtaining the document.  You'd like to put the document in an
+XML file along with the signature element.  Further, you must apply bse 64
+because the document is binary.
+
+When you calculate the hash of the element, you want the hash to be
+calculated on the binary of the document.  I like this scenario a lot.
+Further, I think it could be solved by another c14n parameter for the
+resource.  What do you think?
+
+So you'd have something like the following:
+
+<dsig:Canonicalizer>
+<dsig:Algorithm type='urn:w3c-org:xml-c14n'/>
+<dsig:format tags="off" attributes="off" decode="on"/>
+</dsig:Canonicalizer>
+
+Something like this would be very good.  People get that warm and fuzzy
+feeling about a security system when the hash is computed over something
+they trust.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+</JOHN>
+Thanks,
+Rich
+
+
+

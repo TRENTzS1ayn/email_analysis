@@ -1,0 +1,211 @@
+docno="lists-010-7640627"
+received="Thu Aug 15 21:26:50 1996"
+isoreceived="19960816012650"
+sent="Thu, 15 Aug 1996 23:23:08 0500 (CDT)"
+isosent="19960816042308"
+name="Klaus Weide"
+email="kweide@tezcat.com"
+subject="Problems with draft-ietf-http-v11-spec07"
+id="Pine.SUN.3.94.960815203855.28794L100000@xochi.tezcat.com"
+charset="USASCII"
+inreplyto="96Aug7.220131pdt.&quot;2759&quot;&#64;golden.parc.xerox.com"
+expires="1"
+
+To: Larry Masinter<masinter@parc.xerox.com>
+Cc:jg@zorch.w3.org,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+I realize that this is not the best time to air my complaints with
+the http-v11 draft, but I hope better now than never...
+So here it goes.
+
+On Wed, 7 Aug 1996, Larry Masinter wrote:
+[in response to somebody's question regarding character sets]
+>                           ... and Section 2.2 is explicit about the
+> character set of request and response headers (most are restricted to
+> ASCII except those that use TEXT; those can be encoded using RFC 1522
+> rules), ...
+
+I have to disagree that Section 2.2 (or the draft as a whole) is clear
+about character sets.  What is included in parentheses in the quote 
+above may be the intention, but it is not explicit.
+
+I tried to answer for myself the question "Where, if at all, does
+HTTP 1.1 allow non-US-ASCII characters (other than within message-
+body)?", according to the latest draft.  I ran into several problems
+with figuring out the answer.
+
+First, I would prefer if the answer to that question was clearly
+and explicitly stated somewhere in the draft.  As it is now, one
+has to work one's way through several layers of BNF.
+
+On to the details:  Unencoded non-US-ASCII octets (octets with the
+most significant bit set, simply called eightbit chars in the following)
+come in to the BNF in two ways:
+
+2.2
+       OCTET          = <any 8-bit sequence of data>
+
+whence TEXT, comment and ctext, quoted-string and qdstring
+are all allowed to have eightbit chars.  (but not quoted-pair.)
+
+Note that this allows eightbit chars in lots of places, for example
+Etags or MIME parameters (including boundaries).
+
+
+3.2 Uniform Resource Identifiers
+3.2.1
+       national       = <any OCTET excluding ALPHA, DIGIT,
+                        reserved, extra, safe, and unsafe>
+
+whence unreserved, uchar and pchar, and therefore nearly all parts
+of a URI (apart from the scheme) are allowed to have eightbit chars.
+
+3.2.1:
+    "The BNF above includes national characters not
+allowed in valid URLs as specified by RFC 1738, since HTTP servers are
+not restricted in the set of unreserved characters allowed to represent
+the rel_path part of addresses, and HTTP proxies may receive requests
+for URIs not defined by RFC 1738."
+
+I read that as meaning that HTTP application which handle such URIs
+with eightbit chars can conform to the HTTP/1.1 spec, even if those
+URIs don't conform to RFC 1738.
+
+Although the quoted sentence doesn not explicitly speak of generating
+such URIs, there is nothing forbidding it.  (And it seems logical
+that a server accepting requests for such URI's should also be allowed
+to generate Location: headers etc. containing them.)
+
+On the other hand, in
+4.2 Message Headers
+
+       message-header = field-name ":" [ field-value ] CRLF
+
+       field-name     = token
+       field-value    = *( field-content | LWS )
+ 
+       field-content = <the OCTETs making up the field-value
+                        and consisting of either *TEXT or combinations
+                        of token, tspecials, and quoted-string>
+
+Note that it doesn't say
+
+       field-content = <the OCTETs making up the field-value
+                        and consisting of either *TEXT or combinations
+                        of token, tspecials, URI, and quoted-string>
+
+nor does it say
+
+       field-content = <the OCTETs making up the field-value
+                        and consisting of either *TEXT or combinations
+                        of token, tspecials, quoted-string etc.>
+
+rom this I conclude that
+(a)  an URI in a field-content (which is not within a quoted-string),
+     since it is not defined as arbitrary *TEXT, has to be understood 
+     as being comprised of component tokens, and
+(b)  (since eightbit chars are not allowed in tokens) an URI in a
+     field-content cannot contain unencoded eightbit chars.
+
+But the BNF for specific headers uses rules which seem to allow
+eightbit chars, for example
+
+14.30
+       Location       = "Location" ":" absoluteURI
+
+I conclude that the draft is far from clear.
+
+                          *   *   *
+
+Some other (mostly BNF related) weirdnesses:
+
+SInce URI is comprised of tokens (see (a) above), the following
+seems to apply:
+
+2.1 Augmented BNF
+...
+implied *LWS
+     The grammar described by this specification is word-based. Except
+     where noted otherwise, linear whitespace (LWS) can be included
+     between any two adjacent words (token or quoted-string), and
+     between adjacent tokens and delimiters (tspecials), without
+     changing the interpretation of a field. At least one delimiter
+     (tspecials) must exist between any two tokens, since they would
+     otherwise be interpreted as a single token.
+
+That is, 
+  http   :   / / host.dom.ain / etc. ? blah
+would be a valid way to write 
+  http://host.dom.ain/etc.?blah
+in HTTP headers.
+
+The proviso of "except where noted otherwise" is not used anywhere
+in the description of URIs.  In fact, the only place where it is
+used is in 
+3.7 Media Types
+
+   "Linear white space (LWS) MUST NOT be used between the type and
+subtype, nor between an attribute and its value."
+
+But note that e.g. 14.1 Accept does not refer to the definition
+of media-type from 3.7, but defines media-range without explicitly
+disallowing LWSP.  (nor does it disallow e.g. "; q = 0.5")
+
+3.8 Product Tokens is another place where LWS should be explicitly
+disallowed.  
+
+                          *   *   *
+
+Comments (within parentheses) should probably allowed in more
+places - at least, in 19.4.7
+       MIME-Version   = "MIME-Version" ":" 1*DIGIT "." 1*DIGIT
+should probably be
+       MIME-Version   = "MIME-Version" ":" 1*DIGIT "." 1*DIGIT *comment
+
+Also,
+      Via =  "Via" ":" 1#( received-protocol received-by [ comment ] )
+in 14.44 should maybe become
+      Via =  "Via" ":" 1#( received-protocol received-by [ *comment ] )
+
+                          *   *   *
+
+10.3.6 305 Use Proxy
+
+The requested resource MUST be accessed through the proxy given by the
+Location field. The Location field gives the URL of the proxy. The
+recipient is expected to repeat the request via the proxy.
+
+How exactly does is a proxy "given" by a Location field?
+Location normally contains an URI, and URIs point to resources but
+not (normally) applications (the proxy).  Does the URI have to be
+a http_URL, does the abs_path have to be empty (or is it required
+to be "/"), and what if not?
+
+                          *   *   *
+
+3.6 Transfer Codings
+...
+       hex-no-zero    = <HEX excluding "0">
+
+       chunk-size     = hex-no-zero *HEX
+...
+       chunk-data     = chunk-size(OCTET)
+
+Why does this rule use HEX and not DIGIT?  Does this mean the
+chunk-size is hexadecimally encoded?
+
+                          *   *   *
+
+A remark regarding 14.1 Accept:
+It's a pity there is a "q=", but not a "mxb=".  An oversight or
+intentional?
+
+                          *   *   *
+
+Okay that's all.  
+
+   Klaus
+
+
+

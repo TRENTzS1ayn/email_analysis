@@ -1,0 +1,212 @@
+docno="lists-099-8215903"
+received="Fri Sep 12 15:58:28 2003"
+isoreceived="20030912195828"
+sent="Fri, 12 Sep 2003 16:01:40 -0400"
+isosent="20030912200140"
+name="Mark Baker"
+email="distobj@acm.org"
+subject="Re: Few questions about REST"
+id="20030912160139.F4344@www.markbaker.ca"
+charset="us-ascii"
+inreplyto="004501c3794e$dec63ed0$1800a8c0&#64;BERYOZKIN"
+expires="-1"
+
+To: Sergey Beryozkin<sberyozkin@zandar.com>
+Cc:www-archive@w3.org
+
+
+
+On Fri, Sep 12, 2003 at 12:56:54PM -0400, Sergey Beryozkin wrote:
+> Hello Mark,
+> 
+> Thank you for answering the questions.
+> More questions on the way :-)
+
+No prob!
+
+> > > 1. You're saying that SOAP-based services are early bound.
+> >
+> > Well, first off, let's be clear that not all SOAP based services are.
+> > SOAP can be used RESTfully, or in other late-bound ways.  Can we say
+> > that "SOA based services" are early bound?
+> 
+> Do you refer to the fact that in general it's typical for a client to obtain
+> a service definition first, generate proxies with the type information (at
+> compile or run time) and only then start accessing a service using a single
+> (URL) identifier which is not sufficient to identify an interface of a
+> resource targeted by a current request ?
+
+Pretty much, yes.
+
+> How important is it for a server to follow a late-binding model ? Is it
+> mainly about load-balancing and hot deployment ?
+
+Not mainly IMO, no.
+
+> One possible disadvantage
+> is that it may cause a slower initial processing time ...
+
+Right.
+
+The main advantage is improved visibility, and reduced coordination
+costs as a result.  Integration is fundamentally easier in this approach,
+as integration complexity is not necessarily O(N^2) like with Web
+services.  i.e. if you have N services you want to integrate with, you
+don't necessarily need to write N pieces of code.
+
+> > Hmm, well, for "early bound", I just mean that handles (identifiers) are
+> not
+> > sufficient to help you know the interface of the thing that the handle
+> > identifies.
+> >
+> > So a late bound version of the getStockQuote service would use identifiers
+> > such as;
+> >
+> >   stockquote:sunw
+> Is it essential for a 'stockquote:sunw' be part of a resource URI or can it
+> be submitted as a control parameter ?
+
+I was suggesting that it be the URI, not just part of it.
+
+> A resource identifier would still be
+> opaque, but when combined with that control parameter it would allow for a
+> late binding to happen.
+> For example, a SOAP-based, document-style service will not have any method
+> names in a message body, but rather use a URL and optionally a control param
+> or some token within a message body to find a handler, possibly using a
+> late-binding model
+
+Well, if the "control param" is either all or part of an identifier,
+then it belongs in the URI.  But if you mean something like;
+
+http://example.org/soapGateway;stockquote:sunw
+
+then sure, that's a great way to have th WSDL-described getStockQuote
+interface implicit in the "stockquote" URI scheme, engulfed by the
+http URI scheme.  Another way would be an HTTP proxy;
+
+telnet example.org 8080
+GET stockquote:sunw HTTP/1.1
+etc..
+
+> > As REST relates to binding, the combination of the two interface
+> > constraints, "uniform interface", and "identification of resources"
+> > combine to require late binding, I believe.
+> 
+> Would a URI + control parameter (media type's parameter, etc ) combination
+> meet a "identification of resources" constraint ?
+
+As long as they're just data, yes.  i.e. no methods allowed.
+
+> > > 2. HTTP verbs (POST, GET, etc) :  do they meet a uniform interface
+> > > constraint ?
+> >
+> > Yes.
+> 
+> > > So, SOAP, by using POST where GET is more appropriate, violates this
+> > > constarint ?
+> >
+> > Well, the uniform interface constraint is violated by SOAs not normally
+> > because POST is used, but because it changes the semantics of a
+> > successful response.  A RESTful/uniform use of POST requires that
+> > success mean little more than "Ok, got it".  By putting another method
+> > in the POST body, and making that part of the interface, successful
+> > response semantics mean that the method has executed.  That's more
+> > information than a client would have in the RESTful use of POST.
+> 
+> I thought that the major problem with overusing POST was that upstream
+> generic processors could not cache info which is GETable by its nature. I'm
+> not seeing yet what are other side effects when a POSTed request will return
+> HTTP 200 OK plus some additional data in the body, can you please explain
+> more.
+
+It's not the additional data that's the problem, it's the extended
+meaning of "200".
+
+Say you're a firewall, set up to monitor interaction between me and
+some piece of software you're responsible for.  Say you see a message;
+
+POST your-uri HTTP/1.1
+Content-Type: text/plain
+Hello
+
+And a successful response;
+
+HTTP/1.1 200 Ok
+
+Who knows what?
+
+The client knows the server accepted a text document.
+You know the server accepted a text document.
+
+Now say you do RPC over HTTP as text;
+
+POST your-uri HTTP/1.1
+Content-Type: text/plain
+getStockQuote("SUNW");
+
+And a successful response;
+
+HTTP/1.1 200 Ok
+Content-Type: text/plain
+22.22
+
+Who knows what in this case?
+
+The client knows the server returned the current value of SUNW
+You know the server accepted a text document.
+
+So the general issue is that intermediaries are left out of the loop.
+Best case, that means caching doesn't happen.  Worst case, that means
+that you're no longer protected by your firewall, and that you're
+depending upon there being no security flaws in the RPC interface that
+has now been exposed to the world.
+
+> > > It can result, for ex, in intermediaries being unaware that a
+> > > responce can be cached ? What are other side-effects ?
+> >
+> > Security problems, as the firewall can no longer follow what's going
+> > on over it.
+> It's probably mainly to do with the fact that resources are not identified
+> with unique URLs ?
+
+Not really.  See above.
+
+> If so, then even doc-style SOAP-based services present an issue for
+> non-specialized firewalls...
+
+If there's a method in the envelope, then yes.
+
+> > Evolvability and durability problems, as the message is more prone to
+> > losing its meaning over time, as the embedded semantic indicated by
+> > the tunneled method is not grounded in public specification or the Web
+> > itself.
+> These seem to be the major problems with tunneling (SOAP-RPC), but they
+> don't apply to doc-style SOAP, do they ?
+
+As above, if there's a method in the envelope, then it does apply.
+
+To me "doc-style SOAP" is "RESTful SOAP".
+
+> I'd like to believe know that as far as a doc-style SOAP is concerned, it
+> slightly violates a uniform inerface constraint (when POST is used with
+> semantics of GET),
+
+If you put a method in the SOAP body, then you are completely disregarding
+the uniform interface constraint.  "slightly" doesn't quite cut it. 8-)
+
+> and also does not adhere strictly to a resource
+> identification constraint in that URI alone is not sufficient in finding the
+> mapping to a specific representation. When combined, these two issues seem
+> to present problems mainly to generic processors, particularly with respect
+> to caching and security. What do you think on this ?
+
+That's good.  But also the integration/coordination/O(N)-vs-O(N^2) issue
+too.
+
+Mark.
+-- 
+Mark Baker.   Ottawa, Ontario, CANADA.        http://www.markbaker.ca
+
+
+

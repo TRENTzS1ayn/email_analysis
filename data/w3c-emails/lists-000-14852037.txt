@@ -1,0 +1,111 @@
+docno="lists-000-14852037"
+received="Thu Aug 10 23:37:42 2000"
+isoreceived="20000811033742"
+sent="Thu, 10 Aug 2000 21:36:07 -0600"
+isosent="20000811033607"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="Bug: LI containing FRAME, FRAMESET, OPTGROUP, or OPTION causes infinite loop in parser.c"
+id="000001c00345$48c4d5e0$51eee13f@rwaki"
+charset="iso-8859-1"
+expires="-1"
+
+To:<html-tidy@w3.org>,<dsr@w3.org>
+
+
+The following HTML document causes an infinite loop in both Tidy and
+JTidy, 8-Jul-2000 and 4-Aug-2000.  View the document in IE or Netscape
+to see how they interpret it.
+
+The middle four li's contain an illegal element, each of which triggers
+an infinite loop.  Of course, only the first infinite loop is actually
+executed.  To verify that each one causes an infinite loop, delete three
+of the four illegal elements; all four variations should loop.
+
+This appears to encompass the problem reported last June by Franco
+Crivellari and partially diagnosed by Terry Teague:
+
+   http://lists.w3.org/Archives/Public/html-tidy/2000AprJun/0180.html
+   http://lists.w3.org/Archives/Public/html-tidy/2000AprJun/0185.html
+
+I think the following patch to ParseBlock() in parser.c fixes the
+problem.  I'm actually working with JTidy so please forgive any
+translation errors.  The comments explain what I think is happening.
+
+@@ -713,28 +713,55 @@
+         /*
+           Allow CM_INLINE elements here.
+
+           Allow CM_BLOCK elements here unless
+           lexer->excludeBlocks is yes.
+
+           LI and DD are special cased.
+
+           Otherwise infer end tag for this element.
+         */
+
+         if (!(node->tag->model & CM_INLINE))
+         {
+             if (node->type != StartTag && node->type != StartEndTag)
+             {
+                 ReportWarning(lexer, element, node, DISCARDING_UNEXPECTED);
+                 continue;
+             }
+
++            /*
++             If an LI contains an illegal FRAME, FRAMESET, OPTGROUP, or OPTION
++             start tag, discard the start tag and let the subsequent content get
++             parsed as content of the enclosing LI.  This seems to mimic IE and
++             Netscape, and avoids an infinite loop: without this check,
++             ParseBlock (which is parsing the LI's content) and ParseList (which
++             is parsing the LI's parent's content) repeatedly defer to each
++             other to parse the illegal start tag, each time inferring a missing
++             </li> or <li> respectively.
++
++             NOTE: This check is a bit fragile.  It specifically checks for the
++             four tags that happen to weave their way through the current series
++             of tests performed by ParseBlock and ParseList to trigger the
++             infinite loop.
++            */
++            if (element->tag == tag_li)
++            {
++                if (node->tag == tag_frame ||
++                    node->tag == tag_frameset ||
++                    node->tag == tag_optgroup ||
++                    node->tag == tag_option)
++                {
++                    ReportWarning(lexer, element, node, DISCARDING_UNEXPECTED);
++                    continue;
++                }
++            }
++
+             if (element->tag == tag_td || element->tag == tag_th)
+             {
+                 /* if parent is a table cell, avoid inferring the end of the cell */
+
+                 if (node->tag->model & CM_HEAD)
+                 {
+                     MoveToHead(lexer, element, node);
+                     continue;
+                 }
+
+------------------------ Example HTML document -------------------------
+<html>
+  <head><title>x</title></head>
+  <body>
+    <ul>
+      <li>first item</li>
+      <li><frame>frame item</frame></li>
+      <li><frameset>frameset item</frameset></li>
+      <li><optgroup>optgroup item</optgroup></li>
+      <li><option>option item</option></li>
+      <li>last item</li>
+    </ul>
+  </body>
+</html>
+------------------------------------------------------------------------
+
+Randy
+
+
+

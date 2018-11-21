@@ -1,0 +1,95 @@
+docno="lists-094-5125451"
+received="Mon Nov  8 17:48:40 1999"
+isoreceived="19991108224840"
+sent="Mon, 8 Nov 1999 17:48:32 -0500 (EST)"
+isosent="19991108224832"
+name="Charles McCathieNevile"
+email="charles@w3.org"
+subject="Re: XFree86 3.3.5/Metrolink Motif 2.1.2 patch for Amaya 2.2"
+id="Pine.LNX.4.20.9911081747560.21626-100000@tux.w3.org"
+charset="ISO-8859-1"
+inreplyto="Pine.LNX.4.10.9911022317430.381-100000&#64;ny.email-scan.com"
+expires="-1"
+
+To: Sam<mrsam@geocities.com>
+cc:www-amaya@w3.org
+
+
+Does this solve the problem that with numlock on AMaya stops accepting
+input? (Which would be very cool)
+
+Charles?McCN
+
+On Tue, 2 Nov 1999, Sam wrote:
+
+  
+  Amaya 2.2's keyboard functions are not working at all with XFree86 3.3.5
+  or Metrolink/Red Hat Motif 2.1.2.  None of the edit boxes (XmKey, I think)
+  are processing any keyboard input.
+  
+  Here's what's happening.  Either XFree86, or this particular Motif
+  library, I'm not sure which one is the culprit, is setting some bits in
+  XKeyEvent->state to garbage.  The manual page for XKeyEvent(3X11) states
+  the following:
+  
+         The state member is set to indicate the logical state of
+         the pointer buttons and modifier keys just prior to the
+         event, which is the bitwise inclusive OR of one or more of
+         the button or modifier key masks: Button1Mask,
+         Button2Mask, Button3Mask, Button4Mask, Button5Mask,
+         ShiftMask, LockMask, ControlMask, Mod1Mask, Mod2Mask,
+         Mod3Mask, Mod4Mask, and Mod5Mask.
+  
+  There are some additional bits in the state field which are used for other
+  kinds of events, and what's happening is that those other bits are not
+  being cleared.  Subsequent to that, TtaXLookupString() gets hopelessly
+  confused.
+  
+  The following patch fixes this problem, at least on English keyboards.
+  Actually, it's only the line #543 that needs to be added.  The remaining
+  diffs get rid of some egcs 1.1.2 warning messages.
+  
+  --
+  Sam
+  
+  
+  
+  --- thotlib/dialogue/interface.c.origTue Oct 19 06:50:48 1999
+  +++ thotlib/dialogue/interface.cTue Nov  2 23:06:07 1999
+  @@ -491,7 +491,7 @@
+      {0, 0, 0},
+   };
+   
+  -#define NB_MK (sizeof(mk_tab) / sizeof(Multi_Key))
+  +#define NB_MK (int)((sizeof(mk_tab) / sizeof(Multi_Key)))
+   
+   #ifndef _WINDOWS
+   static Display     *TtaDisplay = NULL;
+  @@ -531,7 +531,7 @@
+   
+     if (event == NULL)
+       return (0);
+  -  if (event->keycode < TtaMinKeyCode || event->keycode > TtaMaxKeyCode)
+  +  if ((int)event->keycode < TtaMinKeyCode || (int)event->keycode > TtaMaxKeyCode)
+       {
+         if (keysym != NULL)
+   *keysym = 0;
+  @@ -540,6 +540,8 @@
+   
+     keycode = event->keycode - TtaMinKeyCode;
+     state = event->state;
+  +  state= state & (ShiftMask | LockMask | Mod1Mask | Mod3Mask);
+  +
+     /* search for the keysym depending on the state flags */
+     if (state == 0)
+       {
+  
+  
+
+--Charles McCathieNevile            mailto:charles@w3.org
+phone: +1 617 258 0992   http://www.w3.org/People/Charles
+W3C Web Accessibility Initiative    http://www.w3.org/WAI
+MIT/LCS  -  545 Technology sq., Cambridge MA, 02139,  USA
+
+
+

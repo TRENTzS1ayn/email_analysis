@@ -1,0 +1,88 @@
+docno="lists-013-0490622"
+received="Thu Oct 11 00:22:18 2001"
+isoreceived="20011011042218"
+sent="Wed, 10 Oct 2001 16:09:18 0700"
+isosent="20011010230918"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Server closing socket without notice"
+id="200110102309.QAA21531@wera.pa.dec.com"
+inreplyto="26A421F3F048114AB7EB808AEC0A53FD61F30D&#64;smrtipsmsdev01.smart421.com"
+expires="1"
+
+
+To: Matt Black<MBlack@Smart421.com>
+Cc:"'http-wg@cuckoo.hpl.hp.com'"<http-wg@cuckoo.hpl.hp.com>
+
+Matt Black <MBlack@Smart421.com> writes:
+
+    I am seeing SilverStream servers closing HTTP/1.1 connections
+    immediately after a small random number of GET requests without
+    notice - no 'connection:  close' response header is returned with
+    the last successful request.
+    
+    Is this behaviour consistent with
+    a) the spirit of the RFC
+    b) the letter of the RFC
+    
+Answer: (b)
+
+See RFC2616, section 8.1.4 (Practical Considerations):
+
+   A client, server, or proxy MAY close the transport connection at any
+   time. For example, a client might have started to send a new request
+   at the same time that the server has decided to close the "idle"
+   connection. From the server's point of view, the connection is being
+   closed while it was idle, but from the client's point of view, a
+   request is in progress.
+
+   This means that clients, servers, and proxies MUST be able to recover
+   from asynchronous close events.
+
+The use of "Connection: close" is a SHOULD-level requirement in the
+case where "the server chooses to close the connection immediately
+after sending the response" (section 8.1.2.1), but since you say that
+the server in your case is waiting 0.5 seconds, it's hard to say if
+this is really "immediately" or if it is just a shorter delay than you
+like.
+
+    I understand that servers will close idle connections after some
+    time, but in this case a FIN packet arrives typically within 0.5
+    seconds of the last successful request, which may be before or
+    after the client has sent the next request.  The client is not
+    pipelining requests - it waits for a response to each request
+    before submitting the next - but does not expect the behaviour
+    described above.  The servers in question are not stressed.
+
+The client is *required* to expect that behavior -- see the MUST-level
+requirement quoted above.
+
+    If this behaviour is normal, can you confirm the natural corollary
+    to this - that any HTTP/1.1 client must cope with a 'null' response
+    to any 2nd or subsequent HTTP/1.1 request by creating a new socket
+    and re-submitting the request - even where no 'connection: close'
+    response header was included with the previous response?
+
+Section 8.1.4 goes on to say:
+
+Client software SHOULD reopen the
+   transport connection and retransmit the aborted sequence of requests
+   without user interaction so long as the request sequence is
+   idempotent (see section 9.1.2). Non-idempotent methods or sequences
+   MUST NOT be automatically retried, although user agents MAY offer a
+   human operator the choice of retrying the request(s). Confirmation by
+   user-agent software with semantic understanding of the application
+   MAY substitute for user confirmation. The automatic retry SHOULD NOT
+   be repeated if the second sequence of requests fails.
+
+-Jeff
+
+P.S.: My personal belief is that a well-implemented server with
+sufficient resources will try to keep a persistent connection
+open for as long as possible.  The specification, however, does
+not require this, and in many server architectures it seems to
+be difficult to maintain large numbers of idle connections without
+excessive resource consumption.
+
+
+

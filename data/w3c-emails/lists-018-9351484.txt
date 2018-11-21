@@ -1,0 +1,129 @@
+docno="lists-018-9351484"
+received="Fri Feb 21 13:13:04 2003"
+isoreceived="20030221181304"
+sent="Fri, 21 Feb 2003 13:12:16 0500"
+isosent="20030221181216"
+name="Todd A. Mancini"
+email="todd.mancini@daxat.com"
+subject="RE: question regarding element types in function  definitions/XQuery"
+id="001701c2d9d4$cd303d20$0201a8c0@qodfathr"
+charset="usascii"
+inreplyto="5.2.0.9.0.20030221113042.032c6318&#64;ncmail.datadirecttechnologies.com"
+expires="1"
+
+To:"'Jonathan Robie'"<jonathan.robie@datadirect-technologies.com>,<public-qt-comments@w3.org>
+
+
+
+I can see why this is an issue for discussion; I am having trouble
+deciding for myself what I'd like the semantics to be!
+
+Part of me feels that if
+
+element bar
+
+is a reference to a global element definition, then it is extremely
+unnatural for
+
+element bar of type xs:integer
+
+to no longer reference that global element.
+
+At the same time, I find it particular confusing to explain the
+semantics of 'element bar of type xs:integer' if element bar is already
+defined.  If xs:integer is a subtype of the content type of element bar
+it makes a little bit of sense (but one could instead use typeswitch and
+cast as operators within the function body to achieve similar results).
+If xs:integer is not a subtype of element bar's type, at best it's a
+static type error and at worst is just plain confusing ('on-the-fly type
+definitions').
+
+I view the world as two different universes of element type, based upon
+the two following forms:
+
+(1) element bar
+
+(2) element of type xs:integer
+
+When these are combined, it appears that the WG is struggling to decide
+which form restricts which.  Does the 1st form restrict the 2nd form, or
+vice-versa?  Maybe there' a third answer -- neither.  Life becomes
+easier if
+
+(3) element bar of type xs:integer
+
+is a SYNTAX error.  I argue this as follows:
+
+If (3) means an additional restriction on the global element bar, I
+think those semantics are difficult to express for all cases AND it
+introduces some potential severe computational complexity for type and
+value matching.  I also feel it is potentially confusing to users of
+XQuery, many of whom I suspect will believe this to mean a new, locally
+defined element bar type.
+
+But locally defined elements whose names clash with globally defined
+elements is also a very dangerous addition to the language.  That would
+imply to me a static type error for:
+
+define function foo1($i as element bar of type xs:integer) { foo2($i) }
+
+define function foo2($i as element bar) { $i }
+
+because the body of foo1() is calling foo2() with a 'different' element
+bar type.
+
+Now, let's take a different approach and say that 'element bar of type
+xs:integer' is a restriction of form (2).  That implies to me that the
+argument needs to be an element whose name matches the QNameValue "bar"
+and whose content has a static type of xs:integer.  This potentially
+brings us back to the 'locally defined element type' problem which I
+just described.  But what I also find unsettling about this is that it
+provides a mechanism to match against element names which is (1) slow
+and (2) completely opposite to the 'normal' usage of 'element bar',
+which refers to global elements only.  I think this is confusing and
+would likely leave most users wondering why they can't use some form of
+'element bar' to match against any unvalidated element named bar.  [Of
+course, the value of such a capability is another discussion entirely!]
+
+In light of such confusion, I'd argue in favor of syntax error, at least
+for version 1.0.
+
+Now, that being said, another alternative I have considered would have
+'element bar of type xs:integer' match any element whose type is
+xs:integer and whose name is element bar.  However, when bound to the
+function argument, the type of the argument would simply be 'element of
+type xs:integer'.  In effect, the function argument definition has the
+ability to do some element-name filtering, but otherwise is not creating
+new types on the fly.  This appears to be the spirit of Use-Case
+1.9.4.10.  The question is, does this level of filtering belong at the
+function argument level, or should it be reserved for typeswitches in
+the function body?
+
+Just my $0.02,
+-Todd
+
+PS: Another way out, which I strikes me as inappropriate but I'll
+mention for completeness, would be to change the language such that:
+
+element bar
+
+is any element whose name is bar and
+
+global element bar
+
+is a reference to the globally defined element bar (and matches against
+validated elements).
+
+This has the added bonus of making it easier to deal with unvalidated
+elements, especially in light of the fact that 'validate { expr }'
+cannot be statically typed and therefore most static-type-based
+implementations are currently ignoring the existence of validate {}.
+
+[Alternative to this alternative is to have 'element bar' be the global
+reference and 'elementname bar' be the name-matching type, or something
+along those lines...]
+
+[or 'element bar' & 'local element bar']
+
+
+

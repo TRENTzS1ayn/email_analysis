@@ -1,0 +1,73 @@
+docno="lists-000-15332698"
+received="Wed Aug 23 16:35:39 2000"
+isoreceived="20000823203539"
+sent="Wed, 23 Aug 2000 14:34:07 -0600"
+isosent="20000823203407"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="Bug: Nested anchor elements allowed"
+id="000501c00d41$7bfeb7e0$51eee13f@rwaki"
+charset="iso-8859-1"
+expires="-1"
+
+To:<dsr@w3.org>,<html-tidy@w3.org>
+
+
+4-Aug-2000 Tidy fails to tidy nested anchor elements.  This bug has
+existed ever since the 24-Nov-1999 version, but it did not exist in the
+26-Jul-1999 version.  By a truly amazing coincidence (especially given
+how long this bug has existed), Bjoern Hoehrmann reported this same bug
+as I was preparing this message.
+
+The bug appears to be in parser.c's ParseInline() function which assumes
+that anchor elements are pushed on the istack.  That was once a valid
+test but not any longer.  I think the following change fixes it.  Note
+that a second bug must also be fixed in the immediately following if
+statement (it must check for </a> end tags) to prevent an infinite loop,
+something that the first bug had prevented from happening.
+
+(As is always the case for me, I verified the fix in Java and translated
+it to C, but I don't have a C compiler to verify the translation.)
+
+***************
+*** 1170,1181 ****
+          /*
+             an <A> tag to ends any open <A> element
+             but <A href=...> is mapped to </A><A href=...>
+          */
+!         if (node->tag == tag_a && !node->implicit && IsPushed(lexer, node))
+          {
+           /* coerce <a> to </a> unless it has some attributes */
+!             if (node->attributes == null)
+              {
+                  node->type = EndTag;
+                  ReportWarning(lexer, element, node, COERCE_TO_ENDTAG);
+                  PopInline(lexer, node);
+--- 1170,1182 ----
+          /*
+             an <A> tag to ends any open <A> element
+             but <A href=...> is mapped to </A><A href=...>
+          */
+!         if (node->tag == tag_a && !node->implicit &&
+!             (element->tag == tag_a || DescendantOf(element, tag_a)))
+          {
+           /* coerce <a> to </a> unless it has some attributes */
+!             if (node->type != EndTag && node->attributes == null)
+              {
+                  node->type = EndTag;
+                  ReportWarning(lexer, element, node, COERCE_TO_ENDTAG);
+                  PopInline(lexer, node);
+
+------------------------ Example HTML document -------------------------
+<html>
+  <head><title></title></head>
+  <body>
+    <a href="1">link-1 <a href="2">link-2</a> plain</a>
+  </body>
+</html>
+------------------------------------------------------------------------
+
+Randy
+
+
+

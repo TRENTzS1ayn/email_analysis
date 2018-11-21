@@ -1,0 +1,280 @@
+docno="lists-052-13878648"
+received="Thu Jul 10 19:08:21 2003"
+isoreceived="20030710230821"
+sent="Thu, 10 Jul 2003 18:54:35 -0400"
+isosent="20030710225435"
+name="Martin Duerst"
+email="duerst@w3.org"
+subject="Re: Proposal"
+id="4.2.0.58.J.20030710140154.047f12b8@localhost"
+charset="us-ascii"
+inreplyto="A03E60B17132A84F9B4BB5EEDE57957B5FBC03&#64;trebe006.europe.nok ia.com"
+expires="-1"
+
+
+To:<Patrick.Stickler@nokia.com>,<bwm@hplb.hpl.hp.com>
+Cc:<w3c-rdfcore-wg@w3.org>,<w3c-i18n-ig@w3.org>
+
+
+Hello Patrick,
+
+Many thanks for comming up with some new ideas.
+
+My personal opinions below, I obviously didn't have
+any chance to discuss with the WG.
+
+At 18:02 03/07/10 +0300, Patrick.Stickler@nokia.com wrote:
+
+>OK folks,
+>
+>In the interests of satisfying all interested parties,
+>I offer the following proposal for an alternative
+>solution to the present one, based on nothing new,
+>just a partial roll back to a more traditional M&S
+>treatment of XML literals.
+>
+>Changes:
+>
+>1. The datatype rdf:XMLLiteral is discarded.
+>
+>2. The attribute+value rdf:parseType="Literal" is
+>strictly syntactic, indicating a plain literal
+>which is serialized in the RDF/XML instance as XML.
+>I.e. a literal constituting text with markup.
+
+This seems to be a direction worth exploring.
+
+
+>3. The attribute rdf:datatype can co-occur with
+>rdf:parseType="Literal". The combination of these two
+>together is similar to the present interpretation of
+>rdf:parseType="Literal" alone, but now requires the
+>explicit specification of a datatype rather than
+>being implicitly taken to be of type rdf:XMLLiteral.
+
+This seems to be somewhat independent of 1./2. above,
+and I'm not yet sure I understand the implications.
+It could probably be introduced at a later date, too.
+
+
+>--
+>
+>Thus, given a context of
+>
+>    <rdf:RDF ... xml:lang="fi">
+>       ...
+>    </rdf:RDF>
+>
+>all of the following:
+>
+>1. <rdf:Description rdf:about="#x">
+>       <ex:foo>bar</ex:foo>
+>    </rdf:Description>
+>
+>2. <rdf:Description rdf:about="#x">
+>       <ex:foo rdf:parseType="Literal">bar</ex:foo>
+>    </rdf:Description>
+>
+>3. <rdf:Description rdf:about="#x" ex:foo="bar"/>
+>
+>generate the same triple:
+>
+>   <#x> ex:foo "bar"@fi .
+
+So far, very good.
+
+
+>--
+>
+>All of the following:
+>
+>4. <rdf:Description rdf:about="#x">
+>       <ex:foo rdf:parseType="Literal"><xhtml:b>bar</xhtml:b></ex:foo>
+>    </rdf:Description>
+>
+>5. <rdf:Description rdf:about="#x">
+>       <ex:foo>&lt;xhtml:b&gt;bar&lt;/xhtml:b&gt;</ex:foo>
+>    </rdf:Description>
+>
+>6. <rdf:Description rdf:about="#x" 
+>ex:foo="&lt;xhtml:b&gt;bar&lt;/xhtml:b&gt;"/>
+>
+>generate the same triple:
+>
+>    <#x> ex:foo "<xhtml:b>bar</xhtml:b>"@fi .
+
+I think you forgot the xml:lang="fi"; I assume this is just an oversight.
+
+But more than that, I think it collapses two things that should
+be distinct: Strings that happen to look like XML fragments, and
+strings that are actually XML fragments. XML makes a clear distinction
+between these, but the above would blur this distinction. It would
+most probably lead to a great deal of confusion among a wide range
+of users. It would also not help with a natural transition from
+'plain' to 'xml' literals. In particular:
+
+Some data store decides to store book titles. They start out with
+
+<rdf:Description rdf:about="#A" xml:lang='en'>
+   <ex:title>Programming Perl</ex:title>
+</rdf:Description>
+
+triple: <#A> ex:title "Programming Perl"@en .
+
+Then they add some more, for example:
+
+<rdf:Description rdf:about="#B" xml:lang='en'>
+   <ex:title>MySQL &amp; mSQL</ex:title>
+</rdf:Description>
+
+triple: <#B> ex:title "MySQL & mSQL"@en .
+
+Note that at this point in time, the 'title' property is,
+without too much thinking, nailed down to be just a plain
+string, not XML.
+
+And one more:
+
+<rdf:Description rdf:about="#C" xml:lang='en'>
+   <ex:title>The history of the &lt;img&gt; element in HTML</ex:title>
+</rdf:Description>
+
+triple: <#C> ex:title "The history of the <img> element in HTML"@en .
+
+
+Later, they add some more books, e.g.
+
+<rdf:Description rdf:about="#D" xml:lang='en'>
+   <ex:title rdf:parseType="Literal"
+     >Chats about <foo xml:lang='fr'>chats</foo></ex:title>
+</rdf:Description>
+
+For this we get a triple of:
+
+<#D> ex:title "Chats about <foo xml:lang='fr'>chats</foo>"@en .
+
+[I had a book with a multilingual title on my bookshelf, but
+used this example because it's shorter.]
+
+
+Or, as a variation:
+
+<rdf:Description rdf:about="#E" xml:lang='en'>
+   <ex:title rdf:parseType="Literal"
+     >The history of the <code>&lt;img&gt;</code> element in HTML</ex:title>
+</rdf:Description>
+
+triple:
+<#E> ex:title "The history of the <code>&lt;img&gt;</code> element in 
+HTML"@en .
+
+
+Looking through the examples, we observe that in all cases, the user
+did what looked natural, yet we ended up with literals that represent
+actual XML (and are well-formed XML fragments): #D, #E, and literals
+that are not well-formed XML, and can only be interpreted as plain
+strings: #B, #C.
+
+While one might say that this can be avoided by extremely careful
+planning, documentation, and checking, it is such an easy trap
+to fall in that we definitely should not set it up. It would also
+need some kind of mechanism somewhere to ensure data quality
+(i.e. to reject cases B and C when the application has decided
+to e.g. consider this property to be interpreted as XML).
+
+
+I think these problems can be remedied, e.g. along the lines
+that Graham once or twice proposed (although he did say that he
+didn't like it), i.e. that literals are always kept in minimally
+escaped form, i.e. #B would be
+
+   <#B> ex:title "MySQL &amp; mSQL"@en .
+
+in the abstract syntax, which would denote (don't necessarily take
+that word in the formal sense) the (English) string "MySQL & mSQL"
+(trivially also an XML fragment), but #D would still be
+
+   <#D> ex:title "Chats about <foo xml:lang='fr'>chats</foo>"@en .
+
+in the abstract syntax, which would denote the (overall English) XML
+fragment "Chats about <foo xml:lang='fr'>chats</foo>" (which could
+be further analyzed, but that would not be a job of the RDF spec).
+
+Having to escape the actual characters &amp; and &lt; in the abstract
+syntax looks somewhat ugly, but these are only two out of more than
+90,000 characters defined in Unicode.
+
+
+Note: Please note that while escaping is not really something that
+looks related to internationalization, it is something we have had
+to work on extensively since we started with HTML internationalzation.
+
+
+Regards,    Martin.
+
+
+>--
+>
+>Users are then free to choose between legacy M&S literals, with lang
+>tag, with no special distinction made in the graph regarding the
+>presence or absence of markup; or alternatively, typed literals
+>with no lang tags and likewise no distinction made in the graph regarding
+>the presence or absence of markup in the lexical forms.
+>
+>There remains no semantic distinction between a plain literal and
+>an XML literal. An "XML literal" is simply a plain literal with
+>XML markup that is serialized as unescaped XML. Nothing more.
+>
+>RDF continues to have two kinds of literals, plain and typed, and
+>comparison of plain literals, regardless of the presence of markup,
+>is by simple string comparison. All reference to canonicalization
+>is removed from the specs -- hopefully moved to a Note addressing the
+>use of RDF with datatyped literals having XML encoded lexical forms,
+>and including the definition of a datatype equivalent to rdf:XMLLiteral
+>or a similar interpretation of xsd:complexType.
+>
+>Let the market and user community decide which alternative,
+>plain or typed literal, is best for which application.
+>
+>Equivalences between plain literals and typed literals is
+>left to each individual specification of each datatype.
+>
+>Note again, that this alternative proposal introduces nothing
+>substantively new to the mix. And in fact, the minor changes
+>to the RDF/XML syntax represent how most earlier RDF parsers
+>treated rdf:parseType="Literal" to begin with.
+>
+>It also will allow folks to say useful things like
+>
+>    <rdf:Description rdf:about="#x">
+>       <ex:foo rdf:datatype="&xhtml;b" rdf:parseType="Literal">
+>          <xhtml:b>bar</xhtml:b>
+>       </ex:foo>
+>    </rdf:Description>
+>
+>i.e.
+>
+>    <#foo> ex:foo "<xhtml:b>bar</xhtml:b>"^^xhtml:b .
+>
+>and thus take advantage of being able to serialize those typed
+>XML encoded lexical forms without escaping.
+>
+>--
+>
+>Martin, does that meet your expectations and wishes
+>better than the present solution?
+>
+>If so, is the WG favorable to such a proposed change?
+>
+>Regards,
+>
+>Patrick
+>
+>--
+>Patrick Stickler
+>Nokia, Finland
+>patrick.stickler@nokia.com
+>
+
+
+

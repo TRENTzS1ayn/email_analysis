@@ -1,0 +1,74 @@
+docno="lists-103-6047808"
+received="Mon Mar  6 08:47:59 2000"
+isoreceived="20000306134759"
+sent="Mon, 6 Mar 2000 08:47:08 -0500"
+isosent="20000306134708"
+name="keshlam@us.ibm.com"
+email="keshlam@us.ibm.com"
+subject="RE: Comments on DOM2 CR"
+id="8525689A.004BBA90.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="Comments on DOM2 CR"
+expires="-1"
+
+To:jvogel@ebt.com
+cc:kboone@ebt.com,www-dom@w3.org
+
+
+>You might want to re-think this.  AT present, both Document
+>and DOMImplementation serve as factories for various things.
+>You are saying that you would use Document to
+>create TreeWalkers and NodeIterators, but as currently specified you use
+>DOMImplementation to create DocumentType and Document objects,
+>a bit inconsistent.
+
+No, that's actually pretty consistant.
+
+Most of the DOM's objects are required to be aware of which Document they
+belong to. As a result, they would need to be either created by the
+Document, or the Document would have to be passed into their factory. We
+chose the former, which I think is a better idiom.
+
+But that isn't true of Document itself -- a Document has its own context,
+and we didn't want to require that you have a Document before you could
+create a Document. Since a Document's context is mostly defined by the
+DOMImplementation, we put the factory there. We could have put it on
+DocumentType, but DocumentType is optional.
+
+Our current design assumes that the DocumentType may help direct the
+instantiation of the Document; therefore we have to be able to create it
+before the Document is created, and we put the factory on
+DOMImplementation. However, DocumentType does get bound to a specific
+Document when the Document's factory is called, and some have said they
+want to be able to instantiate and bind the DocumentType after the
+Document; we'll look at this in more detail in Level 3.
+
+I'm not sure if traversal should be an exception or not. As noted above, we
+were guessing that DOMs might want to use their DocumentType to direct
+subclassing of the document tree, in order to add behaviors specific to
+that kind of document. In Theory, that might also want to affect which
+implementation of the traversal engines you use -- a TreeWalker or
+NodeIterator which is aware of the structure of a valid document may be
+able to optimize some kinds of navigation. ("This portion of the grammar
+will never contain a Text node, so don't bother looking for one", or "This
+kind of document uses a different back-end storage model, which has helper
+functions for the next-matching-node lookup"). If we move the factory up to
+DOMImplementation, it's a bit harder to take advantage of those
+opportunities -- I suspect that you'd wind up having to pass the Document
+or DocumentType into the factory as a parameter, which is roughly
+equivalent to moving the factory back down to those objects.
+
+>The other issue is that because Node.getOwnerDocument() is specified
+>to return null, not "this", in the case of a DOCUMENT_NODE, you cannot
+>use the following code:
+>   node.getOwnerDocument().createTreeWalker(),
+
+DOM Level 1 behavior, debated at that time. Given that there may be
+existing code which depends on it, I think it's a bit late for a change. A
+simple conditional will handle this case, but I agree it isn't pretty.
+
+______________________________________
+Joe Kesselman  / IBM Research
+
+
+

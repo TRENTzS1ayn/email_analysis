@@ -1,0 +1,123 @@
+docno="lists-010-12336676"
+received="Wed Nov 27 17:28:44 1996"
+isoreceived="19961127222844"
+sent="Wed, 27 Nov 96 17:17:31 PST"
+isosent="19961128011731"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Some data related to the frequency of cachebusting"
+id="9611280117.AA14247@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Larry Masinter suggested that the case for hit-metering might
+be strengthened by actual data on the frequency with which
+apparently cache-busted responses are seen today.  (Note that
+this does not address how the world might change once HTTP/1.1
+is deployed.)
+
+Larry's suggestion was to analyze the logs from a large number
+of proxies, but I only have access to one (albeit very busy)
+proxy.  Anyway, I do not believe that the standard log format
+contains enough information to decide if a response has been
+marked uncachable.
+
+However, it so happens that I had collected some detailed traces
+for the main proxy between Digital and the Internet, including
+full request and response headers for a subset of the queries.
+
+These traces were made over a period of about 5 hours last
+I collected them as a trial run of a much longer set of traces
+that I plan to obtain, for an unrelated research project, but
+they have sufficient information to make a crude estimate of
+the frequency of cache-busting.  What they don't and can't tell
+us is whether the observed cache-busting is done for hit-metering
+purposes, or for other reasons, but I don't think this is possible
+without a detailed examination of the URLs and resources, and
+I don't have time for that.
+
+And, lest anyone be tempted to ask: we will not, under any
+circumstances, release logs or traces from our proxy, for obvious
+reasons of privacy.  So please don't ask.
+
+I said that these were a "subset of the queries", because they
+were collected for another purpose and I wasn't interested in
+things like GIF and JPEG.  URLs with the following filename
+extensions were not collected:
+    "jpeg", "jpg", "gif", "exe", "z", "gz", "mpeg", "mpg", "au", "snd",
+    "aif", "aiff", "aifc", "wav", "ief", "tiff", "xwd", "mpe", "qt",
+    "mov", "avi", "movie", "gl", "dl", "fli", "flc"
+The code that did the pre-filtering was pretty simplistic, so
+a few references to hostnames in the .au domain were also omitted.
+
+My analysis tools do not count references which were terminated
+prematurely (i.e., the user hit "Stop").
+
+For the references that I did collect, the totals are
+61108 references
+1406 unique client hosts
+19141921 request bytes[headers + body]
+323409455 response bytes [headers + body]
+342551376 total bytes [requests + responses]
+
+16365 of those references had status codes not defined as
+cachable in section 13.4 of the HTTP/1.1 spec, so I did
+not look any further at those.
+
+11154 of the remaining references (18% of the total) had URLs with "?"
+or "cgi-bin", so I assumed that these are uncachable and did not
+analyze them for cache-busting.  (In fact, a moderate fraction of the
+queries did have explicit expiration and last-modified times, which is
+a subject for another study.)  For the queries, the byte-counts were:
+4335438 req-bytes, 48814692 resp-bytes, 53150130 total bytes
+
+This left 33589 non-query possibly-cachable references (55% of the total
+collected).  The byte-counts for these were:
+10402610 req-bytes, 270683010 resp-bytes, 281085620 total bytes
+(which is a mean request size of 309 bytes, and a mean response size
+of 8059 bytes).
+
+I categorization two kinds of non-query, possibly-cachable responses as
+"cache-busted":
+(1) those with no Last-Modified time given (which makes
+GET If-Modified-Since impossible).
+(2) those with both Expired and Last-Modified, and whose
+expiration time was less than or equal to their Last-Modified
+time (I called these "pre-expired" responses).
+I probably should also have counted as "cache-busted" those responses
+with an expiration time less than or equal to the value of their Date
+response-header, if any, but I'll have to modify my tools to get that
+information.
+
+Anyway, the results are
+Responses with no last-modified time: 10401
+Responses pre-expired: 28
+for a total of 10429 cache-busted refs, with these byte-counts:
+3932702 req-bytes, 81597623 resp-bytes, 85530325 bytes
+
+As a fraction of all 61108 references, this is
+17% of the references
+21% of the req-bytes, 25% of the resp-bytes, 25% of the total bytes
+
+As a fraction of the 33589 non-query possibly-cachable references:
+31% of the references
+38% of the req-bytes, 30% of the resp-bytes, 30% of the total bytes
+
+Summary: while it is certainly debatable whether my categorization
+of no-Last-Modified responses as "cache-busted" is appropriate or not,
+if one accepts this categorization, then the frequency of cache-busting
+seems to be pretty high.  One could also debate how much this would
+be reduced by our hit-metering proposal, but there does seem to be
+some potential here.
+
+Clearly it would be a good idea to do a deeper analysis, including
+more references, more than one proxy site, and a more careful
+categorization of the references.  Maybe the major suppliers of
+proxy software ought to provide support for gathering such statistics.
+
+-Jeff
+
+
+

@@ -1,0 +1,103 @@
+docno="lists-009-1820569"
+received="Tue Dec 20 15:14:02 1994"
+isoreceived="19941220201402"
+sent="Tue, 20 Dec 94 15:05:06 PST"
+isosent="19941220230506"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Connection Header"
+id="9412202305.AA24936@acetes.pa.dec.com"
+inreplyto="9412171554.AA10617&#64;ptsun03.cern.ch"
+expires="1"
+
+
+To: Henrik Frystyk Nielsen<frystyk@www0.cern.ch>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    2) Experimental client / old proxy: This will break if the remote host
+    does in fact understand the connection header. As Roy points out, this
+    is a weakness of the design.
+
+OK, I modified my simulator (described in a previous message,
+http://www.ics.uci.edu/pub/ietf/http/hypermail/current/0181.html)
+to use the algorithm I suggested (in http/hypermail/current/0198.html),
+using an adaptive timeout on the server.
+
+What I simulated is that the server would "learn" which clients were
+reusing a connection (i.e., were not "new client/old proxy" situations)
+and those clients would see a long timeout.  "New client/old proxy"
+connections would be timed out after 1 second.
+
+This has the effect of adding an extra second of connection time for
+these clients, which is NOT a delay in the retrieval time (i.e., it
+doesn't affect UPP).  This is because new clients and servers will be
+using Content-length or boundary delimiters to mark the ends of the
+data.  The client will certainly not be looking for the end of the
+connection (since it is hoping that the connection will never end!)
+
+(I'm assuming that the relay pushes the returned data to the client
+without waiting for the end of the connection; is this not what relays
+do?  If the relay waits, then this does add 1 second to the UPP for
+each retrieval.)
+
+It also has the effect of giving up on the opportunity to reuse
+connections, if the client is relatively slow about generating a
+new request (or if the network RTT > 1 second).  Of course, "1
+second" is an arbitrary value, and it perhaps could be somewhat longer
+(depending whether old relays behave "right").
+
+I used the logs from 1 day's accesses (243177 retrievals) to our
+election server (actually, to one of the three server machines) and
+assumed that all the clients are saying "hold connection open".
+I think this log includes references from 5198 distinct client IP
+addresses.
+
+I added a new parameter to the simulation: the number of clients that
+the server should keep adaptive-timeout state about.  This is managed
+as an LRU cache; if a client drops out of the cache and then reappears,
+the server then makes the conservative assumption that this client is
+behind an "old proxy" and goes back to using a 1-second timeout.
+
+I fixed the other simulation parameters: 64 processes max, and a 120-second
+idle timeout for "known reusers".
+
+With vanilla HTTP, there were 243177 TCP connections and the maximum
+PCB table size was 2496.  With persistent-connection HTTP and no
+adaptive timeouts (i.e., all timeouts = 120 seconds), there were
+21955 TCP connections and 440 PCB entries max.
+
+With 100 entries in the adaptive-timeout cache, there were 74285
+TCP connections and 763 PCB entries max.  So this scheme does give
+up on some of the potential savings from persistent-connection HTTP,
+but still reaps most of them.
+
+With 1000 entries in the adaptive-timeout cache, there were 62679
+TCP connections and 642 PCB entries max.  With 10000 entries in
+the cache (i.e., enough to hold all 5198 client hosts), there were
+60632 TCP connections and 643 PCB entries max.  So increasing the
+cache size doesn't help much; presumably, the missed opportunities
+come from clients that don't reuse the connection quickly, not
+from cache-thrashing.
+
+Comparing the adaptive-timeout scheme to a fixed-timeout scheme
+with a 1-second timeout, I found that the latter resulted in
+149355 connections and 1396 PCB entries max.  So, there is some
+benefit to the adaptive scheme.
+
+Finally, I simulated the adaptive-timeout scheme with a 120-second
+"long" timeout and a 10-second (instead of 1-second) "short" timeout.
+This would only be safe to use if we believe that "old proxy" relays
+transfer all the returned data without waiting for the connection
+to close.  This approach resulted in 25551 TCP connections and
+447 PCB entries max, almost the same as the non-adaptive scheme.
+But because it would tie up fewer server and proxy resources in
+an environment full of "old proxies", it might be worth doing.
+
+Bottom line: the "new client/old proxy/new server" problem is not
+that hard to solve, if one doesn't insist on optimal performance
+in every case.
+
+-Jeff
+
+
+

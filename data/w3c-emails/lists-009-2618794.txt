@@ -1,0 +1,220 @@
+docno="lists-009-2618794"
+received="Fri Jan  6 16:02:58 1995"
+isoreceived="19950106210258"
+sent="Fri, 06 Jan 1995 17:47:47 0600"
+isosent="19950106234747"
+name="Daniel W. Connolly"
+email="connolly@hal.com"
+subject="charset= history, proposal"
+id="9501062347.AA11063@ulua.hal.com"
+inreplyto="199501062216.OAA00888&#64;neon.mcom.com"
+expires="1"
+
+
+To: Bob Jung<bobj@mcom.com>
+Cc:www-mling@square.ntt.jp,html-wg@oclc.org,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+In message <199501062216.OAA00888@neon.mcom.com>, Bob Jung writes:
+>In the HTML2 spec in  Section 2.4, sub-heading "Character sets"
+>(http://www.ics.uci.edu/pub/ietf/html/html2/htmlspec281194_9.html#HEADING16),
+>there is the statement that the charset parameter is reserved for future use:
+>
+>        Character sets
+>                The charset parameter is reserved for future use. See Section
+>                2.16 for a discussion of character sets and encodings in HTML.
+>
+>Does someone know the history behind this paragraph?
+
+I suppose I do. If you could be more specific, I might be able to
+give a better answer.
+
+But the gist of it is: MIME (rfc1521) defines some semantics for
+text/* charset=... which make a certain amount of sense for the web,
+but aren't widely supported.
+
+So the 2.0 can't say "do what MIME says" cuz then it wouldn't be
+descriptive of current practice. So it says "don't use charset= at
+all. Just use ISO-8859-1 implicitly all the time". That was the only
+semantics we were going to standardize.
+
+The theory was that we wanted to get the 2.0 document out in short
+order, and that this issue could wait until later.
+
+Now it's later, and this issue clearly needs addressing.
+
+>How does this affect our discussions about using the charset parameter?
+
+It means that we're now figuring out the "reserved for future use"
+semantics.
+
+Regarding your proposal <199501060510.VAA15861@neon.mcom.com>...
+
+First: it looks good in general.
+
+But I'd like to take a look at it from a few perspectives:
+
+(1) the language lawyer/formal specs perspective
+(2) the information provider perspective
+(3) the information consumer perspective
+
+rom a formal perspective, I think whatever we come up with should be
+consistent with MIME. But we'll have to see what that costs...
+
+Let's take a close look at rfc1521 and see how it constrains the semantics
+we want to define:
+
+|7.1.1.     The charset parameter
+|
+|[...]
+|
+|   The default character set, which
+|   must be assumed in the absence of a charset parameter, is US-ASCII.
+
+This conflicts somewhat with your proposal. However, the RFC goes on
+to say...
+
+|   The specification for any future subtypes of "text" must specify
+|   whether or not they will also utilize a "charset" parameter, and may
+|   possibly restrict its values as well.
+
+I wonder if changing the default from "US-ASCII" to
+"implementation-dependent" can be considered "restricting the values"
+of the charset parameter.
+
+I suppose the relevant scenario is where an info provider serves up
+an ISO2022-JP document with a plain old:
+Content-Type: text/plain
+header. I gather that this is current practice.
+
+The intent of MIME is that a mail user agent, on seeing text/* with no
+charset= parameter, can reasonably blast that document to any device
+capable of handling US-ASCII.
+
+That intent is already mucked up somewhat by the fact that normal html
+documents are allowed to have bytes>127, which are normally
+interpreted as per ISO8559-1. So we already have the situation where a
+conforming HTTP client, say on a DOS box might retreive a text/html
+document and pass it over to a conforming MIME user agent, which would
+then blast it to the screen. The user would lose, cuz the bytes>127
+would get all fouled up.
+
+There was some talk about making the default content type for text/*
+in HTTP be ISO8859-1. In that case, the conforming HTTP client should
+slap on "charset=ISO8559-1" when it passes the data to the MIME user
+agent, to make up for the impedence mismatch. Then the user wouldn't
+lose, because the MIME user agent would be obliged to fix up the
+bytes>127 as per ISO8559-1.
+
+But... back to the case of ISO2022-JP encoded data tagged as plain
+"text/html". The business of slapping "charset=ISO8559-1" on the end
+would muck things up. So where do we assign fault?
+
+
+My vote is to assign fault at the information provider for serving up
+-JP encoded data without tagging it as such.
+
+So all those information providers serving up ISO2022-JP data without
+tagging it as such are violating the protocol. This doesn't prevent
+NetScape and other vendors from hacking in some heuristic way to
+handle such a protocol violation. But the spec shouldn't condone this
+behaviour.
+
+
+Ok... so now let's suppose all the information providers agree to
+clean up their act. Somehow, they have to get their HTTP servers to
+tag -JP documents as such.
+
+How do they do this? File extension mappings? It's not relavent to the
+HTML or HTTP specs, but I think the overall proposal is incomplete
+until we have a workable proposal for how to enhance the major httpd
+implementations to correctly label non-ISO8559-1 documents.
+
+
+Then web clients will start seeing:
+
+Content-Type: text/html; charset="ISO2022-JP"
+
+Many of them will balk at this and punt to "save to file?" mode.
+
+Is that a bad thing? For standard NCSA, Mosaic 2.4, no, because
+it can't do any reasonable rendering of these documents anyway.
+
+But what about the multi-localized version of Mosaic? Does it handle
+charset=... reasonably? What's the cost of enhancing it to do so and
+deploying the enhanced version?
+
+The proposal says that the server should not give the charset=
+parameter unless the client advertises support for it. I think that
+will cause more trouble than its worth (see the above scenario of
+untagged -JP documents being passed from HTTP clients to MIME user
+agents on a DOS box.)
+
+One outstanding question is: does text/html include all charset=
+variations or just latin1? That is, when a client says:
+
+Accept: text/html
+
+is it implying acceptance of all variations of html, or just latin1?
+
+To be precise, if a client only groks latin1, and it says accept:
+text/html, and the server sends ISO2022-JP encoded text, and the user
+loses, is the fault in the client for not supporting ISO2022-JP, or at
+the server for giving something the client didn't ask for?
+
+First, "text/html" is just shorthand for "text/html; charset=ISO8859-1"
+so the client didn't advertise support for -JP data.
+
+But "giving somethign the client didn't ask for" is _not_ an HTTP
+protocol viloation (at least not if you ask me; the ink still isn't
+dry on the HTTP 1.0 RFC though...). It's something that the client
+should be prepared for.
+
+As above, the server is bound to give "charset=ISO2022-JP" if it is
+not returning latin1 data. So the client does know that it's not
+getting latin1 data. It has the responsibility to interpret the
+charset correctly, or save the data to a file or report "sorry, I
+don't grok this data" to the user. If it blindly blasts ISO2022-JP
+tagged data to an ASCII/Latin1 context, then it's broken.
+
+
+Does this mean that charset negociation is completely unnecessary?
+No. It's not necessary in any of the above scenarios, but it would be
+necessary in the case where information can be provided in, for
+example, unicode UCS-2, UTF-8, UTF-7, or ISO2022-JP, but the client
+only groks UTF-8.
+
+In that case, something like:
+
+Accept-Charset: ISO8859-1, ISO2022-JP
+
+or perhaps
+
+Accept-Parameter: charset=ISO8859-1, charset=ISO2022-JP
+
+I'm not convinced of the need for the generality of the latter syntax.
+Besides: we ought to allow preferences to be specified ala:
+
+Accept-Charset: ISO8859-1; q=1
+Accept-Charset: Unicode-UCS-2; q=1
+Accept-Charset: Unicode-UTF-8; q=0.5
+Accept-Charset: Unicode-UTF-7; q=0.4
+Accept-Charset: ISO2022-JP; q=0.2
+
+which says "if you've got latin1 or UCS2, I like that just fine. If
+you have UTF-8, UTF-7, or -JP, I'll take it, but I won't like it as
+much."
+
+I'm still not sure this is exactly the right syntax: it's does allow
+you to sayt that you'll take text/plain in several different charsets,
+but text/html in only one, for example.
+
+Of course the bandwidth necessary to express the common cases should
+be minimized...
+
+
+Daniel W. Connolly        "We believe in the interconnectedness of all things"
+Software Engineer, Hal Software Systems, OLIAS project   (512) 834-9962 x5010
+<connolly@hal.com>                             http://www.hal.com/%7Econnolly
+
+
+

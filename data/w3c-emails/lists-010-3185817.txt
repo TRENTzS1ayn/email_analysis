@@ -1,0 +1,73 @@
+docno="lists-010-3185817"
+received="Thu Apr 25 14:41:41 1996"
+isoreceived="19960425184141"
+sent="Thu, 25 Apr 96 14:25:28 MDT"
+isosent="19960425202528"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 3.17.2 Byte Ranges"
+id="9604252125.AA15650@acetes.pa.dec.com"
+inreplyto="199604252037.NAA11203&#64;merlot.arc.nasa.gov"
+expires="1"
+
+
+To:hardie@nasa.gov
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    In Section 3.17.2, the spec says that the if a last-byte-pos value is
+    larger than the current length of the entity, it is assumed to be
+    equal to the current length of the entity.  From my reading, a server
+    would thus send first-byte-pos to the end of entity.
+    
+I think you are referring to a case like this: /foo.gif is 1024 bytes
+long, and a client sends
+GET /foo.gif HTTP/1.1
+Range: bytes = 0-2047
+The spec now implies that the returned response would have
+Content-Range: bytes 0-1023/1024
+Is this consistent with your reading?
+
+    I'm afraid this behavior doesn't make sense to me.  It seems to me
+    that this should be treated as an invalid byte-range-spec, and that
+    the recipient should ignore it and send back the entire entity.
+    
+    The sender already has a method of requesting from first-byte-pos to
+    the end of the entity (by leaving off the the last-byte-pos), and
+    I don't understand why we want to duplicate this behavior in response
+    to what looks like an error.  
+
+I copied this part of the spec from draft-ietf-http-range-retrieval-00.txt,
+which had met with general approval 9at least in that section).  If
+we change it, we'll need to make sure that nobody objects.
+
+My own feeling is that a simple application of the robustness principle
+here would say "return the most helpful response", not "return an error".
+After all, the response is clearly marked with a Content-Length
+that allows the recipient to decide if the right thing happened.
+
+Consider this case: the client currently has a cached copy of a GIF
+file, and wants to see if the copy at the server has been updated.
+However, it's a huge interlaced GIF file, so the client only wants
+to see the first "layer" (or whatever it's called) initially.
+
+So the client might send
+GET /huge.gif HTTP/1.1
+If-Invalid: "cache-validator-value-1"
+Range: bytes = 0-4095
+
+Meanwhile, the copy at the server HAS been updated, but the service
+author has figured out that the image ought to be a lot simpler, and
+it now only has 2048 bytes.  Since the new validator doesn't match
+the one in the If-invalid, the server would normally return a 200
+(OK) response to this conditional GET, not a 304 (Not modified)
+response.  In this case, it seems perfectly reasonable to return
+the entire smaller file, rather than telling the poor client
+207 (Range Out Of Bounds) meaning "sorry, you will have to ask me again,
+even though I could have sent you something useful."
+
+I.e., I don't think this is an error condition.
+
+-Jeff
+
+
+

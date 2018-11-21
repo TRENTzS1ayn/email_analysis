@@ -1,0 +1,110 @@
+docno="lists-013-2956355"
+received="Wed Sep 25 05:36:40 2002"
+isoreceived="20020925093640"
+sent="Tue, 24 Sep 2002 21:04:03 0400 (EDT)"
+isosent="20020925010403"
+name="Jeffrey Mogul"
+email="Jeff.Mogul@hp.com"
+subject="Re: IfRange with other conditionals"
+id="200209250103.g8P13wu8029380@wera.hpl.hp.com"
+inreplyto="Pine.BSF.4.44.0209241755430.9746-100000&#64;measurementfactory.com"
+expires="1"
+
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+cc:ietf-http-wg@w3.org
+
+
+
+
+
+    > Anyway, I can't think of any reasonable interpretation for this
+    > example:
+    >
+    > GET /foo.html HTTP/1.1
+    > Host: whatever.com
+    > If-Range: "a"
+    > Range: bytes=100-200
+    > If-Match: "b"
+    
+    What, in your opinion, should an origin server return when
+    receiving the above request (we can assume that entity has an ETag
+    of "c")? It looks like returning 200/206 would violate If-Match
+    while returning anything else would violate If-Range SHOULD
+    requirements. Should the server return "Bad Request"? Or is this
+    simply an "undefined behavior" case?
+    
+According to the spec, it's "undefined behavior" (because we
+don't define it) but I think you are correct that neither 200
+nor 206 is allowed in this case, and 304 seems forbidden, too.
+So as a server implementor, I would probably go for 400 (Bad
+Request).  I'm generally a "be liberal in what you accept"
+kind of guy, but returning a 200 response in this case does
+violate the intent of If-Match.
+
+    > It *might* make sense to do:
+    >
+    > GET /foo.html HTTP/1.1
+    > Host: whatever.com
+    > If-Range: "a"
+    > Range: bytes=100-200
+    > If-None-Match: "b"
+    >
+    > which means
+    > if the current entity tag is "b" then send 304
+    
+    OK. It looks to me that you are saying that the presence of If-Range
+    headers does not limit response codes that can be returned. In other
+    words, the existing SHOULD "definition" of If-Range is valid only when
+    no other If-* headers are present:
+    
+       If the entity tag given in the If-Range header matches the current
+       entity tag for the entity, then the server SHOULD provide the
+       specified sub-range of the entity using a 206 (Partial content)
+       response. If the entity tag does not match, then the server SHOULD
+       return the entire entity using a 200 (OK) response.
+
+Like I wrote, "believe me, I haven't thought this through all the way."
+    
+Anyway, "SHOULD" means (per RFC2119):
+
+   that there
+   may exist valid reasons in particular circumstances to ignore a
+   particular item, but the full implications must be understood and
+   carefully weighed before choosing a different course.
+
+so that we could argue that RFC2616 isn't truly self-contradictory :-)
+
+    Here is what we currently do to test the proxy-related MUST in
+    question: generate all possible combinations of If-* headers that do
+    not violate other MUSTs, make on of the If- header mismatch LMT/tag of
+    the cached entity, and then make sure that the proxy under test does
+    not return any cached information (including headers). The proxy can
+    return any status codes. Do you think that's the best strategy of
+    verifying the MUST in question?
+
+This seems plausible, but I'm not an expert on formal verification,
+and such experts have found bugs in spec language that I helped
+write (see the unfortunately-titled "Safe Composition of Web
+Communication Protocols for Extensible Edge Services", by
+Adam D. Bradley, Azer Bestavros, Assaf J. Kfoury in the 7th
+WCW, which is really about the bugs that arise w.r.t. the
+Expect/100 Continue specification).
+
+In general, a proxy "cache" should be able to meet all of the
+caching-related parts of RFC2616 by shrinking its cache size to
+zero, so a cache that passes your test could be compliant, but
+I'm not sure that it's *necessarily* compliant.  That is, I'm
+not sure that your approach actually tests all of the MUSTs
+in the spec.  There might be some interactions with Cache-Control
+headers that you need to test, too.
+
+I'm also assuming that you limit your testing to GET/HEAD
+methods, since nobody has really worked out how HTTP caches
+deal with PUTs or POSTs in all possible cases (except by
+simply forwarding these).
+
+-Jeff
+
+
+

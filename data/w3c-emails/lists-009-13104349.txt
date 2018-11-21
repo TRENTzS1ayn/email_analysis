@@ -1,0 +1,240 @@
+docno="lists-009-13104349"
+received="Thu Dec  7 15:21:49 1995"
+isoreceived="19951207202149"
+sent="Thu, 07 Dec 95 15:10:55 PST"
+isosent="19951207231055"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Byte ranges (was Re: Logic Bag concerns)"
+id="9512072310.AA02833@acetes.pa.dec.com"
+inreplyto="30C05984.5ECD&#64;ebt.com"
+expires="1"
+
+
+To: Mike Braca<mb@ebt.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+> Maybe it's simpler to think about this if you pronounce
+> "GET" as "Make sure my cache for this object is up to date".
+
+    Well, yes, but an empty cache is just as valid as one full of
+    up-to-date objects :)
+
+    I hate the notion of automatically dumping the whole file onto the
+    net.  First of all, it is not intuitive to an ex-OS hacker like
+    myself that if something in the cache goes stale, I reload the
+    whole (file,...) instead of simply flushing the object from the
+    cache.
+
+As a current OS hacker, I can see the point you are trying to make,
+but I think you are drawing a false analogy.
+
+Most caches used in CPU hardware and operating systems are not
+explicitly checked for validity on each use, against a "master"
+copy of the data.  This means that if the hardware or OS suspects
+that a cached item is not valid, it must either remove it from
+the cache or mark it with a valid bit.
+
+Also, in the case of a CPU or OS, the invalidation of an item
+is "local" to the system, and so can normally be detected immediately.
+
+To be more concrete: when a CPU loads a line from its cache, it
+doesn't have the time to ask the main memory controller to tell it
+if the cache line is still valid.  It has to have a fast, local
+check (i.e., a valid bit) or the cache would be pretty useless.
+Also, since (especially in a uniprocessor) the CPU itself is
+responsible for most changes to memory locations, it can easily
+clear the valid bit synchronously on a write.  The situation becomes
+more complex with DMA and/or multiple processors, of course.
+
+In our situation, on the other hand, the system containing the
+cache (client or proxy) is quite remote from the system that
+modifies objects (the origin server) and so it's not at all
+reasonable to expect the client to know when to flush the cache.
+This is why we have already (implicitly) agreed on a caching
+model for HTTP in which each cache entry is validated on demand,
+rather than when the original object is changed.  This is a
+form of "late binding" or "lazy evaluation": don't do work up
+front if you might not need to do it at all.
+
+    More pragmatically, we are working on displaying potentially huge
+    SGML documents via HTTP, and if a 20 MB file that I am pulling
+    subtrees out of gets changed, I don't want to trigger a send of the
+    whole file.  Perhaps Ari can tell me how they plan for this to work
+    in the PDF case -- I may be missing something obvious here!
+
+    What would make sense to me is to define something like a "305
+    Modified" response that passes me back the new cache-validator.
+    Then _I_ can decide whether to fetch the whole file, or an index or
+    whatever. What are the drawbacks to such a scheme?
+    
+Doesn't the HEAD method do what you want?  That is, if you really
+want to cheat on the principle that retrieved byte ranges should
+be consistent with the version in the client's cache, then you
+could do
+HEAD <url>
+which should return exactly the same entity-headers as GET (according
+to the current draft of the spec), including the Cache-validator.
+
+Once you have the Cache-validator, you could then use the
+GET method with Range: and Cache-validator: headers to load
+specific parts of the 20 MB file.
+
+I would make one concession to make this work a little better.
+If the underlying 20 MB file changes between retrievals of
+several Ranges, you probably want to know that (right?) but
+you clearly don't want to get back the entire document in
+response to Get+Range+Cache-validator request.  Therefore,
+I propose a modification of the Range: header to be
+Range = "Range" ":" byte-range ["unconditional"]
+Actually, the word "unconditional" is too long; "U" would
+suffice.
+
+So
+GET url
+Range: 0-60
+Cache-validator: XYZZY
+would still mean
+if (cache-validator == "XYZZY")then
+    send bytes 0-60
+else
+    send whole file
+
+but
+GET url
+Range: 0-60 U
+Cache-validator: XYZZY
+would still mean
+if (cache-validator == "XYZZY")then
+    send bytes 0-60
+else
+    send 305 Modified
+
+Finally (and this is the original reason I was going to propose
+the unconditional Range: header, but your message arrived first),
+this
+GET url
+Range: 0-60 U
+(i.e., no Cache validator supplied by the client) would simply
+mean
+send bytes 0-60
+I think this would be a great solution to the problem of
+how to implement Netscape's early rendering of bounding boxes
+with the single-persistent-TCP-connection model.
+
+Here is how that would work (assuming that the TCP connection
+is already open)
+Step 1:
+    do
+GET file.html
+    then parse out a list of image files.
+
+Step 2:
+    for each GIF file do
+GET fileN.gif
+Range 0-<size of GIF header> U
+    for each JPEG file do
+GET fileN.jpeg
+Range 0-<size of JPEG header> U
+once you have all the responses to step 2, you can render *all*
+the image bounding boxes, not just the first 4.
+
+Step 3:
+Compare the Cache-Validators returned with the responses from
+step 2 to the cache-validators stored with the cached images,
+if any.  Since these are opaque values (in my model), this is a
+simple equality check.  You now not only know the correct bounding 
+boxes for each image file, you also know which files are valid
+in your cache.  (Note that if you have cached image files with
+future Expires: dates, then you don't need to include them in
+steps 2 or 4.)
+
+Step 4:
+    for each GIF file do
+GET fileN.gif
+Range <size of GIF header>- U
+    for each JPEG file do
+GET fileN.jpeg
+Range <size of JPEG header>- U
+Note that you can issue the GETs for step 4 before receiving
+the responses from step 2.
+
+This has these advantages:
+(1) works fine with just one persistent TCP connection
+(2) renders any number of bounding boxes, not just 4
+(3) does not require the HTTP server to understand
+image formats, and does not require the creator of the
+HTML file to know what the image sizes are.
+(4) does not cost very much, since each image byte
+is only retrieved once, and no unnecessary round trips
+are required.
+
+-Jeff
+
+P.S.: If people don't like the assymetry between the semantics
+of the unconditional Range header with and without the Cache
+validator, then here's a somewhat clearer proposal:
+
+Range = "Range" ":" byte-range ["U" | "V"]
+
+U = unconditional, V = unconditional if valid
+
+Semantics:
+GET url
+Range: 0-60
+Cache-validator: XYZZY
+would still mean
+if (cache-validator == "XYZZY")then
+    send bytes 0-60
+else
+    send whole file
+
+GET url
+Range: 0-60 V
+Cache-validator: XYZZY
+would mean
+if (cache-validator == "XYZZY")then
+    send bytes 0-60
+else
+    send 305 Modified
+
+GET url
+Range: 0-60 U
+would ignore the cache validator and would simply mean
+send bytes 0-60
+
+Combining these all into one piece of server pseudo-code:
+
+GET url
+[Range: range-value [range-modifier]]
+[Cache-validator: validator-value]
+
+would mean
+/* set up defaults */
+if (Range: not present) {
+range-value = empty set;
+range-modifier = "None";
+}
+if (Range: present but range-modifier not present)
+range-modifier = "None";
+if (Cache-validator: not present) {
+validator-value = null value;
+}
+
+/* compute what to send */
+if (range-modifier == "U" 
+     or
+actual-cache-validator == validator-value) {
+    send bytes described by range-value;
+}
+else {
+    if (range-modifier == "V")
+send 305 modified;
+    else
+send whole file;
+}
+
+-Jeff
+
+
+

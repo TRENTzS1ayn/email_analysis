@@ -1,0 +1,111 @@
+docno="lists-046-4318870"
+received="Thu Mar 14 17:31:28 2002"
+isoreceived="20020314223128"
+sent="Thu, 14 Mar 2002 14:30:56 -0800"
+isosent="20020314223056"
+name="John Boyer"
+email="JBoyer@PureEdge.com"
+subject="RE: New XPath Filter Transform"
+id="7874BFCCD289A645B5CE3935769F0B52328460@tigger.PureEdge.com"
+charset="iso-8859-1"
+inreplyto="New XPath Filter Transform"
+expires="-1"
+
+
+To:"merlin"<merlin@baltimore.ie>
+Cc:"TAMURA Kent"<kent@trl.ibm.co.jp>,<w3c-ietf-xmldsig@w3.org>,<reagle@w3.org>
+
+Hi Merlin,
+
+Again, I'd disagree on the intuitiveness; I certainly didn't consider
+that that either include or exclude could be expressed as they
+apparently are; subtree include/exclude against the input document,
+regardless of the input node set. I personally consider this anathema
+to the transform model.
+
+<jb>
+A transform takes as input either a node-set or octet stream and can produce as output a nodeset or an octet stream.  This is the transform model.  What a transform does or how it does so are completely up to the transform and not in violation of anything in the recommendation.
+
+It should be noted that the current XPath filter 2.0 is more or less how it used to be specified in drafts long ago.  The *only* reason it got changed is that some did not want authors to have to type (//. | //@* | //namespace::*).  Considering the speed problems it introduced, that change turned out to be a phenomenally bad idea!
+
+In this case, we take a node-set as input and promptly use it to find the document root.  There is nothing wrong with using one's input to do this.  We then initializing the input of the XPath expression evaluation *in the only way possible*-- by providing the root node of the document.  You cannot initialize the input to the XPath evaluator to be every node of the input nodeset.  
+
+Then we evaluate the Xpath and obtain a node-set, and we expand each node to include the full subtree for which it is the root.  Now we are talking about whether we then perform some extra further action involving this output node-set and the input node-set, so it is hard to see how intersection and subtraction would not be slower (and depending on implementation, I would argue MUCH slower in certain common usage cases that need to be optimized).
+</jb>
+
+>3) Exclude is not currently defined as set subtraction.  It is defined
+>in exactly the same way that include is defined.  So, whether using
+>include or exclude, I am not able to convince myself that your version
+>of set replacement will be as fast as what is currently specified.  I
+>absolutely need ways of making the features currently specified to be as
+>fast as possible.
+
+If I understand this correctly - exclude is the whole document less the
+identified subtrees - can I use the transform to select the ToBeSigned
+element, less any Signature children? If not, exclude seems of extremely
+limited use.
+
+<jb>
+Exclude selects the whole document less some subtrees as you have asserted.
+</jb>
+
+In terms of performance, we can specify that this transform must behave
+as if the subtrees are expanded into node sets, and node set intersection
+or subtraction is performed. That leaves vendors wide open to implement
+things as they wish, as we do for enveloped signature. Any implementation
+that cares about performance will do things right.  
+
+<jb>
+Sorry, but this is the trap we are in now.  It is quite possible to create XPath transforms that are MUCH faster than the ones currently being implemented, but the effort appears to be more than what folks are prepared to do.  To be fair, though, the new design (however it comes out) will be faster than the fastest possible implementation of the current Xpath transform.
+</jb>
+
+Certainly, if the
+input is a bizarre node set formed from a bizarre transform, then the
+set operations may be slow. If, however, the input is a standard dsig
+node set (, #x, #xpointer(...), octet stream) then it is trivial to
+optimize subtree-based set operations. Remember, the output of this
+transform must be a node set - that is what xmldsig mandates - so if
+an implementation is going to have performance problems with nodes sets,
+doing things differently inside this transform won't help matters.
+
+<jb>
+xmldsig does not mandate that the output be a nodeset.  The reference processing model indicates that the software must *behave as if* it were processing nodesets.  This leaves far more latitude than what you are allowing.
+</jb>
+
+More subjectively; when I implemented the transform under the false
+assumption that it performed intersection or subtraction, I threw in
+optimizations for typical node sets, such that these operations, used
+in the base cases (e.g., the input is a whole document or element, with
+or without comments) are no slower (give or take a few non-iterative
+lines of code) than if they had been implemented as they apparently
+should have been. But, I'm just a limited sample set.
+
+<jb>
+The case of having the entire document as input and including or excluding certain subtrees, then signing the result  can be performed with far less filtering work than what you suggest here.  Remember, we only have to *behave as if* performing according to the given specs.
+
+For include filters, we just run the XPath then render the subtrees rooted by the resultant nodes, so the work is quite a bit less than set intersection.
+
+For exclude filters, we run the Xpath then set a flag for each node.  Then we go right to serializing each node in document order, except that we do not descend into subtrees rooted by flagged nodes.  This still avoids O(n) work (i.e. the run-time is reduced by a healthy constant factor) plus we do no work over the excluded subtrees.
+</jb>
+
+>So, why don't we add 'intersect' and 'subtract' to the currently
+>specified filter?
+
+I strongly feel that the current specification is wrong. I don't think
+that it will be materially faster, and I do think is is non-intuitive
+and that it goes against the spirit of the transform model. Adding
+more options that perform similar, but subtlely different operations
+will only serve to confuse matters.
+
+<jb>
+I don't agree that adding intersect and subtract would confuse matters.  They are different words that clearly suggest different semantics.
+
+John Boyer
+</jb>
+
+However, this is just my opinion; I'm open to input from others!
+
+Merlin
+
+
+

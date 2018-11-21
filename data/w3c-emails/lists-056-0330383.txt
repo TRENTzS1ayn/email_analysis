@@ -1,0 +1,523 @@
+docno="lists-056-0330383"
+received="Sun Jun 15 07:56:58 1997"
+isoreceived="19970615115658"
+sent="Sun, 15 Jun 1997 10:10:25 GMT"
+isosent="19970615101025"
+name="Peter Murray-Rust"
+email="Peter@ursus.demon.co.uk"
+subject="Re: When and how should tesuji be a link?"
+id="8029@ursus.demon.co.uk"
+inreplyto="When and how should tesuji be a link?"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+Cc:elm@arbortext.com
+
+This is a very useful posting and clarifies some of the issues that I think
+the ERB needs to address in the July 1 revision.  [One important aspect 
+is to what extent the draft should help people to understand links, and to
+waht extent it is a spartan description of the syntax.  Personally I think
+that additional material - maybe in an addendum - will be valuable, because
+other wise there will be confusion which will be reflected by incomplete
+implementations.]
+
+Eve has highlighted the difficulty of Webheads implementing out-of-line
+links and I fully support her analysis.  I believe that something like
+MULTI or HERE() is required, though I suspect there may be other approaches,
+especially for non-textual documents.
+
+Where possible I will try to answer in the same spirit, and hopefully the 
+same terms, as Eliot used in his posting to xml-dev.
+
+In message <199706142012.QAA02545@village.doctools.com> Eve Maler writes:
+> 
+> ***
+> 
+[TimB speaking]
+> We have a problem as to what's a resource and what isn't.  I am mostly
+> responsible for this; I dreamed up a cute example of what I claimed
+> to be an XML xlink and showed it to lots of audiences... a lot of people
+> like it, but in retrospect it turns out not to be right.
+
+I think I agree.  If <L> was defined as XML-LINK="SIMPLE" and <X> as a
+generic container with no XML-LINK attribute, then the example would be
+viable.  Whether it's what was fully intended is unclear.
+
+Let's recast the example:
+ 
+ <!DOCTYPE test [
+  <!ELEMENT X ANY>
+  <!ATTLIST L XML-LINK #FIXED "SIMPLE">
+ ]>
+ 
+ Faced with a tight situation, Sakata found a
+ <X>
+ <L ROLE="EG" LABEL="English translation"
+    SHOW="NEW" HREF="/cgi-bin/xlate?term=tesuji" />
+ <L ROLE="PIC" LABEL="Illustration"
+    SHOW="EMBED"
+    HREF="pix.xml#DESCENDENT(*,FIG,CAPTION,TESUJI)" />
+ <L ROLE="CourseNotes" LABEL="Course Notes"
+    HREF="notes.xml#ID(def-Tesuji)..DITTO,NEXT(3,P)" />
+ <L ROLE="ToMove" LABEL="Jump to move in game record"
+    SHOW="REPLACE" HREF="game.xml#Move127" />
+tesuji
+</X>.
+ 
+This is valid, and meaningful.  JUMBO will support this in the following ways:
+(a) Tree. (b) text - at present only HTML.
+
+ X has 5 children (I ignore any whitespace).  I will also assume
+that LABEL meant TITLE :-).  In tree mode JUMBO would render this as:
+
+X
+L: English Translation
+L: Illustration
+L: Course Notes
+L: Jump to Move in game record
+PCDATA: tesuji
+
+(where L is a user supplied icon.  Clicking the  icon will activate the 
+display() of the object (e.g. L.display()).  Since L is an XML-LINK it gets
+a special arrow icon which is builtin.
+
+(In text mode - HTML - it would create a text stream with additional link
+icons or blue text.  Since <L> has no content, there is no blue text (not
+even 'tesuji').
+
+If the icons are clicked in order:
+1. would bring up a new window whose contents were the result of the 
+CGI search.  If that had a MIME type in JUMBO's list, it would try to use that.
+2. would resolve the TEI query and return an object.  It then uses a 
+special EMBED area to display the object in (images in a tree are messy).
+3. Since this is a span, and spans don't map onto trees easily (we've
+had this discussion), JUMBO wouldn't do anything *in tree mode*.  In text mode
+it might try to display an event stream from the remot document (that will
+also depend on whether a span was meaningful in the remote document).  This
+is not implemented yet.
+4. JUMBO would delete the current page and replace it by the object at
+location Move127.  If this were tree-structured it would use a TOC 
+representation.  If the object had a display() method, it would use that.
+5. It would display the word 'tesuji'.  If there had been a longer 
+string it would bring up a larger window with all the content of that PCDATA.
+
+The option ACTUATE="AUTO" is also all supported and meaningful.
+
+My understanding of these links are that they are 'inline' and that the
+implicit ends are at the nodes in document corresponding to the <L> element.  
+Thus DESCENDANT(1,L,ROLE,"EG") identifies the inline end of link 1 (and so on).
+
+PCDATA 'tesuji' is not connected with the link structure in any way.
+
+*IF* the last link had been
+ <L ROLE="ToMove" LABEL="Jump to move in game record"
+    SHOW="REPLACE" HREF="game.xml#Move127" />tesuji</L>
+
+tesuji would have been a PCDATA child of L.  This would not make it a resource
+or part of one, but it would be the content of a node which was the end of
+link 4. It would be painted blue in text mode.
+
+
+I have expanded this at length *** because I believe that my analysis and its
+implementation in JUMBO is application-independent ***.  Wherever something
+is application independent it should be flagged in the spec, because then
+it is capable of being re-used consistently.
+
+[Of course it may be difficult to render the results visually.  EMBEDing
+something in a tree isn't pretty.  Links may end up as a set of spaghetti, and
+so forth.  And I have only tackled text and trees - there may be many other
+representations of XML documents.  However, assuming that each ELEMENT maps
+onto a unit-of-storage, point on the display, etc. SIMPLE should be 
+implementable.
+
+Now let us go to Tim's example, with the spirit of MULTI hovering around.
+> First, here's the example:
+> 
+> <!DOCTYPE test [
+>  <!ATTLIST X XML-LINK #FIXED "EXTENDED">
+>  <!ATTLIST L XML-LINK #FIXED "LOCATOR">
+> ]>
+
+How does this alter the situation from above?  My analysis is as follows:
+<X XML-LINK="EXTENDED"> announces that:
+- it will contain at least two elements of type XML-LINK="LOCATOR"
+ *OR* a LOCATOR will point to two or more locations.
+- all children of an <X> are regarded as components of **one** link
+object
+- all children inherit a set of default attributes from X
+- the position of X in the document is unrelated to the ends of the 
+links (without the HERE/MULTI proposal).
+- the information should be stored in a database/hashtable
+
+Therefore on encountering an X a processor should:
+- create a single database of EXTENDED links if one doesn't exist
+- apply any defaults to the LOCATORs
+- store the link-object (one per EXTENDED) in the database
+- wait until the application tells it what to do with the entries
+
+Eliot has listed some of the things that such a link database should be prepared
+to record, and I won't repeat them.
+
+One application-independent way of referring to such links could be through
+SIMPLE links.  Thus the following might be possible:
+
+<!ATTLIST A XML-LINK CDATA #FIXED "SIMPLE">
+
+<P> Faced with a tight situation, Sakata found a
+<A HREF="index.xml#t33)"> tesuji.</A></P>
+
+to be rendered as:
+
+Faced with a tight situation, Sakata found a
+[tesuji].
+
+Where [] denotes a hyperlink icon.  Note that it only has 'tesuji' as the
+content due to a **browser-specific** convention.  If there had been no
+content, then the rendering might have been [link], or [*], or
+it *might* have picked up the target ID as [index-t33].  All of this
+is independent of the syntax.
+...
+The link could now point to:
+
+<X ID="t33" TITLE="tesuji" XML-LINK="EXTENDED">
+ <L ROLE="EG" LABEL="English translation"
+    SHOW="NEW" HREF="/cgi-bin/xlate?term=tesuji" />
+ <L ROLE="PIC" LABEL="Illustration"
+    SHOW="EMBED"
+    HREF="pix.xml#DESCENDENT(*,FIG,CAPTION,TESUJI)" />
+ <L ROLE="CourseNotes" LABEL="Course Notes"
+    HREF="notes.xml#ID(def-Tesuji)..DITTO,NEXT(3,P)" />
+ <L ROLE="ToMove" LABEL="Jump to move in game record"
+    SHOW="REPLACE" HREF="game.xml#Move127" />
+</X>
+
+This is an out-of-line link, with 4 ends, each with a different role.
+*how* it is presented to the user/application is undefined.  In the example
+above clicking on the text would display() the <X> object.  It could be 
+a browser convention that this always came up as a menu.  If so, what would
+happen is that the orginal document would be hidden, and replaced 
+(SHOW="REPLACE" is the default, right?) by a menu of 4 items.  These items
+are LOCATORs, and I would be tempted to implement them using the same code as
+SIMPLE, where possible.  However, they also have ROLEs which must be 
+honoured in an application-dependet way.  One convention would be that all
+LOCATORs with the same ROLE might be grouped together.
+
+What I am still unclear about is what is the role of the attributes of
+EXTENDED.  They can be used for defaults for the LOCATORs, but I can also
+see places where the EXTENDED can be viable objects (such as menus).  Is there
+always/sometimes/never an extra level of indirection involved with the 
+EXTENDED objects?
+ 
+Back to Eve's analysis :-)
+> 
+> The problem centers on the fact that we've conflated two concepts
+> in each linking type:
+> 
+>   o The in-line (contextual) versus out-of-line (independent) nature
+>     of the link
+
+Yes.  Tim's was implicitly contextual.  
+
+> 
+>   o Addressing a single resource versus potentially multiple resources
+
+Yes.  And this is without the ability for a TEI search to return multiple
+'ends'.
+> 
+> A SIMPLE link is in-line/single, and an EXTENDED link is
+
+Yes                      
+> out-of-line/multi.  The tesuji example, however, is in-line/multi
+^^^^^^^^^^^^^^^^^^^
+Yes 
+> (and, of course, it's possible to imagine an out-of-line/single
+> example).
+
+I find this difficult!  If I create a document 'links.xml' with the content:
+(conventions as before):
+
+<X>
+<L ROLE="single" HREF="foo.xml">
+</X>
+
+this is not a link as it only has one end.  It can only be managed if the
+HREF points to multiple (TEI) locations.
+
+> 
+> Tim suggested two possible solutions:
+> 
+>   1. If the content of the EXTENDED linking element is supposed to
+>      act as a resource, a locator element must appear inside it saying:
+> 
+>      <L ROLE="whatever" Label="whatever" HREF="#HERE()"/>
+
+*Now* I understand this!  However, HERE should refer not to the end
+of the LOCATOR but to the position/address/'resource' of its parent LOCATOR.
+> 
+>     This translates to "All links should be either in-line/single
+>     or out-of-line/multi."
+
+Yes, and the HERE convention is a shorthand for explicitly putting in a
+link end.  (My analysis of Tim's example suggests that the link has 5 ends,
+one of which is the location in the document where it originally occurred,
+but that the word 'tesuji' is not involved.)
+
+I think that inline/single + out-of-line/multi is what the draft offers and 
+can be worked with.  I think that what Tim was trying to do
+can be done with the present syntax.  BUT it's easy to go wrong.
+
+> 
+>   2. The content of all EXTENDED linking elements must be treated
+>      as resources, much as the content of SIMPLE linking elements
+>      is supposed to be treated as resources.
+
+I don't think this works.  If we create separate files, whose primary 
+function is to contain links, then any 'content' (only text is allowed at
+present) is unlikely to have a useful context.
+
+> 
+>      This translates to "All multi links should be in-line links."
+
+There is already potential for confusion and this will add to it.
+
+> 
+> I have proposed a third:
+> 
+>   3. In XML-Link, offer three types of linking elements: SIMPLE
+>      (in-line/single), MULTI (in-line/multi), and EXTENDED
+>      (out-of-line/multi).  Make their templates distinct.
+> 
+> The templates would look like this:
+> 
+> SIMPLE: An element that links two resources, one of which (by
+> definition) is the content of the linking element itself.
+                     ^^^^^^^
+Following Eliot's analysis, I think this is dangerous.  A link has ends
+which are points/locations in documents.  Sometimes those points will correspond
+to elements which have content (e.g. <A> *may* have complex content), and 
+sometimes they won't.  If the link ends at a location which corresponds to 
+'content', it's up to the application what to do with that content.
+
+> 
+> <!ELEMENT SIMPLE ANY>
+> <!ATTLIST SIMPLE
+> XML-LINKCDATA#FIXED "SIMPLE"
+> ROLECDATA#IMPLIED
+> HREFCDATA#REQUIRED
+> TITLECDATA#IMPLIED
+> SHOW(EMBED|REPLACE|NEW)"REPLACE"
+> ACTUATE(AUTO|USER)"USER"
+> BEHAVIORCDATA#IMPLIED
+> >
+> 
+> MULTI: An element that links two or more resources, one of which
+> (by definition) is the content of the linking element itself.
+                                        ^^^^^^^^^^^^^^^
+i.e. the content of 'MULTI'
+> 
+> <!ELEMENT MULTI (#PCDATA|LOCATOR)*>
+> <!ATTLIST MULTI
+> XML-LINKCDATA#FIXED "MULTI"
+> ROLECDATA#IMPLIED
+> TITLECDATA#IMPLIED
+> SHOW(EMBED|REPLACE|NEW)"REPLACE"
+> ACTUATE(AUTO|USER)"USER"
+> BEHAVIORCDATA#IMPLIED
+> >
+> <!ELEMENT LOCATOR ANY>
+> <!ATTLIST LOCATOR
+> XML-LINKCDATA#FIXED "LOCATOR"
+> ROLECDATA#IMPLIED
+> HREFCDATA#REQUIRED
+> TITLECDATA#IMPLIED
+> SHOW(EMBED|REPLACE|NEW)"REPLACE"
+> ACTUATE(AUTO|USER)"USER"
+> BEHAVIORCDATA#IMPLIED
+> >
+> 
+> EXTENDED: An element that links two or more resources.  EXTENDED
+> linking elements should not have content.
+> 
+> <!ELEMENT EXTENDED (LOCATOR+)>
+
+would it be possible to rewrite this as
+<!ELEMENT EXTENDED (LOCATOR, LOCATOR+)>
+
+to make sure that the link has at least two ends.  Or might the LOCATOR
+involve a TEI search that *might* return multiple ends?
+
+> <!ATTLIST EXTENDED
+> XML-LINKCDATA#FIXED "EXTENDED"
+> ROLECDATA#IMPLIED
+> TITLECDATA#IMPLIED
+> SHOW(EMBED|REPLACE|NEW)"REPLACE"
+> ACTUATE(AUTO|USER)"USER"
+> BEHAVIORCDATA#IMPLIED
+> >
+> <!-- LOCATOR as above -->
+> 
+> My thinking went like this:
+> 
+>   Understanding the in-line/out-of-line distinction seems to be
+>   the biggest mental leap XML users and implementors need to make
+>   (witness Peter M-R's very reasonable questions about "how do I
+>   implement EXTENDED links? what is there to do?").  Because of
+>   the Web experience, everyone already gets "from-to", but "between"
+>   is a lot harder.  Therefore, if we actually need the notion of
+>   out-of-line links anymore, it would be useful if our link typology
+>   and our syntax clarified the distinction.
+
+I see the force of this.  I think it will take me a day or two to think about 
+whether it's the best way forward.  One obvious use of MULTI is Tim's, which
+can be thought of as a link where one end has a special role (a 'root') and
+the MULTI approach formalises this.  Strinctly I understand that a link can
+have many ends and that none have a special implicit role unless specified
+in ROLE.
+
+Put another way, MULTI looks like the (illegal):
+
+found a <A HREF="index.xml#ID(tesuji)" ROLE="English"
+           HREF="tesuji.gif" ROLE="picture"
+           HREF="tesuji.anim" ROLE="animation">
+tesuji</A>
+which I use to emphasise the asymmetric nature of the link.  If a processor
+encountered this would it be expected to store all the links out of line?
+Could someone then say 'give me all the pointers to 'tesuji' in the
+index?  The answer must 'yes', but an implementer could miss this.
+
+If MULTI is used, it has to be stressed that these are multi-way links
+and that these have to be stored.
+
+> 
+>   The question is, Do we need out-of-line links if we've got links
+>   that can point to multiple other resources?  For me, the power
+>   of MULTI is that I can now imagine pointing my browser at a
+>   document that contains simply a pile o' links, and having it *do*
+>   *something* when it gets there.  The problem with pure ilinks is
+
+My teaching is that links don't necessarily 'do' things, they just 'are'.
+So MULTI has to be prepared to create a database.  For example, a link
+could be part of a Java call-graph, a marriage, the last person you phoned,
+etc.
+
+>   that they're not interoperable; the behavior of a system with
+>   respect to the links is entirely dependent on private expectations
+>   about what the links are and do.  The advantage of MULTI links
+
+Yes - I agree strongly with this.
+
+>   is that you can still manage them as ilinks, while maintaining
+>   them (if you choose) in an XML document form that is useful *as
+>   a document* in the regular sense.  This is a little like the
+>   appeal of SHOW and ACTUATE, only much more pure with regard to
+>   presentation independence.  Further, any Webhead who's ever coded
+>   an <A> link can easily see what to do with a tesuji-type construct
+>   in regular documents.
+
+Yes.  The question is whether it's a separate type of link, or whether we
+can prescribe a generic action/role.
+
+> 
+>   If we *do* need the notion of pure out-of-line links for some
+>   reason, then I'm assuming that it's useful for applications to
+>   be able to predict, on encountering the start-tag of the linking
+>   element, whether it's in-line or out-of-line.  If this is true,
+>   then we do need to distinguish MULTI from EXTENDED links in
+>   something like the manner shown above.  However (just to undermine
+
+I agree here.  EXTENDED is allowed in the flow of textual documents but in
+a rather restricted sense.
+
+>   my own proposal a little more :-), there's a gotcha here too:
+>   Note that the EXTENDED template shown above disallows #PCDATA
+>   content.  However, it's possible that a user will choose not to
+>   follow the template or will not validate against an element
+>   declaration that does follow it.  Thus, there might be content
+>   inside the linking element anyway; the template can't *enforce*
+>   its own prescription.  This should not be an XML-Link error, but
+
+I have repeatedly alerted this group to the need to consider the 
+validation or otherwise of XML-LINK semantics :-) Nuff sed.
+
+>   the spec should be clear that if any content is present, it is
+>   not a resource unless one of the locator elements explicitly
+          ^^^^^^^^
+My impression from Eliot's analysis is that this word is causing us
+a lot of trouble :-)
+
+>   addresses that content with #HERE().  Yuck.  If the template
+>   *could* enforce its own prescription, the case for making the
+>   syntactic distinction between MULTI and EXTENDED would be
+>   strengthened.
+> 
+>   Tim's and Jon's experiences with teaching the tesuji example
+>   demonstrate why I'm not in favor of suggestion #1, and why the
+>   problem outlined above is so yucky: It's incredibly intuitive to
+>   assume that any content of a linking element *must* be part of
+>   the relationship, and it's incredibly hard to imagine that a word
+>   inside a linking element is just another random word in the
+>   document.
+
+But it's formally correct, as I understand it :-).
+
+I'm sympathetic to Eve's analysis.  The point is that the current draft
+is too spartan to support the creation of interoperable XML-LINK applications.
+We have to have something that guides implementers to widely usable generic
+solutions. MULTI and HERE are possible ways forward.  There  may be others.
+> 
+>   If we do need all of the SIMPLE, MULTI, and EXTENDED functional
+>   types, I want to warn against the false economy of having a
+>   maximum of two syntactic types.  We've already discussed and
+>   discarded the idea of combining all the link types into one; the
+>   primary reason it didn't work was because we weren't willing to
+>   treat an HREF on the EXTENDED linking element as a locator equal
+>   in meaning and functionality to the locator subelements.  (Our
+>   current spec doesn't offer an HREF attribute on EXTENDED.)
+
+Again, what are its other attributes for ?
+
+>   Therefore, I believe we should keep our current separation of
+>   single-locator and multiple-locator links, and not consider
+>   offering a super-duper in-line/single+multi link type.
+
+I agree.  You have to be a really abstract thinker to manage all the
+indirection required by a single link type.  Each additional level
+of indirection multiplies my coding time by half an order of magnitude.
+And hurts my brain.
+> 
+>   Just to complete this picture, I wanted to point out that there
+>   seems to be no good reason to create a linking type for out-of-line
+>   links that point to only one other resource in the syntactic
+>   style of <A>.  The creation of out-of-line links assumes enough
+>   sophistication that we don't need the syntactic sugar of making
+>   an entry-level "single" version available.
+> 
+> Eve
+> 
+To summarise from the view of a Webhead implementer.  *any* guidance from a
+spec as to how something is implemented is neormously valuable.  One of
+the really exciting things about XML is that 90+% of the decisions are
+taken away from me.  I couldn't have written CML/JUMBO statrting from
+nowhere (at least I've tried previously and failed).
+
+XML-LINK is potentially incredibly powerful.  However the really powerful
+applications will contain multiple levels of indirection (in C, this
+would contain things with lots of stars like
+*linkLocator[*linkAddress] = ***linkTarget;
+and all those stars make my brain swim unless I have a very clear roadmap.)
+
+I suspect we need some halfway houses - as suggested.  Another possible area is
+whether we alert an application to the fact that there are EXTENDED links in 
+the  document and it should 'start' by processing them.
+
+P.
+ 
+
+-- 
+Peter Murray-Rust, domestic net connection
+Virtual School of Molecular Sciences
+http://www.vsms.nottingham.ac.uk/
+
+
+

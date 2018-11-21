@@ -1,0 +1,81 @@
+docno="lists-012-13305025"
+received="Mon Mar 20 12:36:58 2000"
+isoreceived="20000320173658"
+sent="Mon, 20 Mar 2000 12:35:14 0000"
+isosent="20000320123514"
+name="Miles Sabin"
+email="msabin@cromwellmedia.co.uk"
+subject="Proxies and incorrect ContentLength"
+id="AA4C152BA2F9D211B9DD0008C79F760A95D74C@odin.cromwellmedia.co.uk"
+expires="1"
+
+
+To:http-wg@hplb.hpl.hp.com
+
+I'm looking for a brief rundown on best-practice for how non-
+caching, limited-buffering, proxies should handle origin server
+responses with incorrect Content-Length headers.
+
+As far as I can make out there are are only two cases where
+a proxy will be able to _reliably_ detect an incorrect Content-
+Length,
+
+  HTTP1.1 origin server with Connection: close
+  HTTP1.0 origin server with no Connection: keep-alive
+
+in both cases a proxy can infer a Content-Length overrun
+because it expects the connection to be closed at the end of 
+the response entity. Overruns with persistent connections can't
+easily be distinguished from a broken subsequent response, and
+underruns can't easily be distinguished from a broken 
+connection.
+
+Given that overruns are quite common (usually the result of 
+broken CGIs/SSIs not accounting for the length of non-static 
+data) I'd quite like to be able to forward such responses.
+However I don't want to have to buffer the whole response to
+recalculate the CL. I can see a couple of possibilities,
+
+  HTTP1.1 downstream client
+    Strip off the response Content-Length and forward with
+    chunked transfer encoding.
+
+  HTTP1.0 downstream client
+    Strip off the response Content-Length and close the
+    connection after the response entity.
+
+Unfortunately the second of these effectively precludes the
+use of Keep-Alive on all HTTP1.0 responses: because the proxy
+won't be able to determine whether or not there's been an
+overrun until the origin-server has run over the end, so *all*
+responses have to be presumed to be potential overrunners.
+
+Other options avoid that problem, but look troublesome,
+
+  Truncate the reponse entity
+    Dangerous for non text/* types; problematic even for those
+    (eg. stripped trailing copyright messages).
+
+  Forward any content overrun, then close the connection.
+    Problematic for HTTP1.0 Keep-Alive clients which might
+    attempt to interpret the overrun as the headers of a
+    subsequest response; technically illegal for an HTTP1.1
+    proxy. OTOH, the proxy would be forwarding stuff which is
+    no more broken than would have been received had the origin
+    server been contacted directly.
+
+Opinions?
+
+Cheers,
+
+
+Miles
+
+-- 
+Miles Sabin                       Cromwell Media
+Internet Systems Architect        5/6 Glenthorne Mews
++44 (0)20 8817 4030               London, W6 0LJ, England
+msabin@cromwellmedia.com          http://www.cromwellmedia.com/
+
+
+

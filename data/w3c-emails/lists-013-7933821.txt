@@ -1,0 +1,373 @@
+docno="lists-013-7933821"
+received="Fri Mar 12 14:07:13 2004"
+isoreceived="20040312190713"
+sent="Fri, 12 Mar 2004 19:07:10 +0000"
+isosent="20040312190710"
+name="Jamie Lokier"
+email="jamie@shareable.org"
+subject="Re: Can the response entity be transmitted before all the request entity has been read?"
+id="20040312190710.GB18799@mail.shareable.org"
+charset="usascii"
+inreplyto="1079098166.3824.15.camel&#64;sukothai.pingtel.com"
+expires="1"
+
+To: Scott Lawrence<scott@skrb.org>
+Cc:ietf-http-wg@w3.org
+
+
+
+Scott Lawrence wrote:
+> > I'm not entirely sure if this means _network_ errors (such as TCP
+> > shutdown or reset), or HTTP Error Status codes 4xx and 5xx.  I guess
+> > it means HTTP Error Status codes, because of the implication that the
+> > connection might continue.
+> 
+> It does mean HTTP Error Status responses (any status > 299).
+
+Thanks.  Why > 299?  To my mind, error status is > 399 (i.e. 4xx =
+Client Error, 5xx = Server Error).
+
+If redirections are Error Status responses for the purpose of low
+level client behaviour in section 8.2.2, that is poorly worded and
+should be clarified in the Errata.
+
+If I am confused, surely some client implementations will have it
+wrong too.  That's critical: the server _has_ to know whether the
+client will abort sending the request body or not, to decide how to
+continue with the connection.
+
+> > 2. Regarding my second question, whether a non-error response can be
+> > safely transmitted without reading the request entity.  Is it allowed?
+> > Does the connection have to be made non-persistent; i.e. closed afterwards?
+> 
+> Not if the client says it's HTTP/1.1.  If the client is 1.0, then you
+> have to assume a non-persistent connection by default.
+
+Assume persistence has already been determined appropriately, by
+looking for Connection: close and/or Connection: keep-alive in the
+request.
+
+After transmitting the response entity and discovering that it didn't
+need the request entity after all, and it wasn't an error response,
+it's too late for the server to change the response headers: they are
+transmitted already.  The server will not have put Connection: close
+in the response header, unless that was requested by the client, or it
+was HTTP/1.0 without keep-alive, or some other conditions applied.  So
+the server will transmit the response...
+
+And then it has to shut down the connection, right?  (All the while
+reading data from the client to avoid the TCP RST problem).
+
+> > If you have enough information to begin the response just from reading
+> > the request headers, then you are free to send the response headers
+> > right away; even the 1xx response is optional - you can skip right to
+> > sending the final response.  (Note: the rules of the protocol don't
+> > forbid this - what any given client will do with this is a different
+> > question that can be answered only with testing).
+> 
+> Yes.
+
+Thanks.
+
+> > If 100 (Continue) isn't transmitted, some clients may start
+> > transmitting their request entities anyway.  Therefore there's no way
+> > for the server to determine whether data received from the client is
+> > the request entity or the next request, if it wants to try avoiding
+> > 100 (Continue) to produce a non-error response without using the
+> > request entity.
+> 
+> No, you can tell from the headers whether or not there is a request
+> body.  If there is a non-zero Content-Length, or a 'Transfer-Encoding:
+> chunked', or a Content-Type specifying a multipart encoding, then that
+> indicates the presence of a body.  If none of the above are there, the n
+> there is no body and the next byte starts the next request.
+
+That's not what I mean.  What I'm saying is: if I _don't_ send 100
+(Continue), I don't see a way to determine whether the client _chose_
+to not transmit the request entity _despite_ the Content-Length or
+Transfer-Encoding headers.  Therefore, after doing that, there's no way
+for the server to read another request, and it must shut down the
+connection.
+
+(Btw, any Transfer-Encoding indicates a request body, and "chunked" is
+required to be the last in the sequence of transfer-codings.  If
+Content-Type specifies "multipart/byteranges", that indicates a body,
+but I see nothing in RFC 2616 which indicates a body for any other
+multipart encoding.  Right?)
+
+But now on yet more diligent reading of RFC 2616, I have a question.
+This whole mail revolves around the question so I'll make it stand
+out:
+
+    If the client sends Expect: 100-continue, and receives an HTTP/1.1
+    (or later) response which is not preceded by 100 (Continue), is
+    the client allowed to send more requests on that connection
+    _without_ transmitting the request entity?
+
+> > Or can it avoid reading the request entity completely, by not sending
+> > 100 (Continue) and somehow determining when the next request arrives
+> > on that connection.  Is that possible?
+>
+> No, but even if it were it wouldn't save you anything - TCP is a stream;
+> there's no way to discard the bytes other than at the receiver (without
+> closing the connection, that is).
+
+Eh?  If you don't send 100 (Continue) then it does save you quite a
+lot: the client might not transmit the request entity at all!
+
+Also, if you stop reading at the receive, eventually the TCP window
+fills and the transmitter stops, which reduces data transmitted
+overall if not all of the request entity is read.  That may or may not
+cause deadlock, depending on the transmitter's logic.  We can avoid
+deadlock while reading the minimum at the server, by reading only when
+the data is needed, writing response as we generate it, and if writing
+blocks, then reading until writing is unblocked, buffering the read data.
+
+This is the logic I have now.  Assume in every case that the
+connection is persistent: the request doesn't have Connection: close,
+and it's HTTP/1.1.
+
+  1. If the server sends a non-error response, without 100 (Continue)
+     and without observing any request entity prior to sending the
+     response, then it must not try to read another request because of
+     the ambiguity as to whether the client actually sent the request
+     entity or not.  Is this correct?
+
+  2. If the server sends an error response, without 100 (Continue) and
+     without observing any request entity prior to sending the
+     response, then it must not try to read another request for the
+     same reason.  Is this correct?
+
+  3. If the server sends a *non-error* response, after 100 (Continue),
+     and before reading all of the request entity, it can assume the
+     client will send all of the request entity or abort the connection.
+
+     In this case if the server doesn't want to read all of the
+     request entity, because it knows the entity is large and there
+     is no point transferring the remaining data, then after it has
+     completely sent the response entity it should signal connection
+     shutdown (i.e. TCP FIN, shutdown(SHUT_WR)), and continue reading
+     for a while to prevent the TCP RST problem.
+
+     If the server does want to read all the request entity after it
+     has started sending the respones, it can just do that and it
+     should work.
+
+  4. If the server sends an *error* response, after 100 (Continue),
+     and before reading all of the request entity, it must assume the
+     client MAY prematurely abort transmitting the request entity
+     either by closing the connection or transmitting a zero length
+     chunk.
+
+     In this case if the server doesn't want to read all of the
+     request entity, because it knows the entity is large and there
+     is no point transferring the remaining data, then it doesn't have
+     to shutdown the connection.  The client may terminate the request
+     entity with a zero length chunk allowing the connection to
+     continue.  However, the client might not, so if there's a lot of
+     data still coming in, the server may choose to shutdown the
+     connection, in the same way as for 3. above, a short time after
+     sending the error response and failing to see the client
+     prematurely terminate the request entity.
+
+     If the server does want to read all the request entity after it
+     has started sending the response, it cannot.  It has to _delay_
+     sending any of the response until all of the request entity has
+     been read.
+
+  5. Because of the different required behaviours in 3. and 4., due to
+     RFC 2616 section 8.2.2, the server and client must agree on what
+     consitutes an "Error Status".
+
+     Clearly 4xx and 5xx codes are; 1xx and 2xx are not.
+     It isn't clear whether 3xx codes are errors.
+
+     If there is disagreement either way, there are problems.  If the
+     client receives a 3xx and treats that like a non-error, it will
+     continue transmitting the request entity.  For the server to
+     terminate that transmission, to save bandwidth and inform the
+     client that it doesn't need all the response, it needs to
+     shutdown the connection after the response is transmitted, in
+     this case.
+
+     If the client receives a 2xx and reacts in the same way as for an
+     error status, it may prematurely terminate the request entity by
+     sending a zero length chunk, or it may close the connection
+     which, although always allowed perhaps due to user abort, is not
+     expected for non-aborted non-error requests.  Therefore for the
+     server to not cause premature request entity termination, it must
+     _delay_ sending the response until it has read the whole request,
+     in this case.
+
+     So if there is any disagreement among implementations over what
+     is an Error Status for the purpose of section 8.2.2, this creates
+     a third category of responses that the server must treat
+     differently from 3. and 4.  I see this category containing 3xx.
+
+     If one of these responses is generated within the server, and the
+     server wants to read all of the request entity eventually, then
+     it must _delay_ sending any of the response until all of the
+     request has been read.  However if the server does not want to
+     read all of the request entity, it cannot assume the client is
+     likely to prematurely terminate the request entity by closing or
+     sending a zero length chunk.
+
+     So the server's behaviour with this category of responses is
+     different from its behaviour for responses which are consistently
+     treated by implementations as errors or non-errors.  It has to
+     use this third, more conservative strategy.
+
+  6. If the server transmits a response, and in so doing discovers
+     that it doesn't need any of the request entity, then it can avoid
+     sending 100 (Continue).
+
+     However, if it does not send 100 (Continue) is it true that it
+     mustn't try to read another request on that connection?  I'm not
+     sure.
+
+     If the server discovers it doesn't need any of the request
+     entity, but it would like the keep the connection persistent, it
+     needs to use a different strategy for non-error and error
+     responses:
+
+         a. For non-error responses, if the request entity is known
+            to be small from the Content-Length header or otherwise,
+            it may be worth the server sending 100 (Continue) prior
+            to the response anyway, reading the whole request entity
+            and discarding it, and continuing to read another request.
+
+         b. For non-error responses, if the request entity is known
+            to be large, or the server doesn't wish to encourage
+            an unknown size transmission over the network from the client,
+            the server will avoid sending 100 (Continue), and instead
+            shutdown the connection (carefully, avoiding the TCP RST
+            problem) after sending the response.
+
+         c. For error responses, the size of the request entity is not
+            important.  The client will abort sending the request entity,
+            and make an appropriate decision on whether to continue using
+            the connection.
+
+            100 (Continue) must be still be sent by the server if it
+            wants to use the connection persistently after the error
+            response.  Is this correct?  (I'm not sure).
+
+This translates to the following logic in server code.  I would be
+grateful to anyone who can offer corrections to or insight into this
+logic.  It seems more complicated than I'd expected to need for
+implementing lazy request entity reading for an application running on
+top of the server.
+
+    a. In all of the steps below, where it says transmit 100 (Continue)
+       that may be avoided if some request entity has already
+       been received.
+
+    b. While transmitting the response, if at any time the
+       transmission is blocked for writing, the server should try to
+       read data from the client and save it for when the server
+       application reads it, in order to resolve deadlock with less
+       tolerant clients and large messages that fill TCP windows.
+
+    c. As soon as the server application tries to read any of request
+       entity, transmit 100 (Continue).
+
+    d. If the application generates a *non-error* status, and might
+       need to read some of the request entity but hasn't yet,
+       transmit 100 (Continue) before the status.
+
+    e. If the application generates a *non-error* status, and has
+       already read or tried to read some of the request entity,
+       transmit the status immediately.
+
+    f. If the application generates a *non-error* status, and is
+       already able to commit to not needing any of the request
+       entity, but the size of the request entity is believed by the
+       server to be sufficiently small that it's worth reading in
+       order to maintain a persistent connection, and the connection
+       is still eligible for persistence (neither side has transmitted
+       Connection: close), transmit 100 (Continue) before the status.
+
+    g. If the application generates a *non-error* status and is
+       already able to commit to not needing any of the request
+       entity, and the request entity is not believed by the server to
+       be small enough to read in order to maintain a persistent
+       connection, transmit the status without 100 (Continue).
+
+    h. If the application has already generated a *non-error* status
+       and is subsequently able to commit to not needing any more of
+       the request entity than it has already read (which may be
+       none), there is no need for the server to continue reading from
+       the client except as noted for deadlock avoidance (b.), or if
+       the server is going to read the whole request entity anyway (f.).
+
+    i. If the application finishes handling a request and it generated
+       a *non-error* status, and did not read all of the request
+       entity, and the connection is still eligible for persistence
+       (neither side has transmitted Connection: close), and the
+       server believes that the amount of request entity that has not
+       yet been received is small enough to be worth receiving in
+       order to maintain a persistent connection, then it should read
+       the remaining request entity and continue using the connection.
+
+    j. If the application finishes handling a request and it generated
+       a *non-error* status, and did not read all of the request
+       entity, and the server believes that it is not worth receiving
+       the remainder of the request entity, it should politely
+       shutdown the connection, with a "lingering close" to avoid TCP
+       RST problems.  Deadlock avoidance is required in conjunction
+       with the lingering close as with (b.), by continuing to read
+       incoming request data rather than letting the TCP receive window
+       fill.
+
+    k. If the application generates an *error* status, and might need
+       to read some of the request entity but hasn't yet, *delay*
+       transmitting the status until the application has completed
+       handling this request, or can otherwise commit to not
+       needing the request entity, or does actually read the
+       entity and the *whole* entity has been received, or at least
+       as much as the application will need of it.
+
+    l. If the application generates an *error* status, and has
+       already read or tried to read some of the request entity,
+       *delay* transmitting the status until the *whole* entity
+       has been received, or at least as much as the application
+       will need of it.
+
+    m. If the application generates an *error* status, and is already
+       able to commit to not needing any of the request entity,
+       transmit the status immediately.  The size of the request 
+       entity is not important, because the client is expected to
+       prematurely abort a long one.
+
+    n. If the application has already generated an *error* status and
+       is subsequently able to commit to not needing any more of the
+       request entity than it has already read (which may be none),
+       there is no need for the server to continue reading from the
+       client except as noted for deadlock avoidance (b.).  However,
+       if the connection is still eligible for persistence, the server
+       should continue reading for a limited time, number of bytes or
+       other policy determined by the server (see o.), speculating
+       that the connection will be used for another request.
+
+    o. If the application finishes handling a request and it generated
+       an *error* status, and did not read all of the request
+       entity, and the connection is still eligible for persistence
+       (neither side has transmitted Connection: close), the server
+       should continue to read and discard the request entity.  The
+       client should prematurely terminate the request entity, although
+       it might not.  Therefore the server should read and discard
+       only for a limited time, number of bytes, or other policy
+       determined by the server, and if the end of the request is not
+       seen by then it should politely shutdown the connection, with
+       a "lingering close", as in (j.).
+
+    p. If the application generates a status which it's thought some
+       clients may treat as an error and some as non-error for the
+       purpose of RFC 2616 section 8.2.2, a conservative mix of the
+       above rules is required.  3xx status codes might be in this
+       category.
+
+-- Jamie
+
+
+

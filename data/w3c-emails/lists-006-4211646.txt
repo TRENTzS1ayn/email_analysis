@@ -1,0 +1,138 @@
+docno="lists-006-4211646"
+received="Fri Jun 29 17:51:25 2001"
+isoreceived="20010629215125"
+sent="Fri, 29 Jun 2001 17:57:48 -0400"
+isosent="20010629215748"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Versioning TeleConf Agenda, 6/29/01 (Friday) 12-1pm EST"
+id="3906C56A7BD1F54593344C05BD1374B1018E2500@SUS-MA1IT01"
+inreplyto="Versioning TeleConf Agenda, 6/29/01 (Friday) 12-1pm EST"
+expires="-1"
+
+
+To:"'ietf-dav-versioning@w3.org'"<ietf-dav-versioning@w3.org>
+
+Attending:
+  Jim Whitehead (UCIrvine)
+  John Hall (Xythos)
+  Lisa Dusseault (Xythos)
+  Peter Raymond (Merant)
+  Rick Rupp (Merant)
+  Tim Ellison (IBM)
+  Geoff Clemm (Rational)
+  
+We first decided to focus on issues that would change existing
+semantics in the protocol (as opposed to issues that would add new
+features).  The motivation is that changing semantics after the RFC is
+issued could harm the the interoperability of clients and servers that
+were written against the RFC, while adding new features after the RFC
+is issued would not.
+
+Since the only agenda item that might change existing semantics
+is "Support for VCR update on working resource CHECKIN", we decided
+to deal with that first.  
+
+We initially focused on the motivation for making the change:
+
+- The current protocol requires that a client support either the
+update or the merge feature in order for the working-resource feature
+to be useful.  This is the only reason that the update feature is
+currently required in the basic client-workspace package.  This is
+unfortunate, since we already have a server that is likely to support
+working-resource feature with merge and not update (the Subversion server),
+and because linear versioning servers are also likely to not want
+to support the general update feature (the Xythos server is a specific
+example).
+
+- A CHECKOUT/CHECKIN sequence on a VCR results in a changed VCR.  It
+would therefore be reasonably consistent if the
+CHECKOUT(apply-to-version) on a VCR followed by a CHECKIN of the
+working resource did as well.
+
+- If you create a working resource by applying CHECKOUT(apply-to-version)
+to a VCR, there is no good way for a client to track the location
+of that VCR for a subsequent update (I don't consider locking the
+VCR a good way, since this unnecessarily freezes the namespace above
+the VCR, which is not needed for this use case).
+
+- The protocol currently defines two different ways of achieving the
+same result, namely applying CHECKOUT(apply-to-version) to a VCR, or
+by applying CHECKOUT to the DAV:checked-in version of the VCR.  If we
+modify the semantics of one of these (i.e. CHECKOUT(apply-to-version)),
+and leave the semantics of the other alone (i.e. applying CHECKOUT to
+a version), we can address the previous issues without adding
+new protocol elements.
+
+- Finally, if we did add such a feature, it was agreed that the
+working resource CHECKIN that updates the associated VCR should fail
+if the VCR has changed since the CHECKOUT (i.e. the DAV:checked-out
+property of the working resource is not the same as the DAV:checked-in
+property of the VCR).  This prevents what would appear to be
+a lost overwrite to a client using that VCR.
+
+The group then agreed on the following proposal (assuming that
+I wrote it up correctly :-) -
+
+------------------------------
+
+When you apply CHECKOUT directly to a version URL, the semantics of
+the protocol are unchanged (so if you liked the old semantics and
+didn't want any auto-update on checkin, you would always apply
+CHECKOUT directly to a version URL
+
+When you apply CHECKOUT with a DAV:apply-to-version flag to a VCR, you
+create a working resource whose DAV:checked-out version is the
+DAV:checked-in version of the VCR (as is required currently), but
+which now also has a protected DAV:auto-update property which contains
+the URL of the VCR that was checked out.  (This requires one new
+postcondition for the CHECKOUT semantics in the working-resource
+feature).
+
+The MOVE operation is required to update the DAV:auto-update property
+if the VCR is moved (or it can fail the MOVE), so the DAV:auto-update
+property is always valid.  (This requires one new postcondition
+for the MOVE semantics in the working-resource feature).
+
+When you CHECKIN a working resource with a DAV:auto-update property,
+the CHECKIN fails if the DAV:checked-out property of the working
+resource does not match the DAV:checked-in property of the VCR.
+If the CHECKIN succeeds, the VCR identified by the DAV:auto-update
+must have been updated to have the content and dead properties
+of the new version, and the DAV:checked-in version of the VCR
+must have been updated to identify the new version.  (This requires
+one new precondition and one new postcondition for the CHECKIN
+semantics in the working-resource feature).
+
+------------------------------
+
+Although several members of the working group have expressed a strong
+desire to minimize changes to the protocol (a sentiment I believe most
+of the participants in this call share), the participants of this call
+felt that this particular change was worth making.  In addition, no
+member of the working group that was intending on supporting the
+DAV:apply-to-version flag for CHECKIN has identified these extended
+semantics as being a problem to support.
+
+If anyone objects to this proposed change, please clearly identify
+your concerns so that Jim Amsden can determine whether this change
+has received consensus support.
+
+Note: the DAV:auto-update property used to be called
+DAV:checked-out-vcr, or DAV:checked-out-version-controlled-resource in
+earlier proposals.  I prefer just DAV:auto-update, since who knows, we
+might someday want to auto-update something other than a VCR (and it
+is shorter :-).  Let me know if you object to this name change.
+
+At the end of the call, we decided to discuss an additional
+item that was not in the original agenda (but which is a
+recent email thread): "firm up the definition of the DAV:supported-*
+property values".  I'm still in the process of
+formulating a coherent proposal based on that discussion, and will
+post it soon.
+
+Cheers,
+Geoff
+
+
+

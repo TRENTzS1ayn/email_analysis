@@ -1,0 +1,53 @@
+docno="lists-102-15734742"
+received="Wed Sep 15 06:30:04 1999"
+isoreceived="19990915103004"
+sent="Tue, 14 Sep 1999 16:42:17 -0400 (EDT)"
+isosent="19990914204217"
+name="keshlam@us.ibm.com"
+email="keshlam@us.ibm.com"
+subject="Recent questions about document traversal"
+id="852567EC.0071B17F.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+expires="-1"
+
+To:www-dom@w3.org
+
+
+There seems to be a bit of confusion about TreeWalker. Let me weigh in with a
+few observations:
+
+Neither TreeWalker nor NodeIterator are ever invalidated, in the current design.
+
+TreeWalker is intended to have "pure current node" semantics. That is, a
+TreeWalker really does have a particular current node as part of its state. If
+the current node is moved, the TreeWalker is relocated with it. That's true even
+if the node's new location is outside the bounds of the TreeWalker's original
+root node.
+
+The TreeWalker has no memory of past navigation; each step is taken in terms of
+the current state of the tree. If you move the current node into a new parent,
+then the next getParent call to the tree walker will return its new parent,
+_not_ the parent the node had when you walked into it. (Unless, of course, the
+new parent is rejected by the filter or the whatToShow flags, in which case the
+TreeWalker will seek upward until it finds an ancestor which is not filtered out
+and so can be returned as the virtual parent, or it hits the root and/or the
+Document node and returns null to indicate that no parent was found.)
+
+Hence TreeWalker shouldn't have to track modifications to the DOM, in most
+implementations. As long as it knows its current node, it should be able to
+calculate everything else from that.
+
+The NodeIterator _does_ have to stay aware of alterations, primarily those which
+involve removing the last-reported node from the subtree of the Iterator's root
+node. We kept that requirement as lightweight as we could, consonant with
+providing a reasonable "robust iterator" behavior (as defined in Gamma et al).
+It should be no harder, and hopefully easier, to implement NodeIterator's
+updates in response to document changes than the similar notification used to
+implement "liveness" in NodeLists.
+
+
+______________________________________
+Joe Kesselman  / IBM Research
+
+
+

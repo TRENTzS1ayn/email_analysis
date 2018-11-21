@@ -1,0 +1,111 @@
+docno="lists-104-9393022"
+received="Wed Jul 17 10:31:37 2002"
+isoreceived="20020717143137"
+sent="Wed, 17 Jul 2002 16:31:00 +0200"
+isosent="20020717143100"
+name="Sander Bos"
+email="sander@x-hive.com"
+subject="Mixed level 1 and level 2 nodes woes"
+id="41D11F414A26E942912B7E7696DC8E220615ED@JAKARTA.xhive.archipel"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"WWW DOM"<www-dom@w3.org>
+
+
+
+Hi there,
+
+I have some questions about documents with mixed level 1 and level 2
+nodes.
+
+My original question was:
+  You have NamedNodeMap::setNamedItemNS(Node) and
+Element::setAttributeNodeNS(Attr), which both say that when called it
+should replace any node with the same local-name/ namespace URI pair. My
+question is, what should happen when this method is called with a DOM
+Level 1 node as argument, where both the local name and namespace are
+null? I do not see any behavior defined for this, I see two options:
+ - If namespace and local name are null on the entered node, call
+setNamedItem/ setAttributeNode instead.
+ - Throw an exception.
+
+Then I thought about it a little more, what should happen if a user does
+this:
+  Element myElement = document.createElementNS(null, "someName");
+  myElement.setAttribute("sameName", "value1");
+  myElement.setAttributeNS(null, "sameName", "value2");
+or 
+  Element myElement = document.createElementNS(null, "someName");
+  NamedNodeMap attributes = myElement.getAttributes();
+  attributes.setNamedItem(document.createAttribute("sameName"));
+  attributes.setNamedItemNS(document.createAttributeNS(null,
+"sameName"));
+In both cases, all statements individually are correct, and in both
+cases the set...NS statement per specification only looks whether there
+is already an attribute with the same localname. So with our DOM
+implementation I get two attributes with the same name on the element (I
+also tried it with Xerces, and there the attribute gets replaced with
+the second one in both cases, so maybe I read the specification
+incorrectly?).
+
+I already know the standard answer: "Don't mix the two kinds of nodes
+then."
+That is very nice, but users are going to do that if you give them a
+chance, and there are at least two use cases where I cannot blame them:
+ - If you have one level 1 document and one level 2 document, and copy
+some data from one to the other using importNode. The specification says
+you have to make copies of the namespace attributes (attributes of the
+Node here), so if you import a DOM level 1 node, it will remain a DOM
+level 1 node when copied (Our customer who ran into this was
+constructing a document from several others).
+ - If the user has first parsed a document (which will usually create
+DOM level 2 documents by default in most implementations), and then
+start to alter that document using DOM calls, but without an intimate
+knowledge of the DOM specification. He/ she will most likely go for the
+createElement, createAttribute, setAttribute calls instead of
+createElementNS(null, ...) etc. if he/ she uses no namespaces, leading
+to mixed-nodes documents. All the non-NS methods have the warning
+"To create an element with a qualified name 
+and namespace URI, use the createElementNS method."
+which I do not think is going to stop most people, who will think 'I am
+not using namespaces, I do not even know what the heck a qualified name
+is, so createElement is the call for me'.
+
+I also have a proposed solution: I feel that
+ - createElement, createAttribute and setAttribute should create DOM
+level 2 nodes when the document element of the document is a level 2
+node (so localName should be set in that case).
+ - importNode should also set the localName if a DOM level 1 node is
+imported into a DOM level 2 node (do not really know for the other
+direction, simply clearing the info is probably not possible).
+ - setNamedItemNS and setAttributeNodeNS should not only check for
+localName and namespace URI but also for qualified name, like Xerces
+apparently already does.
+
+Sure, it breaks backwards compatibility, but if most people don't care
+about mixed node problems, they probably won't care about backwards
+mismatches in those things.
+
+Kind regards,
+
+--Sander.
+
+P.S.: Recipe to get two attributes with the same name on one element in
+Xerces 2.0.1:
+  Element myElement = document.createElementNS(null, "someName");
+  org.w3c.dom.NamedNodeMap attributes = myElement.getAttributes();
+  attributes.setNamedItemNS(document.createAttribute("otherName"));
+  attributes.setNamedItemNS(document.createAttribute("otherName"));
+will serialize to:
+<someName otherName="" otherName=""/>
+
+-- 
+X-Hive Corporation (www.x-hive.com)
+email: sander@x-hive.com
+phone: +31 10 7108625
+ 
+
+
+

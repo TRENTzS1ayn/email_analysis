@@ -1,0 +1,136 @@
+docno="lists-001-2725736"
+received="Fri Dec 15 13:51:33 2000"
+isoreceived="20001215185133"
+sent="Fri, 15 Dec 2000 11:48:33 -0700"
+isosent="20001215184833"
+name="Randy Waki"
+email="rwaki@flipdog.com"
+subject="Bug + fix: Inline emphasis inconsistently propagated into CM_MIXED"
+id="000e01c066c7$a0469840$b665a8c0@rwaki"
+charset="iso-8859-1"
+expires="-1"
+
+To:<dsr@w3.org>,<html-tidy@w3.org>
+
+
+4-Aug-2000 Tidy sometimes, but not always, propagates inline emphasis
+tags into tags marked as CM_MIXED.  Neither HTML 4.01 or the older 3.2
+address this issue as far as I can tell.  However, I'm guessing that the
+propagation is incorrect since it a) doesn't always occur; b) can result
+in a badly placed end tag; c) doesn't seem to be needed by either
+Netscape or IE; d) is caused by an apparent coding inconsistency.
+
+The coding inconsistency is in ParseBlock() in parser.c.  That routine
+makes three calls to InlineDup().  Two of them test CM_MIXED before
+making the call, but the third does not.  The patch below makes the
+third call look like the other two.  This causes inline emphasis tags to
+consistently NOT get propagated if CM_MIXED is set.
+
+In the example document below, the first font size="1" is propagated
+into the noscript element while second is not.  The difference is
+whether the noscript element's first child is an element or a text node.
+Note that the propagation causes the </noscript> end tag to be
+misplaced, putting the "OUTSIDE" text inside the noscript.  I think
+this misplacement is a separate bug, but I didn't pursue it further.
+
+Thanks,
+Randy
+
+
+--- parser.c    Fri Aug 04 16:32:04 2000
++++ \temp\parser.c      Fri Dec 15 10:51:38 2000
+@@ -843,20 +843,23 @@
+         /* parse known element */
+         if (node->type == StartTag || node->type == StartEndTag)
+         {
+             if (node->tag->model & CM_INLINE)
+             {
+                 if (checkstack && !node->implicit)
+                 {
+                     checkstack = no;
+
+-                    if (InlineDup(lexer, node) > 0)
+-                        continue;
++                    if (!(element->tag->model & CM_MIXED))
++                    {
++                        if (InlineDup(lexer, node) > 0)
++                            continue;
++                    }
+                 }
+
+                 mode = MixedContent;
+             }
+             else
+             {
+                 checkstack = yes;
+                 mode = IgnoreWhitespace;
+             }
+
+
+------------------------ Example HTML document -------------------------
+<html>
+<head><title></title></head>
+<body>
+<font size="1"><noscript><span>inside</span></noscript> OUTSIDE</font> <br>
+<font size="1"><noscript>X<span>inside</span></noscript> OUTSIDE</font>
+</body>
+</html>
+------------------------------------------------------------------------
+
+------------------------- Output before patch --------------------------
+Tidy (vers 4th August 2000) Parsing "bug.html"
+line 4 column 26 - Warning: inserting implicit <font>
+line 4 column 45 - Warning: replacing unexpected </noscript> by </font>
+line 4 column 64 - Warning: missing </noscript> before </font>
+
+bug.html: Document content looks like HTML 4.01 Transitional
+3 warnings/errors were found!
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta name="generator" content="HTML Tidy, see www.w3.org">
+<title></title>
+</head>
+<body>
+<font size="1"><noscript><font size="1"><span>inside</span></font>
+OUTSIDE</noscript></font> <br>
+<font size="1"><noscript>X<span>inside</span></noscript>
+OUTSIDE</font>
+</body>
+</html>
+
+You are recommended to use CSS to specify the font and
+properties such as its size and color. This will reduce
+the size of HTML files and make them easier maintain
+compared with using <FONT> elements.
+
+HTML & CSS specifications are available from http://www.w3.org/
+To learn more about Tidy see http://www.w3.org/People/Raggett/tidy/
+Please send bug reports to Dave Raggett care of <html-tidy@w3.org>
+Lobby your company to join W3C, see http://www.w3.org/Consortium
+------------------------------------------------------------------------
+
+------------------------- Output after patch ---------------------------
+Tidy (vers 4th August 2000) Parsing "bug.html"
+
+bug.html: Document content looks like HTML 4.01 Transitional
+no warnings or errors were found
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta name="generator" content="HTML Tidy, see www.w3.org">
+<title></title>
+</head>
+<body>
+<font size="1"><noscript><span>inside</span></noscript>
+OUTSIDE</font> <br>
+<font size="1"><noscript>X<span>inside</span></noscript>
+OUTSIDE</font>
+</body>
+</html>
+------------------------------------------------------------------------
+
+
+

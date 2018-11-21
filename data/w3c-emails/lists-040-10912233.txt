@@ -1,0 +1,147 @@
+docno="lists-040-10912233"
+received="Fri Mar  2 23:11:51 2001"
+isoreceived="20010303041151"
+sent="Fri, 2 Mar 2001 23:01:36 -0500"
+isosent="20010303040136"
+name="Jason Crawford"
+email="ccjason@us.ibm.com"
+subject="Re: unlock question"
+id="OF2D68D727.971111F8-ON85256A04.000ABB55@pok.ibm.com"
+charset="us-ascii"
+inreplyto="unlock question"
+expires="-1"
+
+To:"Dan Brotsky"<dbrotsky@Adobe.COM>
+Cc: Greg Stein<gstein@lyra.org>,w3c-dist-auth@w3.org
+
+
+
+
+<<
+The interesting thing here is that this is completely symmetric with
+LOCK, which *does* specify the token in an IF (for renewal).  I think
+there's another issue here entirely:
+
+ISSUE - Lock Renewal should specify the lock to renew with a
+LOCK-TOKEN header, not an IF header.  Reasoning: If you have multiple
+locks on a resource, then you might specify more than one of them in
+the IF.  How does the server know then which one to renew?
+>>
+I agree.  I think that is a very poor design decision in the spec.  It's
+going on the list.
+
+
+<<
+So consider the request
+
+UNLOCK /url ...
+LOCK-TOKEN: <some-lock-token>
+IF: <some-lock-token>
+
+If I have the resource locked with <some-lock-token>, this will
+succeed.  If I've lost the lock and noone else has relocked, then I
+get a 400.  But if I've lost the lock and someone else has locked,
+then I get a 412.  This seems like an unnecessary assymetry, and
+confusing for a client.
+>>
+First let me say that I intuitively prefer that the IF header checking
+should occur before the method specific checks.   I don't think rfc2518
+says what it requires, but my preference would be in conflict with the
+IF-MATCH header spec after which we say the IF header is modeled.  Although
+it's not my preference, below I'll assume the IF header is not checked
+first because that's what you've assumed.   But we should decide what
+semantics we want and update the spec, right?
+
+Anyway, onward...
+
+If you didn't include the IF: header, then I think 400 would be what
+returned as you indicated.  Although returning 400 seems to bother you,  I
+think returning something other than 412  is potentially valuable since the
+possibility of three well defined error statuses allow the client to easily
+distinguish between the three situations you mentioned.
+
+<<
+Putting this another way, I'm arguing that I should *always* get a
+412 in this situation, whether or not I specify the IF header.
+Because ultimately what's going on is exactly that the LOCK-TOKEN
+header is claiming the same thing that an IF header would: that I
+have this lock!  If I don't, then I should get a 412.
+>>
+Whether or not you have the IF header?  Hmmm.  This argument could be
+extended to many things I think since almost every 4xx error code is a
+conceptual precondition fault.
+
+I don't think either option is much better than the other. 400 is a pretty
+generic error so unless the text after the status code clarifies, it
+doesn't provide a lot of information about the error and could be ambiguous
+with other types of errors.  Saying an error is a pre-req error is saying
+more about it, but not much more.  And returning 412 if the implicit lock
+check failed would create an amgibuity with the situation where the IF
+header was actually doing an etag check and the client would like to know
+if it's etag check failed or the implicit lock check failed.
+
+Neither options seems great, but I'd think returning 400 is better of the
+two.  At least we know with 412 (I hope) that the status indicates that the
+client driven check failed and not something else.
+
+<<
+To see that UNLOCK changes the resource, consider a lock-null
+resource.  Unlocking it makes it go away.  (I can come up with other
+examples, but that's the one that requires the least context.)
+>>
+I agree with Greg.  We've had long discussions about locking that we
+suspended in Dec 99 so that we could devote time to other issues.  Despite
+the wording of things like the IF header documentation, in those
+discussions we all agreed that the lock really isn't meant to change the
+resource.  It just acts on the resource and/or the URI.
+
+And the case of null lock resources is odd ball.  It's very controversial
+and likely is going to need conceptual revision even if the actual outward
+behavior doesn't change.
+
+<<
+And the spec mandates that a 412 should be returned in exactly that
+case.  The spec is saying that if a resource is locked then you
+*must* present the token that locks that resource in order to modify
+it.  It's not saying you get a 412 because the IF fails, it's saying
+you get a 412 because the precondition that you specify the lock
+token has failed.  To see this, suppose I've locked a resource /url
+and gotten <some-token> back.  If I execute
+
+PUT /url ...
+IF: (NOT <some-other-lock-token>)
+
+then I should get a 412 back.  Not because the IF failed (it hasn't),
+but because I haven't presented <some-token> in an IF.
+>>
+Assuming the IF header is checked second...
+
+You are right is so far as that the implicit check for the locks before
+doing a PUT would fail.  But I think you'd get "423 Locked" response though
+not a "412 Precondition Failed".
+
+I'm not sure I'm getting your point unless it is that everything is a
+pre-condition check and should return "412 Precondition Failed".  I'm
+sceptical of that.  I feel that 412 Precondition Failed is largely intended
+for optional client driven checks like IF:, IF-MATCH, etc.
+
+
+
+<<
+I believe the function of the IF header is for *clients* to specify
+*additional* preconditions on the execution of a method *other* than
+those mandated by the spec.  In this reading, the use of the IF
+header for presenting a lock token in order to *satisfy* a spec
+precondition is a little confusing, but since such presentation is
+also useful as a client-generated precondition (only do this if I
+still have this lock) it makes sense.
+>>
+I agree.  The IF header should be reserved for client-directed checks.
+There should be a seperate header for presenting our tokens for the sake of
+generic lock checking.  Perhaps call it "Locks-Held:".  No double or triple
+duty for the IF header.
+
+J.
+
+
+

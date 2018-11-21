@@ -1,0 +1,119 @@
+docno="lists-098-1331635"
+received="Mon Sep  3 06:22:46 2001"
+isoreceived="20010903102246"
+sent="Mon, 3 Sep 2001 06:22:44 -0400 (EDT)"
+isosent="20010903102244"
+name="Dan Brickley"
+email="danbri@w3.org"
+subject="RDFQClient.java"
+id="Pine.LNX.4.30.0109030621480.8261-100000@tux.w3.org"
+charset="US-ASCII"
+expires="-1"
+
+To:<www-archive@w3.org>
+cc:<libby.miller@bristol.ac.uk>
+
+
+
+
+Time to get this into CVS somewhere...
+
+--danbri
+
+---------- Forwarded message ----------
+
+package org.w3c.inkling.soap;
+
+import java.net.*;
+import java.io.*;
+import java.util.*;
+
+import org.apache.axis.*;
+import org.apache.axis.utils.*;
+import org.apache.axis.client.*;
+import org.apache.axis.transport.http.HTTPTransport ;
+import java.lang.reflect.Array;
+import org.apache.axis.message.*;
+import org.apache.axis.encoding.*;
+import org.apache.axis.server.AxisServer;
+import org.apache.axis.utils.QName;
+import org.xml.sax.InputSource;
+
+/**
+A simple RDF query client in SOAP
+Issues:
+     - the hashmap argument to the server -- can we avoid this?
+     - wrap as a driver for Inkling, http://swordfish.rdfweb.org/rdfquery/
+     - document service interface
+     - look at datatyping issues (dates etc in query results)
+@author Dan Brickley <danbri@w3.org>
+or comments/feedback via #rdfig channel: http://www.w3.org/RDF/Interest/#irc
+*/
+
+public class RDFQClient {
+
+    public static String query = "SELECT ?x, ?l, ?c" +
+"FROM     http://xmlns.com/wordnet/1.6/Job "+
+"WHERE "+
+"  (web::type ?x rdfs::Class) "+
+"  (rdfs::label ?x ?l) "+
+"  (rdfs::description ?x ?c) "+
+"USING web FOR http://www.w3.org/1999/02/22-rdf-syntax-ns# "+
+       "rdfs FOR http://www.w3.org/2000/01/rdf-schema#";
+
+   public static String data = "http://xmlns.com/wordnet/1.6/Job";
+
+   public static String msg = "<SOAP-ENV:Envelope " +
+        "xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\" " +
+        "xmlns:soapenc=\"http://schemas.xmlsoap.org/soap/encoding/\" > " +
+        "<SOAP-ENV:Body>\n" +
+        "<rq:squish xmlns:rq=\"http://rdfweb.org/RDF/RDFWeb/SOAPDemo\">\n" +
+        "<rq:query>" + query + "</rq:query>"+
+"<rq:data>"+ data +"</rq:data>"+
+        "<rq:hashmap>1</rq:hashmap>" +
+        "</rq:squish>\n" +
+        "</SOAP-ENV:Body></SOAP-ENV:Envelope>\n";
+
+    /**
+     * Send a query message to the server, and print the response.
+     */
+    public static String askWeb () throws Exception {
+
+      Message        reqMsg      = new Message( msg );
+      ServiceClient client = new ServiceClient(new HTTPTransport());
+      client.set(HTTPTransport.URL,"http://fireball.dyndns.org/cgi-bin/soap" );
+      client.set(HTTPTransport.ACTION, "http://rdfweb.org/RDF/RDFWeb/SOAPDemo#squish");
+      client.setRequestMessage( reqMsg );
+      client.invoke();
+
+      Message resMsg = client.getMessageContext().getResponseMessage();
+      // System.out.println("XML serialization: "+ resMsg.getAsString());
+
+      SOAPEnvelope envelope = (SOAPEnvelope)resMsg.getAsSOAPEnvelope();
+      RPCElement body = (RPCElement)envelope.getFirstBody();
+      Vector arglist = body.getParams();
+      RPCParam param = (RPCParam) arglist.get(0);
+      Object result = param.getValue();
+
+      ArrayList rows = (ArrayList)result;
+      Object[] answers = (Object[])rows.toArray();
+      for (int i=0; i<answers.length; i++) {
+  HashMap h = (HashMap)answers[i];
+  System.out.println("Result: "+i+"\n");
+          Iterator keys = h.keySet().iterator();
+          for (int k=0; k< h.keySet().size(); k++){
+              String key = (String)keys.next();
+      String value = (String)h.get(key);
+      System.out.println("  "+key+" = "+value );
+  }
+      }
+      return (String)resMsg.getAsString();
+    }
+
+  public static void main(String args[]) throws Exception{
+    askWeb();
+  }
+}
+
+
+

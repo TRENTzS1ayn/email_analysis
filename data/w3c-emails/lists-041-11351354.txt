@@ -1,0 +1,199 @@
+docno="lists-041-11351354"
+received="Tue Sep 17 10:08:06 2002"
+isoreceived="20020917140806"
+sent="Tue, 17 Sep 2002 09:37:40 -0400"
+isosent="20020917133740"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Issue: Requiring server to use / terminated URL for returned  collections"
+id="3906C56A7BD1F54593344C05BD1374B10841D57B@SUS-MA1IT01"
+inreplyto="Issue: Requiring server to use / terminated URL for returned  collections"
+expires="-1"
+
+
+To:"'Webdav WG'"<w3c-dist-auth@w3c.org>
+
+
+
+   From: Lisa Dusseault [mailto:lisa@xythos.com]
+
+   > ... the implementation must
+   > query the repository for the type of each resource identified by
+   > that segment.  Forcing this cost on the server is only justified
+   > if it provides some compelling benefit to the client.
+
+   Yes, the server must know the type of each resource in order to
+   construct its URL properly.
+
+In general, this is not true.  A given segment name can refer to
+various types of resources.  In particular, it is not true for any of
+the DeltaV types (activity, version history, workspace) or of any of
+the ACL types (principal, group principal).  It is not true for the
+advanced collection types (redirect reference).  In fact, the only
+exception is collection vs. non-collection.  In all other cases, we
+let the client (preferably) or the server decide on any naming
+conventions/constraints, and 2518 gives servers the option in this
+case (i.e. to automatically add a slash to a request, to produce
+typeless names).  I need to see some compelling reasons why a
+collection requires protocol-imposed naming constraints.
+
+   Or the repository could save or cache the
+   URL for each resource. There are lots of options.
+
+If the repository semantics are that /x/y can refer either to
+a collection or to a non-collection, it cannot save the URL in
+a reference, because it might have changed since it was saved.
+Correctly maintaining a "cache" is very complex for a sophisticated
+repository, so introducing functionality that requires one is
+only done for compelling reasons.
+
+   > The only concrete motivation I have heard for making this
+   > requirement is to save a 302 redirect round trip for a client
+   > when the server redirects a GET request on a collection to an
+   > internal member of the request-URL (e.g. redirects "GET /foo" to
+   > "GET /foo/index.html").
+
+   There are other problems encountered and discussed at the interop.
+   In fact, the GET/redirect problem is one of the least troublesome
+   because it's just a performance problem, not (typically) an
+   interoperability problem.
+
+OK, I'm happy to focus on interoperability issues.
+
+    - Clients aren't consistent in supporting redirects for other
+   methods besides GET. Yet if the client sends a bad Request-URI (a
+   collection path without a trailing slash), the server needs to do
+   something.
+
+If a client doesn't support 302 redirects, then it is broken,
+end of story.  Once the Advanced Collection redirect protocol
+is adopted, a client will be able to interoperably create
+redirects, and it will be even more important that clients
+that do not accept redirects are fixed.  So if anything,
+I consider this an argument against the proposal, so that
+the broken clients are identified and flushed out as early
+as possible.
+
+A couple of additional comments on the section above:
+
+Since when is a collection path without a trailing slash a "bad
+Request-URI"?  RFC-2518 explicitly states in Section 5.2 that "a
+resource may accept a URI without a trailing '/' to point to a
+collection."  If you are proposing to change this semantics, then I
+object even more vigorously (but I'll save those objections until
+I verify that you are proposing to make this change).
+
+Note also that there is no requirement in 2518 for a server to
+redirect a non-GET request (it just needs to return the '/' terminated
+name in a Location header).  Note that I have no problem with
+requiring that a Location header be returned, since if the server
+is applying a method to a resource, it will have had to find out
+what type of resource it is anyway.
+
+    - Servers aren't consistent in putting the trailing slash in
+   various places: the Content-Location header, the Location header,
+   and <href> elements inside Multi-Status. Clients need to look for
+   the trailing slash and possibly add it in order to be able to do
+   further operations.
+
+This appears to be based on the same false premise as above, i.e.
+that a client needs to add a trailing slash to make a request
+on a collection.  If a server has such a requirement, then certainly
+it will return its collection URLs in the trailing slash form.
+If the server automatically redirects /x/y to the collection named
+/x/y/, then there is no need for a client to do that processing.
+In either case, the client just takes the URL produced by the
+server, and uses it.
+
+   E.g. clients would like to be able to display results consistently
+   in folder views, yet servers aren't consistent.
+
+This is neither a performance nor an interoperability issue.
+If a server automatically redirects slash terminated names,
+then it is not inconsistent for the client to
+use and display the non-slash terminated form of the URL.
+
+    - Clients need to know how to generate a correct URL for a MKCOL,
+   PUT, MOVE or COPY to create a new resource in an existing
+   collection. This means parsing the collection URL to make sure it
+   ends in a slash before adding the terminal part.
+
+Let's see ... 
+
+   if (str[strlen-1] != '/') str[strlen++] = '/'
+
+Suffice it to say, I find this argument less than compelling.
+
+   > But no WebDAV methods other than GET is redirected in this
+   > fashion, and WebDAV clients will commonly not be doing a GET on a
+   > collection (they will be doing a PROPFIND, and use the results to
+   > construct a display), and so the overall benefit to a client of
+   > avoiding a redirect on a GET to a collection is significantly
+   > outweighed by the server cycles being wasted to determine whether or
+   > not a collection member is a collection.
+
+   First, this is an issue not only for GET.  The problems with other
+   methods are not just redirects, but how the client constructs URLs
+   for new resources.
+
+As indicated above, I find the "clients can't be expected to figure
+out how to add a trailing slash when adding a new segment to a URL"
+argument uncompelling.  File system clients have been doing it for
+decades.
+
+   Second, it's a matter of opinion what situation has what benefits
+   and which wastes cycles where. Certainly avoiding redirects
+   improves performance for the client because it reduces
+   roundtrips.
+
+It is a matter of semantics, not opinion, as to whether methods other
+than GET need to be 302 redirected (costly) or can be silently
+redirected on the server (effectively no cost).
+
+   Also providing correct URLs saves cycles on the client
+   although that's usually less of a concern.
+
+Given the cycles necessary to perform the preceding C statement
+(a few machine instructions), I'd say "absolutely no concern
+in this case".
+
+   Note that for some servers, a redirect is higher cost than just
+   making the URLs correct, because a redirect is an entirely new
+   request, new database or filesystem query, etc.
+
+As indicated above, the 302 redirect is only required for a GET, and
+WebDAV clients commonly use PROPFIND and not GET to retrieve the state
+of a collection.
+
+   > If a client cares whether or not a resource is a collection, it
+   > can do a PROPFIND for its DAV:resourcetype.  That way, server
+   > cycles are spent only when needed.
+
+   It's not only that the client cares what type of resource the URL
+   refers to, although knowing that is nice. It's also how to
+   construct correct new URLs and how to interpret the results of a
+   PROPFIND.
+
+We have dealt with the "difficulty of adding a slash" above.
+How is a "trailing slash" needed to interpret the results of
+a PROPFIND?  If you care about the type of a member, you ask
+for its DAV:resourcetype in that PROPFIND.
+
+   Since there have been actual interoperability problems, I still
+   find this a good candidate for making the specification clearer,
+   even if this is a few more cycles on the server. Real
+   interoperability problems are much worse problems than a minor
+   increased burden on the server.
+
+The only real interoperability problem I saw identified above was the
+"clients don't redirect properly", and the solution there is to fix
+the broken clients, not change URL conventions so that the broken
+clients work better in this one case of redirection.  (I consider the
+addition of a slash when extending a URL to be a trivial coding issue,
+not an interoperability problem).
+
+Cheers,
+Geoff
+
+
+

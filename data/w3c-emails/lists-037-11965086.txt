@@ -1,0 +1,227 @@
+docno="lists-037-11965086"
+received="Tue Mar 18 04:04:48 1997"
+isoreceived="19970318090448"
+sent="Tue, 18 Mar 1997 01:04:50 -0800"
+isosent="19970318090450"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="Meta Data Handling"
+id="11352BDEEB92CF119F3F00805F14F485025666AC@RED-44-MSG.dns.microsoft.com"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+1Meta Data Handling
+
+The proper handling of meta-data has been an issue for this group since
+its inception. To date the spec has used links to handle meta-data. The
+power of links is that they allow meta-data to be resources. However it
+is often the case that useful meta-data does not need to be contained in
+resources, witness the existence of HTTP headers.
+It would seem logical to simply continue adding entity headers to HTTP
+in order to provide for new meta data. The following is a list of
+reasons why I believe it is not feasible to put non-request/response
+related meta-data in entity headers.
+
+1.Putting arbitrary meta-data into the header will cause namespace
+confusions and increase the processing load for proxies and other
+intermediaries who need to sniff headers in order to ensure proper
+handling of messages.
+2.It is a waste of bandwidth to return all headers at once.
+3.Violates the principal that one request should perform one
+action. If a request sets headers as well as executing some arbitrary
+method, it is necessary to provide error information for all of the
+associated actions.
+4.There is no way to delete a header.
+5.There is no way to modify just one part of a header. So, for
+example, if a header consists of "name: blah12, blah13, blah14" there is
+no way to say that "blah13" should be replaced with "blah15".
+
+While links solve all of these problems, they have their own problem,
+for example, they make all meta data into resources. This is often
+overkill. Status information such as modification dates, ownership
+information, etc. can all be usefully recorded in small pieces of data
+rather than requiring the overhead of a resource.
+
+In order to keep the meta-data model "light", I further propose that
+meta-data take the form of a header. In addition I recommend that
+meta-data behave like headers in that multiple pieces of meta-data with
+the same header name must be unambiguously combinable using commas.
+
+In order to handle the assignment, modification, discovery, and removal
+of meta-data I propose adding three new methods - METAPOST, METAGET, and
+METADELETE. These methods, defined below, accept meta-data that is
+structured like HTTP headers for assignment to a resource through
+METAPOST. Allow for the discovery of meta-data through METAGET and
+finally allow for the removal of meta-data through METADELETE.
+
+METAPOST is meant to be a more generic form of LINK, METADELETE a more
+generic form of UNLINK, and METAGET is the equivalent of GETLINKVAL for
+this type of meta-data.
+
+What this proposal will not address is the question of where meta-data
+is stored. This issue is intentionally left open in order to allow
+implementers maximum flexibility and power.
+
+For example, let us say a server has the ability to accept arbitrary
+meta-data. A user then comes along and puts a MS Word document on the
+server. The server understands the Word document's format and is able to
+retrieve from it author, creation date, and revision information. The
+server is now free to make that information available to users who know
+nothing about Word or its format through the META* methods.
+
+For ease of conversation I would like to define the following terms as
+used below:
+Attribute - A piece of meta-data consisting of an attribute name and
+entries.
+Entry - One of a comma delimited list of values assigned to an attribute
+name.
+
+2METAPOST Method
+
+2.1Attribute-Specify Header
+
+AttributeSpecify = "Attribute-Specify" ":" #("name" "=" AttributeName
+"," #("value" "=" AttributeValue)) CRLF
+AttributeName = field-name
+AttributeValue = [field-value without commas or quoted string]
+
+2.2Server-Supported Header
+
+ServerSupported = "Server-Supported" ":" 1#field-name CRLF
+
+2.3Atomic Header
+
+AtomicHeader = "Atomic" ":" CRLF
+
+2.4Explanation
+
+The METAPOST method is used to add an entry to an attribute. If the
+attribute does not exist then it will be created. If an
+Attribute-Specify header does not contain any entries and the attribute
+does not exist, and the attribute's definition allows for entryless
+attributes or if the server does not enforce the attribute's semantics,
+then the attribute is created with no entries. As specified for HTTP 1.1
+headers, the attribute name is case insensitive.
+
+The server-supported header specifies that the request should only go
+through if the server supports the syntax and semantics of the specified
+attributes, which may or may not be listed in an accompanying
+Attribute-Specify.
+
+The Atomic header specifies the request should only go through if all
+the entries can be assigned as requested. If not, the entire request
+should fail.
+
+NOTE: The Server-Supported header seems to be a bit wasteful. It might
+be worth defining attribute names to have the form: ["req"] "\"
+field-name. The idea being that all attribute names would be prefixed by
+a "\". If a "req" is listed before the "\" then users of the attribute
+expect the server to provide some sort of behavior above and beyond what
+is provided by the META* methods. If the server does not recognize the
+attribute then it would refuse to METAPOST it.
+
+2.5Example
+
+METAPOST http:\\foo HTTP/1.1
+Attribute-Specify: Name = 29348x, Value = "Jim Whitehead", Value = "Roy
+Fielding", Name = Xyz, Value = Ooooga!
+Atomic:
+Server-Supported: 29348x, LKHXZ
+
+This message requests that the entries "Jim Whitehead" and "Roy
+Fielding" be added to the 29348x attribute and that the entry Ooooga! Be
+added to the Xyz attribute. However, the request should only go through
+if the server supports the 29348x and LKHXZ attributes and only if all
+the entries can be successfully assigned.
+
+2.6Response Codes
+
+A server may reject entries because they are not consistent with the
+definition of the attribute. In that case a 406 Not Acceptable should be
+returned.
+If the atomic header is included then all indicated assignments must
+succeed or all must be rejected with a 412 Precondition Failed. If the
+atomic header is not included then a 200 may be returned if at least one
+entry was successfully assigned. A web collection returned in the
+response will indicate which entries where successfully assigned.
+I recommend that the atomic header not be required by a server in order
+to be considered DAV compliant. Implementing atomic is extremely
+difficult.
+
+3METADELETE Method
+
+The METADELETE method is used to remove one or more entries from an
+attribute. If an attribute-specify header is used without any entries
+then this is interpreted as meaning the header should be deleted. Note
+that this is a different interpretation for the same structure as used
+in METAPOST.
+
+3.1Example
+
+METADELETE http://foo HTTP/1.1
+Attribute-Specify: Name = blah, Value = x98
+
+The previous will delete the x98 value from the blah attribute.
+
+METADELETE http://foo HTTP/1.1
+Attribute-specify: blah
+Server-Supported: blah
+
+Will remove the blah attribute, but only if the server enforces the blah
+attribute syntax and semantics.
+
+3.2Response Codes
+
+Same as METAPOST.
+
+4METAGET Method
+
+The METAGET method is used to retrieve all the entries associated with
+an attribute.  If entries are specified then the response will only
+include entries that match those listed. This mechanism is useful for
+quickly checking if an entry has already been set.
+
+The atomic header may not be used with the METAGET method.
+
+4.1Example
+
+METAGET http:\\foo HTTP/1.1
+Attribute-Specify: name = ydfh, name = blah, value = foobar
+Server-Maintained: ydfh, 29348x
+
+The server is being asked to return all entries associated with the ydfh
+attribute and to return the foobar entry of blah if it exists. However,
+these values should only be returned if the server supports the ydfh and
+29348x attributes.
+
+4.2Response Codes
+
+Same as METAPOST with the exception of atomic related errors.
+
+5Link Attribute
+
+If META* is adopted then links become attributes. I propose they be
+defined as follows:
+
+Name = "Link"
+Entry = #(Source Dest Type *(";" link-extension))
+Source = Specifier SP
+Dest =  "Dest" "=" Specifier SP
+Specifier = <"> URI <"> | "SET"
+Type = "Type" "=" Token SP
+
+Links would be created, retrieved, and deleted using the META* commands.
+All previous descriptions of link behavior still hold. The current spec
+thus prevents behavior such as setting both URIs to SET. However I also
+propose removing the rule that either the source or destination must be
+equal to the Request-URI. This will enable annotation facilities.
+
+I have left the "Source" label off the initial URI in order to maintain
+the same format as the Link header given in the HTTP 1.1 spec.
+
+Yaron
+
+
+

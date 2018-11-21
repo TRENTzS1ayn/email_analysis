@@ -1,0 +1,185 @@
+docno="lists-038-8820916"
+received="Thu Aug  6 18:25:28 1998"
+isoreceived="19980806222528"
+sent="Thu, 6 Aug 1998 14:42:23 -0700"
+isosent="19980806214223"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: Docushare and WebDAV model"
+id="005001bdc183$18e6d720$d115c380@galileo.ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="33EC99D45C25D111A24200805F15E09873B084&#64;crtepub.wc.eso.mc.xerox.com"
+expires="-1"
+
+To:"Falkenhainer, Brian C"<BFalkenhainer@crt.xerox.com>,w3c-dist-auth@w3.org
+Cc:"Garnaat, Mitchell"<MGarnaat@crt.xerox.com>
+
+
+
+On August 4, 1998, Judith Slein wrote:
+> It is their view that most, if not all, document repositories,
+> would prefer to use handles to identify the objects they
+> control, and not paths in a URL hierarchy.  They would like to see
+> the requirement that the URLs of DAV resources reflect the URL
+> hierarchy (see section 4 of the spec) be removed, or at least
+> weakened to "SHOULD".
+>
+> Can anyone reconstruct the original rationale for this requirement?
+
+First, since none of these messages has explicitly named any requirements by
+section, I'm going to assume the thread refers to section 4, "All DAV
+compliant resources MUST support the HTTP URL namespace model specified
+herein" and to specific requirements in sections 4.1 and 4.3.
+
+The rationale for these requirements is to prevent "gaps" in the namespace
+where an intermediate collection in a URL might not exist.  Specifically, we
+wanted to avoid situations where collections http://www.foo.bar/a/b/c/ and
+http://www.foo.bar/a/ exist, but collection http://www.foo.bar/ does not.
+Driving this decision was the need to provide concrete definitions for what
+Depth=infinity means.  In the example above, intuitively a DELETE of
+Depth=infinity on http://www.foo.bar/a/ should also delete
+http://www.foo.bar/a/b/c/, but since http://www.foo.bar/a/b/ doesn't exist,
+http://www.foo.bar/a/b/c/ is not contained by http://www.foo.bar/a/. This
+made our definition of Depth=infinity problematic (propagation of the DELETE
+along containment relationships), since there is no containment relationship
+between http://www.foo.bar/a/ and http://www.foo.bar/a/b/c/ in the absence
+of http://www.foo.bar/a/b/.
+
+Navigation is also problematic when there are gaps in the namespace, since a
+PROPFIND on http://www.foo.bar/a/b/c/ will return the contents of the
+collection, but PROPFIND on http://www.foo.bar/a/b/ will fail without giving
+any indication that a PROPFIND on http://www.foo.bar/a/ will work, returning
+the contents of the collection.
+
+There was also a concern about the semantics of collections that were not
+created using MKCOL.  In particular, working group members wanted to ensure
+that collections created by some out-of-band mechanism (e.g., a "create
+collection" command issued directly to the underlying repository through a
+non-WebDAV interface) behaved like WebDAV collections.  This is the
+rationale for the requirement in section 4.1 that "WebDAV servers MUST treat
+HTTP URL namespaces as collections, regardless of whether they were created
+with the MKCOL method..."
+
+The requirement for having only a single instance of a URI in a collection
+(section 4.1) was placed there to avoid needing to specify for every method
+which instance of a URI you wanted to operate on, as well as avoiding the
+philosophical issue of what having multiple instances of the same URI name
+in a collection actually meant (having mutliple instances of the same URI in
+a collection doesn't make much sense to me).
+
+On August 6, Brian Falkenhainer wrote:
+
+> I think that's an accurate characterization. If by "HTTP URL" you mean a
+> reference beginning with "http://", then we are using http urls. The
+> issue for us is that in existing products, there are (at least) two ways
+> of browsing hierarchical collections and the current phrasing in the
+> WebDAV draft appears to disallow all of them but one.
+
+Could you enumerate the ways you have in mind here?
+
+> Standard web
+> servers use the hierarchical, path-oriented URL syntax which WebDAV
+> appears to require. However, most document management / groupware
+> systems I'm familiar with reference collections and files based on a
+> unique ID, typically an integer, that is assigned to each resource.
+> Using CGI or other access vehicle, these systems manage the hierarchical
+> content themselves rather than basing the hierarchy on the underlying
+> file system.  However, the content is still hierarchical in the
+> traditional sense. It's simply that each node in the hierarchy is
+> referenced by ID rather than by path. From what I see in the draft, all
+> of the functionality defined by WebDAV still works with a
+> reference-by-ID model. PROPFIND can still return information on all of
+> the members of a collection resource, etc.  So why the couple sentences
+> requiring the hierarchical URL syntax? It doesn't seem necessary -
+> everything else in the draft still works as far as I can tell - and it
+> has the potential to cause a lot of problems for vendors that have
+> traditionally always used a reference-by-ID model.
+
+Let me see if I can get at the heart of this matter.
+
+On the Web, every network resource has one (or more) URIs which identify it.
+When a server receives a message containing an HTTP URL, it performs a
+mapping operation between the URL and one or more objects in its persistent
+store.  While most Web servers are file-based, and map a URL into a file,
+many servers are not file-based, and perform a mapping of the URL space into
+any number of underlying persistent stores, such as databases, memory buffer
+in an EPROM, etc.
+
+From your description, it sounds like most document management systems have
+decided to directly place the document identifier into the HTTP URL for that
+document, thus achieving a 1:1 mapping between HTTP URLs and document ids.
+
+There are many, many ways to map the space of document ids into the HTTP URL
+space.  I would be very surprised to discover it is impossible to map
+document ids into HTTP URLs while maintaining the hierarchy constraints
+specified in the WebDAV specification.  In one of her previous messages,
+Judy described one such mapping:
+
+http://{server}/<identifier-for-your-space>/<object-identifier>
+
+The implication of this mapping is the HTTP URL namespace of documents on
+the server is flat.  However, document management systems also have
+collections, and it is desirable to also map these collections into the HTTP
+URL space.  Since it sounds like these collections do not all fit within
+some grand hierarchy, the mapping to the HTTP URL space will have to create
+a pseudo-hierarchy for them.
+
+I propose that you map all collections under the URL:
+
+http://{server}/<identifier-for-your-space>/collections/<collection-name>
+
+That is, all collections in the DM repository will be rooted at:
+
+http://{server}/<identifier-for-your-space>/collections/
+
+Since your repository has no problem mapping the same document identifier to
+multiple names in the HTTP URL space, you could have both this mapping and
+the object-identifier mapping operating simultaneously.  That is, the same
+object could be retrieved through:
+
+http://{server}/<identifier-for-your-space>/<object-identifier>
+
+and
+
+http://{server}/<identifier-for-your-space>/collections/<collection-name>/<o
+bject-identifier>
+
+Of course, from a user interface standpoint, exposing an internal identifier
+like a document id in the user interface is generally a bad idea, so if you
+could make a mapping that didn't use document ids at all, that would be the
+best solution (but undoubtedly raises name uniqueness issues).
+
+In conclusion, unless I see some further compelling evidence for why a large
+class of document management systems cannot map their document identifiers
+into the HTTP URL space while preserving the requirements in section 4, 4.1,
+and 4.3, I see no reason to downgrade the strength of this requirement to a
+SHOULD.
+
+- Jim
+
+Afterword:  In an earlier post, Brian Falkenhainer wrote:
+
+> For example, here is an OpenText URL:
+> http://demo.opentext.com/livelink/livelink?func=doc.browse&nodeid=22278
+> This opens their demo collection called "Gizmo".
+
+Note that this approach maps all objects within the document management
+system into a single resource (in the eyes of HTTP).  The semantics of the
+"?" inside a URL are that everything to the left of the "?" is the URL of a
+resource, and everything to the right is to be interpreted by the specific
+resource.
+
+Since the URL has actions embedded within it, it is unclear to me how it
+should react to non-GET requests.  For example, what should the action be if
+I perform a DELETE on
+http://demo.opentext.com/livelink/livelink?func=doc.browse&nodeid=22278
+
+There are competing commands here -- the DELETE says to remove the resource
+<http://demo.opentext.com/livelink/livelink> while the stuff to the right of
+the question mark indicates that a "doc.browse" operation is to be
+performed.  Weird, eh?  This is why I (and many others) think this approach
+is a poor design from an HTTP theory perspective, although we can certainly
+appreciate how it easily maps into a CGI script implementation.
+
+
+

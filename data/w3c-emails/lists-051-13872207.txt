@@ -1,0 +1,177 @@
+docno="lists-051-13872207"
+received="Wed Sep 25 04:43:26 2002"
+isoreceived="20020925084326"
+sent="Wed, 25 Sep 2002 09:52:14 +0100"
+isosent="20020925085214"
+name="Graham Klyne"
+email="GK@NineByNine.org"
+subject="Tidy vs untidy literals:  2 test cases motivated by CC/PP"
+id="5.1.0.14.2.20020925091726.00a2fb10@127.0.0.1"
+charset="us-ascii"
+expires="-1"
+
+
+To: RDF core WG<w3c-rdfcore-wg@w3.org>
+
+
+1. Equivalence of strings and numerals?
+
+CC/PP was developed on the assumption (reinforced by last-call review 
+comments) that the meaning of RDF literals used to describe CC/PP 
+attributes could be refined by associated RDF schema statements.
+
+Consider the following example adapted from [1], section 2.3.2,:
+
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+          xmlns:ccpp="http://www.w3.org/2002/05/20-ccpp#"
+          xmlns:prf="http://example.com/Schema#">
+   <rdf:Description rdf:about="http://example.com/MyProfile">
+     <ccpp:component>
+       <rdf:Description rdf:about="http://example.com/TerminalHardware">
+         <rdf:type rdf:resource="http://example.com/Schema#HardwarePlatform" />
+         <prf:cpu>PPC</prf:cpu>
+         <prf:cpuModel>604</prf:cpuModel>
+         <prf:displayWidth>604</prf:displayWidth>
+         <prf:displayHeight>200</prf:displayHeight>
+       </rdf:Description>
+     </ccpp:component>
+   </rdf:Description>
+</rdf:RDF>
+
+The intent in the CC/PP structure and vocabulary, as currently drafted, was 
+that the meaning of the various attributes could be read in conjunction 
+with some RDF schema, such as:
+
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+          xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
+   <rdfs:Property about="http://example.com/Schema#cpu">
+     <rdfs:domain rdf:resource="http://example.com/Schema#HardwarePlatform">
+     <rdfs:range 
+rdf:resource="http://www.w3.org/2001/XMLSchema-datatypes#string">
+   </rdfs:Property>
+   <rdfs:Property about="http://example.com/Schema#cpuModel">
+     <rdfs:domain rdf:resource="http://example.com/Schema#HardwarePlatform">
+     <rdfs:range 
+rdf:resource="http://www.w3.org/2001/XMLSchema-datatypes#string">
+   </rdfs:Property>
+   <rdfs:Property about="http://example.com/Schema#displayWidth">
+     <rdfs:domain rdf:resource="http://example.com/Schema#HardwarePlatform">
+     <rdfs:range 
+rdf:resource="http://www.w3.org/2001/XMLSchema-datatypes#integer">
+   </rdfs:Property>
+   <rdfs:Property about="http://example.com/Schema#displayHeight">
+     <rdfs:domain rdf:resource="http://example.com/Schema#HardwarePlatform">
+     <rdfs:range 
+rdf:resource="http://www.w3.org/2001/XMLSchema-datatypes#integer">
+   </rdfs:Property>
+</rdf:RDF>
+
+so that a schema-aware RDF processor could know that the cpu type and model 
+were intended to be treated as textual labels, and display width and height 
+values were intended to be treated as integer values, without having 
+built-in knowledge of the properties themselves.
+
+Thus, the intent of the above example is that the cpuModel "604" is an 
+identifying string, but that the displayWidth "604" is an integer 
+value;  i.e. they have different interpretations.  A consequence of 
+selecting tidy literals is that they would be the same value.
+
+The immediate implications of tidy literals for CC/PP that I see would be:
+
+- Firstly, it means that the RDF schema for CC/PP, as currently written, 
+would be incorrect.
+
+- Secondly that RDF inference engines would be entitled to conclude from 
+the above example that the CPU model number for this device is the same as 
+its display width.  Does this matter?  Is it harmful?  I think that CC/PP, 
+as currently conceived, could live with this change.  But I fear that (a) 
+it confuses the situation as far as interpretation of CC/PP profiles is 
+concerned, and (b) it may complicate subsequent possible developments of 
+CC/PP -- see below.  (E.g., in consideration of (a), it means that the 
+prf:displayWidth attribute is NOT "the display width in pixels", but "a 
+string that can be a representation of the display width in pixels", or 
+some suchlike.)
+
+
+2. Consistent treatment of literals and other nodes
+
+We have in the past contemplated future developments of CC/PP to permit 
+CONNEG [3] style expressiveness.  The CC/PP working group decided that this 
+was something to be deferred, but not according to my understanding abandoned.
+
+CONNEG provides for values to be expressed by relationships, so that a 
+device profile might be expressed as something like this:
+
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+          xmlns:ccpp="http://www.w3.org/2002/05/20-ccpp#"
+          xmlns:val="http://example.com/Values#"
+          xmlns:prf="http://example.com/Schema#">
+   <rdf:Description rdf:about="http://example.com/MyProfile">
+     <ccpp:component>
+       <rdf:Description rdf:about="http://example.com/TerminalHardware">
+         <rdf:type rdf:resource="http://example.com/Schema#HardwarePlatform" />
+         <prf:cpu>PPC</prf:cpu>
+         <prf:cpuModel>604</prf:cpuModel>
+         <prf:displayWidth>
+           <val:Integer>
+              <val:le>604</val:le>
+           </val:Integer>
+         </prf:displayWidth>
+         <prf:displayHeight>
+           <val:Integer>
+              <val:le>200</val:le>
+           </val:Integer>
+         </prf:displayHeight>
+       </rdf:Description>
+     </ccpp:component>
+   </rdf:Description>
+</rdf:RDF>
+
+The point of this example is that the literal nodes from the previous 
+example have been replaced by blank nodes, of the form _:someInteger, where:
+
+     _:someInteger val:le 604 .
+     etc.
+
+The expected interpretation of this is that the node _:someInteger denotes 
+an integer.
+
+I accept that there are ways around this, but we end up with a situation 
+that information designers have to be prepared to deal representative 
+strings when they are only really concerned with the values that they 
+represent.  My view is that these subtleties would be a continuing source 
+of confusion.  Especially when one wants to define an inference framework 
+(like CONNEG) that takes account of different value types.
+
+...
+
+I have tried to set out why I think untidy literals are best for CC/PP.  I 
+accept that there are  ways around the difficulties, albeit untidy and 
+requiring changes to a spec that is very close to CR.
+
+I suppose that if we were starting from scratch, I would design CC/PP 
+differently using bNodes or typed literals throughout for data values, thus 
+sidestepping the problems of untyped literals.  But there is still 
+resistance to using RDF in the CC/PP community and even those modest 
+changes might be sufficient to give such resistance a greater force.
+
+#g
+--
+
+[1] 
+http://www.w3.org/Mobile/CCPP/Group/Drafts/WD-CCPP-struct-vocab-20020819/#ClientProfile
+
+[2] http://www.w3.org/TR/rdf-mt/
+
+[3] http://www.ietf.org/rfc/rfc2533.txt
+
+
+
+
+
+-------------------
+Graham Klyne
+<GK@NineByNine.org>
+
+
+

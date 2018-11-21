@@ -1,0 +1,168 @@
+docno="lists-101-1256306"
+received="Sat May 19 14:30:21 2001"
+isoreceived="20010519183021"
+sent="Sat, 19 May 2001 13:33:11 -0500"
+isosent="20010519183311"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: Updated domtest.xsd and simple attr.xml"
+id="000f01c0e092$290f27c0$f8021942@curtbnmqewb54k"
+charset="iso-8859-1"
+inreplyto="000a01c0e085$ad0e6d90$0100a8c0&#64;happy"
+expires="-1"
+
+
+To:<xmlconf-developer@lists.sourceforge.net>,<www-dom-ts@w3.org>
+
+> I do have a couple of questions.
+>
+> 1)  For the Document interface, it appeared that the following were
+missing:
+>
+>         doctype
+>         documentElement
+>         createCDATASection
+>         createComment
+>         createDocumentFragment
+>         createElement
+>         createProcessingInstruction
+>         createTextNode
+>
+>         getElementById (maybe a typo -- I saw getElementsById)
+>         implementation  (should this be Document.implementation)?
+
+doctype and documentElement are <Document.getDoctype> and
+<Document.getDocumentElement>.
+The others are in the schema documentation on
+http://home.houston.rr.com/curta/domtest/domtest.html.  I did typo
+getElementById
+
+A test has to start by either loading an XML file using <load> or accessing
+the DOMImplementation under test with the <implementation> tag (in case you
+are building a document dynamically) both of these would get transformed to
+an code specific for the parser under test.
+
+> I just looked at the Document interface -- there may very well be others.
+> Is this schema
+> possibly still in process?
+
+Definitely very much a work in process, I initially posted it only after a
+few hours of work to let you know I was thinking.
+
+> 2)  What are you using as names for the methods and attributes -- the IDL
+> names, the java
+> binding, or something else?  This becomes important particularly for the
+> attributes -- they
+> are defined as get/set methods in java, and as attributes in ECMAScript.
+> Differences are
+> either handled here, or will have to be handled in the transformation, and
+> was the primary
+> reason for using IDL names as entity references in the other approach.
+> Doing so with a
+> conditional include allowed for the automatic substitution of
+> binding-specific names.  I don't
+> mind doing it another way -- do you have something else in mind?
+
+I am using the Java binding names since there are distinct content models
+for the accessors and mutators.  I am aware that the IDL and ECMAScript
+binding are expressed in a property notation.  The fact that
+<Node.getNodeValue> is a property accessor is maintained in the schema (its
+type is DOMPropertyAccessor) and that information could be used in the XSLT
+transform that generates the ECMAScript tests.
+
+>
+> 3)  Would it be possible to make use of inheritance for your
+> attribute/method declarations?
+> I would think that this would be an advantage that schemas could provide
+> over a DTD
+> approach?  I don't currently see attributes and methods defined for
+> inherited interfaces.  For
+> example, Text should inherit everything from CharacterData, which in turn
+> should inherit
+> everything from Node.
+
+I don't believe that it is necessary or beneficial to replicate elements for
+the inherited methods and
+properties.
+
+<Node.getNodeValue obj="node" var="value"/>
+
+would get translated to:
+
+value = ((Node) node).getNodeValue();  //Java
+
+or
+
+value = node.nodeValue;  //ECMAScript
+
+Whether Node, CharacterData, etc appeared left of the "."  would only add an
+"instanceOf" check that could already be handled with a:
+
+<assert><instanceOf var="node" type="CharacterData"/></assert>
+
+(Note: var probably should be obj and a distinct <assertInstanceOf> would
+probably be useful)
+
+> I'm not sure if I have mentioned that we have added about 200 tests to the
+> the collection
+> of NIST tests and I expect that about another 200 will have to be written
+to
+> fully cover
+> DOM Level 2 -- we have covered namespaces, errata, and exceptions, but
+have
+> not
+> fully accounted for inherited attributes/methods.  In a couple of days, I
+> should be finished
+> with a proposed list of tests for all interfaces, with a mapping of the
+NIST
+> tests.  We
+> can then identify any holes and will be ready to write additional tests.
+I
+> would like to
+> use the TSML for this purpose.
+
+I've been doing some exploratory work on DOM 2 Events testing and have
+encoded about 20 tests in the domunit CVS and have been working on
+corresponding language elements to support that type of testing.
+
+Here is basically what I was hoping to do:
+
+a) Make a domunit release for Java (now with support for JAXP, Batik and
+Oracle and additional "Unofficial" tests).
+
+b) Relay my interpretations of results to Oracle, Batik and Crimson teams.
+
+c) Make some additional refinements to the schema.  The most significant
+would be the ability to nest code within assertions that would only execute
+if the assertion was true.  This eliminates either asserting that an object
+was not null and then executing a method on it and throwing an exception or
+having to code an identify if immediately after the assertion.
+
+<Node.getAttributes obj="element" var="attributes"/>
+<assertNotNull actual="attributes">
+    <!--  code that only gets executed if attributes != null -->
+    <NamedNodeMap.getNamedItem obj="attributes" var="domestic"
+name='"domestic"'/>
+    <!-- ...  -->
+ </assertNotNull>
+<!--  other tests that don't depending on attributes != null  -->
+
+d) Recode the domunit source to the schema and make any necessary
+refinements or corrections.  I had originally thought that this should be
+automated so you could round trip, however with schema validation of the
+test definition it shouldn't be that bad to develop in XML.  So I'll
+probably do this as a trial and error conversion using a programming editor.
+
+e) Iterate on a XSLT sheet targeting JUnit
+
+f) Regenerate domunit from the XML source using (e)
+
+g) Modify e for ECMAScript and C++
+
+
+I'm going to try to get (a-b) done today, (c-e) over the next few days.  As
+I put things in the xmlconf CVS or make releases, I'll announce it on
+xmlconf-developer but won't on  www-dom-ts.
+
+
+

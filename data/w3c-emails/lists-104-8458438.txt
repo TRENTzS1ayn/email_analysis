@@ -1,0 +1,219 @@
+docno="lists-104-8458438"
+received="Thu Mar  7 14:30:29 2002"
+isoreceived="20020307193029"
+sent="Thu, 07 Mar 2002 11:30:26 -0800"
+isosent="20020307193026"
+name="Benjamin C. Chang"
+email="Ben.Chang@oracle.com"
+subject="AS: Re: AS: Re: XML Schemas as AS Object Model"
+id="3C87BFD2.6C058FE1@oracle.com"
+charset="us-ascii"
+inreplyto="20020307112021.A716&#64;zodiak.ecademix.com"
+expires="-1"
+
+
+To: Peter Seiderer<Peter.Seiderer@ciselant.de>
+CC:www-dom@w3.org
+
+Peter Seiderer wrote:
+
+> On Wed, Mar 06, 2002 at 04:11:24PM -0800, Benjamin C. Chang wrote:
+> > Peter Seiderer wrote:
+> >
+> > > Hello,
+> > > I am not shure about how a given XML Schema woul be represented as a
+> > > Abstract Schemas Object Model, see the following example:
+> > >
+> > > XML Schema example:
+> > >
+> > > <?xml version="1.0" encoding="iso-8859-1"?>
+> > >
+> > > <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+> > >
+> > >  <xsd:element name="ElementA"  type="TypeA"/>
+> > >
+> > >   <xsd:complexType name="TypeA">
+> > >    <xsd:sequence>
+> > >     <xsd:element name="ElementB1"  type="TypeB" minOccurs="1" maxOccurs="1"/>
+> > >     <xsd:element name="ElementB2"  type="TypeB" minOccurs="0" maxOccurs="1"/>
+> > >    </xsd:sequence>
+> > >    <xsd:attribute name="AttributeA1" type="xsd:string"/>
+> > >    <xsd:attribute name="AttributeA2" type="xsd:string"/>
+> > >   </xsd:complexType>
+> > >
+> > >   <xsd:complexType name="TypeB">
+> > >    <xsd:sequence>
+> > >     <xsd:element name="Text"  type="xsd:string"/>
+> > >    </xsd:sequence>
+> > >   </xsd:complexType>
+> > >
+> > > </xsd:schema>
+> > >
+> > > Abstract Schemas Object Model:
+> > >
+> > > ASElementDecl example = {
+> > >                strictMixedContent = false;
+> > >                elemntType         = STRING_DATATYPE;
+> > >                isPCDataOnly       = false;
+> > >                contentType        = ELEMENTS_CONTENTTYPE;
+> > >                ASContentModel     = exE
+> > >                ASAttributeDecls   = null;
+> > > }
+> >
+> > >
+> > >
+> > > ASContentModel exE = {
+> > >                listOperator = AS_SEQUENCE;
+> > >                minOccurs = 1;
+> > >                maxOccurs = 1;
+> > >                subModeld = {(ASElementDecl ElementA)};
+> > > }
+> > >
+> > > ASElementDecl ElementA = {
+> > >                strictMixedContent    = false;
+> > >                elementType           = STRING_DATATYPE;
+> > >                isPCDataOnly          = false;
+> > >                contentType           = ELEMENTS_CONTENTTYPE;
+> > >                ASContentModel        = TypeA;
+> > >                ASAttributeDecls      = null;
+> > > }
+> > >
+> > > ASContentModel TypeA = {
+> > >                listOperator          = AS_SEQUENCE;
+> > >                minOccurs             = 1;
+> > >                maxOccurs             = 1;
+> > >                subModels             = {(ASElementDecl ElementB1),
+> > >                                         (ASElementDecl ElementB2)};
+> > > }
+> > >
+> > > ASElementDecl ElementB1 = {
+> > >                strictMixedContent    = false;
+> > >                elementType           = STRING_DATATYPE;
+> > >                isPCDataOnly          = false;
+> > >                contentType           = ELEMENTS_CONTENTTYPE;
+> > >                ASContentModel        = TypeB;
+> > >                ASAttributeDecls      = null;
+> > > }
+> > >
+> > > ASContentModel TypeB = {
+> > >                listOperator          = AS_SEQUENCE;
+> > >                minOccurs             = 1;
+> > >                maxOccurs             = 1;
+> > >                subModels             = {(ASElementDecl Text)};
+> > > }
+> > >
+> > >  - Q1: But how is Elemnt B2 represented, because ASContentModel TypeB has the
+> > >        false minOccurs, maxOccurs values?
+> >
+> > TypeA should be:
+> >
+> > ASContentModel TypeA = {
+> >    contentModelType = SEQUENCE_CM;
+> >    minOccurs = 1;
+> >    maxOccurs = 1;
+> >    subModels = {(ASContentModel exB1), (ASContentModel exB2),
+> >                                (ASAttributeDecl attr1), (ASAttributeDecl attr2)};
+> > };
+> >
+> > ASContentModel exB1 =
+> > {
+> >     contentModelType = SEQUENCE_CM;
+> >     minOccurs = 1;
+> >     maxOccurs = 1;
+> >     subModels = {(ASElementDecl B1)};
+> > }
+> >
+> > ASElementDecl B1 =
+> > {
+> >    ...
+> >    ASContentModel = TypeB;
+> >    ...
+> > }
+> >
+> > ASContentModel exB2
+> > {
+> >     contentModelType = SEQUENCE_CM;
+> >     minOccurs = 0;
+> >     maxOccurs = 1;
+> >     subModels = {(ASElementDecl B2)};
+> > }
+> >
+> > ASElementDecl B2 =
+> > {
+> >     ...
+> >     ASContentModel = TypeB;
+> >     ...
+> > }
+> >
+>
+> I understand: this is done via an indirection using always ASContentModel
+> instead of direct link to ASElementDecl.
+>
+> >
+> >
+> > >
+> > >
+> > > ASElementDecl ElementB2 = {
+> > >                strictMixedContent    = false;
+> > >                elementType           = STRING_DATATYPE;
+> > >                isPCDataOnly          = false;
+> > >                contentType           = ELEMENTS_CONTENTTYPE;
+> > >                ASContentModel        = TypeB;
+> > >                ASAttributeDecls      = null;
+> > > }
+> > >
+> > >  - Q2: Where to store the ASAttributeDecl AttributeA1 and AttributeA2 defined
+> > >        in the complexType TypeA, but in AS only ASElementDecl has the attribute
+> > >        ASAttributeDecls?
+> >
+> > subModels contains a list of ASObjects, so in addition to ASElementDecl,
+> > it can also contain ASAttributeDecls (see above).
+>
+> But for which purpose is then the attribute ASAttributecls in ASElementDecl?
+>
+> interface ASElementDecl : ASObject {
+>  ...
+>  attribute ASNamedObjectMap ASAttributeDecls;
+>  ...
+> }
+
+A simpler example that could illustrate why ASAttributeDecls is on
+ASElementDecl would be the following:
+
+<!ELEMENT spoken #PCDATA>
+<!ATTLIST spoken lang CDATA #REQUIRED>
+
+where lang would be the ASAttributeDecl.
+
+>
+>
+> Should the attribute ASAttributeDecls moved form ASElementDecl to
+> interface ASContentModel?
+>
+> I am not shure if this is different in the next version of AS, because
+> I see you are using already different names (contentModelType instead of
+> listOperator, SEQUENCE_CM instead of AS_SEQUENCE) as opposed the last
+> public available version:
+> http://www.w3.org/TR/2002/WD-DOM-Level-3-ASLS-20020114
+
+Another version is available internally, but ASAttributeDecls is still on
+ASElementDecl.  This other version will be made public soon by Philippe.
+
+>
+>
+> Thank you for you last answer, it helped a lot....
+>  Peter Seiderer
+
+Sure, no prob, any further clarifications, feel free to email.
+
+Thx,
+Ben
+
+>
+>
+> --
+> ------------------------------------------------------------------------
+> Peter Seiderer                     E-Mail:  Peter.Seiderer@ciselant.de
+
+
+

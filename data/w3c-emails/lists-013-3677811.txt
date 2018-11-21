@@ -1,0 +1,93 @@
+docno="lists-013-3677811"
+received="Tue Dec 10 09:33:58 2002"
+isoreceived="20021210143358"
+sent="10 Dec 2002 09:33:51 0500"
+isosent="20021210143351"
+name="Scott Lawrence"
+email="lawrence@world.std.com"
+subject="Re: contentencoding and range headers"
+id="uznret034.fsf@world.std.com"
+charset="usascii"
+inreplyto="00961816-0C3E-11D7-BC8600039384827E&#64;greenbytes.de"
+expires="1"
+
+To: Stefan Eissing<stefan.eissing@greenbytes.de>
+Cc:ietf-http-wg@w3.org
+
+
+
+Stefan Eissing <stefan.eissing@greenbytes.de> writes:
+
+> My understanding of 2616 is that range is applied to the
+> content-encoded entity. So if an entity is gzipped, the
+> byte selection is applied on the gzipped representation.
+
+I don't believe that this is correct.  The Range specifies bytes in
+the 'entity'; the Content-Encoding refers to a coding method
+_applied_to_ the 'entity', so the Content-Range header would refer to
+the bytes in the original entity, and the Content-Encoding describes
+how that has been encoded to create the message body.
+
+> What is a server to do when a client sends a request with
+> Accept-Encoding: gzip
+> Range: bytes=0-499
+>
+> Is the server free to chose the content-encoding to its liking
+> (identity or gzip)?
+
+Yes, but the result would be the first 500 bytes of the entity, sent
+either with or without gzip encoding at the servers option.
+
+> Assuming there is a second request later
+> Accept-Encoding: gzip
+> Range: bytes=500-1000
+>
+> Is the server allowed to use another content-encoding in the response?
+
+The 'identity' encoding is the only one that is implicitly allowed, so
+it shouldn't send any others.
+ 
+> In that case, a server storing gzipped entities has some work to do
+> answering range request. It would then need to "uncompress"
+> (ungzip?) the entity before it can select the correct range.
+
+This gets into an interesting question, and one that often causes
+confusion.  Let's say that I have a file 'foo.txt.gz' on my web server
+at URL '/foo.txt.gz'.  The (gzipped) file is 350 bytes long, but
+expands to 1000 bytes when ungzipped.
+
+ GET /foo.txt.gz HTTP/1.1
+ Host: scott.example.com
+ Accept-Encoding: gzip
+
+I'll return 
+
+ HTTP/1.1 200 Ok 
+ Content-Length: 350
+ Content-Type: application/x-gzip
+
+ [350 bytes of the file]
+ 
+Note that I did not send a Content-Encoding header, because the entity
+itself is gzipped, which is expressed in the Content-Type.  
+
+If the file were stored as 'foo.txt' and you sent:
+
+ GET /foo.txt HTTP/1.1
+ Host: scott.example.com
+ Accept-Encoding: gzip
+
+then I might compress the response and send:
+
+ HTTP/1.1 200 Ok 
+ Content-Length: 350
+ Content-Type: text/plain
+ Content-Encoding: gzip
+
+ [350 bytes]
+
+--
+  Scott Lawrence
+
+
+

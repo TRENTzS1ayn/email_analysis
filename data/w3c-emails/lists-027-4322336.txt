@@ -1,0 +1,197 @@
+docno="lists-027-4322336"
+received="Tue Jul  1 18:07:11 2003"
+isoreceived="20030701220711"
+sent="Tue, 01 Jul 2003 18:07:07 -0400"
+isosent="20030701220707"
+name="David Booth"
+email="dbooth@w3.org"
+subject="Effects of patterns on client code"
+id="5.1.0.14.2.20030701174242.02ed4ec0@localhost"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-ws-desc-meps@w3.org
+
+
+How is the client affected if we adopt p2d or p2 instead of p2e[1]?  This 
+question has come up a number of times.  Umit and I have argued that the 
+client code would be written differently if the pattern itself does not 
+indicate that the response goes back to the original requester.  That's 
+what I tried to illustrate in Use Case UC1[2].  Here is another attempt to 
+illustrate why.
+
+To make this explanation more concrete, I'll use pseudo-code.  However, it 
+should be understood that I am not trying to imply that this is the only 
+way that a client could implement it.  Rather, this is merely offered as an 
+example of *one* logical way that someone might want to implement this.
+
+First, let's assume that we wish to have a clean separation of concerns in 
+the client code, between:
+
+         - application-specific code that is independent of the specific
+           bindings that are used; and
+
+         - binding-specific code that is auto-generated.
+
+In order to allow the application-specific code to be written independently 
+of the bindings, we wish to define standard interfaces that the client 
+programmer can use to send and receive messages according to the patterns 
+that we adopt.  Each of the binding-specific implementations for a 
+particular pattern would implement the common interface defined for that 
+pattern.
+
+For example, for a simple input-only pattern (p1a), the interface could 
+define a sendMessage function:
+
+         void sendMessage(ServiceAddress s, Message m);
+
+Each of various binding styles (HTTP, SOAP over HTTP, etc.) would implement 
+this function.  Or for a classic request-response pattern (p2e), the 
+interface could define a sendAndReceiveMessage function:
+
+         Message sendAndReceiveMessage(ServiceAddress s, Message m);
+
+and each binding style would implement this function.
+
+With that context in mind, here are examples of what these interfaces might 
+look like for pattern variations p2, p2a1, p2b, p2c, p2d and p2e.
+
+############################################################################
+#############################  p2 family  ##################################
+############################################################################
+
+###########################
+interface i_p2
+{
+// For message 1:
+void multicastMessage(ServiceAddressList ss, Message m);
+
+// For message 2 (either output or ofault), we need to be ready to
+// receive a message at any time, so we'll need to use some kind of
+// event-driven style.  One possibility is to register a callback
+// function that would be called when a message is received.  The
+// user might write a MessageReceiverCallback function f like:
+//         void receiveMessage(ServiceAddress s, Message m);
+// and register it to be called later using:
+void registerMessageReceiverCallback(MessageReceiverCallback f);
+}
+
+###########################
+interface i_p2a1
+{
+// For message 1:
+void sendMessage(ServiceAddress s, Message m);
+
+// For message 2 (either output or ofault), we again need to be ready to
+// receive a message at any time, so we might have:
+void registerMessageReceiverCallback(MessageReceiverCallback f);
+}
+
+###########################
+interface i_p2b
+{
+// For A to send message 1 and receive message 2 (either output or ofault):
+Message sendAndReceiveMessage(ServiceAddress s, Message m);
+
+// For B1 ... Bn to receive an output message asynchronously:
+void registerMessageReceiverCallback(MessageReceiverCallback f);
+}
+
+###########################
+interface i_p2c
+{
+// Message 1: In this pattern the ofault is optional, so when we send
+// message 1, we can't block waiting for a possibly-non-existing ofault
+// to come back.  So instead, we'll handle the ofault separately.
+void sendMessage(ServiceAddress s, Message m);
+
+// Message 2 (either ofault or output) again require an event-driven style
+// such as:
+void registerMessageReceiverCallback(MessageReceiverCallback f);
+}
+
+###########################
+interface i_p2d
+{
+// The interface for p2d is exactly the same as the interface for p2c.
+// Message 1:
+void sendMessage(ServiceAddress s, Message m);
+
+// Message 2 (either ofault or output) again require an event-driven style:
+void registerMessageReceiverCallback(MessageReceiverCallback f);
+}
+
+###########################
+interface i_p2e
+{
+// Message 1 and 2 (either output or ofault):
+Message sendAndReceiveMessage(ServiceAddress s, Message m);
+}
+
+############################################################################
+#############################  Conclusions  ################################
+############################################################################
+
+The main thing to notice is that the interface can be much simpler for p2e 
+-- classic request-response -- because the reply is expected and known to 
+come back to the requester.  In comparison, p2d needs to have some kind of 
+event-driven interface, because output messages from the service may come 
+asynchronously, at any time.
+
+It's also worth comparing these functions with the functions that would be 
+needed for the other patterns.  To summarize, here are the functions needed 
+for the various patterns:
+
+p1:
+         void multicastMessage(ServiceAddressList ss, Message m);
+
+p1a:
+         void sendMessage(ServiceAddress s, Message m);
+
+p1b, p2c, p2d, p2d1, p4c, p4d, p4e, p6a, p6b, p7a, p7b, p7c, p8a, p8b, p8c, 
+p8d:
+         void sendMessage(ServiceAddress s, Message m);
+         void registerMessageReceiverCallback(MessageReceiverCallback f);
+
+p2, p2a, p2a1, p2a2, p2umci-7, p4, p4a, p6, p7, p8:
+         void multicastMessage(ServiceAddressList ss, Message m);
+         void registerMessageReceiverCallback(MessageReceiverCallback f);
+
+p2b:
+         Message sendAndReceiveMessage(ServiceAddress s, Message m);
+         void registerMessageReceiverCallback(MessageReceiverCallback f);
+
+p2e:
+         Message sendAndReceiveMessage(ServiceAddress s, Message m);
+
+p3:
+         [Skipped, as I'm not sure what would be needed for this one.]
+
+p5, p5a:
+         void registerMessageReceiverCallback(MessageReceiverCallback f);
+
+
+In other words, other than p3 (which has the "same channel" requirement),
+these patterns use only 4 interface functions:
+
+         void multicastMessage(ServiceAddressList ss, Message m);
+         void sendMessage(ServiceAddress s, Message m);
+         Message sendAndReceiveMessage(ServiceAddress s, Message m);
+         void registerMessageReceiverCallback(MessageReceiverCallback f);
+
+
+References
+1. 
+http://dev.w3.org/cvsweb/~checkout~/2002/ws/desc/wsdl12/meps-vs-iops/meps-vs-iops_clean.htm 
+
+2. 
+http://dev.w3.org/cvsweb/~checkout~/2002/ws/desc/wsdl12/meps-vs-iops/meps-vs-iops_clean.htm#uc1
+
+-- 
+David Booth
+W3C Fellow / Hewlett-Packard
+Telephone: +1.617.253.1273
+
+
+

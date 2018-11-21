@@ -1,0 +1,184 @@
+docno="lists-056-2884361"
+received="Fri Jun 27 23:34:39 1997"
+isoreceived="19970628033439"
+sent="Fri, 27 Jun 1997 21:30:40 -0900"
+isosent="19970628063040"
+name="W. Eliot Kimber"
+email="eliot@isogen.com"
+subject="Re: IDs - make them case sensitive"
+id="3.0.32.19970627212123.00df7da0@mail.swbell.net"
+charset="us-ascii"
+inreplyto="IDs - make them case sensitive"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+At 01:42 PM 6/27/97 -0700, Tim Bray wrote:
+>At 05:14 AM 28/06/97 +1000, Rick Jelliffe wrote:
+>>Everyone send in strings they have *actually* wanted to use as unique
+>>IDs. ...If you ever changed your
+>>SGML declaration to add a symbol to namechar, that would be acceptable
+>>too.
+>
+>http://www.infoseek.com/Titles?qt=epistemology;col=WW;sv=IS;lk=noframes;nh=10
+
+Surely nobody wants to use the above as an *ID*?  I mean, why would I do:
+
+<mydoc>
+ <para
+id="http://www.infoseek.com/Titles?qt=epistemology;col=WW;sv=IS;lk=noframes;
+nh=10">a;dsjfad</para>
+ ...
+<para><link
+href="http://www.infoseek.com/Titles?qt=epistemology;col=WW;sv=IS;lk=noframe
+s;nh=10">see this para</link>
+</para>
+</mydoc>
+
+If what's wanted is for the latter (the href) to be an SGML "IDREF", it
+doesn't make any sense, because IDs are, *by definition*, identifiers for
+elements *within a single document*.  Using the full URL syntax for them
+doesn't buy you anything.
+
+However, if the real requirement is for simple cross-document addressing,
+that's very different.  At the WG8 meeting in Munich last year, the SGML RG
+accepted in principle a design change proposal submitted by Martin Bryan
+that allows IDREFs to include entity/ID pairs, e.g.:
+
+<!DOCTYPE Mydoc [
+  <!ENTITY foo SYSTEM "foo.sgml" NDATA SGML >
+]>
+<mydoc>
+<link idref="foo::bar">
+</mydoc>
+
+Where "bar" is an ID used in the document "foo.sgml".  We didn't decide on
+the exact syntax and James pointed out some problems with the original
+proposal (I don't remember his objections).  If you used URLs as the system
+IDs of entities, you'd get very close to direct URL references without
+having to bind the complete URL to every reference:
+
+<!DOCTYPE MyDoc [
+ <!ENTITY Clause6.2 SYSTEM "http://www.drmacro.com/hythtml/clause6.2.html"
+   CDATA SGML >
+]>
+<mydoc>
+<para>See <link refid="Clause6.2::clause-6.2.1">this clause</link> for more
+about object representation in HyTime.
+</para>
+</mydoc>
+
+[The refid above looks a bit redundant because my IDs for individual
+clauses include the whole clause number, as do the filenames of the chunked
+files.  Your mileage may vary.]
+
+It might not be too late to get this into the WebSGML TC--I think it would
+be a good thing, as it probably satisfies 70 or 80% of the cross-document
+addressing requirements of SGML documents.
+
+If you want to use URLs to do addressing, use URLs and don't try to pretend
+they're IDREFs.  Certainly the rules for URLs are well defined (if not
+always well understood).  HyTime defines a general mechanism by which the
+use of URLs can be defined to a HyTime engine (and I recommend that all
+HyTime implementations include support for URLs for direct addressing, in
+addition to supporting them as system IDs for entities).
+
+As to why IDs are NAMEs and not CDATA, probably to get the case folding
+rules of NAME.  Also probably because that's the way IDs worked in GML.  My
+initial reaction is that there's no compelling requirement to restrict
+their syntax, although there might be a subtle one that I haven't seen yet
+(you get a lot of that in SGML--the depencies among the parts are just
+monsterous).
+
+Note that in the grove new world, you can, in theory, have as many name
+spaces as you want because the mechanism for defining and using namespaces
+is completely generalized.  The SGML property set only defines the
+document-wide names spaces defined by SGML (elements, entities, notations,
+element types), but, for example, XML could define an application-specific
+property set derived from the SGML property set that added either
+additional name spaces (e.g., "xml-ID") or provided a general way to define
+new name spaces within documents.
+XML processors would implement to this property set [NOTE: this *doesn't*
+mean they'd have to implement groves, just be consistent with what the
+property set defines in terms of what you can address and what you get when
+you do it.]
+
+I think the latter would be a good idea for SGML (and I think it has been
+discussed a bit, but I'm not sure).  For example, you might have a
+declaration like this:
+
+<!DOCTYPE MyDoc [
+ <!NAMESPACE db-names -- Declare new name space called "db-names" --
+     scope    document  -- Scope options might "element", "element type", 
+                           "nested", etc. --
+     lexmodel CDATA     -- Lexical rules for the names --
+     namelen  32        -- Maximum name length --
+ >
+ <!ATTLIST PartNumber
+     control-number ID db-names #REQUIRED
+     -- Control number is a name-space ("ID") attribute but in 
+        the db-names name space, not the default elements name space. --
+ >
+ <!ATTLIST PartNumRef 
+     control-number IDREF db-names #REQUIRED
+     -- Reference to name in db-names name space --
+ >
+]>
+
+For XML, maybe it would be sufficent to define a processing instruction
+that does more or less the same thing:
+
+<?XML NAMESPACE db-name scope="document" lexmodel="CDATA" namelen="32"?>
+
+And then use the name-space name as the attribute name or something [you
+could use XML-specific attributes map name spaces to attributes if you had
+to].
+
+Note that in HyTime (and DSSSL), name-space addressing is generalized such
+that you can do indirect addressing of names in any name space in any
+grove. To address db-name names indirectly in HyTime I would use the
+"name-space location address"
+(www.drmacro.com/hythtml/clause-7.3.html#clause-7.9.3) element form like so:
+
+<nmsploc id=part-102345-ABC namespace="db-names">102345-ABC</>
+
+This allows me to redirect any normal ID reference to any name in any other
+name space for any kind of data (given a processor that knows how to
+resolve the name for that data type).  If the above is a reference to a
+part in a database, all I need to do is declare the database as an entity
+and use it as the location source for my name-space location address:
+
+<!DOCTYPE MyDoc [ 
+ <!NOTATION my-database PUBLIC "-//ME//NOTATION My Database//EN" >
+ <!ENTITY parts-db SYSTEM "parts-db.sql" NDATA my-database>
+]>
+<MyDoc>
+<nmsploc id=part-102345-ABC 
+         namespace="db-names"
+         locsrc="parts-db">102345-ABC</>
+<para><partref refid="part-012345-ABC">framitz</part>
+
+The grove-aware notation processor API for the "my-database" notation
+(e.g., a thin layer of code over the real database) gets as input the
+namespace name and the content of the nmsploc element (the name or list of
+names to be addressed) and returns the "nodes" addressed.  In other words,
+the grove-access API for the database gives back a program object
+consistent with the grove API of the requesting program (for example, the
+grove API in JADE or in GroveMinder).  The requesting program (a HyTime
+browser, DSSSL engine, etc.) gets what it thinks is a grove node and goes
+happily about its business.
+
+Cheers,
+
+E.
+--
+<Address HyTime=bibloc>
+W. Eliot Kimber, Senior Consulting SGML Engineer
+Highland Consulting, a division of ISOGEN International Corp.
+2200 N. Lamar St., Suite 230, Dallas, TX 95202.  214.953.0004
+www.isogen.com
+</Address>
+
+
+

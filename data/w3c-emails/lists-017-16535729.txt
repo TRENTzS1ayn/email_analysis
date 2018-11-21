@@ -1,0 +1,164 @@
+docno="lists-017-16535729"
+received="Thu May  9 14:45:16 2002"
+isoreceived="20020509184516"
+sent="Thu, 9 May 2002 06:06:34 0400 (EDT)"
+isosent="20020509100634"
+name="Jeni Tennison"
+email="jeni@jenitennison.com"
+subject="Data Model WD"
+id="251473323306.20020509110629@jenitennison.com"
+charset="usascii"
+expires="1"
+
+
+To:public-qt-comments@w3.org
+
+Hi,
+
+Congratuations on the new version of the Data Model WD. On the whole,
+it's very clear and well put-together.
+
+I see that you're considering what to do about anonymous types. I
+don't think that using the empty sequence as their name will help,
+since that's the only method of access to type information, and would
+imply that:
+
+<xs:element name="foo">
+  <xs:complexType>...</xs:complexType>
+</xs:element>
+
+and:
+
+<xs:element name="bar">
+  <xs:simpleType>...</xs:simpleType>
+</xs:element>
+
+had the same type. But I think that it's important, particularly for
+simple types, that they're not just ignored or substituted for
+xs:anySimpleType, especially if you consider anonymous simple type
+definitions nested within list and union types. For example:
+
+<xs:simpleType name="listOfDatesIn2002">
+  <xs:list>
+    <xs:simpleType>
+      <xs:restriction base="xs:date">
+        <xs:minInclusive value="2002-01-01" />
+        <xs:maxExclusive value="2003-01-01" />
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:list>
+</xs:simpleType>
+
+Say I had:
+
+  <holidays xsi:type="listOfDatesIn2002">
+    2002-05-06 2002-06-03
+  </holidays>
+
+I can't find the part of the Data Model WD that explains how the
+[schema normalized value], which is the string "2002-05-06 2002-06-03"
+gets turned into a sequence of AtomicValues, but I assume that's done
+by splitting the string at spaces and querying the element's type
+definition to get hold of the item type definition somehow (a
+particularly complicated process when the item type is a union type).
+
+It would be very unhelpful to have these values interpreted as strings
+when they're obviously dates. I think that, at least with anonymous
+simple types, it would be more helpful to use the base type of the
+anonymous simple type than xs:anySimpleType. Perhaps anonymous complex
+types could be treated similarly, although that case is more
+complicated because of the different types of derivation that could
+occur.
+
+
+One thing that caused me some confusion on my first read was the way
+that the typed value of elements is created (Section 4.2). It appears
+that if an element to have a complex type in the schema, then
+dm:typed-value returns an error, unless it's declared with the complex
+type xs:anyType, in which case dm:typed-value returns its string
+value. The more I think about it, the more it makes sense, since
+xs:anySimpleType is a subtype of xs:anyType, and for consistency with
+the treatment of well-formed documents, but it might be worth a note
+or a bit of rephrasing.
+
+By the way, I think that the changes that have been made here have
+addressed the issue I raised about whitespace normalization of element
+values (Issue-0073: Whitespace normalization of the string-value of
+elements with simple content).
+
+
+There's a small typo in Section 5 Atomic Values. It says:
+
+ "XML Schema simple types can be derived by list. Values
+  corresponding to such types are represented by a sequence of atomic
+  values whose type is the base type."
+
+Presumably you mean "whose type is the item type". The base type of a
+list type (or a union type) is xs:anySimpleType.
+
+
+The schema from Appendix D isn't valid at the moment, because the
+complex type part-type has an xs:attribute within an xs:sequence. It
+should be:
+
+  <xs:complexType name="part-type">
+    <xs:sequence>
+      <xs:element name="mfg" type="xs:string"/>
+      <xs:element name="price" type="xs:decimal"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="part-name"/>
+  </xs:complexType>
+
+Even if it were valid, though, the instance document wouldn't be valid
+against it. The instance document is:
+
+<?xml version="1.0"?>
+<p:part xmlns:p="http://www.example.com/PartSchema"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation = "http://www.example.com/PartSchema
+                              http://www.example.com/PartSchema"
+        name="NB-401-nutbolt">
+  <p:mfg>Acme</p:mfg>
+  <p:price>10.50</p:price>
+</p:part>
+
+in which the mfg and price elements are in the
+http://www.example.com/PartSchema namespace. However, these elements
+are declared locally within the schema (in the complex type definition
+above), which means, by default, that they should be in no namespace.
+
+You should either change the instance document so that the mfg and
+price elements are in no namespace:
+
+<?xml version="1.0"?>
+<p:part xmlns:p="http://www.example.com/PartSchema"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation = "http://www.example.com/PartSchema
+                              http://www.example.com/PartSchema"
+        name="NB-401-nutbolt">
+  <mfg>Acme</mfg>
+  <price>10.50</price>
+</p:part>
+
+or add an elementFormDefault attribute with the value 'qualified' to
+the xs:schema element in the schema:
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://www.example.com/PartSchema"
+           xmlns="http://www.example.com/PartSchema"
+           elementFormDefault="qualified">
+  ...
+</xs:schema>
+
+
+I hope these comments are helpful.
+
+Cheers,
+
+Jeni
+---
+Jeni Tennison
+http://www.jenitennison.com/
+
+
+

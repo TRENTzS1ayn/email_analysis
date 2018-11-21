@@ -1,0 +1,124 @@
+docno="lists-014-0731531"
+received="Mon Aug  5 18:07:53 1996"
+isoreceived="19960805220753"
+sent="Mon, 05 Aug 1996 15:07:39 0700"
+isosent="19960805220739"
+name="Bennet Yee"
+email="bsy@cs.ucsd.edu"
+subject="Re: Passphrases in or out"
+id="199608052207.PAA21294@work.ucsd.edu"
+inreplyto="32065979.F47&#64;litronic.com"
+expires="1"
+
+
+To: Steve Petri<petri@litronic.com>
+cc:ietf-tls@w3.org
+
+
+> From: Steve Petri <petri@litronic.com>
+> > 
+> > Christopher Allen wrote:
+> > 
+> > >f) Some cryptographers to speak up on the proposal.
+> 
+> I have a question for the cryptographers...
+> 
+> The "Shared Key Authentication for the TLS Protocol" paper
+> states:
+>  [ ... ]
+> Would not this same type of attack be possible against the current
+> proposal?  It seems to me that if your are not using asymmetric crypto, 
+> an eavesdropper would have all required info from the transcript of
+> the session to perform this type of an attack.  That is, it doesn't
+> matter if the transcript is "weakly protected" or "strongly protected" --
+> without asym crypto, the attacker has the same info about the session
+> as the valid participants.
+
+Steve, using assymetric cryptography is not a necessary condition for
+distinguish between attackers and valid participants.
+
+The authentication hash proposed in the passauth3.txt that Tom
+Stephens just sent is a bit complicated.  I'll first simply point out
+that an attacker does not have the same information as the valid
+participants by a simple reduction to a previously solved problem,
+that of computing a MAC on a single message.
+
+We believe HMAC(k,m) = h(k,p2,(k,p1,m)) to be a good MAC on message m
+(where p1 and p2 are padding bytes necessary to bring (k,p1) and
+(k,p2) to full compression function argument boundaries).  k is a
+shared ``MAC key'', not known to eavesdroppers.  The MAC doesn't have
+to be protected at all -- if the hash function h has the necessary
+cryptographic property (collision intractibility), then only those who
+know k may generate a valid MAC for a message m, and even if you get
+lots of m_i,MAC(m_i) pairs (and you get to chose m_i), it is still
+computationally infeasible to generate m,MAC(m) where m != m_i for all
+i.
+
+How is this different from shared key authentication?  With MACs, we
+are authenticating the origin of a single message (per MAC, in a
+repudiable way, unlike digital signatures).  With the shared key
+authentication, the goal is to authenticate the channel, i.e., that
+the encryption/message-MAC keys derived to protect the channel is
+indeed shared by the parties who possess the shared secret key.
+
+Anyway, the SharedKeyVerify.shared_key_response field deserves closer
+scrutiny, but in principle there's nothing wrong with the idea.
+
+--------
+
+Now about the design of SharedKeyVerify.shared_key_response.
+
+It's not clear to me why pad1 is needed (padding are added to MAC
+functions to prevent a key recovery attack by Preneel and Van
+Oorschot) -- if MAC_write_secret is the only secret in the inner hash,
+I would have expected the pad to preceed it to make sure
+MAC_write_secret do not span a compression function boundary, and
+burying the secret value in the middle of the hash is probably not a
+good idea -- nor why the xor is there.  Having only thought about it a
+little [caveat], I would prefer it to be
+
+ h(shared_key + pad_2 + h(shared_key + pad_1 + handshake_messages))
+
+where shared_key is either the passphrase itself, or h(passpharse).
+
+The identity information may be sent in the clear -- it's part of the
+handshake messages anyway, as well as SharedKeyVerify.identity, and
+only serves to chose the particular shared_key for verifying the
+SharedKeyVerify.shared_key_response field.  This MAC authenticates the
+the possessors of the shared_key saw the same handshake messages, from
+which master_secret is derived for the write secrets etc.  (Instead of
+just protocol messages sent, it should be sent and received, and
+includes internally the client_hello.random etc.)
+
+This only works in one direction, obviously.  If we want both the
+client and the server to prove (to each other) that they possess the
+shared_key, we'd either have to have two keys, or change the
+authentication hash to be one of
+
+ h(shared_key + pad_2 + h(shared_key + pad_1 + handshake_messages + "I
+am client"))
+
+ h(shared_key + pad_2 + h(shared_key + pad_1 + handshake_messages + "I
+am server"))
+
+This is probably a little different than the point of view adopted by
+the designer(s) of the SharedKeyVerify.shared_key_response in the
+Shared Key Authentication proposal.  It appears to me that they wanted
+to show that the possessor of the channel keys also has the
+shared_key, instead of the other way around.  This is more vulnerable
+to the man-in-the-middle attacks for anonymous key exchanges, since
+the cryptographic assumption about the hash function must be stronger
+(preimage resistance), because such an attacker would have access to
+the auth_write_secret and MAC_write_secret.  (This assumed that users
+chose passphrases with enough entropy, else all bets are off.)
+
+-bsy
+
+--------
+Bennet S. YeePhone: +1 619 534 4614    Email: bsy@cs.ucsd.edu
+
+Web:http://www-cse.ucsd.edu/users/bsy/
+USPS:Dept of Comp Sci and Eng, 0114, UC San Diego, La Jolla, CA 92093-0114
+
+
+

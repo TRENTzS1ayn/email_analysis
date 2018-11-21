@@ -1,0 +1,244 @@
+docno="lists-026-3835429"
+received="Thu May 22 15:55:04 2003"
+isoreceived="20030522195504"
+sent="Thu, 22 May 2003 11:48:38 -0700"
+isosent="20030522184838"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Co-ordination protocol and BPEL"
+id="3ECD1B86.5060404@intalio.com"
+charset="us-ascii"
+inreplyto="221369570DEDF346AE42821041345E89194D88&#64;exchange1.corp.choreology.com"
+expires="-1"
+
+
+To:"Furniss, Peter"<Peter.Furniss@choreology.com>
+CC: Ricky Ho<riho@cisco.com>,public-ws-chor@w3.org
+
+
+Furniss, Peter wrote:
+
+>For the sequence case, unless the first message is explicitly defined as
+>being the first of a conversation, and that definition says that a
+>context on it is implicit to the rest of the conversation, I'd kind of
+>assume that each message has it's own context. Of course, these could
+>always be the same context, meaning each of them are part of the same
+>transaction.
+>  
+>
+There's a difference between programming languages and process 
+languages. In a programming language you may end up getting dirty with 
+the details, you want the maximum amount of flexibility to do the most 
+complicated things. In the process language you are trying to simplify 
+the work of writing these definitions and you don't need to get into the 
+details.
+
+Writing process definitions in Java is very expensive because it's a 
+lower level language, and you would rather use more suitable and easier 
+to work with languages to get that done. Writing low-level components is 
+something best done in Java, C#, VB or similar languages. There needs to 
+be a clear division here. Sure, we could make the process language as 
+capable as Java, but then what have we brough to the table: another 
+language that is as complex as Java, just written using XML?
+
+What we're trying to do is not rob anyone of the capability to create 
+really complicated systems, only let them simplify the work by dividing 
+the labor between languages that are suited for dealing with the 
+processes and languages that are able to deal with the nitty gritty 
+details. So if you do not do funky things you would write them as Java 
+components, if you need to specify activity flows you would write them 
+as BPEL processes, and if you need both you'll write a process and a set 
+of components and use them together.
+
+The process language doesn't entirely rob you of capabilities, it's just 
+based on the assumption that you mean what you say and you say what you 
+mean. If you meant for multiple activities to be part of the same 
+context, you write them as part of some scope, and if you ment for them 
+to be in separate contexts you write them in separate scopes. That saves 
+you the problem of writing a lot of activities and a lot of 
+scope-handling logic to go along with it. If nothing else, it's more 
+declarative.
+
+>
+>There's also the option (in BA and BTP) that the receiver registers
+>multiple participants, one for each receive (or, indeed, more than one).
+>If the context declares that the decision will be atomic (i.e. the same
+>for all participants), then how many participants there are, and how the
+>work is partitioned among them is a concern only of the receiver.
+>  
+>
+Whether you register all the participants with the original context or 
+interpose is an implementation detail, and a process engine can do it 
+any way it wants. The specification as I read it is generic enough to 
+let the process engine decide how to do it. BPEL should be "loosely 
+coupled" as well, in the sense that it should let the process engine do 
+it the way it feels right and not specify it in the process definition 
+itself.
+
+
+>>The important thing here is that you should say what you mean 
+>>and mean 
+>>what you say. If what you meant is that no work could be completed 
+>>unless you received two requests, then that's what should happen. If 
+>>someone tries to commit before you completed all the work you 
+>>consider 
+>>this to be an inconsistent state and vote to rollback. This 
+>>means that 
+>>you will never do part of the work - either all or nothing.
+>>    
+>>
+>
+>Shouldn't the receiver/participant trust the "someone" to mean what they
+>say too ? If they said commit in relation to the context they sent, then
+>they want a commitment on what they've asked for so far. If the receiver
+>can do that to be internally consistent, it should vote commit. It's up
+>to the other end to decide what the totatlity is.
+>
+In this case the process definition says: I need to do A followed by B 
+in order to complete the transaction. The process engine interprets it 
+literally to mean, just doing A is not enough, the transaction has not 
+reached a consistent state. So if someone asks to commit prematurely, 
+the process engine must conclude that at this point (after A) the state 
+is not consistent/coherent and so should not be stored and rollsback.
+
+Think of the case where the process definition says "register a flight" 
+then "submit payment" to get it booked. If both activities are done then 
+the flight is booked. But if someone registers a flight, then has the 
+power to coordinate a commit without submitting payment, what would the 
+process engine do? It's obvious to the process engine that both steps 
+have not been completed, and the right course of action is to rollback 
+the transaction.
+
+If the intent was the the second step is optional, then the process 
+should have been rewritten to make the second step optional.
+
+
+>what you do to undo things is surely implementation detail - of no
+>concern to the top-end, and not needing to be distinguished in the
+>coordination protocol (contra ws-t). "cancel", "compensate" and
+>"rollback" all mean "make it not so". The receiver must know its own
+>state and work out how to revert, to the best of its ability.
+>  
+>
+In my opinion there is one coordination protocol that always works, and 
+the WS-TX/BA expresses that protocol. You can use it for any type of 
+transaction.
+
+However, when you are doing short lived transactions that can benefit 
+from resource locking to simplify rollback, and are fully cancellable, 
+you can get better performance if you choose to use 2PC with your RMs. 
+This is the only place where you would use 2PC to get better 
+performance, delaying updates until the 2PC phase rather than doing 
+updates and then compensating for them.
+
+So the 2PC protocol has very specific use in very specific type of 
+transactions where it gives you better throughput, but is not applicable 
+all over the place.
+
+>
+>Parent-child would be common, but again, if the application+coordination
+>protocol combination allows the sender to communicate a different wish,
+>it is possible to obey it.
+>  
+>
+It is also possible to write the process according to that 
+specification. Process languages tend to be declarative, and again this 
+goes back to say what you mean and mean what you say. If you ment that 
+things should be done in some other way - write it so. Don't write a lot 
+of case handling logic, but declare it properly up front.
+
+
+
+>>>Lets say I'm an airline company.  I don't want to reserve 
+>>>      
+>>>
+>>the seat for
+>>    
+>>
+>>>a lengthy period and later cancel it when the passenger change his 
+>>>mind.  So my strategy is to only book the seat when the customer 
+>>>commits its purchase.  After that, I don't refund (so not 
+>>>compensatable from the passenger's perspective).
+>>>The original state of the seat is "available".  When the passenger 
+>>>invoke my "TicketBookingService", the seat is marked 
+>>>"potentially-booked".  When the transaction commit 
+>>>      
+>>>
+>>successfully, the 
+>>    
+>>
+>>>seat status to be "booked".  After that, it is non-compensatable.
+>>>
+>>>How do I achieve this if I only have the CompensationHandler ?
+>>>      
+>>>
+>
+>excellent example - you are getting pushed out of shape by a protocol
+>that thinks it knows how the world always works, and this bit doesn't.
+>  
+>
+Let's not confuse the protocol with the language. Ricky's question 
+relates to the language which doesn't even have to use this protocol. 
+The language would let you use compensation handler without necessarily 
+having compensation request (e.g. when handling a fault). On the other 
+hand the protocol may ask for compensation which could easily be a 
+separate process definition (not a compensation handler) if you 
+programmed the engine accordingly. These are two separate things that 
+happen to work together, but can also be used separately.
+
+arkin
+
+
+
+>The general case is
+>perform provisional work such that you can later:
+>
+>make it not so, if so instructed
+>make it finally so, if so instucted
+>
+>(slot in as many synonyms for provisional, make it not so, make it so as
+>you please)
+>
+>so, I agree, you need at least two "handlers". Whether these are defined
+>as mainstream and exception, or both as event handlers is mostly a
+>matter of how the language works, I think.
+>
+>
+>
+>Peter
+>
+>------------------------------------------
+>Peter Furniss
+>Chief Scientist, Choreology Ltd
+>
+>   Cohesions 1.0 (TM)
+>   Business transaction management software for application coordination
+>
+>web: http://www.choreology.com
+>email:  peter.furniss@choreology.com
+>phone:  +44 20 7670 1679
+>direct: +44 20 7670 1783
+>mobile: +44 7951 536168
+>13 Austin Friars, London EC2N 2JX
+>  
+>
+
+
+-- 
+"Those who can, do; those who can't, make screenshots"
+
+----------------------------------------------------------------------
+Assaf Arkin                                          arkin@intalio.com
+Intalio Inc.                                           www.intalio.com
+The Business Process Management Company                 (650) 577 4700
+
+
+This message is intended only for the use of the Addressee and
+may contain information that is PRIVILEGED and CONFIDENTIAL.
+If you are not the intended recipient, dissemination of this
+communication is prohibited. If you have received this communication
+in error, please erase all copies of the message and its attachments
+and notify us immediately.
+
+
+

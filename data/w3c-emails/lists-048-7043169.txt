@@ -1,0 +1,159 @@
+docno="lists-048-7043169"
+received="Wed Oct 10 23:42:27 2001"
+isoreceived="20011011034227"
+sent="Wed, 10 Oct 2001 22:42:18 -0500"
+isosent="20011011034218"
+name="Pat Hayes"
+email="phayes@ai.uwf.edu"
+subject="Re: new model theory for DAML+OIL"
+id="p05101050b7ea7eb7993b@[205.160.76.193]"
+charset="us-ascii"
+inreplyto="20011010182314W.pfps&#64;research.bell-labs.com"
+expires="-1"
+
+
+To:"Peter F. Patel-Schneider"<pfps@research.bell-labs.com>
+Cc:joint-committee@daml.org,w3c-rdfcore-wg@w3.org
+
+I am cross-posting this to both the RDFcore and DAML groups. - Pat
+
+>  > See my recent message; could you change this to XLS: LL -> LV, where
+>>  LL is the set of all *occurrences* of literal labels (or, maybe, of
+>>  nodes which have literals as labels, given that we do not require
+>>  tidiness on such nodes) ?  This would allow a node labelled with 05
+>>  to be mapped into either 5 or "5", but not both. (I think this might
+>>  also simplify the later treatment of DTs, since the extra conditions
+>>  they introduce would indeed be semantic conditions in the usual
+>>  sense, ie restrictions on the class of interpretations.)
+>
+>I think that the next step is for me to try to come up with some (larger)
+>set of examples to see if that approach will work.
+
+OK, after due consideration and *really* reading your model theory, 
+let me propose a compromise along the above lines, which preserves 
+the basic RDF/S MT virtually intact, keeps my 
+datayping-as-basically-syntactic aesthetic happy, and also provides a 
+smooth interface to your data-typing machinery. Also it seems less 
+complicated, though it is a bit more trouble to set up.
+
+First, the changes to the model theory. We remove the (unnecessary) 
+condition that the XL mapping be 'global', and just refer to it as 'a 
+mapping'. I will also put in some smoothing remarks that data typing 
+is complicated and this is just a placeholder, and refer ahead to a 
+treatment of datatyping. Finally, we will also emphasize that 
+*exactly what counts as a literal label* in an RDF graph is left 
+unspecified.  Everything else then goes as before.
+
+Once that is done, data-typing is introduced as follows. (From now on 
+this is all a notational/terminological variation on your version....)
+First, we point out that literals, taken literally, are peculiar if 
+we have datatyping, since then the very same Ntriples literal has to 
+be able to mean different things in different triples (the '05' 
+example). So we cannot assign a single value to a Ntriples literal; 
+so (when there is datatyping), we are forced into re-thinking what 
+counts as a literal for semantic purposes. So will understand the 
+"literal label" to *include the graph node itself*. That is, for 
+literals, in the presence of data typing, the 'literal node label' is 
+actually a *pair* consisting of the node and the literal <n,l>  ( 
+<n,LN(n)> in your notation. Alternatively, we can say that data 
+typing applies to *occurrences* of literal labels on nodes, ie to 
+labelled nodes rather than to the labels alone; that would be more in 
+line with your treatment).
+
+Then we introduce a dataype scheme (not a theory yet) as a set DT and 
+mappings DTS and DTC, as you did:
+DTS: DT -> (L ->LV)
+{DTS(x)(y) : y in L} is a subset of DTC(x)
+also I would add an exclusion clause:
+if x =/= y then DTC(x) is disjoint from DTC(y)  (Is this kosher in 
+XML? It seems reasonable, and makes things neater, but we could do 
+without it.)
+
+(Notice, nothing said yet about relationship to IR or a graph, so 
+this is interpretation-independent so far.)
+
+Now we introduce a new kind of type mapping, this time from *nodes* 
+to DT (so this is rather different from an interpretation mapping of 
+a vocabulary) and we say that a typed interpretation of an RDF graph 
+is a pair of a type mapping D (on the graph nodes; only really needed 
+on nodes labelled with literals, but what the hell) and an 
+interpretation mapping I (on the vocabulary) which satisfies the 
+following condition:
+
+LV(<n,l>) = DTS(D(n))(l)
+
+(This is the first and only time anything has been said about LV; 
+until now it was just an unspecified mapping between two unspecified 
+sets. Its also the only place that the mapping D is used.)
+
+and if I is an rdfs-interpretation then also:
+
+ICEXT(d) is a subset of DTC(d) for any d in (DT intersect IR)
+
+and for any typename URIs nnn in the reserved vocabulary, then also:
+
+I(nnn) is in DT.
+
+I think that is all we need. Now, if you assert something that 
+entails that a typed literal is in a class, then what you said would 
+be false if that literal node's datatype doesn't contain that class. 
+So for example, if you assert
+
+foo baz lit .
+baz rdfs:range ttt .
+
+where ttt is a reserved datatype URI, then it follows from the rdfs 
+semantic conditions that the range of IEXT(I(baz)) is a subset of 
+ICEXT(I(ttt)); so from the second and third conditions  that it is a 
+subset of DTC(I(ttt)). It follows therefore from the rdfs conditions 
+that I(<n,lit>)=LV(<n,lit>) is in DTC(I(typename)), where n is the 
+node identifying that occurrence of 'lit' in the graph, which by the 
+first condition and the standard truth-conditions means that 
+DTS(D(n))(l) is in DTC(I(typename)); and by the exclusion condition 
+on DTC, this means that l is here being understood in the required 
+way. (Actually maybe we don't need the exclusion conditions, since if 
+two type classes overlap then as long as you hit the intersection you 
+aren't really wrong, right?)
+
+This assumes that the datatype has a name that can be used in the 
+second triple, of course. That is the DT intersect IR case, and its 
+the only one we need to include in the semantics. This keeps I and D 
+'separate', but imposes a kind of semantic connection between them in 
+the interaction between the three conditions, which force them to 
+cooperate in order to make rdfs:range assertions true when applied to 
+literals.
+
+BTW, stating the conditions in terms of ICEXT in this way would also 
+work smoothly if the coreWG ever were to decide to remove the 
+prohibition on literals as subjects (or even as properties, for that 
+matter.)
+
+In the absence of any distinguishing marks, as it were, there could 
+be a default(?) 'simple-string' datatyping with DTS(x)(y)=y for all x 
+and y. (That would require LV to contain all the literals, but that 
+seems reasonable under the circumstances.) In this case DT can be any 
+nonempty set and need not intersect IR. This particular scheme has 
+the singular feature that it can be composed with any other one 
+without changing it, in the following sense: the literal value of any 
+literal can be treated as a literal in the other datatype scheme, and 
+you will get the same final value as you would have gotten by 
+starting with the literal in the first place. (Obvious, but might be 
+worth pointing out as it is kind of cute.) In fact this is really the 
+only 'safe' datatyping that allows literals to be treated as simple 
+labels, ie so that every occurrence of a literal has the same meaning.
+
+I think this might enable us both to hold our heads up high. Whaddaya 
+think? If you can go along with this, I promise to recant my last 
+message to RDF-comment, howzat?
+
+Pat
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

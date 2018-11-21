@@ -1,0 +1,84 @@
+docno="lists-040-3423694"
+received="Thu Jul 27 12:37:58 2000"
+isoreceived="20000727163758"
+sent="Thu, 27 Jul 2000 09:32:57 -0700"
+isosent="20000727163257"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="RE: How do I set getlastmodified using PROPPATCH ?"
+id="NDBBIKLAGLCOPGKGADOJOEMPDHAA.ejw@ics.uci.edu"
+charset="iso-8859-1"
+inreplyto="000f01bff7b1$bbb90480$fed670d8&#64;concentric.net"
+expires="-1"
+
+To: John Glavin<jglavin@riverfrontsoftware.com>,w3c-dist-auth@w3.org
+
+
+
+> I have converted my FTP application webdrive (www.webdrive.com) to support
+> DAV and I need to be able to set the "getlastmodified" property using
+> PROPPATCH so that utilities like powerdesk can syncrhonize files from a
+> Windows PC to a DAV server.
+
+Well, the intent of the getlastmodified property is to give the time of the
+most recent state change of the resource. Thus, getlastmodified will
+definitely be affected by a PUT, and may be affected by a PROPPATCH.  Since
+the value of the property is determined by the server, it is a "live"
+property.  Though I haven't looked into it, I suspect that most DAV servers
+do not allow you to update the getlastmodified property using PROPPATCH.
+
+However, all is not lost for synchronization. Since clock times are
+notoriously unreliable over the network, HTTP provides a facility called
+entity tags (Etags). An Etag is a unique identifier for a particular state
+of a resource.  The uniquenes of an Etag is scoped to an individual
+resource.  The basic idea is that when a resource changes, the Etag changes
+too.  HTTP caches often use Etags due to this property.
+
+You could use Etags for your synchronization activity in the following way.
+When resources are originally downloaded, persistently save the Etags and
+the local time of download in a file (.etags, or similar).  When it's time
+to synchronize, you can check the local etag vs the remote etag to see if
+the resource has changed on the remote server.  You can check the local
+modification date vs. the download time to see if the file has changed on
+the local machine.
+
+> I have done testing with several servers like (Driveway.com, Zope.org,
+> Sharemation.com)and notice that they all return the "getlastmodified"
+property
+> but sometimes the namespace is different from server to server.
+
+The getlastmodified property is defined to be in the "DAV:" namespace.  This
+namespace is mapped to a specific prefix letter within a specific XML
+message.  In RFC 2518, you'll see plenty of examples where there is the
+attribute: xmlns:d='DAV:'  This means, map the prefix letter "d" to the
+namespace "DAV:".  Precise semantics and rules are given in
+http://www.w3.org/TR/REC-xml-names/   So, while Driveway, Zope, Sharemation,
+etc. all use different *prefix* letters, they all use the same *namespace*,
+DAV:.
+
+> When parsing this xml response I always look for ":getlastmodified" to
+> determine the time for the file.
+
+This will work most of the time, but would not handle the case where two
+namespaces were in use, say "DAV:" and "http://www.me.org/foo/", each mapped
+to a different prefix letter, say "d" and "f", and getlastmodified exists in
+both namespaces.  Your parsing algorithm would treat them the same, though
+they have different semantics.
+
+> Do I have to specify the namespace in xml when doing a PROPPATCH ?
+
+Yes.
+
+> Is this namespace different for each server ?
+
+For properties defined in RFC 2518, no.
+
+> Is there a generic way to specify the getlastmodified time to set ?
+
+No. It is set as a side-effect of PUT, and possibly PROPPATCH.
+
+
+- Jim
+
+
+

@@ -1,0 +1,118 @@
+docno="lists-039-9328880"
+received="Fri Sep 24 21:32:48 1999"
+isoreceived="19990925013248"
+sent="Fri, 24 Sep 1999 21:38:41 -0400"
+isosent="19990925013841"
+name="ccjason@us.ibm.com"
+email="ccjason@us.ibm.com"
+subject="Re: DELETE leaving a lock-null resource; was LOCK Scenarios"
+id="852567F7.000876CF.00@D51MTA03.pok.ibm.com"
+charset="us-ascii"
+inreplyto="DELETE leaving a lock-null resource; was LOCK Scenarios"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<gclemm@tantalum.atria.com>
+cc:ejw@ics.uci.edu,w3c-dist-auth@w3.org
+
+
+  <es/> So a server could just remember lock tokens together with
+   old and new URLs and keep this data until it is accessed by the locker
+   or the lock expires.
+
+  <ejw> I'm not convinced this will work, since it only handles the case
+  where the resource is moved just once.  What happens if a resource is
+  locked, then moved, and moved again?  How many steps is the server
+  required to remember?
+
+  <gc/>
+  Subsequent MOVE's are not relevant.  The server is responsible for
+  retrieving the same resource whenever the client gives it a URL
+  and a lock token (think of it as a private binding that the server
+  keeps around).
+
+Geoff, I think Jim's point was that the same lock could have been rooted at many
+places over the course of time as it has moved.  In fact due to multiple
+bindings and such... we've added even one more multiplier to the size of the
+list that needs to be maintained.  His question though was how long does the
+server need to maintain it.  I guess the server/lock would need to remember all
+of it's URI's until the resource is eventually UNLOCK'd.
+
+  <gc/>
+  The server could do this by just refusing to MOVE
+  or DELETE the resource (as is required by the current 2518 draft),
+  or by just remembering what resource is associated with that
+  <URL, lock-token> pair.  All we are doing here is giving the server
+  some additional flexibility in implementation that was constrained
+  by the current language in 2518.
+
+I see.  So the proposal is that a server either to protect the URI... or to
+maintain a way for a client to follow where it moved to... and you're proposing
+the mechanism to do the latter.  Interesting.  It could be a market
+differentiator.  It would mean a bit more complexity for the client to support
+either type of server though.  Not much though.  I think if the client supported
+what you're proposing, they'd also work with a system that does URI protection.
+They'd just wouldn't execute the code that deals with what happens after a
+remapping.
+
+Also note: in the presence of depth locks... zillions of resources can be
+locked.  I don't think this necessarily increases the size of the list of lock
+URI's maintained since I believe only the URI's of the root of the lock need to
+be maintained... but it does mean that the resolution algorithm has to be more
+sophisticated since it would also need to remap the URI of child resources also.
+
+This means that a client must submit lock tokens with GETs and PROPFIND's just
+to insure it gets redirected when necessary.  No biggie I suppose.
+
+I'm not sure this would work well with clients that seperate the lock action
+from subsequent actions on the locked resources.  That is, a human is running
+the client code.  The human requests the locks.  Then a human requests various
+actions on resources that "just happen to be locked".  I guess that whenever the
+human requests an action on a resource, the client application would just need
+to make a point of finding all locks that apply to a resource... even if
+inherited... and submit them with the request.  I guess this sort of client app
+often would have to do this anyway, but now they must also do it for PROPFIND
+and GET also.  Okay, no biggie.
+
+It also means that I believe for the first time in WebDAV, it actually becomes
+functionally important to specify the URI at which we think a lock is rooted
+when we submit the lock token.
+
+
+Note: all of this also needs to apply to DELETE (UNBIND) in addition to MOVE.
+It also in turn applies to a COPY that deletes the destination due to the
+implicit DELETE phase.  It also applies to a BIND that deletes a previous
+binding.
+
+
+   <gc/>
+   Note: if a lock-token is included in a MOVE or DELETE request, it is
+   used to satisfy any locks on the source and destination *collections*.
+   Locks on the resource being moved or deleted are not even inspected
+   (since the state of the resource being moved or deleted is not being
+   modified).
+
+I don't think this is what you were trying to say, but what you just said
+inspired a thought.  If someone does a MOVE... and all the tokens of all the
+would-be protected URI's are submitted, the server doesn't need to maintain a
+remapping list because the client already knows which locks have lost those
+mappings.  It's only the URI's for locks for which no tokens were submitted that
+the server needs to remember the remapping.  This might provide for more
+efficient operation.
+
+A lock can have many mappings and a single operation can delete multiple
+mappings of a lock. Previously we said that each lock had a particular URI that
+was protected... and only when that URI was moved, did feel compelled to do any
+kind of lock remapping.  Although we could probably guess, t now claim to know
+what lock mapping(s) the client really cares about.  None are more privledged.
+I think the previous paragraph has to be modified to state that if any of these
+locks have other mappings than the mappings submitted with the token, then all
+of those others that are broken by an operation need to go onto the remapping
+list for that lock.  Is this really *required*?  I think technically yes... but
+probably not in practice.   The client probably only knows a lock by one
+mapping... and it will be the one that the client will submit.
+
+
+Protecting a URI is sounding easier.  :-)
+
+
+

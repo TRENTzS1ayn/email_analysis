@@ -1,0 +1,165 @@
+docno="lists-036-14369164"
+received="Sun Feb 15 09:52:07 2004"
+isoreceived="20040215145207"
+sent="Sun, 15 Feb 2004 09:51:15 -0500"
+isosent="20040215145115"
+name="Adam M. Costello BOGUS address, see signature"
+email="BOGUS@BOGUS.nicemice.net"
+subject="Re: uri handling of hosts is too restrictive"
+id="4.2.0.58.J.20040215095102.05153c28@localhost"
+charset="us-ascii"
+inreplyto="uri handling of hosts is too restrictive"
+expires="-1"
+
+
+To:uri@w3.org
+
+
+
+
+
+"Roy T. Fielding" <fielding@gbiv.com> wrote:
+
+ > This was implemented as part of removing hostname productions in favor
+ > of general registered names.
+
+Martin Duerst <duerst@w3.org> replied:
+
+ > The restriction of hostnames to DNS was discussed and agreed on at the
+ > San Francisco IETF based on interactions with IRIs.
+ >
+ > The argument was that conversion from IRIs to URIs (defined in the
+ > IRI spec) should take care of conversion from non-ASCII characters to
+ > punycode in the DNS part.
+
+I was very happy to see the IRI draft take that approach.  The issue is
+explained very well in the issues list (040-reg-name):
+
+     report: Martin Duerst, 20 Mar 2003, URI BOF:
+
+     In order for internationalized characters in the authority
+     component to be handled directly by an IRI processor, it must
+     either
+
+       a) be able to encode the authority characters as %hh and rely on
+          gethostbyname to do the conversion, or
+
+       b) know that the scheme uses hostport and not registry-based names
+          and thus be able to convert the hostname to IDNA form.
+
+     action: Roy T. Fielding, 20 Mar 2003, URI BOF:
+
+     Note that IDNA was created specifically to avoid (a), so that
+     doesn't seem to be a viable alternative for the IETF.
+
+Exactly.  Why go to the trouble of defining a backward-compatible
+encoding (ACE) and then make it impossible to use?  What's the point of
+downgrading an IRI to a URI if the URI still fails on legacy software?
+
+RFC-2396 defined the host field as a host name or IPv4 address; there
+was no mention of registered names.  When RFC-2732 extended the
+generic URI syntax to allow IPv6 address literals, it did not create a
+syntactic ambiguity between those and host names.  If now it is deemed
+necessary to further extend the host field to support yet another kind
+of non-host-name, I suggest using a syntax that preserves the ability to
+determine which category of host field we're looking at.  For example:
+
+scheme://host-name/path
+scheme://+reg-name/path
+
+The + (or one of the other sub-delims, any of which could be specified
+to play this role) would indicate that the field is not a host name but
+rather some sort of client-local or scheme-specific type of name.
+
+Currently, a URI like http://www.w%33.org/ will fail on many browsers,
+which is no problem because the URI is invalid according to RFC-2396.
+The latest draft of rfc2396bis invites interoperability problems
+by legalizing this syntax.  If host-names and reg-names are kept
+syntactically distinguishable using the trick described above, then
+percent-escapes and non-LDH characters can be allowed in reg-names and
+prohibited in host-names, avoiding the problem, and the IRI-to-URI
+conversion can continue to perform ToASCII on host names, so that the
+conversion is actually useful and yields a URI that works on legacy
+software.
+
+By the way, the use of a host name does not require the client to use
+a DNS resolver to look up the name; it can use a more general resolver
+(like libnss, the Name Service Switch) that supports a wider range
+of names.  All I'm proposing is that if you want to construct a URI
+containing a name in the host field that is not saddled with the baggage
+of host names (like the ASCII/LDH restrictions, the percent-escape
+prohibition, and the IDNA ACE stuff) then the URI should contain an
+explicit marker disclaiming that baggage.
+
+I imagine that typical network-based schemes (like http and ftp) would
+disallow reg-names, having no use for them.  But I guess someone must
+have a scheme in mind that would have a use for reg-names.
+
+By the way, the draft contains a factual error:
+
+ > The reg-name syntax allows for percent-encoded octets, which is
+ > necessary to enable internationalized domain names to be provided in
+ > URIs;
+
+Every IDN has an ACE form; therefore percent-escapes are not necessary
+for using IDNs in URIs.  Percent-escapes would be necessary for
+using internationalized reg-names (because reg-names are not domain
+names and IDNA does not apply to them), but not necessary for using
+internationalized domain names.
+
+Stephen Pollei <stephen_pollei@comcast.net> wrote:
+
+ > So it's my understanding that lots of names are legal, just not
+ > recommended.
+
+It's important to say what kind of "names" you're talking about.  Lots
+things are valid as domain names (all octet sequences that meet the
+length restrictions imposed by DNS), and most of those are generally not
+recommended (because they're not the "preferred syntax").
+
+But domain names can be used for a variety of purposes, and a valid
+domain name can be invalid for a particular purpose.  One such purpose
+is host names.  (For some examples of domain names that are not host
+names and don't follow the host name syntax, see RFC-2782 (SRV resource
+record) and RFC-2317 (classless IN-ADDR.ARPA delegation).)  STD-3
+(RFC-1123) defines the syntax of valid host names:
+
+     The syntax of a legal Internet host name was specified in RFC-952
+     [DNS:4].  One aspect of host name syntax is hereby changed: the
+     restriction on the first character is relaxed to allow either a
+     letter or a digit.
+
+     Host software MUST handle host names of up to 63 characters and
+     SHOULD handle host names of up to 255 characters.
+
+RFC-952 gave the syntax:
+
+     A "name" (Net, Host, Gateway, or Domain name) is a text string up
+     to 24 characters drawn from the alphabet (A-Z), digits (0-9), minus
+     sign (-), and period (.).
+
+     <domainname> ::= <hname>
+     <official hostname> ::= <hname>
+     <nickname> ::= <hname>
+     <hname> ::= <name>*["."<name>]
+     <name>  ::= <let>[*[<let-or-digit-or-hyphen>]<let-or-digit>]
+
+So there is no doubt that host names can contain only ASCII letters,
+digits, hyphens, and dots.  It's an open-and-shut case.
+
+As far as I can tell, the host syntax of RFC-2396 is aligned with STD-3,
+except for two slight deviations:  RFC-2396 allows a trailing dot, which
+STD-3 apparently disallows; and RFC-2396 disallows a digit at the start
+of the last label, which STD-3 apparently allows.  Allowing a trailing
+dot creates no ambiguity and is universally supported in practice, so I
+guess that's harmless.  The requirement that the last label begin with
+a letter might be overreaching.  I could imagine the root authority
+deciding that the labels {0, 1, 2, ..., 255} are reserved at the top
+level but that other numeric TLDs (like 256) would be fair game when
+considering new TLDs.  Is there any official word on digits in TLDs?
+
+AMC
+http://www.nicemice.net/amc/
+
+
+

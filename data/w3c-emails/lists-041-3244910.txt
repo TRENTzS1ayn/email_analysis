@@ -1,0 +1,91 @@
+docno="lists-041-3244910"
+received="Mon Jun 17 19:45:51 2002"
+isoreceived="20020617234551"
+sent="Mon, 17 Jun 2002 16:45:44 -0700"
+isosent="20020617234544"
+name="Jim Luther"
+email="luther.j@apple.com"
+subject="Collections and Request-URIs"
+id="574F11EC-824C-11D6-9679-0003934B6A22@apple.com"
+charset="US-ASCII"
+expires="-1"
+
+To:w3c-dist-auth@w3c.org
+
+
+
+RFC 2518, section 5.2 says:
+
+"There is a standing convention that when a collection is referred to by 
+its name without a trailing slash, the trailing slash is automatically 
+appended.  Due to this, a resource may accept a URI without a 
+trailing "/" to point to a collection. In this case it SHOULD return a 
+content-location header in the response pointing to the URI ending with 
+the "/". For example, if a client invokes a method on 
+http://foo.bar/blah (no trailing slash), the resource 
+http://foo.bar/blah/ (trailing slash) may respond as if the operation 
+were invoked on it, and should return a content-location header with 
+http://foo.bar/blah/ in it.  In general clients SHOULD use the "/" form 
+of collection names."
+
+It looks to me like the "standing convention" doesn't match the BNF. RFC 
+2616, section 5.1.2 gives this rule for the Request-URI in the 
+Request-Line:
+
+Request-URI = "*" | absoluteURI | abs_path | authority
+
+and RFC 2396, section 3 gives these rules for abs_path and path_segments:
+
+abs_path      = "/"  path_segments
+path_segments = segment *( "/" segment )
+
+So by my reading, abs_path should not have a trailing slash. Did I miss 
+something? If not, I think the WebDAV spec should say that servers MUST 
+handle Request-URIs to collections without the trail slash.
+
+
+Anyway, trailing slashes issue causes an interoperability problem for 
+our WebDAV file system and Apache 2.0 servers.  Since Mac OS X's WebDAV 
+file system doesn't know if the end path component passed to it is a 
+collection or non-collection resource, it doesn't put a trailing slash 
+on the Request-URI. This works on all servers except for Apache 2 which 
+sends us a "301 Moved Permanently" response. We don't redirect because 
+the HTTP spec (RFC 2616, section 10.3.2) says:
+
+"If the 301 status code is received in response to a request other than 
+GET or HEAD, the user agent MUST NOT automatically redirect the request 
+unless it can be confirmed by the user, since this might change the 
+conditions under which the request was issued."
+
+Hmmm... WebDAV file system can't confirm it with the user because it's a 
+file system which doesn't do user interaction. I guess that I could 
+compare the URI in the 301 response to see if it's the same as what I 
+sent except for the trailing slash and retry the request. However, that 
+would double the number of PROPFIND for collection transactions we send 
+to Apache 2 servers and I'm trying to cut the number of transactions 
+from our client, not increase them.
+
+Apparently, Microsoft WebFolders had the same problem with Apache 2. 
+Here's what we found in httpd.conf:
+
+#
+# The following directive disables redirects on non-GET requests for
+# a directory that does not include the trailing slash.  This fixes a
+# problem with Microsoft WebFolders which does not appropriately handle
+# redirects for folders with DAV methods.
+#
+BrowserMatch "Microsoft Data Access Internet Publishing Provider" 
+redirect-carefully
+BrowserMatch "^WebDrive" redirect-carefully
+
+So if we add a similar line:
+
+BrowserMatch "^WebDAVFS" redirect-carefully
+
+to Apache's httpd.conf file to do a redirect-carefully for our 
+User-Agent, our client works great with Apache 2 DAV servers.
+
+- Jim Luther
+
+
+

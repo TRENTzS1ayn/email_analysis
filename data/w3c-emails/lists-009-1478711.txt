@@ -1,0 +1,122 @@
+docno="lists-009-1478711"
+received="Sat Dec 17 07:54:41 1994"
+isoreceived="19941217125441"
+sent="Sat, 17 Dec 94 16:54:07 +0100"
+isosent="19941217155407"
+name="Henrik Frystyk Nielsen"
+email="frystyk@ptsun00.cern.ch"
+subject="Re: Connection Header"
+id="9412171554.AA10617@ptsun03.cern.ch"
+inreplyto="Connection Header"
+expires="1"
+
+
+To:fielding@avron.ICS.UCI.EDU,john@math.nwu.edu
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+> According to Roy T. Fielding:
+> > 
+> >    For example, an experimental client may send:
+> > 
+> >       Connection: keep-alive
+> > 
+> >    to indicate that it desires to keep the connection open for multiple
+> >    requests. The server may then respond with a message containing:
+> > 
+> >       Connection: keep-alive, timeout=10, maxreq=5
+> >    
+> >    to indicate that the connection will be kept open for a maximum of 5
+> >    requests, but will timeout if the next request is not received within
+> >    10 seconds. 
+> >
+> ...
+> > 
+> > Comments, please?
+> > 
+> 
+> I have some some serious reservations about this.  Perhaps someone
+> more knowledgeable about TCP/IP can alleviate them.  Won't this
+> maintain the connection during the entire time that a client takes to
+> download and layout and display a document containing containing
+> mulitple images?
+
+The idea is that a client can either:
+
+1) Send one request, wait for the response and then send the next one
+
+2) Send multiple responses without waiting for the responses. The
+essential thing is that the server always serves the requests in
+serial. This is about as far as you can get without a session layer -
+Simon ?
+
+Well, let's look at the possible senarios
+
+1) Experimental client / old server: The server will not understand the
+header but will serve the first request and close the connection. No
+extra round trip time will be needed as the server understands the rest
+of the request. It might cause some problems if an eager client sends
+more requests to a server without waiting for the response. In this
+case some server applications might get confused (even though they
+shouldn't)
+
+2) Experimental client / old proxy: This will break if the remote host
+does in fact understand the connection header. As Roy points out, this
+is a weakness of the design.
+
+3) Experimental client / Experimental server / slow link: The server
+will serve the first request but leave the connection open until it has
+reached the timeout indicated in the Connction header. New requests
+arriving after the closing will be refused. The client should then try
+to reopen the connection and possibly use a new Connection header.
+
+4) Experimental client / Experimental server / interrupt: The client
+will then close the connection and the server will get a SIG_PIPE as
+usual. Any request already in the pipe will get lost.
+
+I still think that it is better to keep the connection open for a small
+amount of time as the server socket will go into TIME_WAIT state when
+it is closed and then can't be reused before about 240 seconds
+(recommended timeout accorsing to Simon)
+
+> By contrast, I would think that an MGET connection sending the same
+> data could be a relatively short transaction for the server.  Am I
+> wrong about this?  Of course, MGET would require two connections --
+> one GET for the HTML doc and image size headers and a second MGET for
+> all the images.  But the difference between these two would be
+> neglible for the client and potentially a very significant win for the
+> server.
+> 
+> I don't see that MGET poses any problems for proxies.  They would have
+> to parse the MGET and decide which files they have cached and which
+> they need to fetch.  Old (HTTP1.0) servers and proxies would send an
+> unknown method message when they get an MGET and the client would then
+> re-issue a sequence of GETs. 
+
+The MGET causes an extra roundtrip time as many servers will think:
+
+"Gee - nobody has told me about this method. I simply refuse to
+do anything about it"
+
+This is the reason for waiting with a SESSION method to HTTP/1.1 as Roy
+points out. Also we would like a more general approach than only having
+GET as a possibility. A SESSION method can also be used for interactive
+sessions.
+
+However, we need some experimental implementations. The plan is to make
+a prototype implementatation of the CERN server and a GUI client (for
+example Arena) to see the actual effect when somebody has generated
+9Giga of tcp dumps :-)
+
+
+-- cheers --
+
+Henrik Frystyk
+frystyk@W3.org
++ 41 22 767 8265
+World-Wide Web Project,
+CERN, CH-1211 Geneva 23,
+Switzerland
+
+
+

@@ -1,0 +1,129 @@
+docno="lists-011-11162958"
+received="Tue Nov 18 17:29:08 1997"
+isoreceived="19971118222908"
+sent="Tue, 18 Nov 1997 17:03:33 0800"
+isosent="19971119010333"
+name="Roy T. Fielding"
+email="fielding@kiwi.ics.uci.edu"
+subject="Re: AcceptTransfer header field (was HTTP/1.1 Issues: TRAILER_FIELDS)"
+id="9711181717.aa11856@paris.ics.uci.edu"
+inreplyto="9711190008.AA00892&#64;acetes.pa.dec.com"
+expires="1"
+
+To: Jeffrey Mogul<mogul@pa.dec.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Jeffrey Mogul writes:
+>Roy Fielding writes:
+>    Qvalues are not useful for transfer encodings -- the coding must not
+>    be lossy, and the vast portion of work is being performed on the server
+>    side, so the server should be capable of choosing which one is best.
+>    
+>We can quibble about whether these should be called "qvalues" or
+>something else, but some sort of preference weighting is most
+>definitely useful.  Generally, there are both costs and benefits
+>associated with transfer-codings (such as compression) and there
+>isn't always a fixed tradeoff to be made.  For example, I tried
+>running a large file through both compress and gzip.  The output
+>of gzip was about 25% smaller than the output of compress, but
+>it took almost 4 times as much CPU time to do the compression.
+>
+>On the other hand, it took about 33% longer, and slightly more memory,
+>to decompress the output of compress.  So, depending on parameters such
+>as network bandwidth and client CPU performance (and perhaps client RAM
+>availability), the server is not necessarily capable of choosing the
+>most appropriate transfer-coding without some help from the client.
+
+Let me put it this way.  There are a bunch of parameters one might
+give to the deflate process such that it controls various performance
+aspects of the compression algorithm.  These parameters are known
+by the server, and will be set according to the server's needs.  The
+only thing the server will care about is whether the client is capable
+of decoding the final result.  It doesn't matter what preference the
+client assigns beyond that yes/no criteria -- the server's performance
+needs are paramount.
+
+In other words, I agree that there are tradeoffs, but the client has
+no input in deciding those tradeoffs (nor should it).  That doesn't
+mean the server will necessarily ignore the client's needs -- it just
+means the server will decide what is needed based on its own observation
+of the connection throughput, typical client capabilities, and the
+current resource constraint/load on the server itself.  A simple
+ordering or relative quality value given by the client says nothing
+of importance to the server, and thus provides no useful input to
+its decision.
+
+As such, sending additional information in every request, which adds
+its own latency problems, is wrong.  We are at the stage in the
+protocol developent where new features need demonstrated benefit before
+they get added to the specification, and the only demonstrated benefit
+here is the desire to indicate that the client understands a new
+transfer-coding.
+
+>One more thing: I couldn't find a place in the spec where it
+>says that transfer-codings "must not be lossy".  In fact, the
+>TransSend project at UC Berkeley has demonstrated the utility
+>of lossy codings in some applications, and I'm not sure we should
+>be banning these.
+
+Those are not transfer-codings.  If the transmission is capable of
+losing data, then it is losing the data associated with the other
+metadata on that response.  In other words, a lossy encoding performs
+a transform on the content, and therefore must be a content coding.
+
+>    Likewise, chunked and identity are always required -- there is no
+>    reasonable use for refusal based on lack-of-encoding.  Thus, the only
+>    feature we actually need is the ability to request a given
+>    transfer-encoding be used.
+>    
+>I disagree.  With respect to "chunked", we could presumably change
+>All HTTP/1.1 applications MUST be able to receive and decode
+>        the "chunked" transfer coding,
+>to
+>All HTTP/1.1 applications MUST be able to receive and decode
+>        the "chunked" transfer coding, except for clients that
+>explicitly reject this transfer coding using a qvalue of 0
+>in an Accept-Transfer request header field.
+>
+>I'm not necessarily saying that we should do this, but it seems
+>safe to do so, and it might pay off for implementors of clients
+>with limited code space.
+
+No, we can't do that.  That has been written in stone (i.e., deployed code).
+It is also not desirable from a robustness perspective -- HTTP needs an
+indicator of message length in order to differentiate between complete
+and incomplete responses.  HTTP is unsafe for data transfer without that
+information, so we don't give the compliant application any choice.
+
+>With respect to "identity", I believe that the argument has already
+>been made (the last time we debated the coding issue) that a client
+>might want to suppress the transfer of a large response if it cannot
+>be compressed first.  (The user might want to choose a different
+>link instead, for example.)
+
+I have yet to see or hear of a client that wishes to duplicate connection
+setup, round-trip request/response, and shutdown costs just to insist on
+a given transfer-coding.  Even if such a client were to exist, it would be
+more efficient to just close the connection if the response was not
+encoded to its satisfaction (after all, that is what it would have to
+do in your scenario if it gets back an error response indicating that
+the encoding is unavailable on that connection).  In practice, I doubt
+that anyone would ever implement such a client.
+
+>    Note that we must also include a requirement that chunked be the
+>    last encoding applied if there is more than one.
+>
+>Is this really true?  I'm not sure that it would be a major win,
+>but why not allow a server to apply compression after chunking?
+>It would probably improve the overall compression ratio.  (I.e.,
+>you generally get a better ratio when compressing a large file
+>than when compressing a small prefix of the same file.)  What
+>goes wrong if we allow this?
+
+I suppose it would not be a problem if the encoding was size-delimited.
+
+....Roy
+
+
+

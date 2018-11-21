@@ -1,0 +1,143 @@
+docno="lists-102-10413629"
+received="Mon Nov  2 19:14:24 1998"
+isoreceived="19981103001424"
+sent="02 Nov 1998 16:19:40 -0800"
+isosent="19981103001940"
+name="Stephen R. Savitzky"
+email="steve@rsv.ricoh.com"
+subject="Re: XML APIs"
+id="qc67cxsk4j.fsf@gelion.crc.ricoh.com"
+inreplyto="Mon, 02 Nov 1998 17:16:02 -0500"
+expires="-1"
+
+To: DOM List<www-dom@w3.org>
+
+
+(NOTE: The casual reader will find the main point of this message in the
+last two paragraphs.)
+
+John Cowan <cowan@locke.ccil.org> writes:
+
+> Stephen R. Savitzky wrote:
+> 
+> > Simple iterators that keep track of the current node and perform a
+> > depth-first left-to-right traversal [...] behave
+> > _predictably_ when the tree is modified during an iteration; whether this
+> > behavior is ``correct'' or not depends entirely on what the programmer has
+> > been led to expect.
+> 
+> I'm not sure I understand the meaning of "correct" vs. "predictable"
+> here.
+
+``Predictable'' means that it does what a programmer of average competence
+would expect it to do given a quick perusal of the specification.  
+
+`` ``Correct'' '' (note that the _original_ was in quotes) means that it
+does what the application writer requires it to do in order to make the
+application work correctly.
+
+>  If the implementation is understood to be single-threaded, then
+> all behaviors are "predictable" no matter how bizarre, since none of
+> the node operations do arbitrary computation.  But even under a single-
+> threaded interpretation, various "obvious identities" do not hold:
+
+> (leftSibling(rightSibling(node)) = node,
+> unless node is a lastChild;
+
+...
+
+> etc. etc. etc.  All of these are false under the DOM.
+
+I do not understand your point.  They certainly hold as far as I can tell;
+the classic algorithm for traversing a tree is:
+
+traverse(node) {
+  visit(node);
+  if (node.firstChild != null) traverse(node.firstChild);
+  if (node.nextSibling != null) traverse(node.nextSibling);
+}
+ 
+That had darned-well _better_ work in the DOM.  It's also trivial to
+transform this into an iterator with "node" as its instance variable:
+
+class depthFirst {
+  Node node;
+  Node toNext() {
+    if (node.firstChild != null) {
+node = node.firstChild; return node;
+    } else {
+while (node.nextSibling == null) {
+    node = node.parent;
+    if (node == null) return null; 
+}
+node = node.nextSibling;
+return node;
+    }    
+  }
+}
+
+A competent programmer can easily look at this code, or a well-written
+specification of it, and predict that it will behave oddly if the document
+gets modified out from under it.  It's even completely straightforward to
+accurately predict exactly _how_ it will behave (for example, if I delete
+the node, the iterator will return null on the next call to toNext). 
+
+Piling additional complication into the specification in order to ensure
+that every node in the tree will continue to be visited no matter what gets
+done between calls to "toNext", which I believe is what the last spec that
+included iterators attempted to do, is WRONG, because it makes the simple
+implementation impossible and because it becomes too complicated for a
+programmer looking at the spec to guess how it's going to behave.  It also
+becomes next to impossible to specify _correctly_, because English is such a
+lousy programming language (and predicate calculus is almost as bad).
+
+> The difficulty is that the DOM is not a parse tree according to the
+> meaning of the act; it is a tree-like API which provides access to
+> an underlying implementation that may or may not look like a parse tree.
+
+If it quacks like a duck and waddles like a duck otherwise behaves like a
+duck, then you can't tell that it isn't a duck.  (I think it was Alan Kay
+who said that.)  The API is designed to have an obvious model that looks
+like a parse tree.  Any programmer, looking at that API, will ``see'' the
+parse tree in her mind's eye and be able to make intuitive and accurate
+predictions about how it will behave.  
+
+Moreover, any programmer who wants to implement parse trees in a portable
+and standardized way will take a superficial look at the DOM, and decide to
+use it as the API for their parse trees.  They will then discover that, in
+the details of the specification, the intuitive view of the DOM as the API
+for tree-structured documents is WRONG, and that a great deal of non-obvious
+machinery has to be added in order to make it work.
+
+To the extent that the ``obvious'' (perhaps it would be better to use
+``natural'') model fails to fit an actual implementation, the specification
+is a failure.  Things like live nodelists and the children of
+EntityReference nodes (it would be much simpler if they didn't have any)
+violate the natural model, and hence are bugs in the specification.  One is
+constantly having to say ``yes, this thing quacks like a duck and waddles
+like a duck and otherwise fits the API of a duck, but in order to meet the
+taste restrictions it has to be a turkey''.
+
+I'm going to go a little further, and define ``natural model.''  The natural
+model of an interface is a class in which all attributes are represented by
+instance variables, and no other instance variables are present.  In other
+words, there are no ``hidden variables'' (in the quantum-mechanical sense).
+There is a similar concept in mathematics.
+
+My claim is that any specification for which the natural model is not a
+valid implementation is either incomplete (hidden variables have to be
+added) or incorrect (it will lead both users and implementors astray).  It
+is acceptable for a specification to be incomplete (e.g. a specification for
+an iterator or a map _should_ leave out the implementation details), but it
+is simply _not acceptable_ for the natural model or an extension of it not
+to be a correct implementation of the specification.  It's simply asking for
+trouble.
+
+-- 
+ Stephen R. Savitzky   Chief Software Scientist, Ricoh Silicon Valley, Inc., 
+<steve@rsv.ricoh.com>                            California Research Center
+ voice: 650.496.5710   fax: 650.854.8740    URL: http://rsv.ricoh.com/~steve/
+  home: <steve@starport.com> URL: http://www.starport.com/people/steve/
+
+
+

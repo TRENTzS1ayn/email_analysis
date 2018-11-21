@@ -1,0 +1,137 @@
+docno="lists-011-2792115"
+received="Fri Apr 25 15:11:11 1997"
+isoreceived="19970425191111"
+sent="Fri, 25 Apr 97 15:04:26 MDT"
+isosent="19970425210426"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Pipelining and compression effect on HTTP/1.1 proxies"
+id="9704252204.AA25408@acetes.pa.dec.com"
+inreplyto="Pipelining and compression effect on HTTP/1.1 proxies"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+There seems to be some question about whether end-to-end compression
+is useful in the Web.
+
+Together with some people from AT&T Labs - Research, I wrote a
+paper for this year's SIGCOMM conference that includes some 
+Real Data that sheds some light on this issue.  SIGCOMM recently
+accepted our paper, which means that we are now free to discuss
+it in public (the SIGCOMM review process is supposed to be blind).
+
+The paper is:
+    Jeffrey C. Mogul, Fred Douglis, Anja Feldman, and Balachander
+    Krishnamurthy.  Potential benefits of delta-encoding and data
+    compression for HTTP.  In Proc. SIGCOMM '97 (to appear), Cannes,
+    France, September 1997.
+    
+and you can retrieve an UNREVISED DRAFT copy from
+http://ftp.digital.com:80/~mogul/DRAFTsigcomm97.ps
+Please do not treat this as a final draft of the paper!!!
+
+The paper is primarily about a bandwidth-saving technique called
+delta-encoding, which is not mature enough for IETF standardization
+(so let's not discuss it here).  But we also looked at the potential
+for improvement using simple data compression.
+
+Other messages in this thread have pointed out that when evaluating
+the utility of compression, it's not necessarily a good idea to look
+at a static collection of URLs (since some URLs are referenced far
+more often than others), and it's not a good idea to look at the
+responses sitting in a cache (since this also mostly ignores the
+relative reference rates, and completely ignores non-cachable
+responses).
+
+We instead looked at complete reference streams between a collection
+of clients and the Internet, capturing the entire contents of the
+requests and responses.  At Digital, I did this by modifying a
+NON-CACHING proxy (wait - did he say "NON-CACHING?" Yes, I did)
+and captured over 500,000 responses over a 2-day period, from 8K
+clients and to 22K servers ... but (probably a mistake, in retrospect)
+I tried to save space and so did not capture most of the image
+URLs (.gif, .jpeg, etc.)
+
+At AT&T, my co-authors used a packet-sniffing approach to capture
+over a million responses, including images, over a longer period
+of time, but from a much smaller set of clients.  (Again, no
+proxy cache was involved.)
+
+We looked at a few different compression algorithms, but the
+winner was usually "gzip" (although I understand that "deflate",
+which we did not try, is somewhat better than gzip). For the
+Digital trace (which includes very few images), the overall
+savings in bytes transferred was about 39% (75% of the responses
+were improve at least a little by compression).  For the AT&T
+trace, which includes images, the overall savings was about 20%
+of the total bytes (but still we managed to improve 73% of the
+responses).
+
+The paper includes a table showing how compression improves
+different HTTP content-types for the AT&T trace.  Overall,
+99.7% of the text/html responses were compressible, and this
+saved almost 69% of the text/html bytes.  So compression could
+be quite useful in practice, even if the bulk of the responses
+(as images) are not very compressible, for several reasons:
+(1) As Henrik and Jim have pointed out, compression
+of HTML files means that the IMG refs come sooner,
+which improves latency in retrieving them.
+(2) The increasing use of wireless or other slow
+networks, and of PDAs (or other small screens), means
+that there will be users who mostly care about HTML
+performance (because they are not going to load most
+images anyway).
+
+One of the things that we could do with our traces (but 
+haven't done yet) is to see if image responses have better
+cache behavior than HTML responses.  We do have some evidence
+that images change less often than HTML pages (i.e., once
+an image is in a cache, it's highly likely that the next
+reference to that URL will result in the same image; this
+is not as true for HTML responses, since these often change
+more rapidly over time.)  So it's possible that if we can
+do various things to improve the caching of images, the
+non-image (and therefore compressible) responses will become
+more important as a fraction of total network load.
+
+Regarding modem compression, Benjamin Franz wrote:
+    Don't underestimate the modem compression. When moving highly
+    compressible (textual) data it can easily double to triple
+    throughput in my experience.
+True.  However, modem compression seems to be less effective than
+document-level compressors such as gzip, because (probably) it
+has to operate more "locally".
+
+We looked into this issue, and the paper presents results of
+a fairly crude experiment, involving just 4 URLs (chosen
+to show HTML files of a range of sizes and complexities).
+We transferred the files over a 28.8K modem (with modem
+compression enabled), with and without file-level compression.
+For short documents, gzip seems to beat plain modem compression
+by a moderate amount.  For longer documents, gzip does pretty
+well, but another compressor ("vdelta") did even better ...
+beating simple modem compression by as much as 69% of the
+overall transfer time.  (And, as Bob Monsour pointed out,
+high-level compression reduces the total number of packets
+sent, which is usually a win).
+
+The paper also looks at some other issues, such as the
+computational cost of compressing and decompressing responses.
+Even on a fairly slow machine, existing compression programs
+run fast enough to provide some benefit, except when using
+a fast LAN.
+
+Bottom line: based on our results, we think that end-to-end
+compression is a win, even though it's hard to compress
+images.  It would be a real shame if HTTP/1.1 had some minor
+flaws that make this impossible.  Henrik and I have an action
+item, from the Memphis IETF meeting, to address the problems
+that he has discovered when deploying "deflate" compression,
+and we should be making a proposal soon.
+
+-Jeff
+
+
+

@@ -1,0 +1,135 @@
+docno="lists-001-2112267"
+received="Thu Nov 30 03:24:43 2000"
+isoreceived="20001130082443"
+sent="Thu, 30 Nov 2000 00:23:19 -0800"
+isosent="20001130082319"
+name="Terry Teague"
+email="teague@mailandnews.com"
+subject="Problems with HTML 3.2 doctype in 04 Aug 00 Tidy"
+id="l03130300b64bb61d61f2@[17.219.112.21]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dear Folks,
+
+A user reported to me that Tidy was incorrectly reporting a missing table
+summary for HTML 3.2 documents. I did some investigation, and reproduced
+the problem with both the 04 Aug 00 Mac OS and Windows versions of Tidy.
+
+Sample HTML :
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<html>
+<head>
+<title>Some title</title>
+</head>
+<body>
+<table>
+<tr>
+<td>
+Missing table summary only applies to HTML 4.x
+</td>
+</tr>
+</table>
+</body>
+</html>
+
+Running this through Tidy gives :
+
+Tidy (vers 4th August 2000) Parsing console input (stdin)
+line 7 column 1 - Warning: <table> lacks "summary" attribute
+
+stdin: Doctype given is "-//W3C//DTD HTML 3.2 Final//EN"
+stdin: Document content looks like HTML 3.2
+1 warnings/errors were found!
+
+I looked at the Tidy code, and saw the following pieces :
+
+attrs.c :
+
+    {"summary",          VERS_HTML40,            TEXT},     /* TABLE */
+
+    ...
+
+    /* suppress warning for missing summary for HTML 2.0 and HTML 3.2 */
+    if (!HasSummary && lexer->doctype != VERS_HTML20 && lexer->doctype !=
+VERS_HTML32)
+    {
+        lexer->badAccess |= MISSING_SUMMARY;
+        ReportAttrError(lexer, node, "summary", MISSING_ATTRIBUTE);
+    }
+
+    ...
+
+lexer.c :
+
+    {"HTML 3.2", "XHTML 1.0 Transitional", voyager_loose, VERS_HTML32},
+
+     ...
+
+               /* compute length of identifier e.g. "HTML 2.0" */
+                for (j = i + 14; j < doctype->end && lexer->lexbuf[j] !=
+'/'; ++j);
+                len = j - i - 14;
+
+                s = W3C_Version[0].name;
+                if (len == wstrlen(s) && wstrncmp(p, s, len) == 0)
+                    return W3C_Version[0].code;
+
+    ...
+
+               /* make a note of the version named by the doctype */
+                lexer->doctype = FindGivenVersion(lexer, lexer->token);
+
+
+Basically what happens is that FindGivenVersion() in lexer.c sets
+lexer->doctype to VERS_UNKNOWN, rather than VERS_HTML32, because the
+wstrncmp() fails to match "HTML 3.2 Final" to "HTML 3.2". But ironically
+ApparentVersion() in lexer.c figures out (from lexer->versions) that it is
+dealing with HTML 3.2 code.
+
+According to <http://www.w3.org/TR/REC-html32>, the doctype for HTML 3.2
+should be specified as shown in the sample.
+
+If I however change the sample HTML doctype to be :
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+
+this causes the incorrect table summary problem to go away.
+
+I see a couple of choices to fix this (and other potential HTML 3.2 problems) :
+
+1) Change the string constant in lexer.c
+
+from :
+
+    {"HTML 3.2", "XHTML 1.0 Transitional", voyager_loose, VERS_HTML32},
+
+to :
+
+    {"HTML 3.2 Final", "XHTML 1.0 Transitional", voyager_loose, VERS_HTML32},
+
+2) Change FindGivenVersion() in lexer.c
+
+from :
+
+                s = W3C_Version[0].name;
+                if (len == wstrlen(s) && wstrncmp(p, s, len) == 0)
+                    return W3C_Version[0].code;
+
+to something like :
+
+                s = W3C_Version[0].name;
+                if (wstrncmp(p, s, wstrlen(s)) == 0)
+                    return W3C_Version[0].code;
+
+
+Comments?
+
+Regards, Terry
+
+
+

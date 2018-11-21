@@ -1,0 +1,156 @@
+docno="lists-018-10001993"
+received="Sun Jan 26 15:38:42 2003"
+isoreceived="20030126203842"
+sent="Sun, 26 Jan 2003 15:47:06 0500"
+isosent="20030126204706"
+name="Andre Cusson"
+email="ac@hyperbase.com"
+subject="changing final output while writing temporary tree"
+id="5.2.0.9.0.20030126112616.032e3d48@pop.hyperbase.com"
+charset="usascii"
+expires="1"
+
+To:public-qt-comments@w3.org
+Cc:michael.h.kay@ntlworld.com,saxon-help@lists.sourceforge.net
+
+
+
+Hi,
+
+I would like to make a case for the removal of the restriction imposed on 
+the result-document instruction when writing to a temporary result tree.
+
+The proposal states:
+
+[ERR146] It is a dynamic error to evaluate the xsl:result-document 
+instruction when the current destination node is not a node belonging to a 
+result tree (for example, when it is a node belonging to a temporary tree). 
+The processor must signal the error. . This means, for example, that it is 
+an error to use xsl:result-document when the tree containing the current 
+destination node is a temporary tree created using xsl:variable, or a tree 
+created using xsl:message, xsl:attribute, etc
+
+and, as I understand, the issue that brought this restriction was related 
+to limiting side-effects and a typical case was stated as:
+
+But let's take a global variable
+
+<xsl:variable name="x">
+   <xsl:result-document ...>
+     <a/>
+   </
+</
+
+The variable is never referenced. Should the result document be output, or 
+not?
+
+There are a few alternatives to answer this question, but restricting 
+result-document is not the right one because it is much to restrictive.
+In fact it blocks recursion for serialization of documents which I would 
+think is one of the last things to do in a functional environment.
+
+XSLT is functional programming and functional programming is recursion for 
+recursive structures. Blocking recursion is defeating the main purpose.
+
+Here is a brief summary of the issue.
+
+First a trivial example where a "Cannot switch to a final result 
+destination while writing a temporary tree" error on the line marked with 
+an x is generated when the processor (ex: Saxon v7.3.1 reaches the 
+recursive call to 'publish' and executes the 'make-page' template from there.
+
+<xsl:output name="outputf-format" .../>
+
+<xsl:template name="make-page">
+         <xsl:param name="src-nodeset"/>
+         <xsl:param name="fname"/>
+x       <xsl:result-document format="output-format" href="{$fname}">
+                 ...
+                 <xsl:copy-of select="$src-nodeset"/>
+                 ...
+         </xsl:result-document>
+</xsl:template>
+
+<xsl:template name="publish">
+         <xsl:param name="src-nodeset"/>
+         <xsl:for-each select="$src-nodeset/section">
+                 ...
+                 <xsl:call-template name="make-page">
+                         <xsl:with-param name="fname" select="@id"/>
+                         <xsl:with-param name="src-nodeset">
+                                 ...
+                                 <xsl:for-each select="sub-section-group">
+                                         <xsl:call-template name="publish">
+                                                 <xsl:with-param 
+name="src-nodeset" select="."/>
+                                         </xsl:call-template>
+                                 </xsl:for-each>
+                         </xsl:with-param>
+                 </xsl:call-template>
+         <xsl:for-each>
+</xsl:template>
+
+Writing a secondary document is not a side effect, it is simply dealing 
+with (serializing to) the real world where information is mapped to finite 
+flat files like web pages.
+It seems to us like a major impediment if a style sheet is limited to 
+outputting a single page at a time, without recursion.
+
+We have here an application with 10 to 20K lines of XSLT, processing 
+millions of lines of streaming and static XML into infinitely complex 
+documents for printed and interactive access.  There are many issues 
+involved and performance is one of them.  One of the keys is to stream and 
+process graphs and structures efficiently.  Recursion and not having to 
+reprocess the same (often very large) structures iteratively is crucial.
+
+So as one traverses such structures, gathering data and building a page, 
+and one finds information there that warrants a sub page (and so on 
+recursively), one needs to also produce those pages.  With the current 
+restriction, the only alternative is to iteratively process and reprocess 
+the structure(s), building multiple temporary trees and variables, 
+recalculating values and node sets until the full depth of the 
+structure(s)I has been reached and all sub-pages at all levels of the 
+recurring structure have been generated. This is using iteration to deal 
+with recursion.  It is not only (very) inefficient and awkward (and not 
+streamable), it is plain ugly.
+
+The example code here was purposely simple to show where the error message 
+occurred but we do have real world examples and they are far more 
+intricate.  This feature is required by a few major modules in our 
+application (ex: publishing, O-R mapping, invoicing, etc.).  We built this 
+application with Saxon v6.5.2 that complied to the XSLT 1.1  draft which 
+defined a "document" instruction that did not have this restriction on 
+changing the final output document while writing to a temporary tree.
+
+Our application works fine with Saxon v6.5.2 (XSLT v1.1) but cannot be 
+ported to Saxon 7.3.1 (XSLT v2.0) for this single reason.
+This is a major limitation to us.  But we also feel that it is a major 
+limitation for XSLT.
+
+Of course side-effects should be avoided but preventing recursion (for 
+serialisation) is not the right way, because the cost is to high and out 
+weights the benefits.
+
+As for the unused global variable with a result-document in the initial 
+example above, I tend to believe that if the variable is unused, the 
+document should probably not be output and the processor should probably 
+signal that the variable is not used (and (possibly) that the document will 
+not be output).  Other solutions could also be acceptable to us, including 
+outputting the document anyway or even, as was suggested, that the document 
+be output only if the temporary tree gets copied to the final result tree.
+
+We would be happy to contribute in any way on the resolution of this issue 
+(changing final output while writing a temporary tree) so do not hesitate 
+to contact us.
+
+Thank you.
+Regards,
+Andre Cusson
+ac@hyperbase.com
+Tel: (1) 514 984 1601
+01 Communications Inc.
+11840 Norwood Avenue
+Montreal, QC, H3L 3H7
+
+
+

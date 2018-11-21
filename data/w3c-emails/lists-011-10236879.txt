@@ -1,0 +1,97 @@
+docno="lists-011-10236879"
+received="Tue Nov  4 13:08:53 1997"
+isoreceived="19971104180853"
+sent="Tue, 04 Nov 97 12:59:49 PST"
+isosent="19971104205949"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Another Question on byte ranges"
+id="9711042059.AA07655@acetes.pa.dec.com"
+inreplyto="Pine.LNX.3.95.971031192844.29258A100000&#64;hopf.math.nwu.edu"
+expires="1"
+
+
+To: http working group<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+John Franks writes:
+
+    From section 14.17
+            A server sending a response with status code 416 (Requested
+            range  not valid) SHOULD include a Content-range field with
+            a content-range-spec of "*".
+
+    What is the purpos of this?
+
+    BUT 10.4.17 says about status 416:
+
+            When this status code is returned for a byte-range request,
+            the response MUST include a Content-Range entity-header
+            field specifying the current length of the selected resource
+            (see section 14.17).
+
+    I don't think '*' specifies the length. On the other hand I see no
+    way to make a Content-Range header which would be legal and would 
+    specify the length.
+    
+What happened here is that I drafted the revised language and BNF too
+quickly, and screwed up.
+
+    Maybe what is needed is to allow something like 
+    
+       Content-Range: bytes *-*/200
+    
+    when an illegal range (like 300-400) has been requested from a 200
+    byte file.
+    
+In fact, what we had intended to specify was something very much
+like that, except that we meant to have:
+
+       Content-Range: bytes */200
+
+So, here's another stab at this - hopefully, correct this time.
+(But, unlike the last time, maybe someone should else review what
+I wrote?)
+
+(1) The BNF in 14.17 should be:
+
+   Content-Range = "Content-Range" ":" content-range-spec
+
+    content-range-spec      = byte-content-range-spec
+
+    byte-content-range-spec = bytes-unit SP
+          byte-range-resp-spec "/"
+      ( entity-length | "*" )
+
+    byte-range-resp-spec = (first-byte-pos "-" last-byte-pos)
+      | "*"
+
+    entity-length           = 1*DIGIT
+
+(2) The following four paragraphs should read:
+
+The asterisk "*" character in an entity-length means that the
+entity-length is unknown at the time when the response was
+generated.
+
+Unlike byte-ranges-specifier values, a byte--range-resp-spec
+may only specify one range, and must contain absolute byte
+positions for both the first and last byte of the range.
+
+A byte-content-range-spec with a byte-range-resp-spec whose
+last-byte-pos value is less than its first-byte-pos value, or
+whose entity-length value is less than or equal to its
+last-byte-pos value, is invalid. The recipient of an invalid
+byte-content-range-spec MUST ignore it and any content
+transferred along with it.
+
+A server sending a response with status code 416 (Requested
+range not valid) SHOULD include a Content-range field with
+a byte-range-resp-spec of "*".  The entity-length specifies
+the current length of the selected resource.  A response
+with status code 206 (Partial Content) MUST NOT include a
+Content-range field with a byte-range-resp-spec of "*".
+
+-Jeff
+
+
+

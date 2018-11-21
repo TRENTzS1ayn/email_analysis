@@ -1,0 +1,582 @@
+docno="lists-009-12171475"
+received="Thu Nov 16 06:12:26 1995"
+isoreceived="19951116111226"
+sent="Thu, 16 Nov 1995 06:07:04 0800 (PST)"
+isosent="19951116140704"
+name="Ari Luotonen"
+email="luotonen@netscape.com"
+subject="New byteranges"
+id="199511161407.GAA09322@netscape.com"
+charset="USASCII"
+expires="1"
+
+
+To: http-wg mailing list<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>
+
+
+Here's a new revision of the byterange draft.  In short, what changed
+is now we have Request-range request header, and the response comes as
+206 Partial Content.  There's an additional Unless-modified-since to
+cause a 200 response if things have changed.
+
+The word "url" should probably be dropped from the draft filename.
+
+I urge someone to write up a separate Internet Draft for cache updates
+and validators.  If I had time I would gladly do it myself.  I'm all
+for them, but I will not even try to tackle that area in this I-D.
+
+Cheers,
+--
+Ari Luotonenari@netscape.com
+Netscape Communications Corp.http://home.netscape.com/people/ari/
+501 East Middlefield Road
+Mountain View, CA 94043, USANetscape Server Development Team
+
+----------------------------------------------------------------------------
+
+INTERNET-DRAFT                                              Ari Luotonen
+Expires: May XX, 1996                Netscape Communications Corporation
+                                                             John Franks
+                                                 Northwestern University
+<draft-luotonen-http-url-byterange-XX.txt>             November XX, 1995
+
+
+                      Byte Range Extension to HTTP
+
+
+STATUS OF THIS MEMO
+
+   XXX
+
+
+TABLE OF CONTENTS
+
+   1.      Overview ................................................. X
+
+   2.      Allow-Ranges HTTP response header ........................ X
+
+   3.      Byte range HTTP request .................................. X
+   3.1.    Request-Range HTTP request header ........................ X
+   3.1.1.  Multiple ranges .......................................... X
+   3.1.2.  Examples ................................................. X
+   3.2.    Unless-Modified-Since HTTP request header................. X
+
+   4.      Byte range HTTP response ................................. X
+   4.1.    206 Partial Content ...................................... X
+   4.2.    Range HTTP response header ............................... X
+   4.2.1.  Examples ................................................. X
+   4.3.    Multiple ranges as multipart MIME messages ............... X
+   4.4.    Caching issues ........................................... X
+
+
+
+
+Luotonen, Franks                                                [Page 1]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   5.      Future considerations .................................... X
+   5.1.    Extending Allow-Ranges, Request-Range and Range headers .. X
+   5.2.    Other possible ranges .................................... X
+
+   6.      References ............................................... X
+
+   7.      Authors' Addresses ....................................... X
+
+
+1. OVERVIEW
+
+   There are a number of Web applications that would benefit from being
+   able to request the server to give a byte range of a document. As an
+   example an Adobe PDF viewer needs to be able to access individual
+   pages by byte range; the table that defines those ranges is located
+   at the end of the PDF file.
+
+   An additional, equally important benefit would be for clients to
+   retrieve the rest of a partially retrieved document or image, in the
+   case that the user initially interrupted the connection, but later
+   resumed.
+
+   Setting this standard will promote interoperability between clients,
+   servers and intermediate proxy servers, make (partial) caching
+   effective, and save bandwidth.
+
+   This specification defines only the byte ranges.  It shows other
+   types of ranges as an example of how this specification could be
+   extended, as proof of its generality.  Those examples should not be
+   viewed as their definition.
+
+   This specification is simple enough to be adopted quickly by the
+   server authors/vendors, and be quickly and easily exploited on the
+   client side.  The proposed solution will be backward compatible with
+   existing proxy servers, and once this specification becomes official
+   it will actually be possible to support this in a smart way in proxy
+   servers.
+
+   This specification can be applied to document types for which byte
+   ranges make sense; there are types for which they don't, and this
+   specification is not trying to enforce semantics for byte ranges for
+   them.  In practice most of the data in the Web is represented as a
+   byte stream, and can be addressed with a byte range to retrieve a
+   desired portion of it.  This is especially useful when there is a
+   partial copy of the document, the transfer of which was interrupted
+   by the user, but later resumed, in which case only the missing
+   portion needs to be transferred.
+
+
+
+
+Luotonen, Franks                                                [Page 2]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   Byte range requests are typically generated by software, not written
+   by humans.
+
+
+2. ALLOW-RANGES HTTP RESPONSE HEADER
+
+   The server needs to let the client know that it can support byte
+   ranges.  This is done through the Allow-Ranges HTTP header when a
+   server is returning a document that supports byte ranges:
+
+        Allow-Ranges: bytes
+
+   The server will send this header only for documents for which it will
+   be able to satisfy the byte range request, e.g. for PDF documents, or
+   images, which can be partially reloaded if the user interrupts the
+   page load, and image gets only partially cached.
+
+   Because of the way the byte range request and response are
+   architected, the client is not limited to attempting to use byte
+   ranges only when this header is present.  The Request-Range header is
+   simply ignored by a server that does not support it, and it will send
+   the entire document as a response.
+
+
+3. BYTE RANGE REQUEST
+
+   Byte range request is made like any other HTTP request, with the
+   addition of the Request-Range HTTP Request header.
+
+
+3.1. Request-Range HTTP Request Header
+
+   The client requests a byte range via the Request-Range HTTP header:
+
+        Request-Range: bytes=0-500,5000-
+
+
+The Request-Range header is defined extensibly so that it can take a
+generic parameter specifying the type of range.  The parameter name for
+byte ranges is "bytes".  The syntax of this parameter is described
+below.
+
+   The name of the byte range parameter is bytes. It is passed to the
+   server in the Request-Range HTTP request header, followed by an equel
+   sign and the byte range specification.  (In an earlier version of
+   this draft, it was passed to the server appended to the end of the
+   path part of the URL, separated by a semicolon).
+  CGI Applications
+
+
+
+Luotonen, Franks                                                [Page 3]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   As defined by the CGI/1.1 specification, the value of the Request-
+   Range header will be passed to CGI scripts in the HTTP_REQUEST_RANGE
+   environment variable.  The CGI applications can choose to support it
+   if they so desire, and if it is possible.  If the CGI applications do
+   not support it, or if the content they return changes from call to
+   call, they simply ignore the presence of that header, and return the
+   entire document.
+
+
+Each range consists of one or two non-negative integers, separated by a
+hyphen.  The first integer must always be less than or equal to the
+second one. One of these integers may be missing, but not both at the
+same time.  The hyphen is always there, so it is possible to tell which
+number is missing.
+
+   If the first number is missing, it means to return the n last bytes
+   of the document, where n is the second number. If n is equal to, or
+   larger than, the size of the document minus one, then the entire file
+   is returned.
+
+   If the second number is missing, it means the end of document.  That
+   is, all the bytes starting from byte n until the end of the document,
+   where n is the first number.
+
+   The first byte in a document is byte number 0.
+
+   If the second number is larger than the size of the document minus
+   one, it is taken to mean the size of the document minus one (that is,
+   the end of the document).
+
+   The range is inclusive; as an example, the range 500-1000 includes
+   bytes from 500 to 1000, including 500 and 1000.
+
+   There may be multiple ranges, separated by a comma. The order of the
+   ranges is the preferred order in which the ranges should be returned.
+
+   In the case that the second integer is smaller than the first one,
+   that particular range is tagged as invalid, and ignored.  If it was
+   the only requested byte range, the entire document is returned.
+   Otherwise the remaining valid ranges will be returned.
+
+   The byte ranges refer to ranges in data as they are transferred over
+   the network (and retrieved by the client). E.g. if in an imaginary
+   system the server stores all lines terminated by CR LF, but turns
+   them into a single LF before sending the data, then byte ranges refer
+   to ranges inside this modified data (the one with single LF line
+   separators). That is, the ranges refer to the data that the client
+   would see.
+
+
+
+Luotonen, Franks                                                [Page 4]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   The byte ranges apply to the "raw" data, that is, the data encoded by
+   Content-encoding; but not to the "armored" data, that is, the data
+   encoded by content-transfer-encoding.
+
+
+3.1.3. Examples of the Request-Range with the bytes parameter
+
+   The first 500 bytes:
+
+        Request-Range: bytes=0-499
+
+   The second 500 bytes:
+
+        Request-Range: bytes=500-999
+
+   All bytes except for the first 500 until the end of document:
+
+        Request-Range: bytes=500-
+
+   The last 500 bytes of the document:
+
+        Request-Range: bytes=-500
+
+   Two separate ranges:
+
+        Request-Range: bytes=50-99,200-249
+
+   The first 100 bytes, 1000 bytes starting from the byte number 500,
+   and the remainder of the document starting from byte number 4000
+   (byte numbering starts from zero):
+
+        Request-Range: bytes=0-99,500-1499,4000-
+
+   The first 100 bytes, 1000 bytes starting from the byte number 500,
+   and the last 200 bytes of the document:
+
+        Request-Range: bytes=0-99,500-1499,-200
+
+
+3.2. Unless-Modified-Since HTTP request header
+
+   Guaranteeing that individual parts are all up-to-date and in sync
+   with each other is crucial.  This can be made easier by providing a
+   way to tell the server to send the byte range only, if it hasn't
+   changed since the time of the retrieval of the other ranges.  If it
+   has, the entire document is transferred instead.
+
+   The Unless-Modified-Since header will be sent by the client to the
+
+
+
+Luotonen, Franks                                                [Page 5]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   server (or the proxy), carrying the date and time received in the
+   Last-Modified header from the previously received parts.  If at any
+   point the last-modified date or time mismatch is detected by the
+   client, the older parts should be discarded.
+
+   The server will send the requested byte range (as a 206 Partical
+   Content response, as described below) if and only if the document has
+   not changed since that date and time.  If it has, the server will
+   send the entire document to the client instead (as a normal 200
+   response).
+
+   Example:
+
+        Unless-Modified-Since: Wednesday, 15-Nov-95 06:25:15 GMT
+
+
+4. BYTE RANGE HTTP RESPONSE
+
+   The byte range response uses the 206 Partial Content HTTP response
+   status.  Servers and CGI applications not supporting byte ranges will
+   simply ignore the Request-Range header in the request, and return the
+   entire document in a 200 response.
+
+   Existing proxy servers only cache 200 Ok responses.  This way
+   intermediate proxy servers will not mistakenly cache a partial
+   document as if it was the entire document.
+
+   If the request includes multiple ranges, the response is sent back as
+   a multipart MIME message, with content-type multipart/x-byteranges.
+   A server may, but is not required to, send also a single byte range
+   as a multipart message.
+
+   If there are overlapping ranges the behaviour for each range doesn't
+   change. That is, a range will not be truncated, merged, or left out,
+   just because there is an overlap.
+
+   If there was an Unless-Modified-Since header in the request, and the
+   document was modified since that time, the server will send a normal
+   200 Ok response, and transfer the entire document instead.
+
+
+4.2 The Range HTTP Response Header
+
+   The Range HTTP response header is sent back to provide verification
+   and information about the range and total size of the document.  This
+   header can be used by the client to determine which one of the
+   requested ranges is in question.  Syntax:
+
+
+
+
+Luotonen, Franks                                                [Page 6]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+        Range: bytes X-Y/Z
+
+   where:
+
+      X      is the number of the first byte returned (the first byte is
+             byte number zero).
+
+      Y      is the number of the last byte returned (in case of the end of
+             the document this is one smaller than the size of the document
+             in bytes).
+
+      Z      is the total size of the document in bytes.
+
+
+Examples of the Range HTTP Response Header
+
+   The first 500 bytes of a 1234 byte document:
+
+        Range: bytes 0-499/1234
+
+   The second 500 bytes of the same document:
+
+        Range: bytes 500-999/1234
+
+   All bytes until the end of document, except for the first 500 bytes:
+
+        Range: bytes 500-1233/1234
+
+   The last 500 bytes of the same document:
+
+        Range: bytes 734-1233/1234
+
+
+Example of a response:
+
+   HTTP/1.0 206 Partial content
+   Server: Netscape-Communications/2.0
+   Date: Wednesday, 15-Nov-95 06:25:24 GMT
+   Last-modified: Wednesday, 15-Nov-95 04:58:08 GMT
+   Range: 21010-47021/47022
+   Content-length: 26011
+   Content-type: image/gif
+
+
+
+4.3. Multiple Ranges as Multipart MIME Messages
+
+   Multipart MIME is defined in [RFC-1521].  With byteranges, the
+
+
+
+Luotonen, Franks                                                [Page 7]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+   multipart MIME message uses content-type multipart/x-byteranges, with
+   a boundary parameter.
+
+   Example:
+
+       Content-type: multipart/x-byteranges; boundary=THIS_STRING_SEPARATES
+
+       --THIS_STRING_SEPARATES
+       Content-type: application/x-pdf
+       Range: bytes 500-999/8000
+
+       ...the first range...
+       --THIS_STRING_SEPARATES
+       Content-type: application/x-pdf
+       Range: bytes 7000-7999/8000
+
+       ...the second range...
+       --THIS_STRING_SEPARATES--
+
+
+4.4. Caching
+
+   The server must give Last-modified headers for each range request
+   whenever possible, and the client side must take care of having all
+   the fragments in sync. Conditional GET (the GET request with the If-
+   modified-since header) works as expected with byte ranges.
+
+   Ranges can be cached, and if the Last-modified header matches they
+   can be combined.  If a received Last-modified date at any time
+   differs from the ones in the cache, all the cached ranges will be
+   discarded.
+
+   The client side should monitor the Last-modified header value
+   returned by the server, and make sure that all of its individual
+   fragments are in sync. If there are older ones they should be
+   immediately discarded and re-retrieved.
+
+
+5. Future Considerations
+
+
+5.1. Extending the Request-Range and Range headers
+
+   If at some point there will be additional parameters for the
+   Request-Range header, they should be separated by the semicolon
+   character.
+
+   Example:
+
+
+
+Luotonen, Franks                                                [Page 8]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+        Request-Range: param1=bar; param2=xyzzy
+
+   This specification does not define semantics for cases with multiple
+   Request-Range parameters. Future specifications should define
+   semantics for these. Until then, Request-Range headers with
+   parameters that cannot be understood should be ignored.
+
+
+5.2. Other Possible Ranges
+
+   There are other kinds of ranges that can be addressed in a similar
+   fashion; this document does not define them, but both the Request-
+   Range HTTP request header and the Range: HTTP header are defined so
+   that it is possible to extend them.
+
+   As an example, there might be a "lines" parameter, with the same kind
+   of range specification, and the Range: header would then specify the
+   numbers in lines. Example:
+
+        GET /dir/foo HTTP/1.0
+        Request-Range: lines=20-30
+
+   The response from a 123 line document would be:
+
+        HTTP/1.0 206 Partial Content
+        Range: lines 20-30/123
+        Last-Modified: ...
+        Content-Length: 773
+        Content-Type: text/plain
+
+   This could be useful for such things as structured text files like
+   address lists or digests of mail and news, but isn't meaningful to
+   such document types as GIF or PDF.
+
+   Other examples might be document format specific ranges, such as
+   chapters:
+
+        GET /dir/foo HTTP/1.0
+        Request-Range: chapters=6-9
+
+        206 Partial Content
+        Range: chapters 6-9/12
+        Last-Modified: ...
+        Content-Length: 36023
+        Content-Type: application/x-book-type
+
+
+
+
+
+
+Luotonen, Franks                                                [Page 9]
+
+BYTE RANGE EXTENSION TO HTTP INTERNET-DRAFT                November 1995
+
+
+6. References
+
+   [RFC-1521] N. Borenstein, N. Freed, "MIME (Multipurpose Internet Mail
+              Extensions), Part One: Mechanisms for Specifying and
+              Describing the Format of Internet Message Bodies",
+              RFC 1521, Bellcore, Innosoft, September 1993
+
+   [HTTP]     T. Berners-Lee, R. Fielding, H. Frystyk, "Hypertext
+              Transfer Protocol -- HTTP/1.0",
+              draft-ietf-http-v10-spec-04.html, October 14, 1995.
+
+   [CGI]      R. McCool et al, "Common Gateway Interface -- CGI/1.1",
+              http://hoohoo.ncsa.uiuc.edu/cgi/, NCSA, 1994.
+
+
+7. Authors' Addresses:
+
+   Ari Luotonen                                       <ari@netscape.com>
+   Netscape Communications Corporation
+   501 E. Middlefield Road
+   Mountain View, CA 94043
+   USA
+
+   John Franks                                       <john@math.nwu.edu>
+   Department of Mathematics
+   Northwestern University
+   Evanston, IL 60208-2730
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Luotonen, Franks                                               [Page 10]
+
+
+
+

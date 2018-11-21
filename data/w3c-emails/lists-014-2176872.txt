@@ -1,0 +1,190 @@
+docno="lists-014-2176872"
+received="Tue Oct 15 12:42:41 1996"
+isoreceived="19961015164241"
+sent="Tue, 15 Oct 1996 11:18:06 0500"
+isosent="19961015161806"
+name="Jeff Williams"
+email="jwkckid1@ix.netcom.com"
+subject="Re: Shared Key Authentication record type"
+id="1.5.4.16.19961015161806.37775334@popd.ix.netcom.com"
+charset="usascii"
+inreplyto="Shared Key Authentication record type"
+expires="1"
+
+
+To:dpkemp@missi.ncsc.mil(David P. Kemp)
+Cc:ietf-tls@w3.org
+
+David,
+
+  Please read below your comments.
+
+At 10:54 AM 10/15/96 -0400, you wrote:
+>> From: Tom Weinstein <tomw@netscape.com>
+>> 
+>> Yes, a lot of existing protocols have lousy password mechanisms.  But
+>> to integrate any sort of TLS password mechanism, you're going to have
+>> to change the protocol if for no other reason than to STOP sending the
+>> password in the clear.  If you're going to do that, why not just fix
+>> the protocol?
+>
+>I take it that this is Tom's acknowledgement that there is justification
+>for including shared-key authentication within TLS as long as an acceptable
+>method can be found?  Fix the protocol means "do it right", not "don't do
+>it at all"?
+>
+>I believe that a sufficient business case has been made that shared-key
+>auth (I'll call it SKA from here on) within TLS is desirable.  My main
+>area of discomfort with the current proposal is that the SKA messages
+>are entertwined with the TLS handshake messages even though there doesn't
+>seem to be a logical need for them to be.  Since the handshake protocol
+>is at the heart of TLS' security, it's not a good idea to add distracting
+>functionality to it without a good reason.
+>
+>Aside from that complaint, the SKA proposal recently submitted by Barb
+>Fox looks quite sound.  For that reason, I submit the following thought
+>for consideration of the WG: adopt the three SKA messages from the
+>proposal, but instead of bundling them with the handshake exchange,
+>separate them out into their own (new) record type:
+>
+>1) define a new ContentType shared_key_auth(24).
+>
+>Reason: separate SKA from handshake messages.  Although logically SKA
+>supports application-layer functionality, the SKA messages can't go into
+>application_data records because the protocol engine couldn't find them
+>there.
+>
+>2) add a new element to the connection state, generated during
+>handshake phase.  Add the following to section 8.2.2 (partitioning the
+>key_block) after server_write_MAC_secret (or after server_write_key or
+>server_write_IV as in the proposal - it doesn't matter where as long
+>as it's specified in the protocol):
+>
+>    client_write_SKA_secret[CipherSpec.hash_size]
+>
+>Reason: if SKA secrets are compromised, the master secret and other keys
+>are not affected, assuming the key_block partition scheme is sound.  Since
+>the encryption and MAC keys are also derived this way, any flaw in the
+>partition scheme would affect all of TLS, not just SKA.
+>
+>3) add the proposed messages to the SKA record type, with the same
+>structure as the handshake messages:
+>
+>    enum {
+>        shared_keys(30), shared_key_request(31), shared_key_verify(32)
+>    } SharedKeyAuthType;
+>
+>    struct {
+>        SharedKeyAuthType msg_type;
+>        uint24 length;
+>        select (SharedKeyAuthType) {
+>            case shared_keys:        SharedKeys;
+>            case shared_key_request: SharedKeyRequest;
+>            case shared_key_verify:  SharedKeyVerify;
+>        } body;
+>    } SharedKeyAuth;
+>
+>4) calculate the SKA response as:
+>
+>    SharedKeyVerify.shared_key_response
+>        hash (client_write_SKA_secret + pad2 +
+>            hash (client_write_SKA_secret + pad1
+>                + SharedKeyVerify.auth_service.auth_service_hame
+>                + SharedKeyVerify.auth_service.display_string
+>                + SharedKeyVerify.auth_service.challenge
+>                + SharedKeyVerify.identity + shared_key) )
+>
+>Reason: since SKA messages would be sent after handshake is finished,
+>they are protected by the record layer MAC and the term
+>hash(handshake_messages) isn't needed in the response calculation.
+
+  I am assuming that SharedKeyAuthType is 128 bit here, correct?
+>
+>Ideally, the SKA exchange should be "secure" without relying at all on
+>protection provided by MAC or encryption, assuming only a good 128 bit
+>client_write_SKA_secret.  The above construction seems to meet that
+>criteria, but could be modified if any holes are found.
+>
+>
+>Potential questions:
+>
+>  * Since SKA messages are not within the handshake exchange but after it,
+>there's no longer a restriction of 1 SKA per handshake.  This might be
+>a feature, but it assumes that SKAs are protected against replay by
+>the record MAC and/or by the freshness of the challenge.  If this isn't
+>a valid assumption, a new handshake could be triggered each time an
+>SKA is requested, resulting in a new SKA_secret.
+>
+>  * Others might object to adding a new record type.  I think it's a
+>cleaner, more obvious solution, but there's no accounting for taste :-).
+
+  No, I agree with you here.  I think it would be much cleaner.
+>
+>  * I don't think it will add any round trips to the current proposal -
+>the SKA request could appear immediately after server finished and before
+>application data - similarly for SKA verify on the client end.
+
+  Is this (Above) to be included or added to the current perposal?
+>
+>
+>----------------------------------------------------------------------------
+>
+>> From: Jeff Williams <jwkckid1@ix.netcom.com>
+>> 
+>>   Here here!  I agree. The current password mechanism is definatly flawed
+>> or is te easely accessed.  And chalange/response mechanism might also be 
+>> included as well as an option or feature.
+>
+>I think that anyone who takes the time to read the shared-key proposal
+>will find that it *does* specify a challenge-response mechanism.  I also
+>believe that reading the proposals should be a prerequisite for
+>commenting on them.
+
+  I guess you are infering that I have not read the spec.  Well I have, thank
+you very much, David.  It is not clearly indicated weather challenge-response
+mechanism is included, per say, hence my comment. 
+>
+>
+>----------------------------------------------------------------------------
+>
+>> Date: Mon, 7 Oct 1996 16:06:54 -0700
+>> From: david.brownell@Eng.Sun.COM (David Brownell - JavaSoft)
+>> 
+>>   [good list of issues snipped]
+>>
+>> I could raise more questions, but the fact that there are
+>> this many (after this much discussion!) says to me that the
+>> proposal should not be deemed "cooked" enough to incorporate
+>> into an IETF standard.
+>> 
+>
+>  From an IETF point of view, a Full Standard protocol must be specified
+>in sufficient detail to allow independently-developed implementations
+>to interoperate solely by reference to published specifications.  I
+>don't believe this applies to Proposed Standard RFCs, but it will be
+>necessary to completely specify the contents and processing of the
+>auth_service, identity, challenge, etc. fields before the RFCs can
+>advance to Draft Standard.  There might be a range of private-agreement
+>codes reserved in the standard, but at least one interoperable SKA
+>method must be fully defined and required to be supported in all
+>implementations.
+>
+>I believe that the proposal is "cooked" enough to be adopted as a
+>baseline, even though some details remain to be worked out.  If shared-key
+>auth can be separated from the handshake protocol, perhaps along the lines
+>described above, I am "FOR" adopting it into TLS.
+>
+>If for some technical reason it cannot be disengaged from the handshake
+>exchange, I'll remain on the fence.
+>
+>
+>
+Jeffrey A. Williams
+SR.Internet Network Eng. 
+CEO., IEG., INC.,  Representing PDS .Ltd.
+Web: http://www.pds-link.com 
+Phone: 214-793-7445 (Direct Line)
+Director of Network Eng. and Development IEG. INC.
+
+
+

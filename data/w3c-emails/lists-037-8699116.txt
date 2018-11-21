@@ -1,0 +1,1218 @@
+docno="lists-037-8699116"
+received="Mon Jun 16 20:11:27 1997"
+isoreceived="19970617001127"
+sent="Mon, 16 Jun 1997 16:47:17 -0700"
+isosent="19970616234717"
+name="Jim Whitehead"
+email="ejw@rome.ICS.UCI.EDU"
+subject="New properties (metadata) draft"
+id="9706161647.aa23589@paris.ics.uci.edu"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+
+Enclosed is the text of a new draft which satisfies the requirements
+for attributes (Section 5.1 of the requirements document), linking
+(Section 5.2 of the requirements), and retrieval of unprocessed source
+(Requirements Section 5.5).  In this draft, an instance of a piece of
+metadata is known as a property.  This draft differs from the previous
+draft on metadata operations (the GETMETA, ADDMETA, DELMETA draft) in
+that it uses GET to retrieve properties, and employs new PATCH method
+to add and delete property values.  A SEARCH method provides the
+capability to search properties.
+
+This draft also makes use of the Extended Markup Language (XML) as an
+on-the-wire representation for property names and values.  Due to the
+recent release of the Meta Content Framework (MCF) draft, and the
+similarity between MCF and the XML representation given in this draft,
+there is currently debate within the Design Team over whether the
+on-the-wire representation should use MCF.  The primary affect of this
+debate is limited to Section 2.7, Visualizing a Property Tree Using
+XML, which gives an algorithm for converting properties to an XML
+representation, although it would also affect the examples throughout.
+
+Since the XML specification has not yet been finalized (although there is
+considerable agreement on most of its features) this draft has provided
+a description of the subset of XML which is used within the specification.
+This description occurs towards the end of the specification, in
+Appendicies 1-5.  It also appears that this spec. mistakenly uses the
+term "XML entity" instead of "XML element."
+
+
+The properties draft is available at URL:
+http://www.ics.uci.edu/~ejw/authoring/proposals/properties.html
+
+The latest XML specification is available at URL:
+http://www.textuality.com/sgml-erb/WD-xml-lang.html
+
+The MCF proposal is available at URL:
+http://developer.netscape.com/mcf.html
+
+
+Your comments and ideas on this draft are definitely appreciated.
+
+- Jim
+
+
+
+               A Data Model and Operations for DAV Properties
+
+Version 0.1, June 16, 1997
+
+1 Introduction
+
+1.1 Introduction
+
+Properties are pieces of data that describe the state of a resource.
+Properties are data about data. The term property is used within this
+proposal to disambiguate the concept from the overloaded terms "metadata"
+and "attribute".
+
+Properties are used within distributed authoring environments to provide for
+efficient discovery and management of resources. For example, a subject
+property allows for the indexing of all resources by their subject and an
+author property allows for the discovery of what authors have written which
+documents. As explored in the next section, properties have a long history,
+having proven themselves essential to the maintenance of large document
+repositories.
+
+1.2 Existing Metadata Proposals
+
+Many current proposals contain some notion of a property. These include PICS
+[Miller et al., 1996], PICS-NG, the Rel/Rev draft [Maloney, 1996], Web
+Collections, XML [Bray, 1997], several proposals on representing
+relationships within HTML, digital signature manifests (DCMF), and a
+position paper on Web metadata architecture [Berners-Lee, 1997].
+
+Some proposals come from a digital library perspective. These include the
+Dublin Core [Weibel et al., 1995] metadata set and the Warwick Framework
+[Lagoze, 1996], a container architecture for different metadata schemas. The
+literature includes many examples of metadata, including MARC [MARC, 1994],
+a bibliographic metadata format, RFC 1807 [Lasher, Cohen, 1995], a technical
+report bibliographic format employed by the Dienst system, and the
+proceedings from the first IEEE Metadata conference describe many
+community-specific metadata sets.
+
+Participants of the 1996 Metadata II Workshop in Warwick, UK [Lagoze, 1996],
+noted that, "new metadata sets will develop as the networked infrastructure
+matures" and "different communities will propose, design, and be responsible
+for different types of metadata." These observations can be corroborated by
+noting that many community-specific sets of metadata already exist, and
+there is significant motivation for the development of new forms of metadata
+as many communities increasingly make their data available in digital form,
+requiring a metadata format to assist data location and cataloging.
+
+1.3 Properties and HTTP Headers
+
+Properties already exist, to a certain extent, within HTTP through the use
+of message headers. However, in distributed authoring environments a
+relatively large number of properties are needed to fully describe the state
+of a resource and setting/returning them all through HTTP headers is
+inefficient. Thus a mechanism is needed which allows a principal to identify
+a set of properties in which the principal is interested and to then set or
+retrieve just those properties.
+
+1.4 Why Another Draft?
+
+Given that this is the fourth major draft on metadata capabilities submitted
+to the WebDAV working group, a reasonable question to ask is, "Why another
+draft?" In short, the following limitations in "A Proposal for Web Metadata
+Operations" [WebDAV, 1997] led to the development of this new proposal:
+
+Poor Internationalization Support. While the simple name/value pairs in
+[WebDAV, 1997] do allow the value field to contain an arbitrary sequence of
+octets, there is no way to indicate their character encoding.
+
+No Typing Support. Similar to the internationalization support, there is no
+way to indicate the encoding of binary data in a value field in [WebDAV,
+1997], for example, to indicate a sequence of octets should be viewed as an
+integer, or as a floating point number,
+
+Proliferation of Methods. Since [WebDAV, 1997] does not contain a naming
+mechanism that combines the name of the resource and the name of the
+property into a single name, the methods GETMETA, DELMETA, and ADDMETA are
+necessary to "glue" together the name of the resource and the name of the
+property.
+
+No Sub-Properties. In [WebDAV, 1997] there is no way to define a property
+which describes another property (i.e., data about properties), yet this
+facility is useful for refining the meaning of a property. One important use
+of sub-properties is to indicate their "liveness," whether the server is
+enforcing the syntax and semantics of the property.
+
+This draft introduces two main innovations: a tree data model for
+properties, and a property naming mechanism for combining the URI of a
+resource and the URI for a property type into a single URI which identifies
+an instance of that property on the resource. The tree data model provides
+support for sub-properties, which then afford typing support and
+internationalization support. The property naming mechanism allows existing
+HTTP/1.1 methods (GET, DELETE, PUT) to be used for operations on properties,
+thus reducing the number of new methods and helping to ensure the utility of
+methods as a mechanism for caching and security.
+
+2 A Property Model for HTTP Resources
+
+2.1 Overview
+
+A property consists of a name and a value. However it is often the case that
+a property may itself contain properties, such as a sub-property which
+specifies its parent property is read only. The combination of properties
+and sub-properties creates a tree.
+
+  Resource Root Property
+            |
+         Property
+        /       \
+  Read Only      (Some Value)
+       |
+    Yes/No
+
+2.2 Property Tree
+
+The properties defined on a resource create a tree structure, whose root
+node is called the root property. The property tree consists of two types of
+nodes, a property node and a value node. A property node may have any number
+of children, those children may in turn consist of any number and any
+combination of property and values nodes. The ordering of these children
+must be maintained. Value nodes do not have any children as they can not
+contain properties, only a value. Property nodes are named, value nodes are
+referred to via their parent.
+
+To conceptualize this property model, one builds the previously mentioned
+tree. Internal nodes are property nodes and leaf nodes are value nodes.
+
+2.3 Multivalued Properties
+
+It is possible for the children of a property to contain several properties
+that have the same name. In order to prevent confusion among identically
+named siblings, the ordering of siblings MUST be maintained by the resource.
+Thus it is now possible to differentiate siblings through the use of an
+index.
+
+2.4 Property Names
+
+A property name identifies both the syntax and semantics of the children of
+a property node. It is critical that property names do not collide, that is,
+two principals defining the same property name with two different meanings.
+
+The URI framework provides for a mechanism to prevent namespace collision
+and for varying degrees of administrative control. Rather than reinvent
+these desirable features, DAV properties make use of them by requiring that
+all DAV property names MUST be URIs.
+
+2.5 Schemas
+
+A schema is a group of property names. A schema may also define
+relationships between properties. It is often useful to indicate support for
+a particular schema in a request or a response. Schema discovery is also
+useful for determining if a system supports a group of properties. A
+property does not necessarily contain sufficient information to identify any
+schemas it may be a member of.
+
+As with property names, schemas MUST use URIs as their names.
+
+2.6 Property Morphing
+
+2.6.1 Problem Definition
+
+Property definitions change in two ways, either a new property is added or
+the value is marked up with new information.
+
+An example of the first class of change will soon be upon us. The Digital
+Signature (DSIG) group at the W3C
+<http://www.w3.org/Security/DSig/Overview.html> is currently working on a
+mechanism for signing chunks of data and properties. A value that previously
+consisted of only a string will be turned into a property containing a
+signature property and the string value. What would an older client, written
+before DSIG, do? Where once it looked only for a string, now it finds a
+string and a property.
+
+An example of the second class of change, markup can turn unstructured data
+into structured data. For example, a string which once contained a name is
+instead turned into two properties, one indicating the personal name and the
+second indicating the family name. What would an older client, written
+before the marked up format, do? Where once the client looked only for a
+string, now it finds two properties.
+
+2.6.2 Solution Requirements
+
+A mechanism must be provided so that a client can examine the children of a
+property and upon encountering unknown properties know to either ignore the
+unknown property or to ignore the markup and promote the property's children
+one level up the parse tree.
+
+2.7 Visualizing a Property Tree Using XML
+
+While it is possible to visualize tree structures in many ways, for use by
+WebDAV, this specification defines a linear visualization of property trees
+using the Extensible Markup Language (XML) [Bray, 1997] suitable for
+transmission as part of an HTTP protocol stream.
+
+A sketch of an algorithm for creating an XML linearization of a property
+tree is given below.
+
+Begin by printing an "<XML>" element, if this is a standalone document.
+
+Next, perform a traversal of the property tree, collecting the set of all
+schemas used by all properties. Print one "<XML:Namespace>" ... "<AS>" XML
+entity pair for each schema in use, ensuring that unique tags are used in
+the "<AS>" XML entities. Save the mapping between schema names.
+
+Next, perform a preorder traversal of the tree. For each node, print its
+name as "<"{unique schema tag}":"{property URI which is relative to the
+schema's URI}">", then print its value, then print "</>". Note that the
+process is recursive for values which contain properties. Whitespace may be
+printed between XML entities for prettyprinting.
+
+Print a closing "</>" (to close the "<XML>") if the document is standalone.
+
+A detailed description of "<XML:Namespace>" and "<AS>" XML entities is given
+in Appendix 4.
+
+3 Property Identifiers
+
+3.1 Problem Definition
+
+The addition of properties to the HTTP object model result in the state of
+HTTP resources containing two separate areas, the body of the resource and
+the properties of the resource. A mechanism is needed to unambiguously refer
+to both.
+
+3.2 Solution Requirement
+
+The mechanism used for referring to the resource directly must also be
+usable for referring to the resource's properties in such a manner that even
+non-DAV aware clients can retrieve DAV properties.
+
+3.3 DAV URL Parameter
+
+To allow for the specification of property information in the context of an
+http scheme URL, a switch is needed. This switch indicates that the path
+segments following it specify a property location. To this end the "DAV"
+param is introduced for use with http scheme URLs. All path segments to the
+right of the DAV param MUST be formatted according to the XML Link standard,
+described in appendix 3, XML Linking.
+
+3.4 Hierarchical Naming
+
+Properties on a resource are referred to as a hierarchy from the root
+property on down. Thus if a resource has an author property defined on its
+root property, which itself contains a family name property, then a
+hierarchy three levels deep is needed to refer directly to the family name
+property.
+
+Root Property - Author Property - Family Name Property
+
+The Root property is defined as "/". However both the author and family name
+properties are referred to using URIs. The XML Link standard provides a
+mechanism to refer to nested URIs.
+
+For example, the following properties are defined on
+http://somewhere.com/resource.
+
+<XML>
+ <Namespace><Ref>http://www.w3.org/standards/z39.50/</><AS>Z</></>
+ <Namespace><Ref>AIIM:Dublin:</><AS>D</>
+ <Z:Author><D:PersonalName>Shirley</><D:FamilyName>Mansai</></>
+</>
+
+To create a reference to the value "Mansai" one would perform the following
+steps.
+
+  1. Add the DAV parameter to the base URI,
+     http://somewhere.com/resource;DAV.
+  2. Add "/" to refer to the root of the resource's property namespace,
+     http://somewhere.com/resource;DAV/.
+  3. Change the author attribute's name into parameter format by changing
+     the "/" to "!" and encasing it in parenthesis. We must encase it in
+     parenthesis in order to indicate that we have made the "/" to "!"
+     translation. We make the translation in order to prevent confusion over
+     where segments are and to make sure that relative URIs will continue to
+     work.
+     http://somewhere.com/resource;DAV/(http:!!www.w3.org!standards!z39.50!author).
+  4. Next we continue the path by adding the family name attribute. Because
+     it does not include any "/" it does not require encoding.
+     http://somewhere.com/resource;DAV/(http:!!www.w3.org!standards!z39.50!author)/AIIM:Dublin:FamilyName.
+
+The process is now complete, the URL can be used in a GET or PATCH to
+retrieve or alter the value. See appendix 3 for more information.
+
+3.5 Compatibility with legacy systems
+
+3.5.1 Problem Definition
+
+The HTTP parameter space is uncontrolled, thus someone may already be using
+a parameter with a value of "DAV" for some end other than the one described
+here. Thus a client sending a URI with a DAV param to a server may receive
+an unexpected or inappropriate response.
+
+3.5.2 Solution Requirement
+
+A mechanism is needed to prevent namespace collisions.
+
+3.5.3 Proposed Solution
+
+All DAV compliant servers MUST honor the DAV param type on http URLs. Thus
+if a client knows it is talking to a DAV server, it can safely send an http
+URL with the DAV param.
+
+The client may send the http URL with the DAV param extension to a server
+that is not know to be DAV compliant if the client uses PEP [Connolly, 1997]
+to prevent collisions. The proper PEP header is:
+
+DAVPEP = "PEP: {{map "DAV"}{strength must}}"
+
+Note that this header PEP header is not compliant with [Connolly, 1997] but
+the author has spoken with the authors of the PEP draft and they will be
+changing the format to make the example legal.
+
+4 DAV Schema
+
+The DAV Schema is specified as http://www.ietf.org/standards/dav/. This
+schema is used to indicate support for properties that can be defined on a
+resource and XML entities that can be returned in responses.
+
+4.1 Properties
+
+4.1.1 Live Property
+
+Name: http://www.ietf.org/standards/dav/live
+Purpose: To indicate that the parent property has its syntax and semantics
+enforced by the resource on which it is recorded.
+Schema: http://www.ietf.org/standards/dav/
+Parent: Any property
+Values: None
+Description: This property is used exclusively in a response to indicate if
+the resource a property is recorded on is enforcing the syntax and semantics
+of the property. The absence of the Live property tells the client that the
+corresponding property does not have its syntax and semantics enforced by
+the resource on which it is recorded.
+
+4.1.2 ReadOnly Property
+
+Name: http://www.ietf.org/standards/dav/readonly
+Purpose: To indicate that the parent property can only be retrieved, not set
+through the property mechanism.
+Schema: http://www.ietf.org/standards/dav/
+Parent: Any property
+Values: None
+Description: This property is used to indicate that the parent property can
+only be retrieved, not set through the property mechanism. This property is
+not meant as an access control mechanism but rather to reflect the fact that
+the property is not designed to have its value set through the property
+mechanism.
+
+5 Link Property
+
+5.1 Problem Description
+
+A mechanism is needed to associate resources with other resources. These
+associations, also known as links, consist of three values, a type
+describing the nature of the association, the source of the link, and the
+destination of the link. In the case of annotation, the source and
+destination of a link may not be the resource upon which the link is
+recorded.
+
+5.2 Solution Requirements
+
+The association mechanism must make use of the property mechanism in order
+to make the existence of the associations searchable.
+
+5.3 Link Property
+
+Name: http://www.ietf.org/standards/dav/link
+Purpose: To indicate the existence of a link associated with the parent
+property.
+Schema: http://www.ietf.org/standards/dav/
+Parent: Any property that needs to have a link associated with it.
+Values: Src 1*Dst
+Description: Link is used to provide the source and one or more destinations
+of the link. The parent property provides the type. Link is a multivalued
+property so multiple Links may be used together to indicate multiple links
+with the same type.
+
+5.4 Src Property
+
+Name: http://www.ietf.org/standards/dav/src
+Purpose: To indicate the source of a link.
+Schema: http://www.ietf.org/standards/dav/
+Parent: http://www.ietf.org/standards/dav/link
+Values: URI
+
+5.5 Dst Property
+
+Name: http://www.ietf.org/standards/dav/Dst
+Purpose: To indicate one or more destinations of a link
+Schema: http://www.ietf.org/standards/dav/
+Parent: http://www.ietf.org/standards/dav/link Values: URI
+
+5.6 Example
+
+<XML>
+        <Namespace><Ref>http://www.ietf.org/standards/dav/</><AS>D</></>
+        <Namespace><Ref>http://www.foocorp.com/Project/</><AS>F</></>
+        <D:Source>
+                <D:Link>
+                        <F:ProjectFiles>Source</>
+                        <src>http://foo.bar/program</>
+                        <dst>http://foo.bar/source/main.c</>
+                </>
+
+                <D:Link>
+                        <F:ProjectFiles>Library</>
+                        <src>http://foo.bar/program</>
+                        <dst>http://foo.bar/source/main.lib</>
+                </>
+
+                <D:Link>
+                        <F:ProjectFiles>Makefile</>
+                        <src>http://foo.bar/program</>
+                        <dst>http://foo.bar/source/makefile</>
+                </>
+        </>
+</>
+
+In this example the resource http://foo.bar/program has a source property
+defined on it which contains three links. Each link contains three
+properties, two of which, src and dst, are part of the DAV schema, defined
+in this document, and one which is defined by the schema
+http://www.foocorp.com/project/ (Source, Library, and Makefile). A client
+which only implements the properties in the DAV spec will not know what the
+foocorp properties are and will ignore them, thus seeing the expected source
+and destination links. However an enhanced client may know about the foocorp
+properties and thus be able to present the user with additional information
+about the links.
+
+6 Properties and Methods
+
+6.1 DELETE
+
+The delete method, when used on a property, causes the property and its
+children to be removed.
+
+6.2 GET
+
+A GET on a property returns the name of the property and its children.
+Accept types may be used to specify the format of the return value but all
+DAV compliant servers MUST at minimum support a return type of
+application/XML. If application/XML is used as the response format then it
+MUST include the http://www.ietf.org/standards/dav/ schema.
+
+6.2.1 GetResult XML Entity
+
+Name: http://www.ietf.org/standards/dav/getresult
+Purpose: To contain the results of a GET request
+Schema: http://www.ietf.org/standards/dav/
+Parent: Any, usually <XML>
+Values: An XML Entity
+Description: The GetResult XML Entity provides the context to inform the
+client that its contents are not just some XML entity, but an XML
+representation of the requested property.
+
+6.2.2 Example
+
+GET bar;DAV/(http:!!www.w3.org!standards!z39.50!Authors) HTTP/1.1
+Host: foo.com
+
+HTTP/1.1 200 OK
+Content-Type: application/xml
+Content-Length: xxxx
+E-tag: "1234"
+Last-Modified: xxxx
+
+<XML>
+        <XML:Namespace><Ref>http://www.ietf.org/standards/dav/</><AS>D</></>
+        <XML:Namespace><Ref>http://www.w3.com/standards/z39.50/</><AS>Z</></>
+        <D:GetResult><Z:Authors>
+                        <Author>Jane Doe</>
+                        <Author>Joe Doe</>
+                        <Author>Lots o'Doe</>
+</>     </>     </>
+
+6.3 PATCH Method
+
+The PATCH method, in the most general sense, specifies how to alter a
+resource. The message body controls the actual action taken by a PATCH. All
+DAV compliant servers are required to support the use of the application/XML
+content-type using the http://www.ietf.org/standards/dav/patch/ schema in a
+PATCH method with a request-URI that points to a property.
+
+The changes in a http://www.ietf.org/standards/dav/patch/ request MUST be
+atomically executed, partial results are not allowed.
+
+6.3.1 Request URI
+
+The request URI of a PATCH method with the
+http://www.ietf.org/standards/dav/patch/ schema MUST point to the root of
+the resource's properties.
+
+6.3.2 PropertyUpdate XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/PropertyUpdate
+Purpose: To contain a request to alter the properties on a resource.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: <XML>
+Value: *(Create | Remove | Insert)
+Description: This XML entity is a container for the information required to
+modify the properties on the resource. This XML Entity is multivalued.
+
+6.3.3 Create XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/create
+Purpose: To create the DAV property specified inside the Create XML entity.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/PropertyUpdate Values:
+XML:Ref PatchValue
+Description: This XML entity contains two values, a Ref and a PatchValue.
+The Ref contains the name of the property to be created or overwritten, this
+URI in Ref MUST be a relative URI whose base is the request-URI. The
+PatchValue XML entity contains the value the new property is to have, this
+value can contain both property and value nodes.
+
+6.3.4 Remove XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/remove
+Purpose: To remove the DAV property specified inside the Remove XML entity.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/PropertyUpdate Values:
+XML:Ref
+Description: Remove orders that the property specified in Ref and its
+children removed. Ordering the removal of a property that does not exist is
+not an error. The URI in Ref MUST be a relative URI whose base is the
+request-URI.
+
+6.3.5 Insert XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/insert
+Purpose: To insert a DAV property between other DAV properties of the same
+name.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/PropertyUpdate
+Values: InsertPoint InsertName PatchValue
+Description: Insert is used to insert the property referred to in
+InsertName, whose value is given in PatchValue, at the position held by the
+value specified in InsertPoint.
+
+[Author's Note - Currently there is no way to directly address a value. So
+if I have the equivalent of <foo>bar<blah></>oops</> there is no way for me
+to say "I want "oops" to become "correct"". I have to replace the entire foo
+property.]
+
+6.3.6 InsertPoint XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/InsertPoint
+Purpose: To specify a property that the new property should either be
+inserted before or after.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/Insert
+Values: Position Ref
+Description: The value in the Ref MUST be a relative URI whose base is the
+request-URI.
+
+6.3.7 Position XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/position
+Purpose: To specify if the property to be inserted is to be inserted before
+or after the property specified in InsertPoint.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/InsertPoint
+Values: "Before" | "After"
+Description: If the value is Before then the property specified in
+InsertName is to be inserted in the position directly before the position
+held by the property specified in InsertPoint. If the value is After then
+the property specified in InsertName is to be inserted in the position after
+the position held by the property specified in InsertPoint.
+
+6.3.8 InsertName XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/position
+Purpose: To specify the name of the new property to be inserted
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: http://www.ietf.org/standards/dav/patch/Insert
+Values: Ref
+Description: The Ref's value is the name of the property to be created at
+the position specified by InsertPoint. The URI MUST be relative and its base
+MUST be the request-URI. The value MUST NOT have an index on it.
+
+6.3.9 PatchValue XML Entity
+
+Name: http://www.ietf.org/standards/dav/patch/patchvalue
+Purpose: To specify the name and when appropriate the value, of the
+particular property to be altered.
+Schema: http://www.ietf.org/standards/dav/patch/
+Parent: Any parent which needs to specify the contents of a property
+Values: The contents of a property
+
+6.3.10 Response Codes
+
+200 OK - The command succeeded. As there can be a mixture of PUT and DELETEs
+in a body, a 201 Create seems inappropriate.
+
+400 Bad Request - The client has provide a value whose syntax is illegal for
+the property.
+
+401 Unauthorized - The client does not have authorization to alter one of
+the properties. This error also occurs if a property is inherently read
+only.
+
+403 Forbidden - The client, for reasons the server chooses not to specify,
+can not alter one of the properties.
+
+405 Conflict - The client has provided a value whose semantics are not
+appropriate for the property.
+
+6.3.11 Example
+
+PATCH bar;DAV/ HTTP/1.1
+Host: www.foo.com
+Content-Type: application/XML
+Content-Length: xxxx
+
+<XML>
+        <XML:Namespace><Ref>http://www.ietf.org/standards/dav/patch/</><AS>P</></>
+        <XML:Namespace><Ref>D:patch/</><AS>P</></>
+        <XML:Namespace><Ref>http://www.w3.com/standards/z39.50/</><AS>Z</></>
+        <XML:Namespace><Ref>http://www.w3.com/standards/dublin/</><AS>D</></>
+        <P:PropertyUpdate>
+                <Create>
+                        <XML:Ref>Z:authors</>
+                        <PatchValue>
+                                <Author>Jim Whitehead</>
+                                <Author>Roy Fielding</>
+                        </>
+                </>
+
+                <Remove><Ref>D:Copyright-Onwer</></>
+                <Insert>
+                        <InsertPoint><Position>Before</><XML:Ref>Z:producer</></>
+                        <InsertName><XML:Ref>Z:Last-Modified</></>
+                        <PatchValue></>
+                </>
+                <Insert>
+                        <InsertPoint><Position>After</><XML:Ref>Z:editor(1)</></>
+                        <InsertName><XML:Ref>Z:editor</></>
+                </>
+</>     </>
+
+6.4 PUT
+
+A PUT is specified in order to control what is returned by a GET. However a
+GET on a property always returns some sort of property containment format.
+As such PUT can not be used if the Request-URI refers to a property.
+
+6.5 SEARCH
+
+[Author's Note: The search section has never had a very good specification
+and there has never been very wide agreement on what features should be made
+available. The search specified here is the authors best efforts to try and
+synthesize all the features and restrictions which have been asked for to
+date.]
+
+6.5.1 Request-URI
+
+The request-URI of the search method specifies the scope of the search. If
+the request-URI does not contain the ";DAV/" switch then the scope of the
+search is all the properties on that resource. If the request-URI in the
+previous case is a collection then the scope of the search is extended to
+the collection's propagate members. If the request-URI specifies part of the
+property space then the search is restricted to only that property space on
+that resource, even if the resource is a container.
+
+So, for example if http://www.foo.com/bar was the request-URI but not a
+container, the search would be across all of http://www.foo.com/bar's
+properties.
+
+If was a container, then the search would be across all the properties on
+and all its propagate member's properties. However if the request-URI were
+http://bar/foo;DAV/ then the scope would only be the properties on
+http://bar/foo, not on any of its propagate members.
+
+The Depth header MUST NOT be used on a SEARCH method.
+
+6.5.2 Command Format
+
+The effects of a SEARCH method are defined by the message body. This section
+defines an application/xml content type using the
+http://www.ietf.org/standards/dav/search/ schema. This method is not
+normally cacheable.
+
+6.5.2.1 Limited-Search XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/limited-search
+Purpose: To specify the set of matching properties
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: <XML>
+Values: The value is a single OR. The OR may only contain ANDs. The ANDs
+MUST contain NAME and VALUE properties.
+Description: This property indicates a very limited search. The search may
+only be on HTTP properties.
+
+6.5.2.2 OR XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/or
+Purpose: To take its members, evaluate them, get a true or false result,
+"or" the results together, and have that be the total result.
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any property where an OR makes sense
+Values: Any properties that can be evaluated into a true or false value. One
+or more properties may be included.
+
+6.5.2.3 AND XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/and
+Purpose: To take its members, evaluate them, get a true or false result,
+"and" the results together, and have that be the total result.
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any property where an AND makes sense
+Values: Any properties that can be evaluated into a true or false value. One
+or more properties may be included.
+
+6.5.2.4 Name XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/name
+Purpose: To provide a pattern against which property names are to be
+compared. If the name matches then the property evaluates to true, otherwise
+false.
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any property that is performing a search on a property.
+Values: Match-Stream
+
+6.5.2.5 Value XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/value
+Purpose: To provide a pattern against which property values are to be
+compared. If the value matches then the property evaluates to true,
+otherwise false.
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any property that is performing a search on a property.
+Values: Match-Stream
+
+6.5.2.6 Match-String XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/match-string
+Purpose: To specify a search pattern to be matched against an octet stream
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any property that needs to match a string against a search pattern
+Values: ("*" | "?" | EncodedOctet)
+EncodedOctet = <An EncodedOctet uses XML encoding to encode "*" and "?" as
+well as "<" and ">"
+Description: This entity provides a template against which anything that can
+be expressed as an octet stream may be compared. "*" is a wildcard that
+matches zero or more unspecified contiguous octets. "?" is a wildcard that
+matches exactly one unspecified octet.
+
+6.5.3 Response Format
+
+The response is an application/xml message body which contains a single
+SearchResult XML entity whose contents are a series of XML entities
+representing matching properties.
+
+6.5.3.1 SearchResult XML Entity
+
+Name: http://www.ietf.org/standards/dav/search/searchresult
+Purpose: To contain the results of a SEARCH request
+Schema: http://www.ietf.org/standards/dav/search/
+Parent: Any, usually <XML>
+Values: An XML Entity
+Description: The SearchResult XML Entity provides the context to inform the
+client that its contents are not just some XML entity, but an XML
+representation of the requested property.
+
+6.5.4 Example
+
+SEARCH  /container/ HTTP/1.1
+Host: www.foo.bar
+Content-Length: xxxx
+Content-Type: application/xml
+
+<XML>
+        <XML:Namespace><Ref>http://www.ietf.org/standards/dav/search/</><AS>S</></>
+        <S:limited-search><OR><AND><Name>*</></></></>
+</>
+
+HTTP/1.1 200 OK
+Content-Type: application/xml
+Content-Length: xxxxx
+
+<XML>
+        <XML:Namespace><Ref>D:search/</>S</>
+        <XML:Namespace><Ref>http://www.foo.bar/container</><AS>R</></>
+        <XML:Namespace><Ref>http://www.aiis.org/standards/dav/</><AS>A</>
+        <S:SearchResult>
+                <XML:Namespace><Ref>R:(A)</><AS>RA</></>
+                <RA:author><D:live></>Jim Whitehead</>
+                <XML:Namespace><Ref>R:/member1/(A)</><AS>M1</></>
+                <M1:author><D:live></>Roy Fielding</>
+</>     </>
+
+The result will return all properties on the container and its members. In
+this case only two properties were found, one on the container and one on
+one of its members, both properties are live.
+
+7 References
+
+[Berners-Lee, 1997] T. Berners-Lee, "Metadata Architecture." Unpublished
+white paper, January 1997.
+http://www.w3.org/pub/WWW/DesignIssues/Metadata.html.
+
+[Bray, 1997] T. Bray, C. M. Sperberg-McQueen, "Extensible Markup Language
+(XML): Part I. Syntax", WD-xml-lang.html,
+http://www.w3.org/pub/WWW/TR/WD-xml-lang.html.
+
+[Connolly, 1997] D. Connolly, R. Khare, H.F. Nielsen, "PEP - an Extension
+Mechanism for HTTP", Internet draft, work-in-progress.
+draft-ietf-http-pep-03.txt,
+ftp://ds.internic.net/internet-drafts/draft-ietf-http-pep-03.txt.
+
+[Lasher, Cohen, 1995] R. Lasher, D. Cohen, "A Format for Bibliographic
+Records," RFC 1807. Stanford, Myricom. June, 1995.
+
+[Maloney, 1996] M. Maloney, "Hypertext Links in HTML." Internet draft
+(expired), work-in-progress, January, 1996.
+
+[MARC, 1994] Network Development and MARC Standards, Office, ed. 1994.
+"USMARC Format for Bibliographic Data", 1994. Washington, DC: Cataloging
+Distribution Service, Library of Congress.
+
+[Miller et.al., 1996] J. Miller, T. Krauskopf, P. Resnick, W. Treese, "PICS
+Label Distribution Label Syntax and Communication Protocols" Version 1.1,
+W3C Recommendation REC-PICS-labels-961031.
+http://www.w3.org/pub/WWW/TR/REC-PICS-labels-961031.html.
+
+[WebDAV, 1997] WEBDAV Design Team. "A Proposal for Web Metadata Operations."
+Unpublished manuscript.
+http://www.ics.uci.edu/~ejw/authoring/proposals/metadata.html
+
+[Weibel et al., 1995] S. Weibel, J. Godby, E. Miller, R. Daniel, "OCLC/NCSA
+Metadata Workshop Report." http://purl.oclc.org/metadata/dublin_core_report.
+
+[Yergeau, 1997] F. Yergeau, "UTF-8, a transformation format of Unicode and
+ISO 10646", Internet Draft, work-in-progress, draft-yergeau-utf8-rev-00.txt,
+http://www.internic.net/internet-drafts/draft-yergeau-utf8-rev-00.txt.
+
+8 Appendix 1 - Content Type Application/XML
+
+8.1 Syntax
+
+The application/XML content type contains an XML document. Its syntax is as
+defined below.
+
+XML = XMLStart *XMLEntity Close
+
+XMLStart = "<" "XML" ">"
+
+XMLEntity= Open *(XMLText | XMLEntity) Close
+
+Close = "</>" | "<""/"Entity-Name
+Markup">"
+
+Open = "<" Entity-Name Markup ">"
+
+XMLText = <An Octet Stream which uses XML encoding
+for "<" and ">">
+
+Entity-Name = [As-Tag ":"] Name
+As-Tag = 1*Alpha
+
+Name = (alpha | "_") *(alpha | digit |
+"." | "-" | "_" | other)
+
+Other = <Other characters must be encoded>
+
+Markup = SP "-" | ""
+
+8.2 XML Entity
+
+An XML entity, as defined in the BNF, is an open tag with content followed
+by a close tag. In order to prevent confusion with the term entity as used
+in HTTP, the term XML entity will be used.
+
+The first XML entity of a XML document MUST be the <XML> XML entity. This
+XML entity tells the parser that it is dealing with an XML document. So long
+as this XML entity is present the parser can be sure that it can parse the
+document, even if XML has been extended. If XML is ever altered in a manner
+that is not backwards compatible with this specification then the
+content-type and the outer most XML entity MUST be changed.
+
+8.3 Entity-Name
+
+All XML entity names must map to URIs. However due to historical
+restrictions on what characters may appear in an XML entity name, URIs
+cannot be expressed in an XML entity name. This issue is dealt with in more
+detail in section 10.
+
+Entity-Names without [AS] are relative URIs whose base is the enclosing
+Entity-Name. If the enclosing Entity-Name is <XML> then the Entity-Name MUST
+use an [AS].
+
+8.4 Close
+
+The close production marks the end of a XML entity.
+
+8.5 XML Encoding
+
+In different contexts certain characters are reserved, for example "/" can
+not be used in an XML entity name and ">"/"<" can not be used in a value. As
+such these values must be encoded as follows:
+
+Encoding = Decimal | Hex4
+
+Decimal = "&" Non-Zero *("0" | Non-Zero)
+
+Hex4 = "&u-" 4(Hex)
+
+Non-Zero = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+Hex = "0" | Non-Zero | "A" | "B" | "C" | "D" | "E" | "F"
+
+The numbers MUST map to the UTF8 character encodings. Please note that the
+"&" character must always be encoded.
+
+8.6 Markup Modifier
+
+The markup modifier, ("-", after the end of an XML entity) instructs the
+principal how to treat a XML entity with an unknown name. If the modifier is
+used and the XML entity is not recognized then the XML entity name MUST be
+stripped and the XML entity's contents promoted one level in the parse tree.
+If the modifier is not used and the XML entity name is unknown then the XML
+entity and its contents MUST be ignored.
+
+8.7 XML Syntax Shorthand
+
+The following template is recommended for efficiently providing a
+description of an XML entity.
+
+Name: The name of the XML entity
+Purpose: A one line description of the XML entity's purpose.
+Schema: The schema, if any, that the XML entity belongs to
+Parent: XML entities that this XML entity may be a child of.
+Values: A description, usually a BNF, of the simple and compound values that
+the XML entity supports.
+Description: Further information.
+Example: An example of the XML entity's use.
+
+9 Appendix 2 - Parameter Syntax for Content-Type Application/XML
+
+HTTP 1.1 provides for a mechanism to include a parameter with a content
+type. In order to prevent namespace collisions the parameters for
+application/XML must use the following syntax:
+
+Parameter = #(<">URI<">  ["=" (token | Quoted-String)])
+
+9.1 Schema Content-Type Parameter
+
+Parameter = <"> http://www.w3.org/standards/xml/content-type/schema/
+<"> "=" <"> #URI <">
+
+The http://www.w3.org/standards/xml/content-type/schema/ URL is used as a
+parameter to an application/xml content type. The URL indicates that its
+value lists some subset of the schemas defined in NameSpace parameters
+within the enclosed document. The URI can also be used in requests to
+indicate schemas that should appear in the result.
+
+An example of the use of this parameter is to include it in an accept-type
+header on a request to indicate that the response should contain the
+specified namespace. Thus the client is able to inform the server of its
+support for a particular set of namespaces. The server is not required to
+return a result with the specified namespaces.
+
+10 Appendix 3 - URI Path Encoding
+
+10.1 Problem Definition
+
+A mechanism is needed to refer to specific DAV properties in a manner that
+can handle simple, composite, and multivalued DAV properties.
+
+10.2 Solution Requirement
+
+The reference mechanism must use the standard URL syntax so it can be used
+with both currently existing and future URLs. For example, the syntax could
+be appended to an HTTP URL to specify a HTTP property on that URL.
+
+10.3 Path Component
+
+URIPath = "/" [path-segments]
+
+Path-segments = segment *("/" segment)
+
+Segment = ("(" Abs-URI ")" | Rel-URI)[Index]*(";" param)
+
+Index = ["(" ["-"]*digit ")"]
+
+Abs-URI = < An absolute or relative URI which has been URI-Path encoded >
+
+Rel-URI = < A relative URI for which URI-Encoding(Rel-URI) == Rel-URI >
+
+URI-Path encoding consists of the following algorithm:
+
+  1. URL encode all "!" characters
+  2. Map all "/" characters to "!" characters
+
+Please note that all relative URIs are relative to the URI in the path
+segment preceding them. Hence the URI in the first path segment MUST be an
+absolute URI.
+
+The purpose of the encoding is to allow URLs to be used as segments without
+having to use % encoding on all the "/" which produces a URL form which is
+extremely difficult for humans to deal with, and which changes the semantics
+of the URL.
+
+10.4 Composite DAV Properties
+
+The DAV property namespace is hierarchical, allowing DAV properties to be
+nested within each other. In order to refer to a particular DAV property one
+must list all the DAV properties from the root to the desired DAV property.
+
+For example, using XML notation for illustrative purposes,
+
+<XML>
+        <XML:Namespace><Ref>http://www.aiim.org/standards/dublin/</><AS>A</></>
+        <XML:Namespace><Ref>http://www.ansi.org/standards/z39.50/</><AS>Z</></>
+        <A:author><Name>
+                        <Z:PersonalName >Freddie</>
+                        <Z:FamilyName >Mercury</>
+</>     </>     </>
+
+Using the path specification one would refer to the PersonalName DAV
+property as
+"/(http:!!www.aiim.org!standards!dublin!author)/Name/(http:!!www.ansi.org!standards!z39.50!PersonalName)".
+Name does not have to be encased in parenthesis because it meets the rel-uri
+rule.
+
+10.5 Multivalued DAV Properties
+
+A DAV property may often have several siblings, for example, the resource
+"A" has the following DAV properties defined on it, again using XML notation
+for illustrative purposes,
+
+<XML>
+        <XML:Namespace><Ref>A</><AS>A</></>
+        <A:b>
+                <c>e</>
+                <d>f</>
+                <c>g</>
+                <d>h</>
+</>     </>
+
+An index system is used to distinguish siblings with the same name. The
+index indicates the relative positions of multivalued sibling DAV properties
+to each other. The first sibling is at position 1 and the rest are at
+position N+1 where N is the position of the previous sibling. Negative
+position numbers may also be use such that -1 refers to the last sibling and
+the index is decremented for each subsequent sibling.
+
+In cases where a multivalued DAV properties exists but no index is provided,
+the index value will default to 1.
+
+Thus the parameters in the example would be referred to as follows:
+ Parameter               Negative
+ Value   Positive Index  Index
+ <a:b>
+
+ <c>e</>
+
+ <d>f</>
+         /A:b or /A:b(1)
+ <c>g</>
+
+ <d>h</>
+
+ </>
+
+ <c>e</> /A:b/c or       /A:b/c(-2)
+         /A:b/c(1)
+
+ <d>f</> /A:b/d or       /A:b/d(-2)
+         /A:b/d(1)
+ <c>g</> /A:b/c(2)       /A:b/c(-1)
+ <d>h</> /A:b/d(2)       /A:b/d(-1)
+
+11 Appendix 4 - XML URI
+
+The "XML" scheme is to be registered with IANA as a reserved namespace that
+will be owned by the XML group through the W3C.
+
+The new URI is defined as:
+
+XML = "XML" ":" XML-Path
+
+12 Appendix 5 - XML Entities
+
+12.1 Ref XML entity
+
+Name: XML:Ref
+Purpose: A XML entity that indicates that its contents are a URI.
+Schema: XML
+Parent: Any
+Value: URI
+
+12.2 Namespace
+
+12.2.1 Namespace XML entity
+
+Name: XML:Namespace
+Purpose: To inform the parser that a particular schema is in use and to
+provide a shorthand name for referring to XML entities related to that
+schema.
+Schema: XML
+Parent: Any
+Value: (Ref [AS])
+
+Description: This XML entity contains two XML entities, Ref and AS. The
+purpose of the XML entity is to inform the parser that a schema, identified
+by the value of the Ref XML entity, is in use and, when appropriate, to
+provide a shorthand name to refer XML entities derived from that schema
+using the AS XML entity. The AS mechanism is needed for efficiency reasons
+and because a URI can not be fully specified in an XML open tag. The
+Namespace XML entity's scope is all siblings and their children.
+
+12.2.2 AS XML entity
+
+Name: XML:AS
+Purpose: To provide a short name for the URI of the schema provided in the
+Ref XML entity of a namespace XML entity.
+Schema: XML
+Parent: XML:Namespace
+Value: 1*Alpha
+
+Description: The AS XML entity is used to provide a shorthand reference for
+the URI in the Ref XML entity of a Namespace XML entity. The value contained
+in the AS XML entity is generated at the XML producer's discretion, the only
+requirement is that all AS values MUST be unique within the contents of the
+parent of the namespace element.
+
+All XML entity open tags contain a name of the form As-Tag:Name. The As-Tag
+is the value defined in an AS XML entity inside of a Namespace. To resolve
+the As-Tag:Name into a properly formatted URI replace "As-Tag:" with the URI
+provided in the Ref that the AS was defined with. Also note that AS value
+also applies to any URIs defined in a Ref inside of Namespace.
+
+For example,
+
+<XML>
+        <XML:Namespace><Ref>http://blah;DAV/</><AS>B</></>
+        <XML:Namespace><Ref>B:(B:)/</><AS>C</></>
+        <C:Moo></>
+</>
+
+So B:(B:) translates to http://blah;DAV/(http:!!blah;DAV!)/ and C:Moo
+translates to http://blah;DAV/(http:!!blah;DAV!)/Moo.
+
+12.2.3 Required XML entity
+
+Name: XML:Required
+Purpose: To indicate that the read MUST understand the associated Namespace
+in order to successfully process the XML document.
+Schema: XML
+Parent: XML:Namespace
+Value: None
+
+12.2.4 The XML URI and Namespace
+
+In order to prevent a logical loop the XML namespace is said to be declared,
+with the AS value of "XML" as a consequence of the <XML> enclosing property.
+
+
+

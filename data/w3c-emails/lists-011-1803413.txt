@@ -1,0 +1,83 @@
+docno="lists-011-1803413"
+received="Tue Apr 15 11:45:41 1997"
+isoreceived="19970415154541"
+sent="Tue, 15 Apr 97 11:30:46 MDT"
+isosent="19970415173046"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: midcourse errors"
+id="9704151830.AA14792@acetes.pa.dec.com"
+inreplyto="9704151328.AA20319&#64;zp"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Dave Kristol writes:
+    Yaron Goland <yarong@microsoft.com> wrote:
+      > [about the problem of server-side things going bad after the response
+      > headers had been sent]
+    
+      > One could always invent a 1xx response which says
+      > "This current response just went south."
+    
+    No, then it's too late.  Because the server has already sent the
+    response headers, the client would be looking for the entity body, not
+    headers.  My whole point was that, once the server began sending the
+    entity body, there's no way for it to inform the client, "Whoops,
+    things have gone bad."
+
+First of all, note that RFC2068 requires that (section 14.14)
+   It must be possible for the recipient to reliably determine
+   the end of HTTP/1.1 requests containing an entity-body, e.g., because
+   the request has a valid Content-Length field, uses Transfer-Encoding:
+   chunked or a multipart body.
+
+(Perhaps that "must" should be a "MUST"?)
+
+So if the response headers include a Content-length field, one
+would assume that if the server runs into an error, it can terminate
+the TCP connection before sending the specified number of bytes; the
+recipient should pay attention to the discrepancy.  In fact, section 
+13.8 says:
+   A cache that receives an incomplete response (for example, with fewer
+   bytes of data than specified in a Content-Length header) may store
+   the response. However, the cache MUST treat this as a partial
+   response.  Partial responses may be combined as described in section
+   13.5.4; the result might be a full response or might still be
+   partial. A cache MUST NOT return a partial response to a client
+   without explicitly marking it as such, using the 206 (Partial
+   Content) status code. A cache MUST NOT return a partial response
+   using a status code of 200 (OK).
+
+I.e., the current specification seems to cover the case where
+a Content-Length doesn't match the number of bytes sent.
+
+I'm not sure that RFC2068 has similar language for non-caching
+clients, but it would seem reasonable to implement the same
+kind of sanity checking.  (In passing, I note that at least one
+of the existing browser caches that I have used does not do so!)
+
+In the case of a server sending a chunked response intending to
+put the content-length in the footer (which is allowed by
+section 3.6 of RFC2068 (Transfer Codings)), it seems reasonable
+that the server could signal an error by sending a completely
+bogus Content-length.  E.g., if you have sent 4096 content bytes 
+before recognizing the error, send a chunk footer with
+Content-length: 1000000000000
+and the recipient should know that something is wrong.  In some
+cases, the server might have to pad the chunk past the point
+where the error occurred.
+
+I would imagine that in some server implementations, it's hard
+to tell that a sub-process (e.g., CGI script) screwed up.  But
+in a UNIX-based server, if the CGI process exits with an error
+status, then the server should presumably find some way of
+sending a bogus length value before closing the connection.
+I doubt this is possible in all cases, but we can't specify
+sloppy programming out of existence.
+
+-Jeff
+
+
+

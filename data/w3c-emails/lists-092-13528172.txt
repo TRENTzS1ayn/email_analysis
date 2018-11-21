@@ -1,0 +1,284 @@
+docno="lists-092-13528172"
+received="Thu Nov 28 01:46:57 2002"
+isoreceived="20021128064657"
+sent="Thu, 28 Nov 2002 15:48:26 +0900"
+isosent="20021128064826"
+name="Atsuhiko Yamanaka"
+email="ymnk@jcraft.com"
+subject="font initialization for GTK widgets"
+id="200211280648.PAA15176@jcraft.com"
+expires="-1"
+
+
+To:www-amaya-dev@w3.org
+
+
+Hi,
+
+Thank you for accepting my patches.
+Today, I will report font initialization problem for Gtk widgets on I18N 
+platform.  For example, in 'thotlib/dialogue/appdialogue.c', there are some 
+code to initialize fonts of GTK widgets, as follow,
+
+  w->style->font = DefaultFont;
+
+On I18N platform, 'w->style->font' usually points to the fontset and
+such a assignment will change the ideal behavior of Gtk-system and XIM.
+In the attached patch, that code will be replaced with the following code,
+
+  if (w->style->font == NULL ||
+      w->style->font->type != GDK_FONT_FONTSET)
+    w->style->font = DefaultFont;
+
+By the way, IMHO, the font setting for Gtk widgets will be done by 
+Gtk-Theme-Engine, so I think such explicit font initializations will not be
+required at least on GTK platform.
+
+
+Thanks,
+--
+ymnk
+
+/************************************************************************/
+diff -Naur Amaya/thotlib/dialogue/appdialogue.c Amaya-20021128/thotlib/dialogue/appdialogue.c
+--- Amaya/thotlib/dialogue/appdialogue.c2002-11-26 08:51:52.000000000 +0000
++++ Amaya-20021128/thotlib/dialogue/appdialogue.c2002-11-28 06:01:33.000000000 +0000
+@@ -2434,7 +2434,9 @@
+   if (label)
+     {
+       w = gtk_label_new (label);
+-      w->style->font = DefaultFont;
++              if (w->style->font == NULL ||
++  w->style->font->type != GDK_FONT_FONTSET)
++w->style->font = DefaultFont;
+       gtk_misc_set_alignment (GTK_MISC (w), 0.5, 0.5);
+       gtk_box_pack_start (GTK_BOX (row), w, FALSE, TRUE, 5);
+     }
+@@ -2504,7 +2506,9 @@
+       else
+ gtk_widget_show_all (row->parent);
+     }
+-  w->style->font = DefaultFont;
++  if (w->style->font == NULL ||
++      w->style->font->type != GDK_FONT_FONTSET)
++    w->style->font = DefaultFont;
+   gtk_box_pack_start (GTK_BOX (row), combo, TRUE, TRUE, 20);
+   FrameTable[frame].Text_Zone = w;
+   gtk_widget_show (w);
+@@ -3087,7 +3091,9 @@
+    Main_Wd = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    /*   gtk_widget_show_all (Main_Wd);*/
+    gtk_quit_add_destroy(1, GTK_OBJECT(Main_Wd));
+-   Main_Wd->style->font = DefaultFont;
++  if (Main_Wd->style->font == NULL ||
++      Main_Wd->style->font->type != GDK_FONT_FONTSET)
++    Main_Wd->style->font = DefaultFont;
+    gtk_window_set_title (GTK_WINDOW (Main_Wd), name);
+    gtk_window_set_policy (GTK_WINDOW (Main_Wd), TRUE, TRUE, FALSE);
+    gtk_widget_set_uposition(GTK_WIDGET(Main_Wd), X, Y);
+diff -Naur Amaya/thotlib/dialogue/dialogapi.c Amaya-20021128/thotlib/dialogue/dialogapi.c
+--- Amaya/thotlib/dialogue/dialogapi.c2002-11-26 16:30:25.000000000 +0000
++++ Amaya-20021128/thotlib/dialogue/dialogapi.c2002-11-28 06:13:40.000000000 +0000
+@@ -2099,7 +2099,9 @@
+    /* Create the window message */
+    msgbox = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    gtk_widget_realize (GTK_WIDGET(msgbox));
+-   msgbox->style->font = DefaultFont;
++   if (msgbox->style->font == NULL ||
++       msgbox->style->font->type != GDK_FONT_FONTSET)
++     msgbox->style->font = DefaultFont;
+    gtk_window_set_title (GTK_WINDOW (msgbox), TtaGetMessage (LIB, TMSG_LIB_CONFIRM));
+    gtk_window_set_policy (GTK_WINDOW (msgbox), TRUE, TRUE, FALSE);
+    gtk_widget_set_uposition(GTK_WIDGET(msgbox), ShowX, ShowY);
+@@ -4037,7 +4039,9 @@
+      w = gtk_label_new (title);
+      gtk_misc_set_alignment (GTK_MISC (w), 0.0, 0.5);
+      gtk_widget_show_all (w);
+-     w->style->font = DefaultFont;
++     if (w->style->font == NULL ||
++ w->style->font->type != GDK_FONT_FONTSET)
++       w->style->font = DefaultFont;
+      /*     gtk_label_set_justify (GTK_LABEL (w), GTK_JUSTIFY_LEFT);*/
+      gtk_box_pack_start (GTK_BOX(menu), w, FALSE, FALSE, 0);
+      adbloc->E_ThotWidget[0] = w;
+@@ -4270,7 +4274,9 @@
+   w = gtk_label_new (title);
+   gtk_misc_set_alignment (GTK_MISC (w), 0.0, 0.5);
+   gtk_widget_show_all (w);
+-  w->style->font = DefaultFont;
++  if (w->style->font == NULL ||
++      w->style->font->type != GDK_FONT_FONTSET)
++    w->style->font = DefaultFont;
+   gtk_label_set_justify (GTK_LABEL (w), GTK_JUSTIFY_LEFT);
+   gtk_widget_set_name (w, "Dialogue");
+   gtk_box_pack_start (GTK_BOX(menu), w, FALSE, FALSE, 0);
+@@ -4409,7 +4415,9 @@
+   gtk_misc_set_alignment (GTK_MISC (tmpw), 0.0, 0.5);
+   gtk_widget_show_all (tmpw);
+   current_style = gtk_style_copy(gtk_widget_get_style(tmpw));
+-  current_style->font = DefaultFont;
++  if (current_style->font == NULL ||
++      current_style->font->type != GDK_FONT_FONTSET)
++    current_style->font = DefaultFont;
+   gtk_widget_set_style(tmpw, current_style);
+   gtk_label_set_justify (GTK_LABEL (tmpw), GTK_JUSTIFY_LEFT);
+   gtk_container_add (GTK_CONTAINER(w), tmpw);
+@@ -4467,7 +4475,9 @@
+ #ifdef _GTK
+       /* Cree un sous-menu d'un menu */
+       menu = gtk_menu_new ();
+-      menu->style->font=DefaultFont;
++      if (menu->style->font == NULL ||
++  menu->style->font->type != GDK_FONT_FONTSET)
++menu->style->font=DefaultFont;
+ #else /* _GTK */
+ #ifndef _WINDOWS
+       n = 0;
+@@ -4773,7 +4783,9 @@
+       w = gtk_menu_item_new_with_label (&text[index + 1]);
+       gtk_widget_show_all (w);
+       current_style = gtk_style_copy(gtk_widget_get_style(w));
+-      current_style->font = DefaultFont;
++      if (current_style->font == NULL ||
++  current_style->font->type != GDK_FONT_FONTSET)
++current_style->font = DefaultFont;
+       gtk_widget_set_style(w, current_style);
+ 
+       adbloc->E_ThotWidget[ent] = w;
+@@ -4793,7 +4805,9 @@
+ #ifdef _GTK
+       w =  gtk_menu_item_new ();
+       current_style = gtk_style_copy(gtk_widget_get_style(w));
+-      current_style->font = DefaultFont;
++      if (current_style->font == NULL ||
++  current_style->font->type != GDK_FONT_FONTSET)
++current_style->font = DefaultFont;
+       gtk_widget_set_style(w, current_style);
+       gtk_widget_show_all (w);
+       gtk_menu_append (GTK_MENU (menu),w);
+@@ -5718,8 +5732,12 @@
+ tmpw->style->font = DefaultFont;
+     }
+   else
++    {
+     /* keep the default font*/
+-    tmpw->style->font = DefaultFont;
++      if (tmpw->style->font == NULL ||
++  tmpw->style->font->type != GDK_FONT_FONTSET)
++tmpw->style->font = DefaultFont;
++    }
+   /* On interprete un changement de couleur comme un set_sensitive */
+   if ((int) color != -1)
+     gtk_widget_set_sensitive (GTK_WIDGET(w), FALSE);
+@@ -7017,7 +7035,9 @@
+      w = gtk_label_new (title);
+      gtk_misc_set_alignment (GTK_MISC (w), 0.0, 0.5);
+      gtk_widget_show (w);
+-     w->style->font=DefaultFont;
++     if (w->style->font == NULL ||
++ w->style->font->type != GDK_FONT_FONTSET)
++       w->style->font=DefaultFont;
+      gtk_box_pack_start (GTK_BOX(row), w, FALSE, FALSE, 0);
+      catalogue->Cat_Title = w;
+ #endif /* _GTK */
+@@ -7040,7 +7060,9 @@
+ #else /* _GTK */
+      w = gtk_button_new ();
+      gtk_widget_show (w);
+-     w->style->font=DefaultFont;
++     if (w->style->font == NULL ||
++ w->style->font->type != GDK_FONT_FONTSET)
++       w->style->font=DefaultFont;
+      tmpw = gtk_label_new (label);
+      gtk_misc_set_alignment (GTK_MISC (tmpw), 0.0, 0.5);
+      gtk_widget_show(tmpw);
+@@ -7143,7 +7165,9 @@
+     /* Create a scrolled window to control the gtklist & gtklist contain the items */
+     tmpw = gtk_scrolled_window_new (NULL, NULL);
+     gtk_widget_show (tmpw);
+-    tmpw->style->font=DefaultFont;
++    if (tmpw->style->font == NULL ||
++tmpw->style->font->type != GDK_FONT_FONTSET)
++      tmpw->style->font=DefaultFont;
+     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (tmpw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+     gtk_box_pack_start (GTK_BOX(row), tmpw, TRUE, TRUE, 0);
+     gtk_widget_set_usize (tmpw, width, height*30);
+@@ -7174,7 +7198,9 @@
+     /* A list and a text entry zone */
+     tmpw = gtk_scrolled_window_new (NULL, NULL);
+     gtk_widget_show (tmpw);
+-    tmpw->style->font=DefaultFont;
++    if (tmpw->style->font == NULL ||
++tmpw->style->font->type != GDK_FONT_FONTSET)
++      tmpw->style->font=DefaultFont;
+     gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (tmpw),
+     GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+     gtk_box_pack_start (GTK_BOX(row), tmpw, TRUE, TRUE, 0);
+@@ -7200,7 +7226,9 @@
+        GTK_SIGNAL_FUNC (CallTextEnterGTK),  (gpointer)catalogue);
+     tmpw = gtk_entry_new ();
+     gtk_widget_show (tmpw);
+-    tmpw->style->font = DefaultFont;
++    if (tmpw->style->font == NULL ||
++tmpw->style->font->type != GDK_FONT_FONTSET)
++      tmpw->style->font = DefaultFont;
+     gtk_box_pack_start (GTK_BOX(row), tmpw, FALSE, FALSE, 0);
+     gtk_object_set_data (GTK_OBJECT(w), "EntryZone", (gpointer)tmpw);
+     if (react)
+@@ -7551,7 +7579,9 @@
+ tmpw = gtk_label_new (text);
+ gtk_misc_set_alignment (GTK_MISC (tmpw), 0.0, 0.5);
+ gtk_widget_show (GTK_WIDGET(tmpw));
+-tmpw->style->font=DefaultFont;
++if (tmpw->style->font == NULL ||
++    tmpw->style->font->type != GDK_FONT_FONTSET)
++  tmpw->style->font=DefaultFont;
+ gtk_label_set_justify (GTK_LABEL (tmpw), GTK_JUSTIFY_LEFT);
+ gtk_box_pack_start (GTK_BOX(w), GTK_WIDGET(tmpw), FALSE, FALSE, 0);
+ /* on fou les couleurs (A FAIRE)*/
+@@ -7719,7 +7749,9 @@
+      /* create the vbox for all the elements */
+      tmpw = gtk_vbox_new (FALSE, 0);
+      gtk_widget_show (GTK_WIDGET(tmpw));
+-     tmpw->style->font = DefaultFont;
++     if (tmpw->style->font == NULL ||
++ tmpw->style->font->type != GDK_FONT_FONTSET)
++       tmpw->style->font = DefaultFont;
+      gtk_box_pack_start (GTK_BOX(row), GTK_WIDGET(tmpw), FALSE, FALSE, 0);
+      row = tmpw;
+      /* Create the label title */
+@@ -7728,14 +7760,18 @@
+  w = gtk_label_new (title);
+  gtk_misc_set_alignment (GTK_MISC (w), 0.0, 0.5);
+  gtk_widget_show (GTK_WIDGET(w));
+- w->style->font=DefaultFont;
++ if (w->style->font == NULL ||
++     w->style->font->type != GDK_FONT_FONTSET)
++   w->style->font=DefaultFont;
+  gtk_widget_set_name (w, "Dialogue");
+  gtk_box_pack_start (GTK_BOX(row), w, FALSE, FALSE, 2);
+        }
+      /* new text widget added into the row widget */
+      w = gtk_entry_new ();
+      gtk_widget_show (w);
+-     w->style->font=DefaultFont;
++     if (w->style->font == NULL ||
++ w->style->font->type != GDK_FONT_FONTSET)
++       w->style->font=DefaultFont;
+      gtk_box_pack_start (GTK_BOX(row), w, FALSE, FALSE, 2);
+      /* assigne the good size for the widget */
+      if (width == 0)
+@@ -8053,7 +8089,9 @@
+      w = gtk_label_new (bounds);
+      gtk_misc_set_alignment (GTK_MISC (w), 0.0, 0.5);
+      gtk_widget_show (GTK_WIDGET(w));
+-     w->style->font = DefaultFont;
++     if (w->style->font == NULL ||
++ w->style->font->type != GDK_FONT_FONTSET)
++       w->style->font = DefaultFont;
+      gtk_label_set_justify (GTK_LABEL (w), GTK_JUSTIFY_LEFT);
+      gtk_box_pack_start (GTK_BOX(row), w, FALSE, FALSE, 0);
+ 
+
+
+

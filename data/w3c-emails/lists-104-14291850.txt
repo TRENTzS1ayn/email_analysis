@@ -1,0 +1,93 @@
+docno="lists-104-14291850"
+received="Fri Jan 31 16:13:54 2003"
+isoreceived="20030131211354"
+sent="Fri, 31 Jan 2003 16:16:18 -0500"
+isosent="20030131211618"
+name="Michael B. Allen"
+email="miallen@eskimo.com"
+subject="Re: Clarification on EventTarget removal for DOM Events"
+id="20030131161618.16e5c49c.miallen@eskimo.com"
+charset="US-ASCII"
+inreplyto="F804x1vbE0BPnMR3cBK00004e83&#64;hotmail.com"
+expires="-1"
+
+To:"Alexander J. Vincent"<ajvincent@hotmail.com>
+Cc:www-dom@w3.org
+
+
+
+On Fri, 31 Jan 2003 08:40:21 -0800
+"Alexander J. Vincent" <ajvincent@hotmail.com> wrote:
+
+> 
+> I've noticed an issue regarding DOM Events, Levels 2 and 3, which is not 
+> clear in the specifications.
+> 
+> For event capturing and bubbling, if the actual target (or an ancestor node 
+> of the actual target) is removed or replaced, the specs do not state the 
+> correct behavior of the Event object.  I'd like a clarification on whether 
+> the Event object should continue to propagate, should bubble later, should 
+> throw a strict warning or DOM exception, etc.
+> 
+> I have a bug filed at mozilla.org's Bugzilla 
+> (http://bugzilla.mozilla.org/show_bug.cgi?id=191242 ) to resolve the issue 
+> in Mozilla.  The bug has two testcases you can reach via link -- one in XUL 
+> (you will need a Gecko-based browser such as Mozilla or K-Meleon to see it), 
+> and one in XHTML.  Both testcases use ECMAScript to access the DOM.
+
+I'm a little rusty on Events at the moment and I did not work on any of the
+drafts/recommendations but does this:
+
+REC-DOM-Level-2-Events-20001113: 2.2. Event Capture
+ "The chain of EventTargets from the top of the tree to the event's
+ target is determined before the initial dispatch of the event. If
+ modifications occur to the tree during event processing, event flow
+ will proceed based on the initial state of the tree."
+
+have any influence on your conclusion? My DOM implementation (written
+in C) builds an array of targets beforehand and dispatches on each:
+
+    i = tcount;           /* save state of tree in targets array */
+    for (t = target->parentNode; t; t = t->parentNode) {
+        targets[--i] = t;
+    }
+                                    /* Trigger capturers
+                                     */
+    evt->eventPhase = DOM_EVENT_CAPTURING_PHASE;
+    for (i = 0; i < tcount && evt->_sp == 0; i++) {
+        trigger(targets[i], evt, 1);
+    }
+                                    /* Trigger regular listeners
+                                     */
+    evt->eventPhase = DOM_EVENT_AT_TARGET;
+    trigger(target, evt, 0);
+
+                                    /* Trigger bubblers
+                                     */
+    evt->eventPhase = DOM_EVENT_BUBBLING_PHASE;
+    i = tcount; 
+    while (i-- && evt->bubbles && evt->_sp == 0) { 
+        trigger(targets[i], evt, 0);
+    }
+
+So I believe the correct behavior would be for Events to be dispatched
+on the old nodes (that were replaced). The new replacing nodes
+should not receive any Events. So events are dispatched on a "snapshot"
+of the tree.
+
+Although, I'm not sure what happens if you register a handler in
+a handler say during the capturing phase on a target that would be
+traversed during the bubbling phase. As it is I think my implementation
+would trigger such a listener. Mmm.
+
+Mike
+
+-- 
+A  program should be written to model the concepts of the task it
+performs rather than the physical world or a process because this
+maximizes  the  potential  for it to be applied to tasks that are
+conceptually  similar and, more important, to tasks that have not
+yet been conceived. 
+
+
+

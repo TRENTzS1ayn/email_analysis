@@ -1,0 +1,170 @@
+docno="lists-005-13502341"
+received="Tue Dec  5 11:27:37 2000"
+isoreceived="20001205162737"
+sent="Tue, 5 Dec 2000 11:26:46 -0500 (EST)"
+isosent="20001205162646"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: Simplifying CHECKOUT behavior for core versioning clients"
+id="200012051626.LAA13007@tantalum.atria.com"
+inreplyto="20001202085736.N12166&#64;lyra.org"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+The current protocol assumes that there are two kinds of clients:
+- clients that have no local persistent state
+- clients that have local persistent state
+
+A client that has no local persistent state cannot easily use working
+resources, because it has no interoperable place to "store" working
+resource URL's between sessions, but a user often has to terminate a
+session before he is ready to checkin his work.
+
+I agree that some users want "hidden" checkouts, and for this they
+will either need a client with local persistent state or a server
+that supports workspaces.   But there also are users that are
+happy with public checkouts (and use locking for overwrite
+protection).
+
+I believe it is very important that the protocol support clients
+with no local persistent state, both because some clients in fact
+have no local persistent state, and because it is often simpler
+to write such clients (thus increasing the adoption rate for the
+versioning protocol).
+
+Since making public checkouts mandantory allows you to write
+simple clients with no local persistent state, I'd like to see
+this in the protocol unless there are demonstrable implementation
+problems.
+
+With that background, some specific comments to Greg's message:
+
+   From: Greg Stein <gstein@lyra.org>
+
+   When you do a CHECKOUT, the server will do one of two things:
+
+   1) it is a workspace, so it checks out in place. the client continues to
+      work with that resource
+
+   2) it returns 201 (Created) with a Location: header pointing to the working
+      resource.
+
+In the current protocol, whether or not a version-controlled resource
+is in a workspace has no affect on this aspect of the CHECKOUT
+behavior.  If the CHECKOUT is applied to a version-controlled resource
+and it does not have a DAV:apply-to-target argument, it MUST do #1 (it
+cannot do #2).  if a CHECKOUT is applied to a version or has a
+DAV:apply-to-target argument, it MUST do #2 (it cannot do #1).
+
+   The point is: the response may or may not provide a Location: header to tell
+   the client what to do. The client should always respect that.
+
+The current protocol is designed so that the client controls
+whether or not it needs to use/remember the Location header value.
+If it always had to use the Location header value, a client
+without local persistent state would be in trouble if a session
+ended without the working resources being checked in.
+
+   You said the client would choke if it expected the working resource model
+   against a workspace server. Not at all... it would not see a Location: come
+   back, so it wouldn't alter the URL to use for modifying the resource.
+
+If it expected the working resource model, in the current protocol it
+would have to either use the DAV:apply-to-target parameter or checkout
+a version, and a workspace-based server that does not support working
+resources would choke (since it is not able to issue free-standing
+working resources, but can only checkout "in-place").
+
+   Simple examination of the Location: header. I would expect most clients to
+   be able to work with both.
+
+A client that has no local persistent storage would not work well with
+a server that expected it to remember working resource URL's.
+
+   >    If they do a CHECKOUT on a v-selector, then do a PUT to it (even if
+   >    the server gave them a w-resource), then the PUT will fail.
+   > 
+   > I don't follow you here.  I've got a server whose implementation is
+   > based on working resources.  The server simulates a checked-out
+   > version selector by secretly associating a working resource with the
+   > version selector when it is checked out.
+
+   Ah! See... that isn't in the specification. You're asking for more behavior
+   on version selectors than exists today.
+
+I was just describing an implementation technique, to show that it is
+easy for a working resource based implementation to simulate an
+in-place checkout protocol.
+
+   I disagree with this addition. Again: you're trying to swing everything
+   towards something like a checked-out version selector model.
+   The client should simply use the Location: header.
+
+I'm just trying to make sure that you can write clients that don't
+have a local persistent store, and that don't require a user to
+checkin everything at the end of an editing session.
+
+   > The server redirects all
+   > request to that checked-out version selector to that working resource.
+   > When a client issues a PUT, the PUT gets redirected by the server to
+   > the working resource, and the PUT succeeds.  When the checked-out
+   > version selector is checked in, the server checks in the secret working
+   > resource and sets the target of the version selector to be the newly
+   > created version.
+
+   Disagree... strongly. That is quite different from today's spec,
+
+This wasn't anything about the spec ...  I was just describing a
+simple implementation of in-place checkout behavior by a server that
+has a working-resource based implementation.
+
+   and I don't see a basis for this except to allow clients to ignore
+   the Location header and continue working with the same request-URI.
+
+I believe that is what is required to support clients without local
+persistent state.
+
+   > Did the above clarify how I believe a working resource based
+   > implementation would provide v-selector checkout?
+
+   Clear, yes, and I don't think that it works well.
+
+I understand that your cient wouldn't use it, but why doesn't it work
+well?  It allows a client to be written without local persistent state,
+and is easy for a server to implement.
+
+   Clients that ignore the Location header will break when you have an advanced
+   server which provides for parallel development. That server cannot allow
+   clients to continue working from the v-selector. The clients *must* work
+   from the working resource.
+
+There are two ways of providing parallel development: server side
+workspaces and client side workspaces (with working resources).
+Some servers will only support server-side workspaces for parallel
+development, and others will only support client side workspaces
+for parallel development.  Clients that use only client side
+workspaces will only work against servers that support client side
+workspaces, and clients that use only server side workspaces
+will only work against servers that support server side workspaces.
+
+Making in-place checkout mandantory has no effect (either positive
+or negative) on this.
+
+   But the cool point is: you can still have the same dumb client talking to
+   this advanced server, as the client talking to the dumb no-parallel server.
+   The model the client sees is the same.
+
+I believe most users will care whether or not their checkouts are
+public or private, and I believe most clients will care whether or not
+they have to remember working resource URLs between sessions, so I
+don't think a form of CHECKOUT that takes these choices out of the
+hands of the client is of much utility.
+
+Cheers,
+Geoff
+
+
+

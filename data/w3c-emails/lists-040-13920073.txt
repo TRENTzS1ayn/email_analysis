@@ -1,0 +1,246 @@
+docno="lists-040-13920073"
+received="Tue Sep 25 12:49:13 2001"
+isoreceived="20010925164913"
+sent="Tue, 25 Sep 2001 09:48:03 -0700"
+isosent="20010925164803"
+name="Daniel Brotsky"
+email="dbrotsky@adobe.com"
+subject="RE: RFC2518 issue with lockdiscovery/activelock/owner"
+id="p05100308b7d65cf06142@[192.168.1.19]"
+charset="us-ascii"
+inreplyto="JIEGINCHMLABHJBIGKBCKELKDBAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+
+To:"Julian Reschke"<julian.reschke@gmx.de>
+Cc:"Webdav WG"<w3c-dist-auth@w3c.org>
+
+At 11:11 PM +0200 9/24/01, Julian Reschke wrote:
+>Interesting.
+>
+>So both Adobe clients and MS Webfolders assume that in a LOCK response, the
+>DAV:owner will be identical with what they have submitted?
+
+As far as I know.  This was discussed at the interop event and a spec 
+clarification item was added about it.  My memory of the item is 
+roughly that "lock owner strings belong to clients, not servers, so 
+servers should not mess with them." :^)
+
+>
+>I think this is a bug. Has it been reported? (I know that at least Adobe
+>occasionally is following this list).
+
+Adobe follows this list closely.  We don't always have as much time 
+to respond as we would like, but you can be sure we read everything.
+
+As far as the behavior of relying on owner strings to be "dead" being 
+a bug, I don't think so, and even if I did it's quite unlikely to 
+change.
+
+My interpretation of the current spec is that the owner string is 
+intended for use by clients to allow for conventions around 
+cooperating over locked resources.  In the section you quoted, there 
+is an unfortunate ambiguity in the passive voice about "information 
+sufficient for contacting" because it doesn't say who is supposed to 
+be doing the contacting - other clients or the server.  Adobe's 
+interpretation is that it was other clients who would be doing the 
+contacting, and thus the owner string should be meaningful to (and 
+under the control of) clients.  Servers, after all, have the 
+authenticated username of the agent who obtained the lock, so they 
+have resources not available to the clients to know whom to contact.
+
+Another way of seeing the dilemma here is to ask: suppose clients 
+wanted to store conventional information about lock owners with the 
+locked resource, how would they do that?  As we considered that 
+question at Adobe, there seemed to be three fairly straightforward 
+answers:
+
+1. put it in the lock owner string, which the client sets anyway when 
+obtaining the lock.
+
+2. put it on another dead property.  this has three disadvantages 
+relative to (1): it requires another round trip (PROPPATCH) in 
+addition to the LOCK; there's no way to guarantee that the server 
+supports any other given property as a dead property (many have good 
+reasons for making all properties live and that's completely allowed 
+by the spec); and other clients have to know the convention *and* 
+know which kind of client client obtained the lock in order to get 
+this information [so you're back to (1) on the "who obtained it" 
+anyway].
+
+3. put it in the resource content.  I'm sure you can come up with 
+just as many good reasons for not doing this as we did :^).  It's the 
+clear loser.
+
+Thus Adobe's bottom line was: clients need a dead property for 
+storing conventional owner information, and the OWNER string is 
+something you already set when locking (so no extra roundtrip) that 
+seems in the spec to be under client control.  So let's use that.
+
+What came out of the interop event was that (a) Adobe wasn't the only 
+client doing this, and (b) clarifing the spec so that OWNER strings 
+are definitely under client control would not break any servers. 
+Hence the issue as I wrote it up above.
+
+By the way, servers are currently not required to return owner 
+information on lock discovery.  I think we need to fold this into the 
+issue as well, and force them to return it.  Clients who don't want 
+it returned can simply not put sensitive things in the string (or 
+leave it empty).
+
+     dan
+
+P.S. I'm still trying to find time to respond at length to the 
+UNLOCK-NOT-OWNER issue; which I believe is related because in my 
+earlier response I raised this whole question of "clients can't know 
+who has a resource locked."  I'll see if I can get to that this week. 
+But until then, I just want to point out that there's a security 
+problem with requiring servers to tell clients who (as in the 
+server-side uname) has locked a given resource: it provides a way for 
+clients to discover unames through which the server can be attacked. 
+This is one of the many considerations that cause administrative 
+protocols to be structured quite differently from 
+individual-contributor protocols, and one of the reasons that I 
+resist pushing DAV in administrative directions (such as being able 
+to unlock someone else's lock). -d.
+
+>
+>Julian
+>
+>>  -----Original Message-----
+>>  From: w3c-dist-auth-request@w3.org
+>>  [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Lisa Dusseault
+>>  Sent: Monday, September 24, 2001 8:18 PM
+>>  To: Julian Reschke; Webdav WG
+>>  Subject: RE: RFC2518 issue with lockdiscovery/activelock/owner
+>>
+>>
+>>  Actually, the DAV Interop showed that you just can't mess with
+>>  the contents
+>>  of lock owner as it is now.  Adobe clients rely on setting the lock owner
+>>  specifically to their own string.  DAV:owner value must be set by the
+>>  client.
+>>
+>>  RFC2518 could extend lockdiscovery in a couple ways:
+>>   - create a new element of some kind for clients to use, to contain a URI
+>>  pointing to the owner.  Make a clearer specification about what
+>>  this element
+>>  contains.
+>>
+>>   - create a new element of some kind for servers to use to put their
+>>  conception of who created the lock.  Probably this is a PrincipalID from
+>>  ACLs.
+>>
+>>  lisa
+>>
+>>  > -----Original Message-----
+>>  > From: w3c-dist-auth-request@w3.org
+>>  > [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Julian Reschke
+>>  > Sent: Monday, September 24, 2001 5:26 AM
+>>  > To: Webdav WG
+>>  > Subject: RFC2518 issue with lockdiscovery/activelock/owner
+>>  >
+>>  >
+>>  > Hi,
+>>  >
+>>  > in WebDAV, the owner of a lock can be reported using the
+>>  DAV:owner element
+>>  > (<http://www.greenbytes.de/tech/webdav/rfc2518.html#ELEMENT_owner>):
+>>  >
+>>  > <quote>
+>>  >
+>  > > The owner XML element provides information sufficient for
+>>  either directly
+>>  > contacting a principal (such as a telephone number or Email URI), or for
+>>  > discovering the principal (such as the URL of a homepage) who
+>  > owns a lock.
+>>  >
+>>  > <!ELEMENT owner ANY>
+>>  >
+>>  > </quote>
+>>  >
+>>  > It is documented to have ANY content, while the examples (for instance,
+>>  > <http://www.greenbytes.de/tech/webdav/rfc2518.html#rfc.section.8.1
+>>  > 0.8>) use
+>>  > an embedded DAV:href element:
+>>  >
+>>  > <quote>
+>>  >
+>>  >      <D:lockdiscovery>
+>>  >           <D:activelock>
+>>  >                <D:locktype><D:write/></D:locktype>
+>>  >                <D:lockscope><D:exclusive/></D:lockscope>
+>>  >                <D:depth>Infinity</D:depth>
+>>  >                <D:owner>
+>>  >                     <D:href>
+>>  >                          http://www.ics.uci.edu/~ejw/contact.html
+>>  >                     </D:href>
+>>  >                </D:owner>
+>>  >                <D:timeout>Second-604800</D:timeout>
+>>  >                <D:locktoken>
+>>  >                     <D:href>
+>>  >                opaquelocktoken:e71d4fae-5dec-22d6-fea5-00a0c91e6be4
+>>  >                     </D:href>
+>>  >                </D:locktoken>
+>>  >           </D:activelock>
+>>  >      </D:lockdiscovery>
+>>  >
+>>  > </quote>
+>>  >
+>>  >
+>>  > While this isn't a problem per se, it seems to have created a situation
+>>  > where implementors are unsure how to set and process the owner element.
+>>  >
+>>  > For instance, the WebDAV library used in Microsoft Office 2000 seems to
+>>  > compare the (text) contents of the owner element (as returned in the
+>>  > response) with the value it has sent. If they don't match, it
+>>  assumes that
+>>  > the LOCK operation has failed and reports that the document was
+>>  opened as
+>>  > "read only" (which I'd say is clearly a bug).
+>>  >
+>>  > I think to "fix" this, we whould collect more implementation data. Maybe
+>>  > this is a case where we could take advantage of XLink
+>>  > (<http://www.w3.org/TR/xlink/>)...:
+>>  >
+>>  >                <D:owner>
+>>  >                     <D:href xlink:role="DAV:principal-homepage"
+>>  > DAV:href="http://www.ics.uci.edu/~ejw/contact.html">
+>>  >                          Jim Whitehead
+>>  >                     </D:href>
+>>  >                     <D:href xlink:role="DAV:principal-email"
+>>  > DAV:href="mailto:ejw@foobar.com">
+>>  >                          Jim Whitehead
+>>  >                     </D:href>
+>>  >                     <D:href xlink:role="DAV:principal-resource"
+>>  > DAV:href="/users/ejw">
+>>  >                          Jim Whitehead
+>>  >                     </D:href>
+>>  >                </D:owner>
+>>  >
+>>  > or a simpler version that probably wouldn't "break" Office:
+>>  >
+>>  >                <D:owner xlink:role="DAV:principal-resource"
+>>  > DAV:href="/users/ejw">
+>  > >                      Jim Whitehead
+>>  >                </D:owner>
+>>  >
+>>  >
+>>  >
+>>  >
+>>  > Julian
+>>  >
+>>  >
+>>  >
+>>  >
+>>  >
+>>
+
+
+-- 
+Daniel Brotsky, Adobe Systems
+tel 408-536-4150, pager 877-704-4062
+2-way pager email: <mailto:page-dbrotsky@adobe.com>
+
+
+

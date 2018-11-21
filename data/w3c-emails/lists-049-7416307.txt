@@ -1,0 +1,157 @@
+docno="lists-049-7416307"
+received="Fri Aug 23 05:11:15 2002"
+isoreceived="20020823091115"
+sent="Fri, 23 Aug 2002 12:11:06 +0300"
+isosent="20020823091106"
+name="Patrick.Stickler@nokia.com"
+email="Patrick.Stickler@nokia.com"
+subject="RDF/XML syntax for datatyping, XML Schema validation, and all that jazz..."
+id="A03E60B17132A84F9B4BB5EEDE57957B5FBA9F@trebe006.europe.nokia.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<w3c-rdfcore-wg@w3.org>
+
+
+
+I've been playing around with being able to use an XML Schema
+validator to validate typed literals in RDF/XML instances in
+a way that lets RDF and XML Schema interoperate in this regard.
+
+Unfortunately, I didn't succeed. The main problem is providing
+for both local and global idioms in XML Schema. I've not been
+able to find a way to define a property element which can either
+have an xsd:type for its simple data content, or alternatively,
+a locally specified type.
+
+If we have
+
+   <ex:age>10</ex:age>
+   <ex:age><xsd:integer>10</xsd:integer></ex:age>
+
+then we can say 
+
+   <xsd:element name="xsd:integer" type="xsd:integer"/>
+
+and either
+
+   <xsd:element name="ex:age" type="xsd:integer"/>
+
+or
+
+   <xsd:element name="ex:age">
+      <xsd:element name="xsd:integer"/>
+   </xsd:element>
+
+but we can't do both for ex:age. There's no way in XML Schema
+to constrain the data content of a mixed content model, so even
+though the <xsd:integer> inline element is constrained by a 
+separate rule, if we define ex:age to have mixed content, the
+simple implicit inlined idiom can't be validated.
+
+Alternatively, if we adopt a datatyping property such as
+
+   <ex:age>10</ex:age>
+   <ex:age xsd:integer="10"/>
+
+we can define in XML Schema
+
+   <xsd:attribute name="xsd:integer" type="xsd:integer"/>
+
+   <xsd:element name="ex:age" type="xsd:integer"/>
+
+but in the case of
+
+   <ex:age xsd:integer="10"/>
+
+the latter rule complains since the null string is not
+in fact a valid lexical form for xsd:integer.
+
+So it appears that it is just too hairy to try to get XML Schema
+to grok datatyping in RDF/XML in a way that provides for full
+interchangability of local and global idioms.
+
+Cest la vie.
+
+--
+
+Therefore...
+
+I think that going with the rdf:type attribute is the most optimal
+representation, and leave validation to be done based on the
+knowledge in the graph -- even if one extracts an XML representation
+that can be validated by an XML Schema validator.
+
+So, we'd have either
+
+   <ex:age>10</ex:age>
+or
+   <ex:age rdf:type="&xsd;integer">10</ex:age>
+
+which would give us the triples
+
+   ?s ex:age "10" .
+and
+   ?s ex:age <&xsd;integer>"10" .
+
+respectively.
+
+This is analogous to the presently legal representation of
+locally typed URIref denoted resources, such as
+
+   <ex:friend rdf:type="&foo;Person" rdf:resource="#Bill"/>
+
+which gives us the triples
+
+   ?s ex:friend Bill .
+   Bill rdf:type foo:Person .
+
+The similarity between
+
+   <ex:age rdf:type="&xsd;integer">10</ex:age>
+and
+   <ex:friend rdf:type="&foo;Person" rdf:resource="#Bill"/>
+
+is significant, in that both identify typed resources, and
+the semantics of
+
+   ... <&xsd;integer>"10" .
+and
+   Bill rdf:type foo:Person .
+
+are essentially the same. Both the typed literal node and
+the URIref node denote a resource that has the specified
+rdf:type -- only we use a more compact representation in
+the case of the typed literal node, since literals can't
+be subjects. If they could, we'd just say
+
+   "10" rdf:type xsd:integer .
+
+where the similarity between the typed literal and URIref 
+cases becomes quite clear.
+
+Now, at present, having both literal data content and
+attributes for a property element is not legal. So,
+parsers simply need to be tweaked to allow an rdf:type
+attribute on property elements which have literal content
+and in such cases generate a typed literal node. So this
+is a simple extension to the RDF/XML syntax, not a change
+to how parsing works at present. The triples you get now
+will continue to be what you get, but extending the syntax
+to allow the local literal typing will allow you to get
+triples with typed literal nodes as well.
+
+Cheers,
+
+Patrick
+
+--
+               
+Patrick Stickler              Phone: +358 50 483 9453
+Senior Research Scientist     Fax:   +358 7180 35409
+Nokia Research Center         Email: patrick.stickler@nokia.com
+ 
+
+
+

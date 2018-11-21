@@ -1,0 +1,289 @@
+docno="lists-007-7824121"
+received="Mon Dec 28 16:10:42 1998"
+isoreceived="19981228211042"
+sent="Mon, 28 Dec 1998 13:10:00 -0800"
+isosent="19981228211000"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="RE: Looking for comments on the HTTP Extension draft"
+id="3FF8121C9B6DD111812100805F31FC0D08792BFC@RED-MSG-59"
+inreplyto="Looking for comments on the HTTP Extension draft"
+expires="-1"
+
+
+To:"'Ted Hardie'"<hardie@equinix.com>,frystyk@w3.org
+Cc:masinter@parc.xerox.com,Chris.Newman@INNOSOFT.COM,discuss@apps.ietf.org, Josh Cohen<joshco@microsoft.com>, Yaron Goland<yarong@microsoft.com>
+
+<Defining the Problem>
+I suspect we all at least agree that there is a need for a mandatory
+extension mechanism. The functionality for this header being something on
+the order of "If you don't understand the header names specified in this
+header then you MUST fail this method."
+
+One could make the argument that if one needs to add a header with semantics
+that can't be ignored then one should change the method name and require
+that the new method not ignore this header. However the management
+complexities of this solution are exponential, thus this proposal is not
+acceptable.
+
+I suspect we all can also agree that this mechanism must work with HTTP/1.0
+and HTTP/1.1. The tools available to achieve this goal are:
+1) Servers must fail methods they don't understand.
+2) Servers must ignore headers they don't understand.
+
+Since the only guaranteed failure mode is a method name that isn't
+understood then it is this mechanism which must be leveraged in order to
+guarantee that a mandatory header will be properly honored. This is what the
+"M-" prefix achieves. By adding "M-" we guarantee that all existing
+firewalls, proxies, servers, etc. will either turn themselves into a pipe or
+fail the method if they do not understand the mandatory mechanism.
+
+Servers/firewalls/proxies which do understand the mechanism also understand
+that they can infer nothing from the method name without having first
+checked the mandatory prefix. I agree that this is a significantly
+sub-optimal solution. Additionally, when processing the method one needs to
+first find out if there is a mandatory header so one can find the prefix
+translation and thus "decode" the HTTP headers, an equally sub-optimal
+solution.
+
+However there is a second problem lurking here which I don't believe has
+been fully called out. There does not exist a decentralized mechanism to
+allow for the introduction of new methods and headers. Currently the best
+one can do is get an RFC and hope that no one else is already using that
+method/header name. We already know this doesn't work as method name
+collisions have already occurred. Mandatory provides a mechanism to
+associate a URI with a method or header and in so doing provides the very
+decentralized mechanism we so desperately need.
+</Defining the Problem>
+
+<Henrik, put down that knife!>
+However, given the previous pointed out sub-optimalities, I'm not sure that
+the cure is all that much better than the disease. As such, I would like to
+propose an alternative design.
+
+1) The creation of a hierarchical namespace encoding for methods and headers
+ala what is being discussed in the URLREG WG. For example V!MS!FOO where V
+is a stand in for vnd or vendor.
+
+2) The creation of a standardized encoding mechanism to allow for the use of
+a fully qualified URIs as a method of header name. Because both use the
+token production, standard URI characters such as : and / can not be used
+without encoding.
+
+These two mechanisms will allow for decentralized extension without fear of
+collision, exactly as is being attempted now in the URLREG WG. The cost,
+however, of this mechanism is byte bloat. Mandatory's use of prefixing
+allows short names to be used with short prefixes which are then translated
+to their full names. In essence, mandatory has created relative URIs.
+However the cost is double processing the headers. Thus every mandatory
+aware proxy/firewall/server must process each request twice. There is a
+trade off to be made here. My proposal leverages the existing HTTP
+infrastructure as the cost of byte bloat. Henrik's proposal solves the byte
+bloat problem but at the cost of causing us to have to completely re-write
+our parsers to do double parsing. I suspect maintaining the current
+infrastructure is probably the better goal.
+
+The downside of my simplification proposal is that it doesn't provide a
+generic mechanism to say "The functionality represented by this URI is now
+associated with this method." Instead you have to use a header hack. You
+have to add a header with the specified URI and then include its name in
+Mandatory. I can live with this. How about you?
+</Henrik, put down that knife!>
+
+<So spoke Ted Hardie>
+> Before going into the details, however, I want to make clear
+> that I was not proposing that the HTTP *minor* version number be
+> revved, but its *major* version number.  This document seems to me to
+> propose a framework that will encompass changes sufficiently great to
+> warrant that change--the landscape of the web will be changed
+> completely if this is adopted, and that calls to me for some pretty
+> clear signposts.  
+> I will repeat that I would not see the need for the rev if the
+> document did not allow responses to contain extensions based on "a
+> priori" knowledge.  Without that "a priori" extension, HEAD, OPTIONS,
+> or the other methods you describe would suffice.  Without a very clear
+> specification of very specific cases where those "a priori" extensions
+> are allowed, they will be used in many, many cases that we cannot now
+> foresee.  That means a big, big flag needs to be raised.
+> 
+</So spoke Ted Hardie>
+
+<Yes, Dorothy, we are still in Kansas>
+I must take issue with the fundamental logic of this statement. The power of
+the Mandatory's design is that it is backwards compatible with HTTP/1.0 and
+HTTP/1.1. That backwards compatibility comes from the fact that Mandatory
+leverages the fail/ignore principals of HTTP so as to allow an existing
+server to properly fail a Mandatory enhanced method without knowing anything
+about Mandatory. Thus, by the very definition of the feature, we have
+absolutely no requirement to up the major version number. Upping the version
+number means we have made a non-backwards compatible semantic change.
+Mandatory, by properly leveraging HTTP's extension design, makes a 100%
+backwards compatible semantic change. Please see below for comments
+specifically addressing the ramifications of Mandatory for firewalls and
+proxies.
+</Yes, Dorothy, we are still in Kansas>
+
+<Our weapons are fear, uncertainty and doubt>
+The "a priori" language was added at my insistence. The reason being that
+previously the standard allowed for the return of mandatory headers on
+responses without the client having first identified to the server that it
+could understand the mandatory extensions. The spec had some vague language
+about what a client was supposed to do when it got an unrecognized Mandatory
+extension on a response. I felt the language was absolutely unacceptable and
+demanded, without exception, that a client MUST have somehow expressed to
+the server that it understands a particular mandatory extension before the
+server is allowed to use that extension on a response. I did not, however,
+demand an actual specification of what "a priori" meant because I recognize
+that such a definition was futile. Given that the very nature of a mandatory
+extension means that extension specific code has been added to the
+client/server I believe it is in our interest to retain maximum flexibility
+in defining how client signaling of support is accomplished.
+</Our weapons are fear, uncertainty and doubt>
+
+<So spoke Ted Hardie>
+> I did not say it must *read* the declaration first; I said it must
+> *process* it first.  Whether that is a one pass or a two pass header
+> field parsing makes no difference to the requirement.  As written, if
+> a Man: or an Opt: header exists, it must be processed with its
+> namespace headers first, as the meanings of the other headers may
+> change based on the extensions.
+</So spoke Ted Hardie>
+
+<Nothing is fool proof, fools are too ingenious>
+To follow your logic, we should require that the major version # of HTTP be
+raised every time a new method is introduced. I am free to design the "FOO"
+method which stipulates that if the content-location header and the location
+header are both present then the location header should be seen as a pointer
+to a backup server where subsequent requests can be made. Thus the only way
+to fully understand the headers on a FOO method is to read in all the
+headers and see if both content-location and location are present. This is,
+of course, bad design but it certainly is not a reason to up the major
+version number on HTTP.
+</Nothing is fool proof, fools are too ingenious>
+
+<So spoke Ted Hardie>
+> This is, in fact, a point I don't feel I am making well, and I'd like
+> Larry to speak to it if he can.  During the CONNEG meetings 
+> in Orlando,
+> he expressed very well the principle that the meaning of a 
+> feature must
+> not depend semantically on the values of *other* features (so 
+> "Warm" must
+> mean the same thing whether we are talking about beer or the 
+> weather).  
+> This has a lot of implications for feature design (You don't 
+> use "Warm",
+> you use "33c").  Many of the same issues apply even more strongly for 
+> extensions to HTTP, and I don't see them addressed in the draft. 
+> 
+</So spoke Ted Hardie>
+
+<Nothing is fool proof, fools are too ingenious>
+Agreed, but this is an issue of a particular Mandatory extension. There is
+nothing in Mandatory which requires this sort of behavior. This is the same
+issue as my previous FOO method example.
+</Nothing is fool proof, fools are too ingenious>
+
+<So spoke Ted Hardie>
+> Again, I don't seem to be getting my point across here.  The example I
+> gave was possibly too local.  I was trying to imply that the apparent
+> method for extending a method might seem to imply constraints which
+> aren't there.  In the M-GET example, you may have the base semantics
+> of GET, but you also have the possibility of secondary effects (like
+> the M-GET popping a stack and causing a new value to be present at the
+> URL) which substantially change the original semantics and cause
+> previously expected characteristics of GET (like idempotence) to
+> change.  The implication of this is that anyone examining a method for
+> security reasons (like a firewall administrator) cannot rely on the
+> method to the right of the M- for any real expectations of the
+> method's semantics.
+> 
+</So spoke Ted Hardie>
+
+<It's a feature!>
+Absolutely true! Nor is there any implication in the draft that an
+administrator could do so. In fact I assume our readers are just as smart as
+you are and will, as you did, figure out that for their firewall to have any
+chance of parsing the method they MUST parse the mandatory header itself,
+see if they recognize the extension and if they do then and only then do
+they have sufficient information to deal with the method. Otherwise the
+firewall must treat the method as any other method it knows absolutely
+nothing about. The beauty of mandatory is that this is what a firewall which
+knows nothing about mandatory, much less the enhanced method, will do with a
+mandatory request. Everything just works. However a note about this in the
+security section is probably appropriate.
+</It's a feature!>
+
+<So spoke Ted Hardie>
+> The fact that people get identifiers right in other contexts doesn't
+> really change the fact that this a major change to how URLs are used
+> in the current web context.  Given that current context, I am afraid I
+> find "strongly recommended" to be weakly worded.  It's not even a
+> SHOULD requirement, and I believe that it ought to be the most
+> strongly worded MUST we can design.  Without that strong requirement,
+> interoperability is based on the good will of the market players, some
+> of whom will have strong disincentives to admit some kinds of changes.
+> 
+</So spoke Ted Hardie>
+
+<Deja Vu, all over again>
+1) This is not new, WebDAV does the exactly same thing.
+2) I trust the market a hell of a lot more than I trust some text in a
+standards document. If people choose to use someone's extension and that
+person does not properly maintain their extension then people will stop
+using that extension. No "MUST" in a standard can change that one way or
+another. I think the language is actually quite clear and well written. I
+disagree that any word smithing is necessary.
+</Deja Vu, all over again>
+
+<So spoke Ted Hardie>
+> Your first point is exactly what I am trying to get across: q values
+> describe the value on the axis and not *which* axis is being given the
+> value.  For a content negotiation mechanism to handle the problem you
+> propose, it would have to be able to designate the axis and the value.
+> I am not aware of any content negotiation mechanism, current or
+> proposed, that can handle that at the level of complexity your
+> document implies.  The correct operation of content negotiation for a
+> single-URI resource which potentially has everything from
+> machine-executable code to multi-lingual, multi-character set
+> descriptions is not an easy problem.  If you must imply that you want
+> it, please be very sure that you describe it as an unsolved problem
+> requiring further work.
+> 
+</So spoke Ted Hardie>
+
+<Ick>
+Since I don't generally believe in negotiation I will leave this argument to
+y'all.
+</Ick>
+
+<So spoke Ted Hardie>
+> To be brutally honest, I believe that those who ought to be 
+> giving this
+> framework the very careful review it deserves are simply too tired to
+> go over it with the fine-toothed comb it needs.  We must be careful
+> to get that review and those problems worked at before it is released,
+> though, as the work required to fix this post facto would be enormous.
+> 
+</So spoke Ted Hardie>
+
+<Ohhhhhh Ted..... I love it when your brutal!>
+Sigh... I have to agree. December is a lousy month to try to perform a
+review. Half the necessary people are gone and the rest are too busy to deal
+with it.
+</Ohhhhhh Ted..... I love it when your brutal!>
+
+
+<So spoke Ted Hardie>
+> Thanks again for all your continuing work on it,
+> best regards,
+> Ted Hardie
+> hardie@equinix.com
+</So spoke Ted Hardie>
+
+<Nobody here but us Chickens>
+Ohh goodie... Henrik can commit a double homicide. I just love company. =)
+</Nobody here but us Chickens>
+
+
+

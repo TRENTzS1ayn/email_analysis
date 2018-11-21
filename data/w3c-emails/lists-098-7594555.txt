@@ -1,0 +1,314 @@
+docno="lists-098-7594555"
+received="Thu Jan 17 10:08:29 2002"
+isoreceived="20020117150829"
+sent="Thu, 17 Jan 2002 15:00:51 -0000"
+isosent="20020117150051"
+name="Williams, Stuart"
+email="skw@hplb.hpl.hp.com"
+subject="RE: FW: TBTF: Trace Bindings - wire view v requester/responder vi ew."
+id="5E13A1874524D411A876006008CD059F1928AB@0-mail-1.hpl.hp.com"
+charset="iso-8859-1"
+inreplyto="FW: TBTF: Trace Bindings - wire view v requester/responder vi ew."
+expires="-1"
+
+
+To:"'noah_mendelsohn@us.ibm.com'"<noah_mendelsohn@us.ibm.com>
+Cc:"'Christopher Ferris (E-mail)'"<chris.ferris@east.sun.com>,"'distobj@acm.org'"<distobj@acm.org>,"'Glen Daniels (E-mail)'"<gdaniels@macromedia.com>,"Henrik Frystyk Nielsen (E-mail)"<henrikn@microsoft.com>,"'Highland M Mountain (E-mail)'"<highland.m.mountain@intel.com>,"'Mark A. Jones (E-mail)'"<jones@research.att.com>,"'Marc Hadley (E-mail)'"<marc.hadley@uk.sun.com>,"'Noah Mendelsohn (E-mail)'"<Noah_Mendelsohn@lotus.com>,"'Oisin Hurley (E-mail)'"<ohurley@iona.com>,"'www-archive@w3.org'"<www-archive@w3.org>
+
+Hi Noah,
+
+[This is a much briefer response than yesterday (although not brief in any
+absolute sense :-)). I think this response does more directly address your
+concern/confusion and may improve your comfort level with the approach... so
+please bear with it.
+
+When I started this response I was pretty much of the mind - lets stick with
+what we know best... the tables... as the response developed I have become
+more convinced that it is do-able with the algebraic notation... I think
+that our schedule requires we make a sufficiently well-informed speedy
+choice rather an optimal choice... ]
+
+> I think the main point of confusion for me can be summarized as: what 
+> happened to the named properties?
+
+Ahah... now a clearly understand the concern... 
+
+What the process algebra/traces do very nicely is capture the 'shape' of the
+state-machines and their transitions. I think it might overload the notation
+to try to work all that detail into the algebraic expressions - however I've
+tried to give a flavour of what that might look like below.
+
+> Anyway:  does it make any sense to think of the trace 
+> formalism as not in any sense eliminating the state machine, but rather as
+
+> a means of providing more organized names for the states and the edges?
+
+Yes... exactly, particular the algebraic expression (particularly the
+factorised version) is 'just' another way of describing a state-machine...
+at least it can be viewed that way.
+
+> So, instead of states named things like "requesting" as in our current 
+> draft, states might be named  in the manner of your comments 
+> e.g. [start,soReq,soResp,receiving].  
+
+The traces actually reveal the path by which the machine came to be in a
+given state (at least with a deterministic state machine which this one is
+so far - a given sequence of events will aways land you in the same state).
+However, in general there can be multiple paths, event traces that lead to
+the same state... so the event sequencing might not be the most comfortable
+way of 'naming' MEP states. The names that we have 'requesting'
+'receiving'... do it better. Just to take the requester example from
+yesterday's posting and relabel S1,S2,S3,S4 and S4 as Sending,
+SendingAndWaiting, SendingAndReceiving, SentAndReceiving, SendingAndReceived
+probably more clearly exposes the state machine structure. 
+
+[Just glance over this if your pressed for time each state is a set of
+choices, each choice within the state being guarded by an event, then a
+sequence of . (. means followed by) separated actions ending in a next
+state.]
+
+Srr-requester = !start.soReq.Sending
+
+//Sending Request
+Sending = eoReq.SentAndWaiting + //Finished sending
+Request
+     !soResp.receiving.SendingAndReceiving + //Start of overlapping
+response
+     !channelfail.Fail +          //Channel/media
+failure
+     !localException.Fail         //Local Timeout or
+reason to abort
+
+//Request sent waiting for start of response
+SendAndWaiting = !soResp.receiving.SentAndReceiving + //Start of
+non-overlapping response
+     !channelFail.Fail +
+     !localExpception.Fail
+
+//Sending request and Receiving response
+SendingAndReceiving = eoReq.SentAndReceiving +//Finished sending, still
+receiving 
+     !eoResp.SendingAndReceived +
+//Finished receiving, still sending
+     !channelFail.Fail +
+     !localException.Fail
+
+//Waiting to receive end of response.
+SentAndReceiving = !eoResp.Success +//Exchange completed
+successfully
+     !channelFail.Fail +
+     !localException.Fail
+
+//End of overlapping response received, still sending request
+SendingAndReceived = eoReq.Success +
+     !channelFail.Fail +
+     !localException.Fail
+
+Fail = fail.0//Signal local failure and stop (0 = Null process)
+
+Success = success.0//Signal local success and stop
+
+I hope that you can also see that we can equally describe the machine
+captured in the algebra with a table of current-state, input, next-state,
+action. Note that the input column of our current WD MEP tables is empty and
+we need to work on filling those in. 
+
+If we were going with the algebraic formulation, the transitions paths could
+be made more elaborate to include more direct interaction with the local
+state (Message Exchange Context) eg:
+
+      ...
++
+!channelFail.setProperty(fail:FailureReason,fail:ReceptionFailure).
+                     setProperty(transport:FailReason,fail:TransportError).
+                     Fail
++ !localException.setProperty(fail:FailureReason,
+fail;LocalException).Fail
+      +
+
+or if receiving a message
+
++ !soResp(responder=x,message=y).
+         setProperty(transport:ImmediateSender,x).
+         setProperty(transport:CurrentMessage,y).
+         receiving.SentAndReceiving
+      + ...
+
+The introduction of the x,y variables is my own invention (not to say it
+hasn't been done before, or more elegantly elsewhere) which I will again
+checkout with my local guru if it looks favourable - at the moment I'd
+rather not have to think about typing and scoping rules for such variables.
+
+In the more concrete binding specification sending an HTTP request message
+could be modelled as:
+
++ !start.soHTTPReq(requestURI=transport:ImmediateDestination,
+                         message=transport:CurrentMessage).Sending
++ ...
+
+and again, structurally the over all expression would be 'reasonate' with
+the one in the MEP.
+
+For behaviours influenced by things like HTTP status codes, something like:
+      ....
+
++
+!soHTTPResp(status==200,responder=x).setProperty(transport:ImmediateSender=x
+).
+         receiving.SentAndReceiving
+      +
+!soHTTPResp(status==202,responder=x).setProperty(transport:ImmediateSender=x
+)....
+      +
+!soHTTPResp(status==500,responder=x).setProperty(transport:FaultHint,true).
+        setProperty(transport:ImmediateSender=x).SentAndReceiving
++ !soHTTPResp(
++ ...
+
+might work [again some 'invention' on my part for testing the status code
+values].
+
+> On balance, I suppose I'm intrigued but nervous about making the change (I
+know that's 
+> not very helpful).
+
+To a large extent I think thats where I was when I floated this. When I set
+out to write this response I was at the brink of saying... big and ugly
+though they might be lets stick with the tables and pictures... we know we
+understand them and connecting up with the named properties from the algebra
+may be a little ugly.
+
+However, from the little fragments above, I think that connecting the
+algebra to the named properties is readily doable... *if* we want to go this
+way.
+
+I think that a key question to ask/answer is do you (we) prefer, say, the
+Srr-requester behaviour expressed as a table or as a set of algebraic
+expressions (with friendly state names). Both can be supported with the
+*same* state transition diagram.
+
+[The state-machine here is different from the one in the WD because it
+addresses the overlapping request/response cases... there IS an equivalent
+tabular presentation]
+
+If we have an overridding preference for the tabular presentation... thats
+fine... we can decide an move on.
+
+If we find the algebraically presented version at least intriguing and maybe
+even appealling, have we (I) derisked the approach enough for us to move
+forward with it?
+
+I am willing to put what energies I have into any one of:
+
+a) Completing the tables (including consideration of overlapping
+request/response)
+b) Revisiting/generating fuller versions of the
+process-algebra/wire-trace bindings
+c) Working to further derisk b)
+
+Basically, if I prove to be the main workhorse on this... a) feels safe, b)
+has some risk but I'm willing to try to make it work and c) is more of a
+tentative b) requiring more process to make a decision. I'd like some
+direction from the TBTF as to where they would like me to invest my time on
+this.
+
+Best regards and thank you for the continuing discussion,
+
+Stuart
+
+> -----Original Message-----
+> From: noah_mendelsohn@us.ibm.com [mailto:noah_mendelsohn@us.ibm.com]
+> Sent: 17 January 2002 03:28
+> To: Williams, Stuart
+> Cc: 'Christopher Ferris (E-mail)'; 'distobj@acm.org'; 'Glen Daniels
+> (E-mail)'; Henrik Frystyk Nielsen (E-mail); 'Highland M Mountain
+> (E-mail)'; 'Mark A. Jones (E-mail)'; 'Marc Hadley (E-mail)'; 'Noah
+> Mendelsohn (E-mail)'; 'Oisin Hurley (E-mail)'
+> Subject: Re: FW: TBTF: Trace Bindings - wire view v 
+> requester/responder
+> view.
+> 
+> 
+> Stewart,
+> 
+> As promised, I have spent some time this evening reviewing your trace 
+> proposals.  I'm sure I haven't given them the time they deserve, and I 
+> feel very inadequate in having no background in process algebras.  So, 
+> with all those caveats, a few comments:
+> 
+> I think the main point of confusion for me can be summarized as: what 
+> happened to the named properties?  Maybe I am just not reading carefully 
+> enough, but I don't see them.  This is another way of saying, exactly what
+
+> information is available to an application or to the node logic "above" 
+> the binding framework at any point in the trace?  Our existing formulation
+
+> very clearly spells out such information.  You know whether you have a 
+> failure code, the URI of a destination, or whatever, and you knew the 
+> types of such information (e.g. integer), etc.  The courage approach also 
+> clearly details the information to be conveyed from node to node with each
+
+> message.  I need to understand where all of this shows up in your proposed
+
+> alternative.
+> 
+> I have looked in some detail at the formulation that you sent this 
+> evening.  My first reaction was that I could not understand it at all, and
+
+> then when I stared at it again it began to make sense.  I must admit that 
+> I am trying to visualize what this will look like when we scale it to 
+> handle all the details, and am then trying to do the equivalent for the 
+> state machine approach.  Honestly, I find myself flopping back and forth. 
+> On balance, I think the crucial thing for me is the point I raised above: 
+> to understand how the local state is modeled and how we actually present 
+> it from a formatting point of view.  It seems to me that in the case of 
+> each of the choices within the states, we still need to document the 
+> resulting values.
+> 
+> Now, I am going to go out way out on a limb and make a proposal.  I 
+> suspect your reaction will be somewhere between "but that's not a 
+> proposal, that's what I've been saying all along" and "that proposal makes
+
+> no sense at all".  Anyway:  does it make any sense to think of the trace 
+> formalism as not in any sense eliminating the state machine, but rather as
+
+> a means of providing more organized names for the states and the edges? 
+> So, instead of states named things like "requesting" as in our current 
+> draft, states might be named  in the manner of your comments 
+> e.g. [start,soReq,soResp,receiving].  In other respects, we would keep the
+
+> state machine presentation, the named properties, and so on.  
+>  We would describe the traces as seen on the wire, much as you are 
+> proposing, and I suppose label either the states or the edges entering
+them (I 
+> must admit to being a little murky on how to do this right) with 
+> fragments of the trace grammar (more murkiness).  Is there a standard
+approach 
+> such things doing process algebras?
+> 
+> I still think, that when the dust settles, we need to put a high priority 
+> on making sure that novices and experts alike can easily understand what 
+> they're seeing, and can learn from it incrementally.  I don't  think the 
+> trace formulation is quite that clear yet.  One way to do  this might be
+to 
+> present the little grammars graphically, rather than in text.  
+
+> On balance, I suppose I'm intrigued but nervous about making the change (I
+know that's 
+> not very helpful).
+> 
+> Anyway, I know these comments are somewhat rambling, but that's as far as 
+> I've been able to get this evening.  I hope this is helpful.
+> 
+> ------------------------------------------------------------------
+> Noah Mendelsohn                              Voice: 1-617-693-4036
+> IBM Corporation                                Fax: 1-617-693-8676
+> One Rogers Street
+> Cambridge, MA 02142
+> ------------------------------------------------------------------
+> 
+> 
+> 
+
+
+

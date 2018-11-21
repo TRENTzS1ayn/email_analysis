@@ -1,0 +1,187 @@
+docno="lists-005-14391304"
+received="Mon Dec 18 17:51:42 2000"
+isoreceived="20001218225142"
+sent="Mon, 18 Dec 2000 14:51:14 -0800"
+isosent="20001218225114"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="RE: live props on a VCR"
+id="CNEEJCPIOLHKIOFNFJDPOEMCCAAA.lisa@xythos.com"
+charset="iso-8859-1"
+inreplyto="200012182024.PAA02619&#64;tantalum.atria.com"
+expires="-1"
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>,<ietf-dav-versioning@w3.org>
+
+
+I hadn't considered this before, but now that I am, I'm not sure it's wise
+to send depth headers on the REPORT method.  My three (somewhat related)
+worries:
+
+1)  Lack of clear model: Although depth makes sense when we're dealing with
+well-modelled collections and resources, the model here is less clear.  A
+REPORT on a "baseline" may well give a bunch of information on the baseline
+and the things the baseline is involved in.  Is that depth infinity?  Does
+depth 1 make sense?  A REPORT request could target the whole server (e.g. a
+report asking for all orphaned resources).  A REPORT request could target
+something more ephemeral like "all baselines in this collection" which is
+not the same thing as depth infinity on the collection.  It's not like a GET
+or a MKCOL where there's a clear model of the resource being targetted.
+
+2)  Multiple targets of REPORT:  E.g. "merge-preview-report" in deltav draft
+10.  What would depth header mean on this request?  The "target" of the
+report is not a single resource or collection, but a combination of some
+things being merged into other things.  When a combination of things is
+specified in the request, the depth header is ambiguous.  It could apply to
+any, all, or none.
+
+2)  REPORT on specific kind of resource:  it seems that even when a report
+targest only one resource, it's often a resource of a very particular kind.
+For example, one could have a report which only made sense for a baseline,
+or a report which only made sense for a versioned resource.  If depth: 1 or
+depth: infinity were specified, what about items within that depth that
+aren't the right kind of resource for this kind of report?
+
+Thus, I'd suggest a good justification for requiring "depth" on REPORT.
+
+If it turns out a depth modifier is required, we should consider whether:
+ - it might be better just to define appropriate reports as always being
+depth infinity (e.g. "report to me on all orphaned resources" would always
+cover an entire server or at least a major section of it)
+ - it might be better to include a "depth" modifier _inside_ the report
+request body, so that the requester can be very clear about what resources
+the depth modifier applies to.
+
+-- Lisa
+
+> -----Original Message-----
+> From: ietf-dav-versioning-request@w3.org
+> [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Geoffrey M.
+> Clemm
+> Sent: Monday, December 18, 2000 12:24 PM
+> To: ietf-dav-versioning@w3.org
+> Subject: Re: live props on a VCR
+>
+>
+>
+>    From: Greg Stein <gstein@lyra.org>
+>
+>    On Mon, Dec 18, 2000 at 12:07:39AM -0500, Geoffrey M. Clemm wrote:
+>
+>    >    From: Greg Stein <gstein@lyra.org>
+>    >    I want to get the DAV:version-name from the VCR (rather than
+>    >    issue a second PROPFIND against the DAV:target of the VCR).
+>
+>    > You could just use the property report to avoid the extra
+>    > roundtrip, i.e.  to get the version-name of the target of a vcr:
+>    >
+>    > REPORT /whatever HTTP/1.1
+>    > ... some headers ...
+>    > <D:property-report xmlns:D="DAV:">
+>    >   <D:target>
+>    >     <D:version-name/>
+>    >   </D:target>
+>    > </D:property-report>
+>
+>    hehe... that will be even worse. The PROPFIND that I'm using
+> is a Depth:1
+>    request. I'm fetching the props for a whole bunch of resources. If I
+>    switched to a REPORT, then I'd need to do a PROPFIND on a
+> collection to get
+>    all the children, then a PROPFIND/REPORT to link thru the
+> target to get the
+>    props off the version resource. Blarg...
+>
+> Actually, REPORT takes a Depth header, so you could get all the
+> properties you need in one REPORT request.
+>
+> It occurs to me that the current spec needs some more verbiage around
+> REPORT with Depth.  It currently just says "if a Depth header is
+> specified, a 207 multistatus MUST be returned".  It should say that
+> the report results should be marshalled in the "prop" elements of the
+> 207 multistatus.  We could define our own 2xx "multi-report" return
+> value, but just re-using the 207 seems simpler.
+>
+> In fact, if people care, we could extend the REPORT method to allow
+> you to request multiple reports at the same time.  Anyone want to
+> do that while I'm in there making changes?
+>
+>    What would be neat is a collection property providing the URLs of its
+>    members. You could then do a property-report kind of like:
+>
+>      REPORT /the-collection HTTP/1.1
+>      ... some headers ...
+>      <D:property-report xmlns:D="DAV:">
+>        <D:member-set>
+>  <D:target>
+>    <D:version-name/>
+>  </D:target>
+>        <D:/member-set>
+>      </D:property-report>
+>
+>    :-)
+>
+>    (this would also be nice in that I wouldn't have to filter out
+> the PROPFIND
+>     result for the collection itself... I'd only get the internal members)
+>    [ and I'm not truly suggesting this new property, but it is
+> certainly an
+>      interesting item to ponder... ]
+>
+> Except for the filtering out the collection itself,
+> this is what you can do with a Depth header on the REPORT.
+>
+> And yes, it is pretty silly that there is no Depth value that says
+> "just my immediate children".  That's probably what Depth=1 *should*
+> have meant.  Oh well ...
+>
+>    Well, the simple issue in my mind is "I've got this (VC)
+> resource here, but
+>    I don't know what it is [without the version-name]." There is
+> a non-trivial
+>    amount of work to go and fetch that version-name; if it had simply been
+>    exposed via the VCR, then I'd be fine.
+>
+>    I'd think the following properties are "important" to have
+> appear on the
+>    VCR, and a statement that they MUST be the same:
+>
+>      DAV:version-name
+>      DAV:checkin-date
+>      DAV:comment             (*)
+>      DAV:creator-displayname (*)
+>      DAV:version-history
+>      DAV:version             (+)
+>
+>    (*) actually, the VCR could define these itself, so these
+> might be confusing
+>    to have appear on the VCR.
+>    (+) this is unchanging, but is just a copy of the DAV:target prop  (??)
+>
+>    There are some informational properties: checkin-fork,
+> checkout-fork, and
+>    mutable; I don't have any feelings about them. I'm also not
+> going to suggest
+>    the *-set properties, since they could be computed and will
+> change from time
+>    to time.
+>
+>    The properties above are all (typically) immutable. It would
+> be nice to have
+>    a MUST for these, and then a SHOULD for others (or even punt
+> the others).
+>    Punting all others would satisfy Geoff's concern about people
+> blurring the
+>    distinction between the resources. Avoiding the *-set
+> properties will also
+>    help out with the remote system issue.
+>
+> If using the DAV:property report (and Depth) does what you need
+> (i.e. get version info in a single simple query),
+> it would be simpler to leave all this out of the protocol.
+>
+> Cheers,
+> Geoff
+
+
+

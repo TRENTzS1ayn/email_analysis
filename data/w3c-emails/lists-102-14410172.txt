@@ -1,0 +1,94 @@
+docno="lists-102-14410172"
+received="Thu Mar  4 21:58:01 1999"
+isoreceived="19990305025801"
+sent="Thu, 04 Mar 1999 18:07:07 -0500"
+isosent="19990304230707"
+name="Arkin"
+email="arkin@trendline.co.il"
+subject="NodeIterator"
+id="36DF121B.6B3D2657@trendline.co.il"
+charset="us-ascii"
+expires="-1"
+
+
+To:"'DOM list'"<www-dom@w3.org>
+
+A few observations regarding the iterators and filters interface, and
+recommendations for changes:
+
+1. The factory methods are now defined for the Document class rather
+than the Node class, with no clear explanation of reason.
+
+An iterator is constructed for a specific node, a node that might belong
+to a document fragment (not a document). The factory method must check
+that the supplied node belongs to the document. All these are compelling
+reasons for keeping the factory methods in the Node interface.
+
+2. Factory for iterator with a NodeFilter is missing
+
+3. The reset() method has been removed without good explanation.
+
+A Java implementation would require a reference from the iterated node
+to the iterator, so the iterator may be notified of relevant changes to
+the document tree. Even after the iterator is no longer used by the
+application, this reference will keep the iterator alive in memory and
+prevent garbage collection. Over time, zombie iterators will eat up
+valuable memory.
+
+Consider the use of an XML document for holding configuration
+information. Each module uses its own iterator to lookup interesting
+elements in the central configuration document. Over time, the same
+configuration document might be iterated over and over again, creating
+new iterators that are never released.
+
+The solution involves an additional method in NodeIterator, allowing the
+freeing up of the notification reference permanently (destroy) or
+temporatily( reset). While reset is more versatile and allows for
+iterator reuse, destory is simpler to expain:
+
+destory
+  Notifies the DOM implementation that the iterator will not be used
+anymore. Applications should call this method when the iterator is no
+longer used, allowing the DOM implementation to release any references
+held up by NodeIterator.
+
+reset
+  Usage as before. Applications should call this method when the
+iterator is no longer used, or when no longer used in a given context,
+allowing the DOM implementation to release any references help up by the
+NodeIterator. Applications may utilize this method to reuse iterators,
+conserving memory by not recreating often used iterators.
+
+4. Use of mask bits for NodeIterator's whatToShow
+
+The Node interface defines unique values for node types; these values
+may be turned into masks by means of bit-shift operations, for use as
+the NodeIterator's whatToShow argument. This bit-shift operation is easy
+to define and very fast to implement in the filtering of node types:
+
+Definition:
+  TW_ELEMENT = 0x0002;     // = 1 << 1 (ELEMENT_NODE)
+  TW_TEXT = 0x0018;        // = 1 << 3 (TEXT_NODE)
+                           // + 1 << 4 (CDATA_SECTION_NODE)
+  TW_ENTITYREF = 0x0020;   // = 1 << 5 (ENTITY_REFERENCE_NODE)
+  TW_PI = 0x0080;          // = 1 << 7 (PROCESSING_INSTRUCTION_NODE)
+  TW_COMMENT = 0x0100;     //  1 << 4 (COMMENT_NODE)
+
+Test case:
+  if ( ( 1 << node.getNodeType() & whatToShow ) != 0 )
+      return node;
+
+5. Definition of whatToShow constants
+
+While the NodeIterator interface has not been finalized yet, if some
+common functionality is agree upon, it should be placed in its current
+state to org.w3c.dom.fi.NodeFi or org.w3c.dom.fi.DocumentFi, so
+application developers can start working with it, and by working,
+uncover potential problems. The extended interface should include both
+factory methods and whatToShow constants.
+
+
+Arkin
+
+
+

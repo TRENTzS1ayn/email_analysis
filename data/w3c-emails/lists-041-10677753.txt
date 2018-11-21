@@ -1,0 +1,194 @@
+docno="lists-041-10677753"
+received="Wed Sep 11 09:21:56 2002"
+isoreceived="20020911132156"
+sent="Wed, 11 Sep 2002 15:21:26 +0200"
+isosent="20020911132126"
+name="Pill, Juergen"
+email="Juergen.Pill@softwareag.com"
+subject="RE: Proposal: WebDAV and transactions"
+id="DFF2AC9E3583D511A21F0008C7E62106031F2B59@daemsg02.software-ag.de"
+charset="iso-8859-1"
+inreplyto="Proposal: WebDAV and transactions"
+expires="-1"
+
+
+To:"'B. Shadgar'"<shadgar@cs.bris.ac.uk>, Julian Reschke<julian.reschke@gmx.de>,w3c-dist-auth@w3.org
+
+
+Hello,
+
+I would like to suggest to open a new Thread for the "Batch method"
+discussion or use the already started one. 
+
+A batch method would solve the API problem situation only partly. If the API
+could send all TA containing commands (without having to take decision based
+on response codes or response body content), the batch method would work.
+For a general purpose TA aware API I would not like to assume this.
+
+The TA methods and the Batch methods could be seen as orthogonal features.
+If the BATCH method is executed outside a TA_BEGIN, TA_COMMIT bracket, all
+nested methods within the BATCH operation are executed in auto-commit mode
+(each command is executed complete or not at all, some may executed with
+success, some may return response error codes). If the BATCH method is
+executed within a TA bracket, the BATCH method (and ALL nested contained
+methods)  is due to the TA boundaries and all send methods (batch, including
+the nested methods and the methods send parallel to BATCH) are either
+committed or aborted.
+If all methods within the batch method should be executed within a single
+TA, following coding within the batch method would be required:
+- open a TA (e.g. TA_BEGIN or MKTransaction)
+- specify the all nested commands, e.g. PUT, DELETE, etc.
+- close the TA (e.g. TA_END or Delete <ta_resource_uri>)
+
+Both functionalities (BATCH and TA) have their distinct advantages and
+computing power. A BATCH method would not solve all of the TA requirements.
+TA methods would not completely solve the BATCH requirements.
+
+Do you agree or doesn't this make sense at all?
+
+Best regards,
+
+Juergen
+
+
+
+
+
+
+ -----Original Message-----
+From: B. Shadgar [mailto:shadgar@cs.bris.ac.uk] 
+Sent:Wednesday, September 11, 2002 14.40 PM
+To:Julian Reschke; w3c-dist-auth@w3.org
+Subject:Re: Proposal: WebDAV and transactions
+
+
+Julian Reschke wrote:
+
+> > From: w3c-dist-auth-request@w3.org
+> > [mailto:w3c-dist-auth-request@w3.org]On Behalf Of B. Shadgar
+> > Sent: Wednesday, September 11, 2002 12:02 PM
+> > To: Eric Sedlar; w3c-dist-auth@w3.org
+> > Subject: Re: Proposal: WebDAV and transactions
+> >
+> > ...
+> >
+> > I think Batch method can help a lot in favor of transactions, But
+> > I don't know
+> > why still it has not been accepted as a standard method in WebDAV
+> > protocol ?
+>
+> Well, make a proposal that works and let the discussion start.
+>
+> --
+> <green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+A proposal for Batch method is following:
+
+Batch Method
+
+The Batch method is introduce to processes a bunch of methods as one
+single transaction and to improve the overload of internet connection.
+
+The request message body of a BATCH method MUST contain one-transaction
+and  request-set XML elements. It is included by one or more request XML
+elements. processing of request elements MUST occur in the order request
+elements are received (i.e., from top to bottom). Request elements can
+either all be executed or some executed which will be specified by value
+of one-transaction element. If the  value is true, all of request
+elements MUST be executed, thus if any error occurs during processing
+all executed  requests MUST be undone and resopnse MUST return the
+result of failed request. Otherwise, when the one-transaction element's
+value is false, some of requests can be executed and a proper response
+with 207 statuse code  MUST be prepared to shows which requested has
+been done and why the others refused.
+
+The request XML element is included by header, body and
+expected-status-code elements. Header and body element contains the
+header and body of given request and expected-status-code is
+representing the result is expected. It can be expressed by one value or
+a range of values e.g  200 <= X < 300 by xml elements.
+
+I consider Pill's example in his proposal and try to make my mean clear:
+
+>> Request
+
+BATCH  /bar/  HTTP/1.1
+Host: www.foo.bar
+Content-Type: text/xml; charset="utf-8"
+Content-Length: xxxx
+
+
+<?xml version="1.0" encoding="utf-8" ?>
+<D:request-set xmlns:D="DAV:">
+   <D:one-transaction>true</D:one-transaction>
+   <D:request>
+      <D:header> The header of PUTmethod  </D:header>
+      <D:body> the Body of PUT method </D:body>
+      <D:expected-status-code> <or>
+                                                    <li>204</li>
+                                                    <li>201</li>
+                                                 </or>
+      </D:expected-status-code>
+   </D:request>
+   <D:request>
+      <D:header> The header of PROPPATCH method  </D:header>
+      <D:body> the Body of PROPPATCH method </D:body>
+      <D:expected-status-code> 200 </D:expected-status-code>
+   </D:request>
+   <D:request>
+      <D:header> The header of UNLOCK method  </D:header>
+      <D:body> the Body of UNLOCK method </D:body>
+      <D:expected-status-code>204</D:expected-status-code>
+   </D:request>
+   <D:request>
+      <D:header> The header of Delete method  </D:header>
+      <D:body> the Body of Delete method </D:body>
+      <D:expected-status-code> 204</D:expected-status-code>
+   </D:request>
+ </D:request-set>
+
+>> Respons
+
+HTTP/1.1  200 Ok
+
+or
+
+>> Response
+
+
+HTTP/1.1 403 Forbidden
+Content-Type: text/xml; charset="utf-8"
+Content-Length: xxxx
+
+    <?xml version="1.0" encoding="utf-8" ?>
+    <D:response>
+       <D:method>
+               <D:status>HTTP/1.1 204 No Content </D:status>
+       </D:method>
+       <D:method>
+               <D:status>HTTP/1.1 200 Ok</D:status>
+       </D:method>
+       <D:method>
+                 <D:status>HTTP/1.1 204 No Content </D:status>
+        </D:method>
+       <D:method>
+                  <D:href>http://www.foo.bar/bar/resource3>
+                  <D:status>HTTP/1.1 403 Forbidden</D:status>
+       </D:method>
+     </D:response>
+
+
+We can consider a bunch of delete methods when the one-transaction
+element was false. In this case the format of the request and response
+is the same, but the one-transaction element is set with false value,
+and therefore failing some of Delete method dosn't cause to undone the
+batch method. The response can inform the client which delete methods
+are failed.
+
+Does it make sence?
+
+Regards,
+Bita.
+
+
+

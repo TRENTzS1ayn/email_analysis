@@ -1,0 +1,195 @@
+docno="lists-011-9479499"
+received="Wed Oct  1 12:28:26 1997"
+isoreceived="19971001162826"
+sent="Wed, 1 Oct 1997 21:24:38 +0200 (MET DST)"
+isosent="19971001192438"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: Calculation of age headers"
+id="199710011924.VAA10011@wsooti08.win.tue.nl"
+charset="USASCII"
+inreplyto="342D4156.47C38ABE&#64;parc.xerox.com"
+expires="1"
+
+
+To: Larry Masinter<masinter@parc.xerox.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Here are my comments on the Age issue.
+
+1. First, the ambiguity of the words `1.1 cache' in 2086 is more than
+just an editorial error, and it should not be resolved by just
+replacing the words with `1.1 proxy', which is what the original
+editor of that text meant to write.  If Jeff had originally written
+`1.1 proxy', I would have complained in the last call of 2068.  See
+the end of
+ http://www.ics.uci.edu/pub/ietf/http/hypermail/1996q3/0450.html 
+for some remarks on the history of these words.
+
+2. Like Roy and Ari, I am against requiring that all proxies, even
+non-caching ones, always add Age.  A firewall proxy (which may not
+even have an internal clock!) should not be burdened by such a
+requirement.
+
+3. The age header value calculation in the 1.1 spec has three parts,
+which I label as follows:
+
+  LOCAL_CLOCK: correct for a too low age value in the received Age
+               header (which can be too low due to storage in an
+               intermediate 1.0 cache) by calculating the age of the
+               response as the difference between the Date header and
+               the local clock, and using this value for the age if it
+               is higher
+  the calculation is:
+      apparent_age = max(0, response_time - date_value);
+      corrected_received_age = max(apparent_age, age_value);
+
+
+  ADD_DELAY: add the delay between the sending of the request message
+             and the receipt of the response message to the age.
+  the calculation is:
+      response_delay = response_time - request_time;
+      corrected_initial_age = corrected_received_age + response_delay;
+
+  ADD_RESIDENT: add the time the response was resident in local cache
+                memory
+  the calculation is:
+      resident_time = now - response_time;
+      current_age   = corrected_initial_age + resident_time;
+
+As far as I can see, Jeff and Roy take the following positions:
+
+Jeff: every proxy MUST do LOCAL_CLOCK and ADD_DELAY, and ADD_RESIDENT
+if applicable.
+
+Roy: every proxy serving a response from its local cache MUST do
+LOCAL_CLOCK, ADD_DELAY, and ADD_RESIDENT.
+
+My own position is:
+
+Koen: every proxy MAY do LOCAL_CLOCK.  Every proxy serving a response
+from its local cache MUST do ADD_DELAY and ADD_RESIDENT.
+
+Considering the three different actions in isolation:
+
+4. There is no controversy over when a proxy should do ADD_RESIDENT.
+
+5. As far as ADD_DELAY is concerned:
+  - I think there is agreement among Jeff, Roy, and me that
+    a proxy, when, serving a response from cache memory, MUST do
+    ADD_DELAY, because not doing so may lead to underestimating the
+    age.
+  - Jeff's draft has a calculation which shows that always doing
+    ADD_DELAY, even when not serving from cache memory, does not
+    contribute that much to overestimating the age.  I agree with the
+    conclusion, though I have some doubts about th calculation (it
+    fails to take into account a delay due to the DNS lookup time in
+    the final proxy, for example, and don't know right away if it is
+    also applicable if you have a transatlantic link in between.)
+  - Though doing ADD_DELAY in every proxy is not that bad, Jeff's
+    draft does not have any argument or scenario which shows that
+    doing ADD_DELAY in every proxy is actually good for something.
+  - My main concern is that doing ADD_DELAY in every proxy is
+    unnecessary for correctness, and therefore confusing for
+    implementers.  I also find that aesthetically, it is worse than
+    standardising a header name with a spelling error.
+  - In my opinion, the spec should require only proxies serving a
+    response from cache memory to do ADD_DELAY, but I could live with
+    a spec which requires all proxies to do it, _IF_ a large note for
+    implementers is added which confirms that this requirement is
+    actually silly.
+
+6. As far as LOCAL_CLOCK is concerned:
+  - This is the most controversial issue
+  - Jeff argues that every proxy should do LOCAL_CLOCK
+  - He backs this up with a complicated scenario involving a 1.0 cache
+    and a bad user agent clock.
+  - I agree this scenario has a point, but Jeff's inference that,
+    therefore, every proxy should do LOCAL_CLOCK goes to far for
+    me.  I would conclude from this scenario that it is _sometimes_ a
+    good idea for a proxy to do LOCAL_CLOCK.
+  - Roy says that always doing LOCAL_CLOCK in every proxy is too
+    expensive (in terms of overestimating ages which lead  to loss of
+    cache efficiency), and he prefers a less safer, but cheaper system
+    in which only some proxies do LOCAL_CLOCK.
+  - In the second paragraph of section 3.2 of his draft, Jeff seems to
+    argue that it is not possible to have a system which is cheaper,
+    but as safe as, doing LOCAL_CLOCK in every proxy.  But this is
+    wrong. It is possible to be cheaper, and still as safe.  For
+    example:
+       - if a proxy only does LOCAL_CLOCK when detecting (using the
+         via header) that the upstream chain is not a pure 1.1 chain,
+         then this will be cheaper (less change of overestimating the
+         age) but still as safe.
+       - it is possible to for a proxy or user agent to make a
+         conservative measurement of the delta-time between its own
+         clock and the clock of the origin server (by, for example,
+         doing an OPTIONS request on the origin server and looking at
+         the Date header in the response).  By using this delta-time:
+
+           apparent_age = max(0, response_time - date_value + delta-time);
+
+         the calculation which corrects for possible storage in a 1.0
+         cache could be made more accurate, while still as safe
+  - I conclude that the LOCAL_CLOCK correction is a hack to correct
+    for breakage due to 1.0 caches in the chain.  This hack is neither
+    optimal, not will it be necessary anymore in pure 1.1 chains, as
+    Roy has already pointed out.  In pure 1.1 chains it is only a
+    potential source of unnecessary performance degradation.
+  - The spec should not require any proxy to ever do LOCAL_CLOCK.  It
+    should merely encourage a proxy to do LOCAL_CLOCK if:
+      - the proxy knows or suspects that there is a 1.0 proxy cache
+        upstream
+      - and if it knows or suspects that the user agent has a very bad
+        clock, and no sophisticated mechanism to correct for its bad
+        clock
+    Proxies should also be encouraged to do something more
+    sophisticated than LOCAL_CLOCK.
+
+In summary, I like Roy's proposal better than Jeff's proposal, but I
+would like it best if the age header value calculation gets rewritten
+as:
+
+      age = age_value;
+
+      // A proxy MAY use a better way of calculating apparent_age
+      // than the formulae below
+      apparent_age = max(0, response_time - date_value);
+
+      // A proxy MAY use any heuristic to compute the 
+         correct_age_for_1.0_cache boolean
+      correct_age_for_1.0_cache = 
+            <any heuristic, or the value of a configuration option>;
+
+      if(correct_age_for_1.0_cache) age = max(age, apparent_age);
+
+      if( taking_response_from_cache_memory || I_am_a_user_agent )
+      {
+        response_delay = response_time - request_time;
+        age = age + response_delay;
+      }
+
+      if( taking_response_from_cache_memory )
+      {
+        resident_time = now - response_time;
+        age = age + resident_time;
+      }
+
+      new_age_value = age;
+
+and I would like the Age header part of the spec to read:
+
+A HTTP/1.1 caching proxy MUST send an Age header in every response
+taken from its cache memory.  A HTTP/1.1 non-caching proxy, and a
+HTTP/1.1 caching proxy which is relating an upstream response rather
+than taking it from cache memory, MAY add and Age header to the
+response if non is present, and MAY update the Age header which is
+present when the age adjustment calculation in the proxy yields a
+changed value.
+
+
+Koen.
+
+
+

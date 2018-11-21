@@ -1,0 +1,130 @@
+docno="lists-102-10670238"
+received="Tue Nov  3 16:40:10 1998"
+isoreceived="19981103214010"
+sent="03 Nov 1998 13:45:22 -0800"
+isosent="19981103214522"
+name="Stephen R. Savitzky"
+email="steve@rsv.ricoh.com"
+subject="Re: Walking the DOM (was: XML APIs)"
+id="qck91cqwlp.fsf@gelion.crc.ricoh.com"
+inreplyto="Tue, 03 Nov 1998 15:29:42 -0500"
+expires="-1"
+
+To: John Cowan<cowan@locke.ccil.org>
+Cc: DOM List<www-dom@w3.org>
+
+
+John Cowan <cowan@locke.ccil.org> writes:
+
+> Stephen R. Savitzky wrote:
+> > but I think you may have missed something.  An
+> > iterator, the state of which consists of a reference to the ``current
+> > node'', and all of whose methods are inlineable, can be compiled by a good
+> > optimizing compiler into the exact equivalent of your algorithm.
+> 
+> Can you sketch this for me?  I don't see how the recursive depth-search
+> can be optimized away, since the iterative version depends on the
+> existence of the parent pointer, which the original algorithm did not
+> even mention.  The breadth-search is obviously tail recursive and
+> no fundamental problem.
+
+I was really referring to the iterator given in the next paragraph:
+
+class depthFirst {
+  Node node;
+  Node toNext() {
+    if (node.firstChild != null) {
+node = node.firstChild; return node;
+    } else {
+while (node.nextSibling == null) {
+    node = node.parent;
+    if (node == null) return null; 
+}
+node = node.nextSibling;
+return node;
+    }    
+  }
+}
+
+If you declare toNext as "inline" and an instance of depthFirst as local,
+any C++ compiler would get roughly the equivalent of your loop.
+
+But in fact the simple recursive depth-first search could probably be made
+iterative if the compiler knew about the identity
+  node.firstChild.parentNode = node
+(Which as you point out is not an identity except in a pure funtional-
+programming environment).
+
+> > Similarly,
+> > your algorithm cannot be used as the basis for a live NodeList.
+> 
+> No, indeed.  It is used in my DOMParser, which walks a (presumed static)
+> DOM in order to generate SAX events from the nodes.
+
+AHA!  If it's ``presumed static'', then your NodeList's aren't live!
+According to the DOM spec you can't make that presumption, so in fact _your_
+implementation isn't complient to the spec any more than mine is, which is
+_precisely_ my point. 
+
+I would like to see a spec that, essentially, parametrizes these
+presumptions in order to permit a straightforward, efficient
+implementation. 
+
+> > I believe
+> > it is also essential that DOM implementations make structural _modification_
+> > methods fast, which is also incompatible with the kind of non-locality of
+> > effects imposed by live NodeLists and ``robust'' (in your definition)
+> > iterators.
+> 
+> I hope that it is *not* utterly incompatible, but of course "fast"
+> is a loosely defined term; if you mean O(1), you are probably
+> correct.
+
+I DO mean O(1).  Without live nodelists and all the other handholding, an
+O(1) implementation of _all_ the structural methods in the Node interface
+is not only possible, it's the _most obvious_ implementation.  It's what any
+sane programmer _would_ implement.  
+
+My whole point is that _with_ live NodeLists, the simple, sane, obvious,
+lowest-common-denominator implementation becomes impossible. 
+
+At a rather fundamental level, the interfaces themselves specify an
+implementation.  You could take the IDL interfaces for Node and its
+subclasses, add pre- and post-conditions for the methods, run them through a
+code generator, and get an implementation.
+
+The whole problem with NodeList as specified is _precisely_ that it breaks
+the encapsulation of Node by rendering this straightforward implementation
+invalid.  This is the sense in which the specification is incorrect.
+Actually, there's another sense: I think that it would be difficult to
+express the ``live NodeList'' requirement in a formal specification
+language.  It may be _impossible_ in an OO modeling language like UML.
+
+There's a well-known principle in user-interface design called, if I
+remember correctly, the principle of ``least surprise.''  A program should
+not behave in ways its user would find surprising, given its user interface.
+The user of an API, for example, is an application programmer.
+
+>                     I concede that I don't yet see how best to
+> do it, which is (one reason) why I have not published a DOM
+> implementation.
+
+My point is that the problem is not with your implementation, but with the
+specification.  Something that is impossible to implement efficiently is not
+going to get used very much.  People like you and me are going to implement
+the interfaces in the obvious way, and put disclaimers in the comments to
+the effect that ``this application implements the DOM interfaces, but not
+all of the specified behavior.''
+
+Then if somebody takes our application and replaces our hacked DOM class
+library with a ``real'' one, the performance will go to blazes and we'll get
+the blame.
+
+-- 
+ Stephen R. Savitzky   Chief Software Scientist, Ricoh Silicon Valley, Inc., 
+<steve@rsv.ricoh.com>                            California Research Center
+ voice: 650.496.5710   fax: 650.854.8740    URL: http://rsv.ricoh.com/~steve/
+  home: <steve@starport.com> URL: http://www.starport.com/people/steve/
+
+
+

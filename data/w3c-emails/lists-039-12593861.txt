@@ -1,0 +1,139 @@
+docno="lists-039-12593861"
+received="Tue Dec  7 16:03:32 1999"
+isoreceived="19991207210332"
+sent="Tue, 07 Dec 1999 12:54:55 -0800"
+isosent="19991207205455"
+name="Eric Sedlar"
+email="esedlar@us.oracle.com"
+subject="Re: BINDing using a weak reference"
+id="384D741F.44120E3E@us.oracle.com"
+charset="us-ascii"
+inreplyto="9912071628.AA01275&#64;tantalum"
+expires="-1"
+
+
+To:"Geoffrey M. Clemm"<geoffrey.clemm@rational.com>
+CC:w3c-dist-auth@w3.org
+
+I've implemented this type of system before, and the costs of mark and sweep
+are enormous when you are talking about large sets of documents living on disk
+(like in a relational database).  People generally expect unlink/delete on a
+file to work quickly, and applications depend on that not eating up a
+tremendous amount of cycles or doing a lot of I/O.  Mark and sweep is also much
+more expensive than forbidding the insertion of cycles.
+
+If you wait to do garbage collection asynchronously, searches that do not
+traverse the hierarchical namespace but that use other indexes (like keyword
+searches, for example) will find things that the user has deleted.  Also,
+deferring the garbage collection associated with the unlink breaks the
+transactional guarantee when people COMMIT their work.
+
+I can give you a perfectly good set of answers about how to deal with weak
+links.  Oracle built a system that implements weak links and forbids cycles as
+part of the Internet Filesystem product.  My responses to your issues are
+included below, marked with <es> </es>.
+
+--Eric Sedlar
+
+"Geoffrey M. Clemm" wrote:
+
+>    From: "Eric Sedlar" <esedlar@us.oracle.com>
+>
+>    It appears that the authors of the advanced collections spec expect that
+>    BINDing a resource into a new collection will adjust a reference count
+>    on the destination, ensuring that the destination resource persists
+>    until all bindings have been explicitly removed.
+>
+> As you note below, a mark sweep style algorithm is more appropriate
+> if you want to do garbage collection (the spec does not require a
+> server to do any garbage collection).
+>
+>    The problem with this behavior is dealing with cyclic references.  A
+>    server implementer may allow cyclic BINDings,
+>
+> Actually, that wording has been revised to say that a server _must_
+> implement cycle bindings.
+>
+>    in which case DELETE
+>    becomes very expensive, since the server must now validate that there is
+>    still a valid path to the destination resource from the root, to avoid
+>    orphaned cycles.
+>
+> Note that orphaned cycles are not forbidden by the spec, so there is
+> no requirement to clean up orphaned cycles immediately (e.g. it could
+> be a weekly garbage collection run).
+>
+>    Alternately, a server implementer can disallow cyclic
+>    bindings from being inserted in the first place, which is
+>    computationally much cheaper, but which restricts the usefulness of
+>    BINDings.  (Like the way UNIX restricts hard links to directories).
+>
+> This is now forbidden by the spec.
+>
+>    Has any thought been given to a notion of a "weak" binding, which
+>    doesn't affect persistence?  As long as weak bindings are automatically
+>    deleted when all of the strong bindings are removed, dangling BINDings
+>    (the great evil) are avoided.  Especially when a DAV server is
+>    implementing something like a user space quota, a strong BINDing implies
+>    that the user creating it wants to maintain storage for the object
+>    (implying a quota impact), whereas a weak binding would be more like a
+>    smart bookmark that would follow a web page when moved and disappear if
+>    that page were removed.
+>
+> Yes, this was one of the variants discussed, but some of the difficulties
+> encountered are:
+> - does a server have to delete a weak binding when the last strong
+> binding goes away, or can it leave it dangling?
+
+<es>delete the weak binding</es>
+
+> - how can a server ensure that it has write access to all weak bindings
+
+> that might need to be deleted when the last strong binding is deleted?
+
+<es>run the weak link cleanup as setuid root /system/whatever </es>
+
+>
+> - if a weak binding is left dangling, how is this conveyed to a client?
+
+<es> not an issue>
+
+>
+> - does the weak binding track the  resource as it moves, or does it
+> just point at a specific URL?
+
+<es> it tracks the resource as it moves </es>
+
+>
+>  - what happens if you issue a LOCK against a URL that contained a
+> weak binding?
+
+<es> locking a URL locks the namespace, not the resource.  While you have
+locked the URL containing a weak binding, nobody else can use that set of names
+in their respective collections.  The resource the locked URL points to may
+actually be deleted while the URL to it is locked.  In this case the resource
+is deleted when the lock is released.  (Think of the lock like an open file
+descriptor, or in database terms, a snapshot in a read-only transaction that
+was started when the lock was acquired).  This has the same effect as if
+someone deleted that resource the instant the lock was released.
+</es>
+
+>
+>
+> So we decided that the complexity of defining and supporting a weak binding
+> outweighed its benefits.
+>
+> Cheers,
+> Geoff
+
+<es> My experience on this question that the user benefits of allowing strong
+BINDings to form a cycle are minimal if weak BINDings are allowed, and the
+performance costs are high.  The distinction between two types of bindings is
+useful when you add user quotas.  We call these strong & weak BINDings "saved"
+and "unsaved" links--a saved link is a statement by the user that s/he is
+willing to pay storage costs for the item linked to, whereas a weak BINDing is
+more like a bookmark, useful for categorization and simplifying navigation.
+</es>
+
+
+

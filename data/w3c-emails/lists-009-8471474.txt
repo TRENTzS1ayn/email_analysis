@@ -1,0 +1,141 @@
+docno="lists-009-8471474"
+received="Fri Aug 18 16:40:53 1995"
+isoreceived="19950818204053"
+sent="Fri, 18 Aug 1995 16:35:06 0700"
+isosent="19950818233506"
+name="Shel Kaphan"
+email="sjk@amazon.com"
+subject="Re: A modest proposal"
+id="199508182335.QAA01298@bert.amazon.com"
+inreplyto="199508172028.QAA08825&#64;beach.w3.org"
+expires="1"
+
+
+To: Roy Fielding<fielding@beach.w3.org>
+Cc: Jeffrey Mogul<mogul@pa.dec.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+...
+ >     Date:                (no change necessary)
+ >     Expires:             (no change necessary)
+ >     Last-Modified:       specify that LM > server time must not be given
+ ^^^^^^^^^^^^^^^^
+ >     If-Modified-Since:   specify that IMS > server time is invalid
+ ^^^^^^^^^^^^^^^^^
+ >     Pragma:              add "no-cache", "private", and "max-age"
+ >     Content-MD5:         no problemo
+ >     Content-CRC:         no problemo
+ >     Transfer-Encoding:   chunked
+...
+ > >
+ > >The Expiration header looks like this:
+ > >      Expiration-info: Expires-time server-current-time
+ > 
+ > Unnecessary. That is why Date is given in responses.
+^^^^^^^^^^^^^^^^^^^^^^^^^    
+ > 
+
+These comments, and some in Jeff Mogul's thought-experiment, made me
+realize that the "argument" about discarding "future" Last-Modified's and
+not caching the accompanying documents is somewhat of a red herring if
+the implementation is "good" (where I get to define "good" :)).
+
+PRINCIPLE:
+It is not possible to reliably compare times from two different,
+unsynchronized, clocks. So, don't do it.  (Not naively, anyway).
+
+Regarding Last-Modifieds "in the future", Last-Modified should be
+ignored if the timestamp is later than the accompanying Date response
+header.  Then it is certainly invalid.  But it can't be reliably
+compared to the local clock without appropriate adjustment.  So,
+subject to the following being adopted I'll agree with Larry
+Masinter's rules.
+
+The following is a proposal, so when I say "should" here, I mean in the
+context of this proposal, ok?
+
+If a server sends an expires header that is 30 seconds in the future,
+it means the future as it knows it.  So, when a downstream server
+receives Expires, it should interpret that in local time using (some
+function of) the delta between the accompanying Date header and
+its own clock.
+
+A cache should keep track of the delta between a server's clock (as
+returned by Date) and its own clock, and include (some function of)
+that delta in any communication with that server involving timestamps.
+
+There is some complication with GET-IMS requests being passed along
+from downstream servers.  An intermediate proxy cannot tell whether
+the date in an IMS request is given in the upstream server's
+coordinates (e.g. an upstream LM header being returned in an IMS
+request) or in the downstream server's coordinates (e.g. "get me
+something if it has changed in the past 15 minutes").
+
+When proxies pass through requests or responses including timestamps
+such as GET if-modified-since, last-modified, and expires, I propose
+that they should normalize the times to their own clocks, using an
+unspecified algorithm they determine, which is a function of the delta
+between local time and the Date header passed by the server, and may
+include information on round-trip delays accumulated over time.  This
+way, for instance, a downstream server's GET-IMS request or an
+upstream server's Expires header can be translated to be in local
+time system.
+
+So, here is a PROPOSAL:
+
+For this reason, I propose that whenever requests or responses
+containing these timestamps are generated, that a Date header should be
+REQUIRED, and should indicate the moment the request or response 
+is transmitted.
+
+Example: 
+
+Assume 0 delays everywhere for simplicity.
+In this example the RECEIVERs do all time adjustments in both
+directions.  That is not the only way this could work.
+
+Client CProxy PServer S
+12:0012:0111:59
+---------------
+GET -->--> GET -->Process GET,
+issue headers
+Date: 11:59
+last-modified: 10:00
+<--
+Receive Date 11:59
+Delta for server S = 
+12:01 - 11:59 = +2 minutes
+rewrite headers:
+Date:12:01
+Last-modified: 10:02
+<--
+Receive Date 12:01
+Delta for Proxy P = 
+12:00 - 12:01 = -1 minute
+interpret headers:
+date: 12:00
+last-modified:10:01
+
+12:0512:0612:04
+---------------
+GET IMS 10:01 -->
+Receive Date:12:05
+Translate IMS header
+Using +1 minute delta,
+translate IMS header to
+10:02, 
+GET IMS 10:02-->Receive Date: 12:06.
+Use -2 minute delta to
+interpret IMS header
+as GET IMS 10:00.
+
+
+One problem with this is that due to inevitable inaccuracies in the
+delta computations, an IMS request might differ from the LM that it
+corresponds to.  So, in the long term, some cookie other than
+a timestamp is a better way to go for such return-trip operations,
+as both Jeff Mogul and I previously suggested. 
+
+--Shel Kaphan
+
+
+

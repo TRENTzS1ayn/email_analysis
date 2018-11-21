@@ -1,0 +1,188 @@
+docno="lists-102-15888055"
+received="Sun Sep 26 17:48:13 1999"
+isoreceived="19990926214813"
+sent="Sun, 26 Sep 1999 14:47:25 -0700"
+isosent="19990926214725"
+name="David Brownell"
+email="david-b@pacbell.net"
+subject="Re: DOM L2 comments, various"
+id="37EE946D.3B5C4818@pacbell.net"
+charset="us-ascii"
+inreplyto="37EE8F5B.2199FB5C&#64;pacbell.net"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+David Brownell wrote:
+> 
+>         * I still don't see why there's no solution for getting access
+>           to a system default DOM implementation, at least for Java.
+> 
+>           I'm posting an implementation in a followup post.  I'd like
+>           to see something like this in the org.w3c.dom Java package.
+
+And here it is.  It's licensed under a version of QPL; see my XML page
+at http://home.pacbell.net/david-b/xml/ for details.  It looks quite
+a lot like the SAX ParserFactory API, but specifically permits vendors
+to provide proprietary guts to the one method (that static method is
+still just an interface, but it plugs one bootstrapping hole :-).
+
+- Dave
+
+
+
+/*
+ * Copyright (c) 1999 by David Brownell.  All Rights Reserved.
+ *
+ * This program is open source software; you may use, copy, modify, and
+ * redistribute it under the terms of the LICENSE with which it was
+ * originally distributed.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * LICENSE for more details.
+ */
+
+package org.brownell.xml;
+
+import java.lang.reflect.InvocationTargetException;
+import org.w3c.dom.DOMImplementation;
+
+
+/**
+ * <p>Instantiates a DOMImplementation object, according to system defaults
+ * or a user-specified implementation choice.  When used with the current
+ * <a href="http://www.w3.org/TR/1999/WD-DOM-Level-2-19990923/"> DOM
+ * Level 2</a> draft specification, this means that Java applications
+ * can both use DOM and also be completely portable, with no requirement
+ * to use proprietary APIs when bootstrapping DOM.  (Except when parser
+ * connectivity is required; see below.) </p>
+ *
+ * <p> This class is not part of the language-independent definition of
+ * DOM.  It addresses an issue which is specific to its Java binding,
+ * namely the need to have a vendor-independent bootstrapping API.  Any
+ * vendor-specific issues may be encapsulated through changes to the
+ * implementation of one static method.  </p>
+ *
+ * <p> Note that DOM Level 2 has no way to populate DOM Document objects
+ * by parsing their text forms.  Some separate mechanism is still required
+ * to connect a DOM implementation to an XML or HTML processor ("parser").
+ * Also, because DOM includes APIs that provide read-only access to some
+ * facilities without including the capability to write them, such parts
+ * of DOM still remain accessible only through use of proprietary APIs.
+ * (Much DTD-related functionality is so constrained.) </p>
+ *
+ * @see DomBuilder
+ *
+ * @author David Brownell (db@post.harvard.edu)
+ * @version 1.0 (26 September 1999)
+ */
+public class DomFactory
+{
+    // BEGIN IMPLEMENTATION-SPECIFIC
+
+    /**
+     * This value is used to configure a default DOM that'll be used
+     * when the system property isn't defined.  It's far preferable to
+     * change this default value than to modify the code implementing
+     * the no-arguments "createDom" method.
+     */
+    private static final String DEFAULT_DOM = null;
+
+    // END IMPLEMENTATION-SPECIFIC
+
+
+    // no instances may be constructed
+    private DomFactory () { }
+
+    /**
+     * <p>Access the system default DOM implementation.  The actual
+     * implementation of this method may vary between implementations
+     * of the DOM, but the interface is not subject to change.</p>
+     *
+     * <p> The reference implementation of this class works with all
+     * DOM implementations which can be accessed using only a default
+     * constructor.  The class name may be specified by the
+     * <b>org.brownell.xml.dom</b> system property, or by a built-in
+     * default if that property is not available.  The named class must
+     * exist and must implement the <b>org.w3c.dom.DomImplementation</b>
+     * interface.  </p>
+     *
+     * <p> Other implementations of this method are free to use other
+     * mechanisms.  For example, a browser might both hard-wire some
+     * specific implementation, and also arrange that it be initialized
+     * to bind the DOM objects to some particular window and an associated
+     * rendering engine. </p>
+     *
+     * @exception java.lang.reflect.InvocationTargetException
+     *No default DOM implementation is available.  This may be due
+     *to a a variety of underlying errors, reported through the
+     *"target exception" property of this exception.  These usually
+     *involve configuration errors such as incorrect values for a
+     *system property, bad class path, or a malfunctioning DOM.
+     *
+     * @see #createDom(java.lang.String)
+     */
+    public static DOMImplementation createDom ()
+    throws InvocationTargetException
+    {
+// BEGIN IMPLEMENTATION-SPECIFIC
+
+String className = DEFAULT_DOM;
+
+try {
+    className = System.getProperty ("org.brownell.xml.dom",
+DEFAULT_DOM);
+} catch (SecurityException x) {
+    // e.g. in browser
+}
+
+try {
+    return createDom (className);
+} catch (Throwable t) {
+    throw new InvocationTargetException (t,
+    "Exception when instantiating DOM");
+}
+
+// END IMPLEMENTATION-SPECIFIC
+    }
+
+
+    /**
+     * Create a new DOM implementation object using the class name provided.
+     * If that class can't be instantiated, or does not implement the
+     * <b>org.w3c.dom.DomImplementation</b> interface, an exception is
+     * thrown.
+     *
+     * <p>No implementation-specific behavior is allowed for this method,
+     * unlike its no-arguments cousin which explicitly allows it.  This
+     * method is only useful for DOM implementations which provide a null
+     * constructor which is publicly accessible, which at this writing
+     * describes almost all DOM implementations in Java.  </p>
+     *
+     * @param className A string containing the name of the class
+     *implementing the DomImplementation interface.
+     * @exception java.lang.ClassNotFoundException The specified class
+     *was not found (check your CLASSPATH).
+     * @exception IllegalAccessException The specified class was found,
+     *but you do not have permission to load it.
+     * @exception InstantiationException The specified class was found
+     *but could not be instantiated.
+     * @exception java.lang.ClassCastException The specified class was
+     *found and instantiated, but does not implement DomImplemntation.
+     * @see #createDom()
+     */
+    public static DOMImplementation createDom (String className)
+    throws ClassNotFoundException, IllegalAccessException, 
+InstantiationException, ClassCastException
+    {
+return (DOMImplementation)
+    Class.forName (className).newInstance ();
+    }
+
+}
+
+
+

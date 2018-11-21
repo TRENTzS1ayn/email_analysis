@@ -1,0 +1,76 @@
+docno="lists-097-6839532"
+received="Fri Jul 11 14:02:32 2003"
+isoreceived="20030711180232"
+sent="Fri, 11 Jul 2003 14:01:53 -0400"
+isosent="20030711180153"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="character encoding problems"
+id="20030711180153.GA24966@w3.org"
+charset="us-ascii"
+expires="-1"
+
+To:www-annotation@w3.org
+
+
+
+Marja noticed she wasn't getting any annotations on http://www.w3.org/.
+She suspected this was an error. Inspection
+[[
+  GET -H Accept:\ text/rdf http://annotest.w3.org/annotations?w3c_annotates=http://www.w3.org/
+]]
+showed that some of the strings were violating the advertised encoding.
+Amaya's XML parser, expect, I believe, was correctly aborting after en-
+countering data that was not in the correct encoding. This lead to four
+steps in the solution: request the correct encoding in the annotations
+script, fix already stored RDF literals, request the correct encoding
+in the access script, and fix already stored user names.
+
+The crippling data was coming from a user name in the password database
+so I attacked that first. I modified the script in three ways:
+  1 Added an accept-charset="utf-8" attribute the <form> element.
+    This is the HTML4-specified way to tell the browser what character
+    encoding to use when submitting a form. I guess the only compliant
+    browser is mozilla.
+  2 Changed the Content-Type to text/html;charset=utf-8.
+    Most browsers get their cue for what encoding to submit from the
+    Content-Type of the page with the <form> element in it.
+  3 Validate that submitted data is indeed utf-8.
+    I used a regexp from W3C i18n question and answer page [1].
+This made sure that any subsequently submitted data would either be in
+the correct encoding, or at least, in the rare case of a non-compliant
+and non-conventional browser submitting data that only appeared to be
+valid utf-8, not upset and downstream XML parsers.
+
+The next step was to fix the exising entries in the user/password
+database. I used a perl database access command-line tool called ddb.
+[[
+# dump the entries with suspect chars to a file
+ddb idelim=: odelim=: ifn=/etc/apache/users | egrep \[^a-zA-Z0-9\\@\\.\\:\\/\\\ \\_\\,\\\!\\+\\$\\\*\\\&\\#\\\[\\\<\\\>\\?\\^\\\;\'-\] > annotest-user-i18n.txt
+# edit said file to change all encodings to utf-8
+emacs annotest-user-i18n.txt
+# return updated entries to the user database.
+ddb idelim=: odelim=: if=annotest-user-i18n.txt ofn=/etc/apache/users
+
+I have not yet performed the analogous fixes to the annotations script
+the SQL-based triple store that is serving as the annotations database.
+The current Content-Type is advertised as text/rdf; charset=iso-8859-1
+which was consistent with the encoding bulk of the user database prior
+to the recent re-encoding in utf-8. Unfortunately I won't be able to
+fix this data until I re-encode the current RDF database which should
+take a couple days. In the mean time, though your data validates, the
+encoding is likely incorrect.
+
+[1] http://www.w3.org/International/questions/qa-forms-utf-8.html
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

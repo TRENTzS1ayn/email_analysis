@@ -1,0 +1,125 @@
+docno="lists-039-3279135"
+received="Mon Feb  8 21:25:59 1999"
+isoreceived="19990209022559"
+sent="Mon, 8 Feb 1999 18:25:51 -0800 "
+isosent="19990209022551"
+name="Yaron Goland"
+email="yarong@microsoft.com"
+subject="copy and properties"
+id="3FF8121C9B6DD111812100805F31FC0D08792EB7@RED-MSG-59"
+expires="-1"
+
+
+To:"'WebDAV'"<w3c-dist-auth@w3.org>
+
+One particular aspect of COPY that took a lot longer to gel was how to
+handle the properties on a resource. If memory serves the very first
+definition of COPY didn't even include the properties. Then property support
+was added but on the same basis as support for methods - your mileage may
+vary. In other words, you couldn't be sure which properties made it across
+and in what state.
+
+Where as everyone seemed to accept that defining how the methods were copied
+should be left as magic, properties were a different story. It was felt that
+properties were "well defined" and therefore we should be able to fully
+define their behavior over a COPY.
+
+In typical WebDAV fashion, we went to the other extreme and stated that all
+properties had to be copied over or the COPY would fail. Furthermore, if a
+property was live on the source then it also had to be live on the
+destination.
+
+This definition was so overly restrictive that it would have prevented
+something as simple as copying a resource (read: file, in this particular
+example) from an NTFS drive to a FAT drive because NTFS supports certain
+properties as live that FAT doesn't. Everyone understood that this was
+clearly not the desired behavior.
+
+There was some flirtation with the idea of having a pre-copy method. The
+idea is that you would execute a pre-copy method on the source and it would
+tell you which properties would make it across to the destination, if any
+and if they would be live or not. The motivation for this feature is that a
+destination resource would support only what it supported, you couldn't
+negotiate to get it to support more than it did. So it was best to just
+discover what would happen to the properties of the source when copied to
+destination and decide if that was acceptable. Of course the design was
+insane since there was no guarantee that the results of a pre-copy would
+match the eventual copy and it meant having to perform at least two round
+trips, one for pre-copy and one for copy. The whole thing was really silly.
+But it did help the authors focus in on the need for a declarative
+mechanism. In other words, clients needed to be able to say "If you can do
+the following then the copy should be attempted, otherwise don't bother."
+
+After some discussion four declarative cases where identified for property
+behaviors on a COPY:
+
+1) Copy all properties but don't require that live properties stay live.
+This was considered the general case where it was expected that the user
+would have some clue as to which live properties the destination supported
+or didn't care.
+
+2) Copy all properties but require that all live properties stay live. No
+one had a good example of why this would be necessary but it was easy to
+specify. =)
+
+3) Copy all properties but only require that a sub-set of live properties
+stay live. While there were some contrived examples for this case, no one
+had a particularly compelling one. However there was a general feeling that
+if copy was to be useful outside of the limited scenarios where you knew
+something about the destination we would need this feature.
+
+4) Don't fail the copy for any property related reasons. This was a fall
+back case meant to cover situations where you were copying to really dumb or
+resource constrained WebDAV servers that couldn't handle properties very
+well. 
+
+There fifth case which, to the best of my recollection, was never discussed:
+
+
+5) Guarantee that a certain sub-set of properties are copied across as live,
+a certain sub-set are copied across as either live or dead and do not fail
+if any of the properties not listed in the previous two sub-sets don't make
+it across or can only be copied across as dead.
+
+Cases 1 - 3 require that all properties must make it across, the only issue
+is if the properties will be live at the destination. Case 4 was a fall back
+case. I'm not convinced that supporting case 5 is all that critical, disk
+space is cheap, but time will tell.
+
+Defining the language for copying a live property on the source to a live
+property on the destination is easy, its magic. Specifically, it is expected
+that live properties will fully define how they are to behave when copied.
+There really isn't anything useful that the standard could say on this
+topic.
+
+However a most unfortunate choice of language was made in describing how to
+copy a property which was live on the source but would be dead on the
+destination, quoting from section 8.8.2:
+
+   If a property cannot be
+   copied live, then its value MUST be duplicated, octet-for-octet, in
+   an identically named, dead property on the destination resource
+   subject to the effects of the propertybehavior XML element.
+
+The phrase at question is "octet-for-octet." The purpose of saying
+"octet-for-octet" was to indicate that one should take the value that the
+live property would have produced at the time of the copy and just copy that
+dead value over. For example, imagine one had a live property called
+iso:time-of-day. If you asked for the property's value you would get back
+the current time of day. If you copied this property to a server which
+didn't support iso:time-of-day as a live property then the value of the dead
+property should be the live property's output at the time of the copy. So if
+you asked for the property's value on the destination you would always get
+back the same time of day, the time when the resource was copied.
+
+However we didn't want to absolutely require this behavior. We could imagine
+that a live property may be smart enough to come up with a better value for
+its dead counterpart. For example, the source resource may decide to pass
+over a property value which says "I'm dead, ignore me." This would be
+completely acceptable and in fact, extremely reasonable.
+
+In the end, this section fell through the editing filter. Clearly the
+language needs to be cleaned up before we move to draft standard.
+
+
+

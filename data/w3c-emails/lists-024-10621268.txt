@@ -1,0 +1,219 @@
+docno="lists-024-10621268"
+received="Fri May  9 13:53:14 2003"
+isoreceived="20030509175314"
+sent="Fri, 09 May 2003 18:44:33 +0100"
+isosent="20030509174433"
+name="Graham Klyne"
+email="gk@ninebynine.org"
+subject="Review section 4.1 of OWL AS&amp;S"
+id="5.1.0.14.2.20030509175340.063636e8@127.0.0.1"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-webont-comments@w3.org
+
+These are some personal comments that arise out of a review I was asked to 
+do for the RDFcore working group.   I must emphasize that they are offered 
+as personal comments, as they do not cover any official RDFcore WG concerns.
+
+-----
+
+I looked briefly at the abstract syntax section [1] (it actually looks like 
+a quite concrete serialization to me), which does appear to be very well 
+presented, then at section 4.1 [2] of the OWL abstract syntax and semantics 
+document, with a particular view to seeing if I could understand how to do 
+the mapping.
+
+I've spent about half a day looking at the "abstract syntax" (it actually 
+looks like a quite concrete serialization to me), and have started to 
+sketch a Haskell [3] implementation of the mapping [see attachment].  I 
+come to the following conclusions:
+
+1.  I do believe that I could implement a mapping to RDF based on this 
+description, but with some guesswork.
+
+2.  I think the presentation of the mapping leaves something to be 
+desired.  I could not have started to grasp what was going on without 
+actually trying to think about the details of an implementation.
+
+There was some discussion about the purpose of these transformation 
+rules.  From the description given, I think it is to translate OWL AS to an 
+RDF graph, but others have
+also suggested that they might be used for defining inverse transformation.
+I don't think the mapping table is well-suited to that purpose.
+
+More detailed comments are below.
+
+[1]  http://www.w3.org/TR/2003/WD-owl-semantics-20030331/syntax.html
+
+[2]  http://www.w3.org/TR/2003/WD-owl-semantics-20030331/mapping.html#4.1
+
+[3]  http://www.haskell.org/
+
+-----
+
+Concerning section 4: 
+http://www.w3.org/TR/2003/WD-owl-semantics-20030331/mapping.html
+
+[[
+This section defines a many-to-many relationship between
+abstract syntax ontologies and RDF graphs. This is done using a
+set of nondeterministic mapping rules.
+]]
+
+"Non-deterministic"?  Scary, if the goal is well-defined
+semantics.
+
+[[
+The mapping is designed so that any of the RDF/XML graphs that
+correspond to a particular abstarct ontology have the same
+meaning, as do any of the abstract ontologies that correspond
+to a particular RDF/XML graph.
+]]
+
+Good.  How confident can we be that this is so?
+
+Why complicate the transformation with options that are not needed?
+I'd suggest simply deleting the optional elements of the
+transformation rules, and picking just one of the possible
+alternative transformations.  If there's anything else useful
+to be said, indicate it separately as additional information,
+with appropriate commentary.
+
+----
+
+Concerning: 
+http://www.w3.org/TR/2003/WD-owl-semantics-20030331/mapping.html#4.1
+
+Table row 3:
+
+[[
+Annotation(ontologyPropertyID URIreference)
+]]
+
+Doesn't obviously match an abstract syntax production.
+I think the URIreference should be ontologyId.
+
+(I recognize these resolve to the same thing, but if one is going
+to go to the trouble of defining a heap of equivalent symbols, they
+might at least be used consistently.)
+
+----
+
+In reading the transformation rules, it is not immediately obvious from
+the table as presented what parts of the abstract syntax expression
+are variables that are carried into the transformed expression, but when
+getting down to the level of trying to code an implementation it seems
+clear enough what goes where.  Some more explicit convention for naming
+"variables" in the transformation rules might help.
+
+----
+
+I *think*, though it's not exactly clear, that the third column
+indicates what part of the transformed expression to use for the
+node when T(expr) appears as a node in a triple for a transformed
+piece of syntax.
+
+I think this piece of text:
+[[
+The left column of the table gives a piece of syntax (S), the center column
+gives its transformation (T(S)), and the right column gives an identifier
+for the main node of the transformation (M(T(S))), but only for syntactic
+constructs that can occur as pieces of directives.
+]]
+could usefully be expanded.  I think something like this is intended:
+
+The table has three columns:
+
+1.
+   gives a piece of abstract syntax corresponding to an abstract syntax
+   production rule (with further nonterminal symbols in an italic font)
+
+2.
+   gives a transformation of the abstract syntax into RDF triples, where
+   the triples are presented as N-triples (with qnames for URIs).  Within
+   these, further transformations, expressed as T(...), may be used to
+   represent RDF triples, and also to represent individual nodes within
+   such triples.
+
+3.
+   gives a node identifier to be used when a transformation of the
+   corresponding abstract syntax is used as a node within a triple
+   in some other (middle column) transformation expression.
+
+The resulting RDF graph contains all of the triples generated by
+the transformation of a given piece of abstract syntax.
+
+(This may not be the best possible description, but I think something at
+this level of detail would make the intent very much clearer.)
+
+----
+
+AFAICT, the mapping table is presented in the same order as the abstract
+syntax production rules, with a 1:1 correspondence.  This is an important
+clue, which I think would be better if made explicit by (a) labelling the
+abstract syntax productions, and (b) using those labels to identify the
+corresponding mapping rules.
+
+----
+
+I think the handling of the ontology node in the first two rows is not
+entirely consistent with the treatment later given to other constructs
+that result in the generation of new blank nodes.
+
+(In my implementation sketch, I pass the explicit-or-generated
+Ontology node as a parameter to the subsequent transformations.)
+
+-----
+
+Concerning: 
+http://www.w3.org/TR/2003/WD-owl-semantics-20030331/mapping.html#4.2
+
+This gives some rules to determine whether some RDF graph is an Owl-lite or 
+Owl-DL ontology.  Presumably anything that doesn't satisfy either of these 
+criteria is Owl-full.  But the rules are stated in terms of an AS->Graph 
+transformation, so I'm not sure they constitute an effective procedure for 
+making such a determination.
+
+There's a point that isn't entirely clear to me:
+   "the ontologies in O taken together provide a type for every individual ID"
+What about mixtures of arbitrary RDF and OWL ontology statements?
+Does this mean that every individual must have an explicit type statement?
+Exactly what counts as an individual for the purposes of this assertion?
+
+It has been my assumption that the various flavours of OWL can be used as a 
+"logical layer" to perform some reasoning about things described by 
+common-or-garden RDF.  I've since been told this may not be so.  If it is 
+true that Owl DL and Owl-lite are not suitable for doing any reasoning 
+about things described by ordinary "in the wild" RDF, I think this needs to 
+be clearly stated.
+
+-----
+
+For interest, the attachment to this message is the start of a sketch for 
+implementing the (section 4.1) transformation rules in Haskell.  The first 
+part of the code is an encoding of the abstract syntax using Haskell data 
+types.  The second part are some clauses of a Haskell function "transform" 
+that implements the transformation T described by the mapping table, 
+corresponding to the first 6 rows of the table.
+
+The code is far from complete, and hasn't been near a Haskell 
+compiler.  But I now think I see enough to complete the implementation.
+
+#g
+
+
+-------------------
+Graham Klyne
+<GK@NineByNine.org>
+PGP: 0FAA 69FF C083 000B A2E9  A131 01B9 1C7A DBCA CB5E
+
+
+
+
+text/plain attachment: OwlAbstractSyntax.hs
+
+
+
+

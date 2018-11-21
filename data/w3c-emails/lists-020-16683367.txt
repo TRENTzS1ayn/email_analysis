@@ -1,0 +1,206 @@
+docno="lists-020-16683367"
+received="Tue Mar 23 06:00:17 2004"
+isoreceived="20040323110017"
+sent="Tue, 23 Mar 2004 06:00:14 -0500"
+isosent="20040323110014"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Use case: federatedAnnotFoaf (and a bit about queries in RDF)"
+id="20040323110013.GB29400@w3.org"
+charset="us-ascii"
+inreplyto="AFBB0040-7BE4-11D8-B928-000A95EAFCEA&#64;nokia.com"
+expires="-1"
+
+To: Patrick Stickler<patrick.stickler@nokia.com>
+Cc: RDF Data Access Working Group<public-rdf-dawg@w3.org>
+
+
+
+On Mon, Mar 22, 2004 at 11:38:33AM +0200, Patrick Stickler wrote:
+> (a) expressing queries and query results in RDF
+
+Expressing queries in RDF:
+
+In LiteralDB+OWL, (a new name for PS-6 in deference to DanC's naming
+comments), you described a scenario where a server could use
+owl:sameAs, rdfs:subPropertyOf, owl:<class constraints> to manipulate
+the graph of an RDF query *because* it was expressed in RDF. To my
+eye, this treads on dangerous territory -- expressing the query as a
+simple graph results in it being an answer to the question, eg
+
+  <rdf:Description rdf:about="#who">
+    <pim:mbox rdf:resource="mailto:eric+eg@w3.org"/>
+    <foaf:firstName rdf:resource="#first"/>
+    <foaf:surname rdf:resource="#last"/>
+  <rdf:Description>
+
+could express:
+       ?who pim:mbox <mailto:eric+eg@w3.org>.
+       ?who foaf:firstName ?first.
+       ?who foaf:surname ?last.
+
+If the RDF form of the query were encountered by something other than
+the query agent, it would assert:
+
+       <http:...query5#who> pim:mbox <mailto:eric+eg@w3.org>.
+       <http:...query5#who> foaf:firstName <http:...query5#first>.
+       <http:...query5#who> foaf:surname <http:...query5#last>.
+
+which would give back the rather unsatisfactory bindings:
+       ?who:   <http:...query5#who>
+       ?first: <http:...query5#first>
+       ?last:  <http:...query5#last>
+
+By what mechanism could this happen? Maybe queries are stored in a
+queue. A triple store compulsively scoops up stuff in the queue and
+writes it down. A query engine pops off the queue that look like
+queries. It finds this query, asks a lot of resources, ends of getting
+back an answer from the compulsive scooper.
+
+The assertions in that RDF form of the query are not actually
+assertions. But they look like assertions so we'd have to keep them
+insulated from the RDF world all their life. (For those notstalgic
+about historical spam, "Poor little graph31825 can't leave his
+bubble. Please send postcards...") While it may be handy to use OWL
+and RDFS inferencing tools, to manipulate RDF-like forms of this
+query, I think the risk of graph "assertions" like this is very high.
+
+An alternative would be to reify the query, but then you'd be trying
+to apply rdfs:subPropertyOf to the object of an arc. eg
+    <rdf:Description rdf:about="http://xmlns.com/foaf/0.1/mbox">
+      <rdfs:subPropertyOf rdf:about="http://www.w3.org/2000/10/swap/pim/contact#mbox"/>
+    </rdf:Description>
+won't apply to
+    <rdfs:Statement>
+      <rdfs:predicate rdf:resource="http://xmlns.com/foaf/0.1/mbox"/>
+      <rdfs:subject rdf:resource="#who"/>
+      <rdfs:object rdf:resource="mailto:eric+eg@w3.org"/>
+    </rdfs:Statement>
+and won't help you match the instance data:
+    <rdfs:Description>
+      <pim:mbox rdf:resource="mailto:eric+eg@w3.org"/>
+    </rdfs:Description>
+Therefor, you wouldn't be able to directly use existing RDF tools.
+
+You could de-reifiy the query in a closed and controlled way (so's no
+"assertions" leaked out and polluted the world of facts) and then
+apply the owl reasoner, but you may as well* parse the query from RDQL
+or whatever language.
+
+* "may as well" will of course be subject to dispute.
+
+
+Expressing results in RDF:
+
+It is not necessary that RDF query results be expressed as statements
+for query federation.  Let's look at a fairly flushed out federation
+scenario.
+
+federatedAnnotFoaf:
+Client query: the name and email addrs of everyone who has created Annotea
+annotations:
+
+    ?annot dc:created     ?when
+    ?annot dc:creator     ?who
+    ?who   a:Email        ?email
+    ?who   foaf:givenName ?first
+    ?who   foaf:surname   ?last
+
+We send this query to http://www.w3.org/?DAWG and it break the query
+up into the pieces that it knows there is an agent to handle. It sends
+
+ask(?annot dc:created     ?when
+    ?annot dc:creator     ?who
+    ?who   a:Email        ?email)
+collect (?email ?when)
+
+to the Annotea server. The server gives back a list of email addres
+and dates those accounts created annotations. (Annotea account names
+are email addresses.) Let's assume first entry in this list is
+mailto:joe@example.com .
+
+The query federator knows that a:Email and foaf:mbox have ranges of
+the same data type (may 'cause one is a subPropertyOf the other) and
+knows (maybe some heuristic based on a service advertisement) that a
+foaf server is more likely to know foaf:mbox.
+
+For each of the email addresses that came back from the Annotea
+server, the unifier composes a new query that it sends to a foaf
+server:
+
+    ?who   a:Email        <mailto:joe@example.com>
+    ?who   foaf:givenName ?first
+    ?who   foaf:surname   ?last
+
+The server gives back all the combinations of first and last name for
+joe@example.com (probably 1, modula some problems spelling Joe
+Lambda's name). The federator of the query drops these results into
+the bindings table, eliminating or duplicating rows when the number of
+results is not 1:
+
+    date      email
+    20040311  mailto:joe@example.com
+    20040309  mailto:bob@example.com
+    ...       ...
+
+becomes
+
+    date      email                   first   last
+    20040311  mailto:joe@example.com  Joe     Lamda
+    20040311  mailto:joe@example.com  Joe     Lambda
+    20040309  mailto:bob@example.com  Bob     Robertson
+    ...       ...
+
+This can continue down through as many levels of federator/proxy as
+were involved in delivering the query. Every agent involved, including
+the client's, has the capacity to *extract* a graph given the query
+that it originally say and a set of bindings. This can provide the RDF
+analog of relatoinal closure.
+
+The extracted graph approach may not be ideal -- we may wish the query
+protocol to convey actual asserted facts (if it knows them) rather
+than constructing an apparent view of the world.  However, this is not
+strictly necessary in this use case. Can folks think of use cases
+(beyond trust issues where you need to tackle provenance/attribution)
+where it is necessary?
+
+> (b) a standard definition of a concise bounded description of a resource
+> (c) a standardized means to request the concise bounded description of a
+>     specific resource
+> 
+> >
+> >Provenance doesn't look like a requirement to me.
+> 
+> >Of course I think it's interesting and key to the future.
+> >I spend a lot of time researching it and doing advanced
+> >development with it. But it doesn't looke like part
+> >of the so-called "minimum required to declare victory."
+> 
+> I agree that provenance should be out of scope for this round.
+> 
+> Cheers,
+> 
+> Patrick
+> 
+> --
+> 
+> Patrick Stickler
+> Nokia, Finland
+> patrick.stickler@nokia.com
+
+-- 
+-eric
+
+office: +81.466.49.1170 W3C, Keio Research Institute at SFC,
+                        Shonan Fujisawa Campus, Keio University,
+                        5322 Endo, Fujisawa, Kanagawa 252-8520
+                        JAPAN
+        +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741 (does not work in Asia)
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

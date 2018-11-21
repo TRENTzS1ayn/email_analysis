@@ -1,0 +1,175 @@
+docno="lists-025-14214631"
+received="Sat Mar 15 13:54:17 2003"
+isoreceived="20030315185417"
+sent="Sat, 15 Mar 2003 08:10:14 -0800"
+isosent="20030315161014"
+name="Ricky Ho"
+email="riho@cisco.com"
+subject="Choreography and Orchestration"
+id="4.3.2.7.2.20030315075057.02898318@franklin.cisco.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:public-ws-chor@w3.org
+
+I try to put up my own definition of "Choreography" and "Orchestration" and 
+use a simple buyer/seller use case to illustrate what I mean.
+I'm particularly interested to see how the "Choreography" portion of this 
+simple example get represented by WSCI and BPSS.
+
+1       Definitions
+
+1.1     Choreography
+=================
+CHOREOGRAPHY defines the public part of a bi-lateral interaction between 
+two communicating parties.  It formalize a contractual agreement between 
+these parties.
+
+CHOREOGRAPHY defines TWO communicating parties in terms of ROLES, which 
+will be bound to the actual business entity when the choreography instance 
+starts.  The binding doesn?t change throughout the lifecycle of the 
+CHOREOGRAPHY INSTANCE.
+
+CHOREOGRAPHY defines a set of ?SHARED STATES? between the TWO communicating 
+parties.
+
+CHOREOGRAPHY defines the TRANSITIONS of SHARED STATES in terms of MEP, 
+where one ROLE sends a message to another ROLE.  In other words, the 
+purpose of MEP is to align the SHARED STATES between the two ROLES.
+
+CHOREOGRAPHY does NOT reflect the perspective of a single party.  It can be 
+taken by any parties who wants to play a role within it.
+
+The CHOREOGRAPHY INSTANCE starts when the following occurs
+?       One party sends the first message (which propose the initial SHARED 
+STATES) to another party.
+?       This another party verifies that the initial SHARED STATES meets 
+the pre-requisite to start the CHOREOGRAPHY
+
+1.2     Orchestration
+=================
+ORCHESTRATION defines the private part of the implementation of a 
+particular party who plays a ROLE in the CHOREOGRAPHY.  It formalize the 
+execution logic of that party throughout the message exchanges.
+
+ORCHESTRATION realize a particular ROLE of a CHOREOGRAPHY.  Therefore, 
+ORCHESTRATION needs to be conformed with the CHOREOGRAPHY.
+
+ORCHESTRATION can potentially span across multiple 
+CHOREOGRAPHIES.  Therefore, CHOREOGRAPHY INSTANCES can form inter-dependent 
+relationship at the ORCHESTRATION level.
+
+Note here that I try to restrict choreography to 2 parties and disallow 
+changes of role binding throughout the lifecycle of choreography 
+instance.  The downside is now a multi-party interaction needs to be broken 
+down into multiple bi-lateral choreographies and their inter-dependencies 
+is not externalized at the choreography level.  It is up to the 
+implementation (which is the orchestration) to determine such 
+inter-dependencies.  The purpose of these restrictions is to simplify the 
+choreography model which I think still address 80% of the real life use 
+cases.  I would like to see where it breaks before remove this restriction.
+
+2       Use Case Example
+
+Lets look at a very simple example of the product purchase interaction 
+between a BUYER, a SELLER, and a COURIER.
+?       The buyer send a PURCHASE ORDER message to the seller.
+?       The seller check the credit history of the seller as well as the 
+product availability and decide either to accept or reject the purchase order.
+?       If the seller decide to reject the order, he send an ORDER 
+REJECTION message back to the buyer.  The interaction ends here.
+?       If the seller decide to accept the order, he will arrange shipment 
+of the purchased product by selecting one of his preferred couriers.
+?       The selected courier pickup the product from the seller and deliver 
+to the buyer?s location.  The courier start a new interaction with the 
+buyer by sending a SHIPMENT NOTICATION message.
+?       The buyer verifies the product is delivered in good shape and send 
+back a SHIPMENT RECEIVED message to the courier as well as FULFILLMENT 
+COMPLETE message to the seller.  Otherwise, the buyer sends back a SHIPMENT 
+REJECTED message to the courier as well as FULFILLMENT FAILED message to 
+the seller.
+
+3       Illustration
+
+3.1     Choreography
+=================
+There are four possible CHOREOGRAPHIES in this example
+?       Product Purchase (Buyer and Seller)
+?       Credit Checking (Seller and CreditCheck provider)
+?       Arrange Delivery (Seller and Courier)
+?       Shipment Delivery (Courier and Buyer)
+
+For the purpose of this discussion, I?ll focus in the first one.
+
+3.1.1   Public / Shared States
+=======================
+Product Purchase choreography defines the following ?PUBLIC STATES?
+?       OrderNo
+?       OrderStatus (?Submitted?, ?Accepted?, ?Rejected?, ?Delivered?, 
+?Returned?, ?Terminated?)
+?       ShipmentNo
+
+3.1.2   Message Exchanges
+======================
+Product Purchase Choreography defines the PUBLIC STATE TRANSITIONS in terms 
+of the following message exchanges ?
+
+Start State = ?submitted?:  (OrderStatus=?submitted?)
+Triggered by: when buyer send a ?PurchaseOrder? to sender
+
+State = ?accepted?:  (OrderStatus= ?accepted?, OrderNo, ShipmentNo)
+ From State ?submitted?
+Triggered by when seller send a ?OrderAcceptance? message to buyer
+
+State = ?rejected?:  (OrderStatus= ?rejected?)
+ From State ?submitted?
+Triggered by when seller send a ?OrderRejection? message to buyer
+
+End State = ?delivered?:  (OrderStatus= ?delivered?, OrderNo, ShipmentNo)
+ From State ?accepted?
+Triggered by when buyer send a ?FulfillmentCompleted? message to seller
+
+End State = ?returned?:  (OrderStatus= ?returned?, OrderNo, ShipmentNo)
+ From State ?accepted?
+Triggered by when buyer send a ?FulfillmentFailed? message to seller
+
+3.2     Orchestration
+=================
+Here is the Orchestration of the Seller within the Product Purchase 
+Choreography
+
+Wait for receiving a PurchaseOrder message from buyer
+Starts a new instance of ?Credit Check? choreography by invoke the 
+CreditCheck web services.  After receiving the response, this ?Credit 
+Check? choreography instance is terminated.
+Invoke an internal web service to check the stock level of product availability
+If (credit is OK and product is available) {
+     Invoke an UDDI search to lookup shipping companies.
+     Select one courier based on company specific decision logic
+     Starts a new instance of ?Arrange Shipment? choreography by invoking 
+the ShipmentHandling web services.
+     Send an ?OrderAcceptance? message (which include the shipment No) to 
+the buyer
+     Wait for receiving either ?FulfillmentComplete? or ?FulfillmentFailed? 
+message from the buyer and update the OrderStatus correspondingly.  The 
+choreography instance ends here.
+     If the OrderStatus is ?return?, log into the customer care DB.
+} else {
+     Send an ?OrderRejection? message to the buyer
+}
+
+As you can see, some activities within the orchestration is not visible by 
+the buyer and hence is the private part of the seller.
+- Check the credit history
+- Check the product availability
+- Start another choreography with the courier
+
+
+Comments and Thoughts ?
+
+Best regards,
+Ricky
+
+
+

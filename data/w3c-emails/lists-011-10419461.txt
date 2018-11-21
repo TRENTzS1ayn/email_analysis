@@ -1,0 +1,277 @@
+docno="lists-011-10419461"
+received="Tue Nov 11 13:04:19 1997"
+isoreceived="19971111180419"
+sent="Tue, 11 Nov 1997 12:58:38 0800"
+isosent="19971111205838"
+name="Jim Gettys"
+email="jg@pa.dec.com"
+subject="If-NoneMatch and IMS (new Issue IMS_INM_MISMATCH)"
+id="9711112058.AA24575@pachyderm.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+This documents discussions on the implementation list that shows
+a new protocol issue (IMS_INM_MISMATCH).
+
+Now added to the issues list.
+- Jim Gettys
+
+
+
+attached mail follows:
+Is there a consensus on the correct behavior for a server when it
+receives a request with conflicting If-None-Match and If-Modified-Since
+headers, for instance where the I-N-M ETag is outdated but the I-M-S
+date is good?
+
+For example, take the following sequence
+
+GET /foo.txt HTTP/1.1
+Host: server.company.com
+
+HTTP/1.1 200 OK
+Last-Modified: Wed, 05 Nov 1997 22:10:48 GMT
+ETag: "12345"
+Content-Length: ...
+
+<data>
+
+GET /foo.txt HTTP/1.1
+Host: server.company.com
+If-None-Match: "12344"
+If-Modified-Since: Wed, 05 Nov 1997 22:10:48 GMT
+
+Assuming the Last-Modified date hasn't changed, what should the server
+send back as a response to the 2nd request, 304 or 200? I would have
+thought 200 is correct, since the ETag is invalid or out of date.
+However the spec indicates that the I-N-M header is to be treated as if
+it isn't present if the ETag doesn't match, and then the I-M-S would
+lead to a 304 response. Also the paragraph about I-N-M being ignored if
+the request would otherwise generate a non-2xx response would indicate
+that a 304 is correct. But there would seem to be a window here, where
+/foo.txt is modified twice in less than a second, the ETag is updated
+but the L-M date isn't, and a client using an out of date ETag gets a
+304 anyway. Or am I missing something here?
+
+Henry
+
+
+
+
+attached mail follows:
+Henry Sanders writes:
+>Is there a consensus on the correct behavior for a server when it
+>receives a request with conflicting If-None-Match and If-Modified-Since
+>headers, for instance where the I-N-M ETag is outdated but the I-M-S
+>date is good?
+
+Hmmm, I don't know about consensus, but I implemented it using the
+principle that an ETag test always overrides IMS.  I mentioned it as
+an issue on http-wg a long time ago, since the RFC fails to specify
+the ordering.  The Apache code (and comments) are below.
+
+>For example, take the following sequence
+>
+>GET /foo.txt HTTP/1.1
+>Host: server.company.com
+>
+>HTTP/1.1 200 OK
+>Last-Modified: Wed, 05 Nov 1997 22:10:48 GMT
+>ETag: "12345"
+>Content-Length: ...
+>
+><data>
+>
+>GET /foo.txt HTTP/1.1
+>Host: server.company.com
+>If-None-Match: "12344"
+>If-Modified-Since: Wed, 05 Nov 1997 22:10:48 GMT
+>
+>Assuming the Last-Modified date hasn't changed, what should the server
+>send back as a response to the 2nd request, 304 or 200?
+
+200.
+
+>I would have
+>thought 200 is correct, since the ETag is invalid or out of date.
+>However the spec indicates that the I-N-M header is to be treated as if
+>it isn't present if the ETag doesn't match, and then the I-M-S would
+>lead to a 304 response. Also the paragraph about I-N-M being ignored if
+>the request would otherwise generate a non-2xx response would indicate
+>that a 304 is correct. But there would seem to be a window here, where
+>/foo.txt is modified twice in less than a second, the ETag is updated
+>but the L-M date isn't, and a client using an out of date ETag gets a
+>304 anyway. Or am I missing something here?
+
+Nope, that about sums it up.  200 is what the response should be, but
+the RFC is less than clear.
+
+....Roy
+=====================================================================
+
+API_EXPORT(int) meets_conditions(request_rec *r)
+{
+    char *etag = table_get(r->headers_out, "ETag");
+    char *if_match, *if_modified_since, *if_unmodified, *if_nonematch;
+    time_t mtime;
+
+    /* Check for conditional requests --- note that we only want to do
+     * this if we are successful so far and we are not processing a
+     * subrequest or an ErrorDocument.
+     *
+     * The order of the checks is important, since ETag checks are supposed
+     * to be more accurate than checks relative to the modification time.
+     * However, not all documents are guaranteed to *have* ETags, and some
+     * might have Last-Modified values w/o ETags, so this gets a little
+     * complicated.
+     */
+
+    if (!is_HTTP_SUCCESS(r->status) || r->no_local_copy) {
+        return OK;
+    }
+
+    mtime = (r->mtime != 0) ? r->mtime : time(NULL);
+
+    /* If an If-Match request-header field was given
+     * AND if our ETag does not match any of the entity tags in that field
+     * AND the field value is not "*" (meaning match anything), then
+     *     respond with a status of 412 (Precondition Failed).
+     */
+    if ((if_match = table_get(r->headers_in, "If-Match")) != NULL) {
+        if ((etag == NULL) ||
+            ((if_match[0] != '*') && !find_token(r->pool, if_match, etag))) {
+            return HTTP_PRECONDITION_FAILED;
+        }
+    }
+    else {
+        /* Else if a valid If-Unmodified-Since request-header field was given
+         * AND the requested resource has been modified since the time
+         * specified in this field, then the server MUST
+         *     respond with a status of 412 (Precondition Failed).
+         */
+        if_unmodified = table_get(r->headers_in, "If-Unmodified-Since");
+        if (if_unmodified != NULL) {
+            time_t ius = parseHTTPdate(if_unmodified);
+
+            if ((ius != BAD_DATE) && (mtime > ius)) {
+                return HTTP_PRECONDITION_FAILED;
+            }
+        }
+    }
+
+    /* If an If-None-Match request-header field was given
+     * AND if our ETag matches any of the entity tags in that field
+     * OR if the field value is "*" (meaning match anything), then
+     *    if the request method was GET or HEAD, the server SHOULD
+     *       respond with a 304 (Not Modified) response.
+     *    For all other request methods, the server MUST
+     *       respond with a status of 412 (Precondition Failed).
+     */
+    if_nonematch = table_get(r->headers_in, "If-None-Match");
+    if (if_nonematch != NULL) {
+        int rstatus;
+
+        if ((if_nonematch[0] == '*')
+            || ((etag != NULL) && find_token(r->pool, if_nonematch, etag))) {
+            rstatus = (r->method_number == M_GET) ? HTTP_NOT_MODIFIED
+                                                  : HTTP_PRECONDITION_FAILED;
+            return rstatus;
+        }
+    }
+    /* Else if a valid If-Modified-Since request-header field was given
+     * AND it is a GET or HEAD request
+     * AND the requested resource has not been modified since the time
+     * specified in this field, then the server MUST
+     *    respond with a status of 304 (Not Modified).
+     * A date later than the server's current request time is invalid.
+     */
+    else if ((r->method_number == M_GET)
+             && ((if_modified_since =
+                  table_get(r->headers_in, "If-Modified-Since")) != NULL)) {
+        time_t ims = parseHTTPdate(if_modified_since);
+
+        if ((ims >= mtime) && (ims <= r->request_time)) {
+            return HTTP_NOT_MODIFIED;
+        }
+    }
+    return OK;
+}
+
+
+
+
+attached mail follows:
+Just what you wanted to see, another HTTP/1.1 issue....
+
+This is something I sent out to the HTTP implementors list about a week
+ago. Looks like the spec says to send a 304 when a 200 response would be
+better. Any comments?
+
+Henry
+
+> -----Original Message-----
+> From:Henry Sanders (Exchange) 
+> Sent:Wednesday, November 05, 1997 4:26 PM
+> To:w3c-http@w3.org
+> Subject:If-None-Match and IMS
+> 
+> Is there a consensus on the correct behavior for a server when it
+> receives a request with conflicting If-None-Match and
+> If-Modified-Since headers, for instance where the I-N-M ETag is
+> outdated but the I-M-S date is good?
+> 
+> For example, take the following sequence
+> 
+> GET /foo.txt HTTP/1.1
+> Host: server.company.com
+> 
+> HTTP/1.1 200 OK
+> Last-Modified: Wed, 05 Nov 1997 22:10:48 GMT
+> ETag: "12345"
+> Content-Length: ...
+> 
+> <data>
+> 
+> GET /foo.txt HTTP/1.1
+> Host: server.company.com
+> If-None-Match: "12344"
+> If-Modified-Since: Wed, 05 Nov 1997 22:10:48 GMT
+> 
+> Assuming the Last-Modified date hasn't changed, what should the server
+> send back as a response to the 2nd request, 304 or 200? I would have
+> thought 200 is correct, since the ETag is invalid or out of date.
+> However the spec indicates that the I-N-M header is to be treated as
+> if it isn't present if the ETag doesn't match, and then the I-M-S
+> would lead to a 304 response. Also the paragraph about I-N-M being
+> ignored if the request would otherwise generate a non-2xx response
+> would indicate that a 304 is correct. But there would seem to be a
+> window here, where /foo.txt is modified twice in less than a second,
+> the ETag is updated but the L-M date isn't, and a client using an out
+> of date ETag gets a 304 anyway. Or am I missing something here?
+> 
+> Henry
+> 
+
+
+
+attached mail follows:
+> >that a 304 is correct. But there would seem to be a window here,
+> where
+> >/foo.txt is modified twice in less than a second, the ETag is updated
+> >but the L-M date isn't, and a client using an out of date ETag gets a
+> >304 anyway. Or am I missing something here?
+> 
+> Nope, that about sums it up.  200 is what the response should be, but
+> the RFC is less than clear.
+> 
+I agree that 200 is what the response should be, but saying the
+RFC is unclear is an understatement. I think the RFC actually
+contradicts this view, twice. I'll pass this on to the HTTP group, maybe
+we can get it fixed in the update.
+
+Henry
+
+
+

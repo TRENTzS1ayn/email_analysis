@@ -1,0 +1,120 @@
+docno="lists-103-16403148"
+received="Thu Jul  5 22:59:29 2001"
+isoreceived="20010706025929"
+sent="Thu, 05 Jul 2001 20:03:56 +0000"
+isosent="20010705200356"
+name="Ray Whitmer"
+email="rayw@netscape.com"
+subject="Re: ActiveNodeSet/StaticNodeSet alternative"
+id="3B44C82C.2070904@netscape.com"
+charset="us-ascii"
+inreplyto="70E215722F6AD511820A000103D141D40AA413&#64;thor.aeathtl.com"
+expires="-1"
+
+
+To:"Arnold Curt"<Curt.Arnold@hyprotech.com>
+CC:"'www-dom@w3.org'"<www-dom@w3.org>
+
+Arnold, Curt wrote:
+
+>However, that would still not negate my point that objects that 
+>represent the same concept (a NodeSet) should at least share a common
+>ancestor interface so that you don't have to create four different
+>implementations of some code that doesn't care if the NodeSet is a 
+>NodeList, NamedNodeMap, ActiveNodeSet or StaticNodeSet.  Though
+>if those distinctions might be essential to some applications,
+>they could be expressed by different derived interfaces or property
+>values.
+>
+ A while before the draft was published the two interfaces did derive
+from a common base, but people wanted a more-iterator-like approach 
+where it
+made most sense in the ActiveNodeSet, so it was changed.  This makes the
+ActiveNodeSet very like an iterator which invalidates itself when the 
+thing it
+is iterating over changes.
+
+The alternative seems to be to force implementations to be both lists 
+and iterators,
+and everyone loses.  At least now the user can choose one object or the 
+other.
+If the current design is kept, I am reasonably certain that most 
+implementations
+will still share a base implementation, but not at the public method 
+level, and it is not
+clear that it is important for them to share public method names, since 
+the behaviors
+of the two sets are quite different -- one tracks the current hierarchy 
+whereas the
+other represents a snapshot.  The two cannot behave identically.  If 
+your active
+implementation chooses to use a static snapshot and add invalidation on 
+top,
+creating an iterator on top of a list is few lines of code.  For other 
+implementors,
+the active set might be the base, which doesn't need to set up caching 
+since it
+can be incrementally computed since we know it is active, and building a 
+static
+set on top of an active set implementation is, likewise, quite a trivial 
+caching
+operation.
+
+>I'm not sure of the value of ActiveNodeSet.  For the usage scenario
+>that you described, the tree being modified during the lifetime of
+>the NodeSet, presumably by another thread, all ActiveNodeSet gets you
+>is a check that the node is still a member of the result set at the
+>instant of the call to item().  Its membership in result set
+>could be invalidated immediately after the call to item().
+>
+If you have threads asynchronously modifying the tree, all bets are off 
+for nearly
+any DOM use case I can think of.  Consider it a given that there must be 
+synchronization
+between threads operating on the same document managed by the 
+application.  There
+is NO substitute for synchronization between threads.  DOM methods will 
+crash
+without synchronization, and most DOM operations involve multiple operations
+that must be synchronized as a single operation or the program will crash.
+
+But for properly-synchronized applications, the ActiveNodeSet guarantees
+that the hierarchy has not been mutated since the set was computed, which is
+valuable to either a synchronized or to a single threaded application.
+
+>If we had a distinct XPath expression interface, could the anticipated
+>use cases not be more cleanly implemented by having evalute and
+>evaluteAsNodeSet return a "static" list, but expose a method on the XPath
+>expression that allows you to determine whether a particular node is
+>instantaneously a member of the result set for the XPath expression.
+>
+This would be more painful to use -- instead of just expecting an 
+exception if
+the hierarchy has mutated, you would have to recheck every node.  This also
+permits a number of mutations that impact the set, but may not be 
+detected when
+testing one node at a time.   It might answer "true" because the node 
+has been
+moved to some prior location in the node set, meaning that the order has 
+changed
+without the application being aware of it.  Testing a single node tells 
+you little
+about the general integrity of the set with respect to the current 
+hierarchy.  If the
+document is changed, it is likely that the processing has been 
+invalidated, even
+though the current node may still be in the set.
+
+It also seems difficult to use efficiently, because it may cause repeated
+unnecessary reevaluation of the XPath expression that still fails to
+warn of the skew between the snapshot and the hierarchy.
+
+That's my take, anyway.
+
+Best regards,
+
+Ray Whitmer
+rayw@netscape.com
+
+
+

@@ -1,0 +1,135 @@
+docno="lists-054-7842603"
+received="Fri Nov 15 16:16:56 1996"
+isoreceived="19961115211656"
+sent="Fri, 15 Nov 1996 12:46:33 -0800"
+isosent="19961115204633"
+name="Joe English"
+email="jenglish@crl.com"
+subject="Re: ERB discussions and decisions"
+id="199611152046.AA19993@mail.crl.com"
+inreplyto="199611150033.TAA28839&#64;www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+
+Michael Sperberg-McQueen <U35395@UICVM.UIC.EDU> wrote:
+
+> The author's apologies to busy members of the WG who would prefer a
+> shorter account of the decisions;
+
+Not at all!  Your account of the meeting is very much
+appreciated -- thanks for taking the time to report it
+at that level of detail.
+
+[ ... ]
+
+>  * Discussed, once more, question C.10 (allow or prohibit
+> non-deterministic content models). [...] Determinism
+> is not particularly important to XML, but in Full SGML, the AND
+> connector and the definition of start-tag omission interact with it
+> and make it far more important.  A minority asked what AND has to do
+> with it,
+
+
+AND groups and the ambiguity restriction interact in at least two ways:
+
+    1) The presence of AND groups makes checking content models
+       for ambiguity much more difficult; and
+
+    2) The ambiguity restriction makes it easier to parse instances
+       against content models with AND groups.
+
+
+#2 requires some explanation.  There are dozens of algorithms for
+matching a sequence against a regular expression.  The introduction of AND
+groups makes many of these algorithms either intractable or unusable.
+However, if a parser is allowed to assume that the content model is
+deterministic, then some of them become tractable again.  In particular,
+many finite automaton-based techniques (e.g., Ken Thompson's familiar
+construction) and the "parse-tree walking" algorithm (the one used by SGMLS
+and, I think, SP) can be straightforwardly adapted to handle AND
+groups (using the "set an auxilliary flag" method), but this only works
+if the content model as a whole is deterministic.
+
+This is not to say that the ambiguity restriction is _necessary_ to
+make validation tractable: there are efficient algorithms for matching
+against extended regular expressions, including nondeterministic ones
+with the permutation operator (AND groups); these are not, however, as
+far as I know, as widely known.
+
+Nor do I mean to say that there are no automaton-based algorithms that
+can handle both AND groups and nondeterminism efficiently, it's just that I
+haven't been able to find any yet.
+
+Anyway, the upshot of all this is: the ambiguity rule makes it harder
+to validate DTDs.  AND groups make it harder to validate instances.
+The ambiguity rule makes it "easier" to validate instances, in the sense
+that more algorithms are available to choose from.
+
+
+> and suggested that all cases of start-tag omission allowed
+> by the current rules would also be possible with nondeterministic
+> rules, as experimentation with any LALR(1) parser generator should
+> show.
+
+I've done some research on this issue too.  I don't have any
+conclusive results, but I can say with certainty that:
+
+    1) The "obvious" approach [*] for handling start-tag omission
+       by LL- or LR- parsing techniques will not work.  In particular:
+
+ a) using the "obvious" DTD->CFG construction, a LALR or LL parser
+    will predict start-tag omission in places that an SGML
+    parser will not, and an SGML parser will allow omission
+    in places that an LALR or LL parser will not.
+
+ b) the "obvious" DTD->CFG construction will not, in many
+    cases, yield an LL- or LR- grammar [**].
+
+    2) Converting content models to CFG productions induces a
+       worst-case exponential increase in size (the average case
+       for typical content models is linear, though).
+
+    3) LALR parsing is much more expensive than "conventional"
+       SGML parsing (i.e., "how SP does it").  In particular,
+       constructing LALR parsing tables requires time polynomial
+       in the size of the entire grammar.
+
+
+[*] In case the "obvious" approach isn't so obvious:
+
+<!ELEMENT X - - (...)>
+<!ELEMENT Y - O (...)>
+<!ELEMENT Z O O (...)>
+
+becomes, given suitable transformations for ?-start-tag, ?-content-model
+and ?-end-tag:
+
+X ::= x-start-tag x-content-model x-end-tag
+
+Y ::= y-start-tag y-content-model y-end
+y-end ::= y-end-tag | nothing
+
+Z ::= z-start z-content-model z-end
+z-start ::= z-start-tag | nothing
+z-end ::= z-end-tag | nothing
+
+
+[**] Consider:
+
+<!ELEMENT FOO - - (a?, b)>
+<!ELEMENT (a|b) O O (X)>
+<!ELEMENT X- O EMPTY>
+...
+
+The "obvious" equivalent CFG is ambiguous (let alone LL or LR).
+
+
+--Joe English
+
+  jenglish@crl.com
+
+
+

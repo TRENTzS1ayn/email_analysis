@@ -1,0 +1,199 @@
+docno="lists-044-14030946"
+received="Fri Aug 11 20:28:44 2000"
+isoreceived="20000812002844"
+sent="Fri, 11 Aug 2000 17:27:41 -0700"
+isosent="20000812002741"
+name="Brian LaMacchia"
+email="bal@microsoft.com"
+subject="RE: X509Data tweaks"
+id="FB9575840F91DC4EACEB5CD6F573A20D7CEBF4@red-msg-20.redmond.corp.microsoft.com"
+inreplyto="X509Data tweaks"
+expires="-1"
+
+
+To:"'tgindin@us.ibm.com'"<tgindin@us.ibm.com>
+Cc:"'Donald E. Eastlake 3rd'"<dee3@torque.pothole.com>,w3c-ietf-xmldsig@w3.org
+
+No, it wouldn't; this approach is analogous to the PKCS#7/CMS bag-of-certs
+structures (see RFC 2630, Section 10.2.3: CertificateSet).
+
+--bal 
+
+-----Original Message-----
+From: tgindin@us.ibm.com [mailto:tgindin@us.ibm.com]
+Sent: Friday, August 11, 2000 4:36 PM
+To: Brian LaMacchia
+Cc: 'Donald E. Eastlake 3rd'; w3c-ietf-xmldsig@w3.org
+Subject: RE: X509Data tweaks
+
+
+     Wouldn't the example of multiple X509Data's in a single KeyInfo make
+more sense if the certificates formed a chain?  There is an example, which
+I hope is fairly understandable, in my earlier posting
+http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2000JulSep/0198.html.
+That example has X509Data's for three separate certificates, the first of
+which is an end-user certificate which was the signer of the actual
+document, the second of which is a CA certificate which is the issuer of
+the first certificate, and the third of which is a root CA which was the
+issuer of the second certificate.
+
+          Tom Gindin
+
+Brian LaMacchia <bal@microsoft.com>@w3.org on 08/11/2000 06:33:39 PM
+
+Sent by:  w3c-ietf-xmldsig-request@w3.org
+
+
+To:   "'Donald E. Eastlake 3rd'" <dee3@torque.pothole.com>
+cc:   w3c-ietf-xmldsig@w3.org
+Subject:  RE: X509Data tweaks
+
+
+
+Don--
+
+I think your DTD for the X509Data element is slightly incorrect.  What you
+sent around would allow zero-or-more certs or zero-or-more CRLs in a single
+X509Data.  What I believe was proposed in Pittsburgh was this:
+
+   <element name='X509Data'>
+     <complexType content='elementOnly'>
+       <choice minOccurs='1' maxOccurs='1'>
+         <sequence minOccurs='1' maxOccurs='unbounded'>
+           <choice minOccurs='1' maxOccurs='1'>
+             <element ref='ds:X509IssuerSerial'/>
+             <element name='X509SKI' type='ds:CryptoBinary'/>
+             <element name='X509SubjectName' type='string'/>
+           <element name='X509Certificate' type='ds:CryptoBinary'/>
+           </choice>
+         </sequence>
+         <element name='X509CRL' type='ds:CryptoBinary' minOccurs='1'
+maxOccurs='1'/>
+       </choice>
+     </complexType>
+   </element>
+
+or in DTD:
+
+   <!ELEMENT X509Data ((X509IssuerSerial | X509SKI | X509SubjectName |
+X509Certificate)+ | X509CRL) >
+   <!ELEMENT X509IssuerSerial (X509IssuerName, X509SerialNumber) >
+   <!ELEMENT X509IssuerName (#PCDATA) >
+   <!ELEMENT X509SubjectName (#PCDATA) >
+   <!ELEMENT X509SerialNumber (#PCDATA) >
+   <!ELEMENT X509SKI (#PCDATA) >
+   <!ELEMENT X509Certificate (#PCDATA) >
+   <!ELEMENT X509CRL (#PCDATA) >
+
+That is, a single X509Data may contain a collection of certs, SKI,
+SubjectName & IssuerSerial identifiers, so long as (a) all SKI, SubjectName
+& IssuerSerial references refer to the same key, and (b) at least one of
+the
+certs has a subject public key that will verify the signature.
+Alternatively, an X509Data may contain exactly one CRL (what you have below
+would allow multiple CRLs within a single X509Data).
+
+                         --bal
+
+-----Original Message-----
+From: Donald E. Eastlake 3rd [mailto:dee3@torque.pothole.com]
+Sent: Friday, August 11, 2000 12:57 PM
+To: w3c-ietf-xmldsig@w3.org
+Subject: X509Data tweaks
+
+
+Here is a modified version of the section on X509Data as per the
+discussion in Pittsburgh:
+
+<h3>4.4.4 The <a id="sec-X509Data"
+name="sec-X509Data"><code>X509Data</code></a> Element</h3>
+
+<p>An <code>X509Data</code> element within <code>KeyInfo</code>
+contains one or more identifiers of keys or identifiers of 509
+certificates or X509 certificates or X509 certificate revocation lists
+that may be useful for validation. Five types of <code>X509Data</code>
+are defined:
+
+<ol>
+  <li>The <code>X509IssuerSerial</code> element, which contains an
+  X.509 issuer distinguished name/serial number pair that SHOULD be
+  compliant with <u>RFC2253 [<a href="#ref-LDAP-DN">LDAP-DN</a>]</u>,
+  </li>
+  <li>The <code>X509SubjectName</code> element, which contains an
+  X.509 subject distinguished name that SHOULD be compliant with
+  <u>RFC2253 [<a href="#ref-LDAP-DN">LDAP-DN</a>]</u>, </li>
+  <li>The <code>X509SKI</code> element, which contains an X.509 subject key
+  identifier value.</li>
+  <li>The <code>X509Certificate</code> element,
+  which contains a Base64-encoded X.509v3 certificate, and</li>
+  <li>The <code>X509CRL</code> element, which contains a
+  Base64-encoded X.509v2 certificate revocation list (CRL).</li>
+</ol>
+
+<p>Multiple declarations about a single certificate (e.g., a
+<code>X509SubjectName</code> and <code>X509IssuerSerial</code>
+element) MUST be grouped inside a single <code>X509Data</code>
+element; multiple declarations about the same key but different
+certificates (related to that single key) MUST be grouped within a
+single <code>KeyInfo</code> element but MAY occur in multiple
+<code>X509Data</code> elements.  For example, the
+following block contains two pointers to certificate-A (issuer/serial
+number and SKI) and a single reference to certificate-B
+(SubjectName):</p>
+
+<pre class="xml-example">   &lt;X509Data&gt; &lt;!-- two pointers to
+certificate-A --\
+&gt;
+     &lt;X509IssuerSerial&gt;
+       &lt;X509IssuerName&gt;<span
+class="tx">CN=TAMURA Kent, OU=TRL, O=IBM,
+        L=Yamato-shi, ST=Kanagawa, C=JP</span>&lt;/X509IssuerName&gt;
+       &lt;X509SerialNumber&gt;12345678&lt;/X509SerialNumber&gt;
+     &lt;/X509IssuerSerial&gt;
+     &lt;X509SKI&gt;31d97bd7&lt;/X509SKI&gt;
+   &lt;/X509Data&gt;
+   &lt;X509Data&gt; &lt;!-- single pointer to certificate-B --&gt;
+     &lt;X509SubjectName&gt;Subject of <u>Certificate
+B</u>&lt;/X509SubjectName&gt;
+   &lt;/X509Data&gt;</pre>
+
+<p><u>Note: Direct provision is not made for a PKCS#7 encoded
+&quot;bag&quot; of certificates or CRLs but such a set of
+certificates or CRLs can occur within an X509Data element. Whenever
+multiple certificates occur in an <code>X509Data</code> element, at
+least one such certificate must contain the public key which verifies
+the signature.</u></p>
+
+;element name='X509IssuerName' type='string' minOccurs='1' maxOccurs='1'/\
+&gt;
+         &lt;element name='X509SerialNumber' type='<u>integer</u>'
+minOccurs='1' maxO\
+ccurs='1'/&gt;
+       &lt;/sequence&gt;
+     &lt;/complexType&gt;
+   &lt;/element&gt;
+</pre>
+
+<pre class="xml-dtd">
+   DTD:
+
+ <u>  &lt;!ELEMENT X509Data ((X509IssuerSerial | X509SKI |
+X509SubjectName)+
+|
+                      X509Certificate* | X509CRL*)&gt;</u>
+   &lt;!ELEMENT X509IssuerSerial (X509IssuerName, X509SerialNumber) &gt;
+   &lt;!ELEMENT X509IssuerName (#PCDATA) &gt;
+   &lt;!ELEMENT X509SubjectName (#PCDATA) &gt;
+   &lt;!ELEMENT X509SerialNumber (#PCDATA) &gt;
+   &lt;!ELEMENT X509SKI (#PCDATA) &gt;
+   &lt;!ELEMENT X509Certificate (#PCDATA) &gt;
+   &lt;!ELEMENT X509CRL (#PCDATA) &gt;
+</pre>
+
+=====================================================================
+ Donald E. Eastlake 3rd                      dee3@torque.pothole.com
+ 140 Forest Avenue                                +1 978-562-2827(h)
+ Hudson, MA 01749 USA                             +1 508-261-5434(w)
+
+
+

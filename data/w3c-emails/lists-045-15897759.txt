@@ -1,0 +1,157 @@
+docno="lists-045-15897759"
+received="Tue May  7 02:56:35 2002"
+isoreceived="20020507065635"
+sent="Tue, 07 May 2002 09:01:21 +0200"
+isosent="20020507070121"
+name="Christian Geuer-Pollmann"
+email="geuer-pollmann@nue.et-inf.uni-siegen.de"
+subject="Re: Change request &ndash;&ndash; was Re: Alternative XPathFilter &ndash; a picture  says  more..."
+id="4841481.1020762081@pinkpanther"
+charset="iso-8859-1"
+inreplyto="44502150.1020716058&#64;crypto"
+expires="-1"
+
+To: merlin<merlin@baltimore.ie>
+Cc: John Boyer<JBoyer@PureEdge.com>,reagle@w3.org,w3c-ietf-xmldsig@w3.org
+
+
+Hi all,
+
+sorry, sorry. I was wrong -- I can't optimize the xmldsig-xfilter2. I was 
+mixing my tree-labeling-mechanism with xmldsig-xfilter2 and thought that I 
+can label the tree with the information from all xmldsig-xfilter2 
+transforms and then do only perform a single performant traversal, but 
+that's not possible with the current processing model.
+
+
+
+I overlooked the fact that e.g. a union(/) as last transform wastes all 
+previous ones (because it re-includes everything) and that I'm forced to 
+perform each step to see what happens. The difference between 
+xmldsig-xfilter2 [1] and my approach [2] is that
+
+- [1] forces the implementation to do each transform subsequently without 
+having a chance to make some optimizations. There is even the chance that 
+some transforms in a sequence are redundant. Well, it's more performant 
+that the standard XPath filter in a way that an XPath does not has to be 
+evaluated against each node in the input nodeset, but it's a little bit 
+unperformant in the way that the filter must perform 'n' tree operations of 
+there are 'n' transforms. Each transform only communicates information on 
+selection/de-selection of particular nodes, and each selection/de-selection 
+must be done imediately .
+
+- while [2] describes the full picture in a single step; All 
+selection/de-selection information can be communicated in a single 
+transform. This does NOT require more XPath evaluations that [1]. After 
+this step, the algorithm does a traversal over the DOM and that's it. No 
+more operations. Very similar (even better preformance).
+
+Regards,
+Christian
+
+PS: Actually, I don't know why [2] is not considered by anybody be worth to 
+have a closer look at. Is it that I did not communicate clearly the 
+processing model? Do I have to provide a more-extensive example? Are the 
+implementations of [1] deployed in production environments so that we MUST 
+make [1] a TR? Are we in time pressure that we must get a TR before this or 
+that date? Nobody want's to waste time with my weird idea? It would be a 
+great help for me to understand why I see this strong resistance.
+
+[1] <http://www.w3.org/Signature/Drafts/xmldsig-xfilter2/>, Revision v1.5
+[2] 
+<http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0226.html>
+ 
+<http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0236.html>
+
+
+
+
+
+
+
+
+--On Montag, 6. Mai 2002 20:14 +0200 Christian Geuer-Pollmann 
+<geuer-pollmann@nue.et-inf.uni-siegen.de> wrote:
+
+> --On Dienstag, 19. M?rz 2002 23:48 +0000 merlin <merlin@baltimore.ie>
+> wrote:
+>
+>> Admittedly, it allows operations such as exclude an element in
+>> the middle of a tree, but include its children ("H" in your example),
+>> but I don't think that these features are compelling. People can use
+>> the old XPath if they need an operation as esoteric as that.
+>
+> Hi Merlin,
+> hi all
+>
+> First, in reply to Merlin's post[2], I'm happy to confirm that the
+> current spec of "XML-Signature XPath Filter 2.0" [1] allows my esoteric
+> suggestion from [3] ;-) (I attached the sample at this mail).
+>
+> Now to I have a suggestion/change request about the "XML-Signature XPath
+> Filter 2.0" [1]:
+>
+> ---
+> What I want: I want to be able to "merge" multiple, subsequent (directly
+> followinf each other) xmldsig-xfilter2 transforms into a single transform.
+>
+> ---
+> Why I want it: First, this transform is cool - it really rules. This
+> transform is very powerful in the ways how easily I (as a user) can
+> express my wishes on what I want to sign - simply in a subtree language
+> which is really intuitive. The real power of this transform becomes
+> visible if I chain multiple of these transforms into a direct sequence: I
+> can cut, divide, include, exclude, whatever I want. My own implementation
+> has a very clean interface on what is given from a previous to a
+> following transform: either an octet stream or an xpath node set. If I
+> want to release the full power of this transform, I need all
+> intersect/subtract/union information in my hands in a single transform.
+> THEN I can speed up and touch every node only once. The processing model
+> does not change: Multiple 'steps' (whereas e.g. a single union operation
+> is a step) are applied in the order in which they appear in the transform.
+>
+> ---
+> How this could look like:
+>
+> <ds:Transform Algorithm="http://www.w3.org/2002/04/xmldsig-filter2"
+>        xmlns:dsig-xpath="http://www.w3.org/2002/04/xmldsig-filter2">
+>   <dsig-xpath:XPath Filter="intersect"> //E </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //B </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="subtract">  //C </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //F </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="subtract">  //G </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //H </dsig-xpath:XPath>
+> </ds:Transform>
+> ---
+>
+> Note to the schema cracks: Here, I have multiple child elements put
+> directly into the ds:Transform. If it's more philosphically correct,
+> insert an intermediary element like that:
+>
+> <ds:Transform Algorithm="http://www.w3.org/2002/04/xmldsig-filter2"
+>        xmlns:dsig-xpath="http://www.w3.org/2002/04/xmldsig-filter2">
+>   <dsig-xpath:XPathSequence>
+>   <dsig-xpath:XPath Filter="intersect"> //E </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //B </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="subtract">  //C </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //F </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="subtract">  //G </dsig-xpath:XPath>
+>   <dsig-xpath:XPath Filter="union">     //H </dsig-xpath:XPath>
+>   </dsig-xpath:XPathSequence>
+> </ds:Transform>
+>
+> Regards,
+> Christian
+>
+>
+> [1] http://www.w3.org/Signature/Drafts/xmldsig-xfilter2/
+>     Revision v1.5
+> [2]
+> http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0237.html
+> [3]
+> 
+http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/att-0236/01
+-xpath2filter_tree.gif
+
+
+

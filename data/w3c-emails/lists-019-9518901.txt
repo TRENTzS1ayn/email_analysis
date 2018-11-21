@@ -1,0 +1,222 @@
+docno="lists-019-9518901"
+received="Thu Sep 11 16:26:51 2003"
+isoreceived="20030911202651"
+sent="Thu, 11 Sep 2003 22:27:31 +0200"
+isosent="20030911202731"
+name="Xavier C. Franc"
+email="xfranc@online.fr"
+subject="From lawyers to durations"
+id="3F60DAB3.2030300@online.fr"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+
+To find the quotation in Jon Bosak's XML markup of Shakespeare's plays,
+it is possible to use the following query:
+
+for $d in doc("hen_vi_2.xml")//SPEECH[ contains(., "kill") and contains(., "lawyers")]
+     return ($d/ancestor::PLAY/TITLE, $d/ancestor::ACT/TITLE, $d/ancestor::SCENE/TITLE, $d)
+
+yielding something like:
+
+        <TITLE>The Second Part of Henry the Sixth</TITLE>
+        <TITLE>ACT IV</TITLE>
+        <TITLE>SCENE II.  Blackheath.</TITLE>
+        <SPEECH>
+          <SPEAKER>DICK</SPEAKER>
+          <LINE>The first thing we do, let's kill all the lawyers.</LINE>
+        </SPEECH>
+
+This is written in XML Query, a nice new language with interesting features,
+but whose specifications are IMHO a bit slow to become a definitive recommendation
+and suffer from a few remaining problems.
+
+So, the first thing we do, let's look at those remaining problems.
+[we'll care later about lawyers... :-)]
+
+
+I am concerned mainly about duration types and related functions, but I have
+a few other issues that will be addressed later.
+
+Although Michael Kay made a sensible proposal about this question, so far there were
+no replies to it:
+
+http://lists.w3.org/Archives/Public/public-qt-comments/2003Jun/0087.html
+
+In this posting I would like to:
+
+1) Back up the idea of date/time F&O involving only *numeric* durations
+        (With the consequence of dropping subtypes xdt:yearMonthDuration,
+         xdt:dayTimeDuration.)
+
+2) Try to sketch out what kind of functions are useful in practice
+
+3) make a detailed proposal
+
+~~~~
+
+1) Why only numeric durations should be used:
+
+     ISO 8601 and XML Schema define durations that can have a "month" component.
+     That means that it is possible to express a duration like "three months" ["P3M"].
+     While this can be convenient in casual language, xs:duration can hardly be
+     considered a scientific notation: there is no way to convert "three months" into
+     a number of days in a one-to-one way (the result can be 89 or 90 or 91 or 92 days,
+     depending on the origin), and therefore it is not possible for example to
+     compare P3M and P90D.
+
+     In consequence, functions manipulating such data are bound to
+     be of great complexity and to have peculiar properties. As an example,
+     - it is not possible in general to compare two durations (partial order)
+     - adding P1M to March 31 is currently supposed to return April 30, but this is
+       arbitrary: it could as well return May 1.
+     - (2000-03-30 + P1D) + P1M is different than (2000-03-30 + P1M) + P1D
+
+     To cope with such problems, the WG has chosen to introduce subtypes of
+     xs:duration plus a great deal of functions and operators manipulating these types.
+
+     It looks like a rush towards complexity, that fails to acknowledge some points:
+
+     - Due to their peculiar characteristics, xs:duration or derived types are
+       difficult to manipulate and thus not suitable for computations
+
+     - In contrast, a numeric representation is simple, efficient, well-defined,
+       suitable for most purposes and easy to implement. As Michael Kay points out,
+       other quantities like distances, weights, or monetary amounts have no
+       special representation and operators, so why should durations have one ?
+
+       It seems that the ultimate reason is sort of to pay respect to the XML Schema
+       recommendation which defines xs:duration and related algorithms.
+
+     - application programmers most probably won't want to use xs:duration, because
+       it has no direct utility. At the opposite it appears as an intermediary
+       that merely induces complexity.
+
+
+2) Which date/time/duration functions and operators would be useful in practice ?
+
+     - time elapsed between two instants (`instant' stands for date, time, dateTime).
+       For time and dateTime, the result would be a (double or decimal) duration in
+       seconds.
+       For dates, the result would be an integer number of days.
+
+$dateTime1 - $dateTime2 -> seconds as double
+$date1 - $date2 -> days as integer
+
+     - conversely, addition of a duration to an instant, producing another instant.
+
+$dateTime1 + seconds -> $dateTime2
+$date1 + days -> $date2
+
+        Note: this is equivalent to the functions proposed by Michael Kay
+       (seconds-since-origin and dateTime-from-seconds), but eliminates the need for
+        an arbitrary origin and produces simpler expressions.
+
+      - to be able to implement any kind of specialized computation (e.g. third party
+        library functions), it is desirable to provide both:
+
+- component extractors (get-year, get-month, get-day etc.)
+               [like in the current Working Draft, but with overloaded and shorter names.]
+
+- constructors accepting numeric components, eg:
+xs:date( year as integer, month as integer, day as integer)
+
+- and for convenience, functions that modify one component. For example
+modify-month( $d as date, $month as integer ) as date
+
+- As Michael Kay notices, a function to format a date and time is desirable.
+
+       BTW, a function to format any item (in particular numeric values) is also needed.
+
+
+3) Proposal:
+
+a) remove subtypes yearMonthDuration and dayTimeDuration and related functions
+        and operators.
+
+b) component extraction functions:
+
+        [the notation '|' between types is a shorthand for representing overloading]
+
+        get-year( $t as (date | dateTime | gYear | gYearMonth | duration) ) as integer
+        get-month( $t as (date | dateTime | gYearMonth | gMonthDay | duration) ) as integer
+        get-day( $t as (date | dateTime | gMonthDay | gDay | duration) ) as integer
+
+        get-hours( $t as (time | dateTime | duration) ) as integer
+        get-minutes( $t as (time | dateTime | duration) ) as integer
+        get-seconds( $t as (time | dateTime | duration) ) as double
+
+        It can be noticed that there is no specialized functions for duration:
+        if needed, it is easy to write something like:
+           get-year($d) * 12 + get-month($d)
+           get-day($d)*24*3600 + get-hours($d)*3600 + get-minutes($d)*60 + get-seconds($d)
+
+
+c) constructors
+
+        This is a generalization of cast operators. The following functions
+        don't replace but overload existing cast operators:
+
+         xs:date( $year as integer, $month as integer, $day as integer,
+                  $timezone as duration? )
+
+         xs:time( $hours as integer, $minutes as integer, $seconds as double,
+     $timezone as duration? )
+
+         xs:dateTime( $year as integer, $month as integer, $day as integer,
+ $hours as integer, $minutes as integer, $seconds as double,
+ $timezone as duration? )
+
+         xs:gYear( $year as integer )
+         xs:gYearMonth( $year as integer, $month as integer )
+         xs:gMonth( $month as integer )
+         xs:gMonthDay( $month as integer, $day as integer )
+         xs:gDay( $day as integer )
+
+         xs:duration( $years as integer, $months as integer, $days as integer,
+         $hours as integer, $minutes as integer, $seconds as double )
+         xs:duration( $months as integer, $seconds as double )
+
+
+d) arithmetic
+
+        operator - ( $date1, $date2 ) as integer [days]
+        operator - ( $dateTime1, $dateTime2 ) as double[seconds]
+        operator - ( $time1, $time2 ) as double[seconds]
+
+        operator + ( $date as date, $days as integer) as date
+        operator + ( $dateTime as dateTime, $seconds as double) as dateTime
+        operator + ( $time as time, $seconds as double) as time
+
+
+e) convenience functions:
+
+        modify-year( $t as (date | dateTime | gYear | gYearMonth | duration) )
+[return type identical to argument type]
+
+        for example: modify-year(xs:date("2000-01-01"), 2003) ->  2003-01-01
+
+        Same for modify-month etc.
+
+        This is equivalent to combine a constructor with extractors, but
+        more convenient.
+
+        These functions should be lenient, i.e. accept out of bounds arguments
+eg: modify-month( xs:date("2000-01-01"), 13 )  ->  2001-02-01
+
+        For modify-day, some kind of wildcard to specify the last day of a month
+        would be useful, eg:
+modify-day( xs:date("2000-02-01"), () ) -> 2000-02-29
+
+
+
+
+
+-- 
+Xavier FRANC
+
+
+

@@ -1,0 +1,163 @@
+docno="lists-038-2502147"
+received="Wed Dec 17 15:14:39 1997"
+isoreceived="19971217201439"
+sent="Wed, 17 Dec 1997 15:20:15 -0500"
+isosent="19971217202015"
+name="Ellis Cohen"
+email="ellis@crystaliz.com"
+subject="Collections that Support Naming/Numbering"
+id="349833FF.22FE@crystaliz.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+I'd like to propose that WebDav include support
+for collections that support external resources,
+but only if the resources in the collection are
+named and/or numbered.  This allows links, and
+allows the same external resource to appear
+multiple times under different names and/or
+index values (i.e. numbers).
+
+If there is general agreement, I'll be happy to
+turn this into a formal document.  A somewhat
+informal version of the proposal appears below.
+
+  -- Ellis
+
+==================================================
+    Collections that Support Naming/Numbering
+==================================================
+
+1. Optional support for External References
+-------------------------------------------
+
+As an option, collections can support external references.
+A collection that supports external resources must
+support naming and/or numbering of collection resources.
+
+2. A collection can optionally support naming
+---------------------------------------------
+
+In a collection that supports naming, all resources in the
+collections have names.
+
+Internal resources always have names, of course,
+but the naming of external resources allows links.
+The relevant WebDav operations are:
+
+  ADDREF: Adds an external resource.
+     The name is provided in a Member-Name header.
+     The resource is named in a Collection-Member header.
+
+  DELREF: Deletes an external resource.
+     The name is provided in a Member-Name header,
+     which must name an external reference.
+
+     As an alternative, DELREF could take a
+     Collection-Member header, in which case all
+     matching external resources are deleted
+     (Note that an external resource could actually
+     name a resource which is internal to the
+     collection; DELREF in this case would just
+     delete the external resources(s), not the
+     internal one.)
+
+  GETREF: Returns the resource given its name
+     (in the Member-Name header).
+     Could work for both internal and external
+     resources.
+
+  PROPFIND: includes only the name for internal
+    resources; includes the name and resource
+    for external resources.
+
+3. A collection can optionally support numbering
+------------------------------------------------
+
+A collection that supports numbering acts like a (Java)
+vector.  Each resource has an index; inserting or deleting
+a resource moves the resources below it up or down
+in the vector.  The relevant WebDav operations are:
+
+  ADDREF:  In addition to the Collection-Member header,
+    this takes a Position header, of the form
+    "Position:" followed by
+       "First" | "Last"
+       "At" index
+       ("Before" | "After") ( "Name" name | "Resource" resource )
+
+    The Before Resource form inserts the member before the first
+    entry with the specified resource, After Resource inserts it
+    after the last such entry.
+
+    If the collection is named, the Position header is used
+    as well as the Member-Name header.
+
+  PUT: Takes a Position header as well.
+
+  DELREF: Must take a Position header unless a Collection-Member
+     header or (if it's named as well) a Member-Name header is
+     provided instead.  Could limit the Position header to
+     First/Last/At.
+
+  GETREF: Must take a Position header, unless (if it's named
+     as well) a a Member-Name header is provided instead.
+     Could limit the Position header to First/Last/At.
+
+  PROPFIND: Must return the collection in numeric order.  Not clear
+     if the index of each entry actually needs to be returned.
+
+Note that the intent here is that the client specify the
+ordering explicitly through inserts and deletes.
+Two other ways of thinking about ordering have been
+discussed:
+
+  -- Ordering based on properties or names: I believe this
+       should be left to DASL
+
+  -- Other explicit complete or partial orders.  I believe
+       this can be handled (eventually) by associating
+       properties with collection entries (not with the
+       resources they name).  This should be left to a
+       separate proposal.
+
+4. Operations on named and numbered external resources
+------------------------------------------------------
+
+Naming or numbering external resources gives us links.  The
+advantage of links is that they can be followed to the named
+resource.
+
+For example, if "http://x.com/A/B/C" names a collection, and
+it contains an external reference named "foo" for
+"http://y.com/D/E/yuk", then doing a GET on
+"http://x.com/A/B/C/foo" should actually result in a GET on
+"http://y.com/D/E/yuk".
+
+I'm proposing that we use a new Redirection response,
+"306: External Resource" to support following links:
+
+If C is the URI of a collection that supports naming,
+and N is the name of an external resource R in the collection,
+then any request with the Request-URI C/N must respond with a
+Redirection response -- 306: External Resource.
+The Location field of the response contains R.
+
+If C is the URI of a collection that supports numbering,
+and N is the index of an external resource R in the collection,
+then any request with the Request-URI C/N must respond with a
+Redirection response -- 306: External Resource.
+The Location field of the response contains R.
+
+Clients that receive a 306: external Resource response are
+expected to repeat the request with the URI returned in
+the Location field.
+
+If a collection supports both naming and numbering, then names
+must not be interpretable as non-negative integers.
+
+
+

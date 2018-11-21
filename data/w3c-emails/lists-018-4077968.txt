@@ -1,0 +1,332 @@
+docno="lists-018-4077968"
+received="Thu Apr 17 15:42:06 2003"
+isoreceived="20030417194206"
+sent="Thu, 17 Apr 2003 15:41:53 0400"
+isosent="20030417194153"
+name="Todd A. Mancini"
+email="todd.mancini@daxat.com"
+subject="RE: XQuery static types, document() and path expressions"
+id="000201c30519$6606f880$0201a8c0@qodfathr"
+charset="USASCII"
+inreplyto="000201c30486$3eac64c0$0201a8c0&#64;qodfathr"
+expires="1"
+
+To:<public-qt-comments@w3.org>
+
+
+Oops - slight error below.  In Example 3 I claimed that document() is
+type item*, when I knew all along it is node*.  This doesn't really
+change anything.  In fact, it means that Example 3 is now worse - we do,
+in fact, get a static type of (), and then a dynamic evaluation of a
+sequence of <bib> nodes.
+
+ 
+
+            -Todd
+
+ 
+
+-----Original Message-----
+From: public-qt-comments-request@w3.org
+[mailto:public-qt-comments-request@w3.org] On Behalf Of Todd A. Mancini
+Sent: Wednesday, April 16, 2003 10:09 PM
+To: public-qt-comments@w3.org
+Subject: XQuery static types, document() and path expressions
+
+ 
+
+I've been trying to make sense of some of the static typing issues
+related to path expressions.  Perhaps someone can point me to the
+correct answers (or let me know that some of these are still under
+discussion).
+
+ 
+
+EXAMPLE 1:
+
+ 
+
+Let's warm up with an easy example that does not involve paths.  This
+will lay the groundwork for the next example, unless this example is
+completely wrong.
+
+ 
+
+let $a := <foo><bar/></foo> return $a
+
+ 
+
+Is it correct to say that the static type of this expression is
+
+ 
+
+element foo of type xs:anyType
+
+ 
+
+(Note I have not imported any schemas, so <foo> was not defined before
+this expression was evaluated.)
+
+ 
+
+I deduced this static type based upon Formal Semantics 5.7.2.4 and prior
+discussions regarding global and local elements, whereby the content
+model of element foo is statically typed to xs:anyType even though the
+element bar is 'just sitting there', waiting to be used.
+
+ 
+
+EXAMPLE 2:
+
+ 
+
+            let $a := <foo><bar/></foo> return $a/child::bar
+
+ 
+
+Is this a static type error?  Does the child::bar StepExpr have nothing
+valid to match again w.r.t static typing?  If my 1st example was
+correct, then I believe this example is a static type error.  $a would
+have static type element foo of type xs:anyType, and bar will fail to
+match to xs:anyType (at least, that's how I read the judgments).  Does
+there need to be a judgment or two that allows for broader matching?
+Should we have avoided xs:anyType in the first place and had element bar
+as the content model of element foo?  Or am I just reading the spec.
+incorrectly?  (If I have correctly interpreted this to be a static type
+error and the desire is to not have this be a type error, then I vote
+for replacing xs:anyType with element bar when computing the static type
+of <foo><bar/></foo>.  I know there are open issues regarding this; I
+eagerly await the next draft to see if this has been resolved.)
+
+ 
+
+EXAMPLE 3:
+
+ 
+
+            document("bib.xml")/bib
+
+ 
+
+Is this a static error?  The only thing we statically know about
+document("bib.xml") is that it has static type item*, and I don't see
+any judgments which properly match the static typing to return anything
+other than an error (or perhaps type () ).  In fact, returning type ()
+would be even worse, because if dynamic evaluation were to return a
+sequence of <bib> elements then we'd have a mismatch between static type
+analysis and dynamic evaluation.  (I actually think we get an error and
+not (), because () would result from the 'catch-all' judgment:
+
+ 
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- PrincipalNodeKind, node()
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on NodeType
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : ()
+
+ 
+
+and item does not match node().  So there are no matching judgments,
+which I assume to imply static type error.)
+
+ 
+
+It seems to me that this expression should evaluate meaningfully, and
+that requires that it not be a static type error or type ().  Note that
+if the static type of the function document() is changed to be document,
+things are actually worse.  In this case, we do match the catch-all
+judgment and report a static type of ().  We then potentially return a
+sequence of bib elements, which fails to match our statically computed
+type.  The system is inconsistent; it can probably be fixed by
+introducing some additional judgments concerning type document.
+
+ 
+
+EXAMPLE 4:
+
+ 
+
+            document("bib.xml")/*
+
+ 
+
+This does not seem to me to match any judgment at static type check
+time.  The only judgment that comes close is
+
+ 
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- PrincipalNodeKind, node()
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on NodeType
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : ()
+
+ 
+
+But even this does not match, as document() returns item*, not node*,
+Am I missing a matching judgment?  I do not feel that 
+
+ 
+
+
+  _____  
+
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- element, *
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on element prefix:local {Type}
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : element prefix:local {Type} 
+
+ 
+
+ 
+
+is a matching judgment because document() has static type item*, and we
+therefore cannot compute a meaningful NodeType.
+
+ 
+
+I think this example could be made to work if document() was made
+stricter and had return type document? (and I believe this may be what
+is going to happen in the next draft).  Then a judgment such as
+
+ 
+
+
+  _____  
+
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- child::
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on document
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : element 
+
+ 
+
+ 
+
+might help to get everything working.  But this may require a judgment
+for element absent of any other decorations, perhaps along the lines of:
+
+ 
+
+
+  _____  
+
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- element, *
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on element
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : element  
+
+ 
+
+ 
+
+but I have not fully considered the implications of 'unnamed' elements
+at this part of the judgments.  In this example, it seems fairly benign.
+The static type of this example would be element*, which I believe is
+the desired result.  (Note that the resulting sequence value will only
+contain elements, no other node types (not including the children of
+these elements).  Is this correct?)
+
+ 
+
+Throw in the judgment
+
+ 
+
+
+  _____  
+
+
+ <http://www.w3.org/TR/query-semantics/#xq_stat_env_def#xq_stat_env_def>
+statEnv |- element, QName
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> on element
+<http://www.w3.org/TR/query-semantics/#jd_type_filter_on#jd_type_filter_
+on> : element QName  
+
+ 
+
+for good measure and I believe Example 3 is 'fixed', as well.  Example 3
+would now result in a static type of element bar*, which I believe is
+desired.  Note that this judgment is slightly 'backwards' when one
+considers the other Axis NodeTest judgments.  In this case, we compute
+the static type based upon the content on the left-hand side of on,
+rather than on the rhs like all of the other similar judgments.
+
+ 
+
+GENERAL QUESTION:
+
+ 
+
+Consider the normalization:
+
+ 
+
+
+[StepExpr1 "/" StepExpr2]
+<http://www.w3.org/TR/query-semantics/#jd_map_expr#jd_map_expr> Expr 
+
+
+==
+
+
+
+fs:distinct-doc-order (
+
+
+  let $fs:sequence := fs:distinct-doc-order( [StepExpr1]
+<http://www.w3.org/TR/query-semantics/#jd_map_expr#jd_map_expr> Expr )
+return
+
+
+  let $fs:last := fn:count($fs:sequence) return
+
+
+  for $fs:dot at $fs:position in $fs:sequence return
+
+
+    [StepExpr2]
+<http://www.w3.org/TR/query-semantics/#jd_map_expr#jd_map_expr> Expr 
+
+
+)
+
+ 
+
+The static type of StepExpr "/" StepExpr is the static type of
+fs:distinct-doc-order, which has the very uninformative static type
+node*.  Are we to ignore that fact, and use the static type of the for
+expression as the static type of this path expression?  I believe this
+is the intent, but there probably should either be some language or some
+judgments to this effect.  If we take this literally, then all path
+expressions have static type node*.
+
+ 
+
+If you made it this far, thanks a bunch!
+
+ 
+
+            -Todd
+
+ 
+
+ 
+
+ 
+
+
+

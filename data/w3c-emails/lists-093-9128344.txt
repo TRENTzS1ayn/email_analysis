@@ -1,0 +1,90 @@
+docno="lists-093-9128344"
+received="Thu Feb 19 06:55:52 1998"
+isoreceived="19980219115552"
+sent="Thu, 19 Feb 1998 12:55:44 +0100"
+isosent="19980219115544"
+name="Irene VATTON"
+email="Irene.Vatton@imag.fr"
+subject="Re: problem with my modifications"
+id="199802191155.MAA07094@tahiti.inrialpes.fr"
+charset="us-ascii"
+inreplyto="problem with my modifications"
+expires="-1"
+
+
+To: web2<soft@earthlink.net>
+cc:www-amaya@w3.org
+
+In-reply-to: Your message of Wed, 18 Feb 1998 16:06:10 -0800."
+             <34EB7772.16584675@earthlink.net> 
+> 
+> 
+> SULTAN Hassan - lab assistant wrote:
+> 
+> > I found the problem: it is located in GetHTMLDocument
+> > I had had to disable some TtaSetMenuItemOff() in this function because the menus
+> > didn't exist anymore(the menus had been removed from EDITOR.A) and this caused the form fields being unwriteable even without the TtaSetDocumentAccessMode(doc,0).
+> > But TtaSetDocumentAccessMode(doc,0) blocks too writing in a form field, so would it be possible to permit writing in a form with the Read-Only mode ?
+> > I looked at the TtaSetDocumentAccessMode and SetAccessMode functions but didn't find anything.
+> >
+> 
+> Has this question been answered and I just missed it? I also modified amaya for DEC alpha and Solaris 2.6 to remove
+> the editing functions and to enable single-click selection. Everything works fine except I can no longer enter text into
+> forms anymore. Single clicking to select radio buttons, checkboxes and submit buttons all work fine, just the text
+> fields act like read only areas. Anyone have a guess?
+> 
+> --
+
+Sorry, I forgot the cc option. This is my answer:
+
+Yes, there is a solution. Instead of using TtaSetDocumentAccessMode(doc,0), 
+you have to trap all 
+modification in the document and let Thot performs only those which concern 
+form fields.
+
+It's easy to do that: 
+a) In HTML.A you remove all events ElemNew, ElemPaste, ElemDelete, 
+ElemTextModify,
+   ElemChange.
+b) In HTML.A you add in DEFAULT section 
+        ElemNew.Pre -> NoEdit;
+        ElemPaste.Pre -> NoEdit;
+        ElemDelete.Pre -> NoEdit;
+        ElemTextModify.Pre -> CheckType;
+        ElemChange.Pre -> CheckType;
+
+c) In HTMLactions.c you write the functions
+/*----------------------------------------------------------------------
+ -----------------------------------------------------------------------*/
+#ifdef __STDC__
+boolean NoEdit (NotifyElement *event)
+#else /* __STDC__*/
+boolean NoEdit(event)
+     NotifyElement *event;
+#endif /* __STDC__*/
+{
+  return TRUE; /* don't let Thot perform normal operation */
+}
+
+/*----------------------------------------------------------------------
+ -----------------------------------------------------------------------*/
+#ifdef __STDC__
+boolean CheckType (NotifyElement *event)
+#else /* __STDC__*/
+boolean CheckType (event)
+     NotifyElement *event;
+#endif /* __STDC__*/
+{
+  elType = TtaGetElementType (event->element);
+  elType.ElTypeNum = HTML_EL_Form;
+  elFound = TtaGetTypedAncestor (event->element, elType);
+  if (elFound != NULL)
+    return FALSE; /* let Thot perform normal operation */
+  else
+    return TRUE; /* don't let Thot perform normal operation */
+}
+
+  Irene.
+
+
+

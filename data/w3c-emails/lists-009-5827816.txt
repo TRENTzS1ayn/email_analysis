@@ -1,0 +1,127 @@
+docno="lists-009-5827816"
+received="Wed Aug  2 18:47:17 1995"
+isoreceived="19950802224717"
+sent="Wed, 2 Aug 1995 18:38:38 0700"
+isosent="19950803013838"
+name="Shel Kaphan"
+email="sjk@amazon.com"
+subject="Eventdriven document expiration"
+id="199508030138.SAA19913@bert.amazon.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com,www-talk@w3.org
+
+
+
+Yet Another Thing The Expires Header Is Not Appropriate For
+
+Even if the Expires header were honored by all browsers (it isn't),
+and even if the history functions of all browsers ignored the Expires
+header (they don't, but they should), there would still be some types
+of resources that could not be properly cached given the existing
+protocol.
+
+These resources are dynamic by nature, but do not have a fixed
+expiration date.  Instead, they only change in response to specific
+events, typically originating with the user of the "user agent".  They
+*should be* cached if possible until the occurrence of some event
+that would change them.
+
+Let me give an example.  Suppose you wish to create an interactive
+store that has a page indicating current user selections.  For various
+reasons, it is appropriate to implement this using server-side
+persistent state, and to allow the client to request the current
+version of this "current selections" resource at any time.
+
+It may be desirable to display this current selections page in response to a
+number of different events, for example:
+
+- user selects a new item
+
+- user deletes an item
+
+- user requests to see current selections
+
+- user requests another action that cannot be performed because 
+  there are no items currently selected -- for instance, show current charges.
+  The desired behavior may be to display the current selections page, showing
+  that it is empty.
+
+Suppose that each different action is requested using a different URI.
+What will happen?  Ignoring possible interactions with Expires, we can
+see that using a different URI in each case will cause a different
+temporal version of the selections page to be cached using each
+different URI as a key.  What is wrong with this?
+
+There is a serious problem with the above scenario.  If the user uses
+one URI (a) which ends up returning the selections page, then uses
+another URI (b) which also returns this page, and then goes back to
+URI (a) again, the user may end up viewing a stale copy of the document.
+This is especially true if URI (a) is implemented by a GET method, which
+will typically be subject to caching.
+
+There are mechanisms in HTTP and workaround techniques that allow such
+documents to be handled correctly, but it is my feeling that these
+techniques and mechanisms are too awkward for this purpose.
+
+The HTTP mechanism is redirection using the "302 Moved Temporarily"
+header.  It usually works, but is somewhat inefficient since it causes
+the client to make two requests.
+
+The other approach is the workaround technique of overloading the use
+of a single URI with different functions, possibly by using fields in
+forms to specify what is to happen.
+
+Redirection using 302 usually works because when clients re-request a
+document after being redirected with 302, they usually cache the
+document using the *redirected* URI as a key, not the original.  But
+it is possible to imagine clients that don't do their caching this way.
+In fact, I have seen some that don't.
+
+Overloading a single URI usually works because most clients use the
+URI as a cache key.  If a client happens to also use form field names
+as part of the cache key, then this technique will not work reliably,
+since the different functions using a common URI for common caching 
+must encode the different function-codes somewhere, and the only other
+convenient place to put them is in form fields.
+
+So, both techniques I have mentioned just happen to work most of the
+time, but are not guaranteed to work.  This is, in my view, an
+inferior situation.
+
+It should also be mentioned that using the Expires header would force
+the issue, at least for those browsers that bother to pay attention to it.
+If the current selections page were set to expire immediately in all
+cases, then all requests that ended up displaying that page would be
+forced to fetch a fresh copy of it.  This is somewhat wasteful, since
+this page would be cacheable until some state-changing event occurred.
+
+
+What is Required?
+-----------------
+
+It is possible to imagine a number of solutions to this problem.
+There is one approach that I favor, but even if it were to be adopted
+into the standard in some form, I fear it will be necessary to stick
+with the above workaround techniques for a long time since browser
+authors are not so quick to pick up on these kinds of issues, and
+since there is a growing population of existing browsers out there.
+
+In any case, my prefered solution would be to use some response header
+to indicate the URI of the resource being returned.  This URI would
+not have to be the same as the request-URI.  Its purpose in life would
+be to identify the returned resource, expressly for the purpose of
+cache control.  The client would be directed to use this response-URI
+as the cache key for the requested document.  The URI in this header
+should be usable with the GET method to obtain a "current" copy of the
+resource returned.
+
+Any opinions on any of this?
+
+
+--Shel Kaphan
+  sjk@amazon.com
+
+
+

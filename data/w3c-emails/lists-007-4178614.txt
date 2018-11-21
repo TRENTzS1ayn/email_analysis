@@ -1,0 +1,151 @@
+docno="lists-007-4178614"
+received="Tue Jul  9 08:10:17 2002"
+isoreceived="20020709121017"
+sent="Tue, 9 Jul 2002 08:09:44 -0400 "
+isosent="20020709120944"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: error condition for delete of VHR when VCR is in checked-in c ollection"
+id="3906C56A7BD1F54593344C05BD1374B10776104D@SUS-MA1IT01"
+charset="iso-8859-1"
+inreplyto="error condition for delete of VHR when VCR is in checked-in c ollection"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+
+   From: Julian Reschke [mailto:julian.reschke@greenbytes.de]
+
+   >    > If you've deleted the version history, you have effectively
+   >    > trashed any historical references (e.g. in collection
+   >    > versions) to that version history.
+   >
+   >    Nope. I have deleted the binding to the version history, not
+   >    necessarily the information itself. In particular, my server
+   >    may be able to reconstruct it upon UNCHECKOUT of the versioned
+   >    collection "/a" (using the same URI).
+   >
+   > I'm not sure how an UNCHECKOUT of a VCCl is related to this
+   > thread, since an UNCHECKOUT request has no effect on a version
+   > history resource.  But in any case, postcondition
+   > DAV:delete-version-set in Section 5.6 states that deleting a
+   > version history resource deletes all versions in that version
+   > history.  So your server would not be able to reconstruct the
+   > version history once it was deleted.  Note that the errata issue
+   > 14_DIFFERENT_VH_DELETION_SEMANTICS_REQUIRED clarifies that
+   > deleting a member of a working collection just removes a binding
+   > to a VHR, but doesn't delete the VHR.
+
+   My theories goes like this :-)
+
+   - by checking in a VCC that contains a VCR member, I am effectively
+   creating a new binding to the VHR of this VCR member. This binding
+   may not be visible in my "public" URL namespace, but it's still
+   there
+
+I try to reserve the term "binding" for the sense in which it is
+used in the Bind protocol, namely the connection between a collection
+and one of its internal members.  In that sense, checking in a VCC
+never creates a binding to a VHR, but rather just creates a reference
+to the VHR in its DAV:version-controlled-binding-set property
+(i.e. it doesn't create a new name for that VHR, but just uses an
+existing name to create a reference).
+
+   - a subsequent delete on the VHR URL just deletes the original binding to
+   the VHR, but the version history resource (and the versions inside the
+   version history) is not affected
+
+Since the DAV:version-controlled-binding-set just has a reference to
+that VHR using its server-assigned URL, if you DELETE that URL, you
+break all references to that VHR from the DAV:v-c-b-s properties of
+collection versions.
+
+   - thus, upon UNCHECKOUT of the VCC, I can reconstruct the VHR
+   (re-creating the original binding)
+
+The members of the VCC also refer to the VHR via the server-assigned
+URL, so even if UNCHECKOUT could restore the version-controlled
+member of the VCC, the DAV:version-history property of that member
+would contain the VHR URL that was deleted.
+
+   Maybe these problems go away when we remove connection between
+   deleting the VHR and un-versioning a resource, but this is how it
+   looks right now.
+
+Deleting a VHR to "un-version" a resource is fine; it's just
+restoring it which is a problem.
+
+   >    > If you are going to let that deletion
+   >    > happen even when there is a VCR for that version history in
+   >    > some workspace, I don't see that it makes any sense to worry
+   >    > about whether or not the collection containing that VCR is
+   >    > checked in or checked out.
+   >
+   >    The issue is that RFC3253 doesn't define a method to switch off
+   >    version control on a resource, and therefore people are using
+   >    deletion on VHRs to switch off versioning (I couldn't find any
+   >    mention of this in the spec, though).
+   >
+   > I don't recall hearing of this approach, and don't see how it could be
+   > compatible with the spec, giving the DAV:delete-version-set
+   > postcondition.
+
+   OK. It was originally suggested in section 4.2 of
+   draft-dusseault-deltav-subset-00 [1], and up until some time ago,
+   it made a lot of sense to me.
+
+   Clarification: people use deletion of the VHR to both delete the
+   VHR and un-version-control the VCR. How would that violate the
+   DELETE sematics for VHRs?
+
+OK, I think I see where things may have gotten confused.
+The approach I was referring to (i.e. the one I didn't recall hearing
+about) was not the "unversion by delete VHR" approach (which I do
+remember), but rather the "restore by UNCHECKOUT".  If you are
+willing to permanently destroy the history for that resource, I 
+agree that deleting the VHR is a reasonable/interoperable way to do so.
+
+   >    This conflates to separate things, but there doesn't seem to
+   >    be better way to do it (please don't say COPY/DELETE/MOVE,
+   >    because this creates a *new* resource).
+   >
+   > COPY/DELETE/MOVE is the only interoperable way of removing
+   > something from version control.  If you need a mechanism that
+   > doesn't create a new resource, I'd suggest something like
+   > allowing a PROPPATCH to remove the DAV:version-history property
+   > of the VCR, rather than trying anything related to VHR deletion.
+
+   Sounds good, and we'll look into this.
+
+Note: As indicated above, if you are willing to permanently destroy
+the history, deleting the VHR is a good interoperable way of taking
+a resource out of version control.  The PROPPATCH proposal is only
+needed if you want to retain the history while un-version-controlling
+the resource.
+
+   However, I now have a new question:
+
+   If - after the deletion of a VCR's VHR - the VCR is still
+   version-controlled - where does it's DAV:version-history property
+   point to?  Similarily, if the delete of the VHR deleted all
+   versions, where does DAV:checked-in/DAV:checked-out point to?
+
+I agree that the simplest model for deleting the VHR would be to
+un-version-control any VCR for that history, and remove any entries
+in DAV:version-controlled-binding-set that refer to that VHR.
+Alternatively, the server could just keep all those references,
+and return errors on all versioning operations, but that would
+leave things in a pretty broken state.
+
+   -> Seems that we need to clarify the post-conditions for deletions
+   of VHRs, right?
+
+It sounds like we actually agree on this one ... it was just the
+"restore via UNCHECKOUT" that was confusing things.
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,196 @@
+docno="lists-006-10988424"
+received="Mon Jul 23 14:38:58 2001"
+isoreceived="20010723183858"
+sent="Mon, 23 Jul 2001 11:38:29 -0700"
+isosent="20010723183829"
+name="Lisa Dusseault"
+email="lisa@xythos.com"
+subject="How Clients find out if they can perform a checkout"
+id="HPELJFCBPHIPBEJDHKGKGEPCCJAA.lisa@xythos.com"
+charset="iso-8859-1"
+inreplyto="3906C56A7BD1F54593344C05BD1374B103A3864B&#64;SUS-MA1IT01"
+expires="-1"
+
+To:"Clemm, Geoff"<gclemm@rational.com>,<ietf-dav-versioning@w3.org>
+
+
+
+Trying to confirm how this should work based on Geoff's clarification...
+
+So if a client wants to find out if they can check out a resource, they must
+
+1. If the server supports working-resource, gather information about whether
+there exists one or more working-resources.  Finding out if the resource is
+checked out to a working resource is tricky, because the DAV:checked-out
+property won't tell you this.  To discover if the resource is checked out to
+a working resource, clients must query all versions.
+  a) get the DAV:version-tree report (REPORT VCR for DAV:version-tree).
+  b) If the DAV:version-tree report is not supported, get the URL to the VHR
+(PROPFIND VCR) and then get the list of versions from the VHR (PROPFIND VHR)
+  c) If DAV:expand-property report is supported, get the values of
+checkout-fork and checkout-set for ALL versions (REPORT VCR for
+expand-property)
+  d) If DAV:expand-property report is not supported, client must PROPFIND
+each version to see what the value of DAV:checkout-fork and DAV:checkout-set
+are.  This will result in N PROPFIND requests.
+  e) Probably the safest way to treat checkout-fork forbidden is for the
+client to say that if it's forbidden anywhere, on any version, treat forks
+as forbidden overall.  I say this because I can't figure out what a server
+could mean by having different values for checkout-forbidden, or what
+version the client must check the value on.
+
+2.  If the server supports in-place checkout, gather information about
+whether there is an in-place checkout.
+  a) Check to see if the DAV:checked-out property exists on the VCR
+(PROPFIND VCR).
+  b) If the DAV:checked-out property does exist, check the version named in
+the property value to see if fork is allowed (PROPFIND checked-out version).
+This extra request may not need to be made if step 1 has already been
+followed.
+
+3.  Now use the following logic:
+
+If (server supports in-place checkout)
+  AND (server does not support working-resource)
+  AND (checked-out property does not exist on VCR)
+  then client can do in-place checkout.  Otherwise, they can't.  [?]
+
+If (server does not support in-place checkout)
+  AND (server supports working-resource)
+  {ISN'T THIS SOMETHING LIKE CHECKOUT-SET?
+    If (checked-out property is empty on all versions)
+      then client can check out to a working-resource.
+    else if (checkout-fork is not forbidden)
+      then client can check out to a working-resource
+    else client cannot check out.
+  }
+
+If (server supports in-place checkout)
+  AND (server supports working-resource)  NOTE: assume client prefers
+working-resource
+  {
+    If (checked-out property does not exist on VCR)
+    {
+      If (checkout-set is empty on all versions)
+        then client can check out to a working-resource.
+      else
+      {
+        if (checkout-fork is forbidden)
+          client cannot do a checkout
+        else
+          client can check out to a working-resource
+      }
+    }
+    else
+    {
+      If (checkout-fork is forbidden)
+        client cannot do a checkout
+      else
+        client can check out to a working-resource.
+    }
+  }
+
+I don't think this logic will completely work because I'm afraid servers
+that support both in-place checkout and working-resource may be inconsistent
+about whether they allow both kinds of checkouts at the same time.  I don't
+know how to discover whether that's allowed, and I don't think it's
+necessarily covered by checkout-fork being forbidden.
+
+Summary:  this situation means that to find out if the client can check out
+a resource, they may have to do as many requests as versions exist, plus a
+few extra.  That's if expand-property is not available.  If expand-property
+is available, the client has to make the following requests just to find out
+if they can do a checkout.  I'm assuming the OPTIONS request has already
+been done to find out which if in-place-checkout and working-resource have
+been done.  I'm also assuming version-tree report is supported, because if
+it's not the system is more difficult.
+  LOCK VCR so that things don't change during the discovery process
+  PROPFIND VCR ask for checked-out property
+  REPORT VCR ask for version-tree
+  REPORT VCR ask for expand-property report for checkout-set and
+checkout-fork
+
+Digression: If supported-method-set only shows CHECKOUT if a checkout is in
+theory possible, then this might make things a lot easier for the client.  I
+had thought that supported-method-set should show the methods that may be
+allowed on a resource depending on the server's functionality and the
+resource's type.  However, it occurs to me that it's also reasonable to say
+that the supported-method-set should depend on the resource's state.  This
+amounts to the question:  if a resource is unlocked, should
+supported-method-set show UNLOCK or not?  I've brought this up before and
+haven't seen an answer.
+
+Another solution to this problem would be to introduce another protocol
+element (vast groans from the audience) for CHECKOUT that says
+DO-NOT-CHECKOUT, just tell me if I COULD have checked it out.  Therefore, if
+the checkout without the <do-not-checkout> would have succeeded, you get a
+OK.  If it wouldn't, you get the error that would have been generated on the
+CHECKOUT.
+
+Lisa
+
+
+> -----Original Message-----
+> From: ietf-dav-versioning-request@w3.org
+> [mailto:ietf-dav-versioning-request@w3.org]On Behalf Of Clemm, Geoff
+> Sent: Sunday, July 15, 2001 7:35 PM
+> To: ietf-dav-versioning@w3.org
+> Subject: RE: ... By the way ...
+>
+>
+>
+>    From: John Hall [mailto:johnhall@evergo.net]
+>
+>    As I understand it, there is no way for a client to tell that a
+>    working resource has been created.
+>
+>    VCR checked in, no working resources have been created.  Server
+>    doesn't allow forking.  Server supports WORKING-RESOURCE and
+>    CHECKOUT-INPLACE.
+>
+>    ClientA: CHECKOUT <apply-to-version> VCR.
+>    => creates working resource and leaves VCR untouched.
+>
+>    ClientB: Since VCR is untouched, it is impossible to detect that
+>    CLientA has performed their operation.  Therefore:
+>
+>    CHECKOUT VCR
+>    => 409 Conflict
+>    <checkout-of-checked-out-version-is-forbidden>
+>
+>    Is there some way I'm missing that Client B could have seen this
+>    one coming?
+>
+> Use the DAV:expand-property report to ask for the checkout-set and
+> checkout-fork properties of the checked-in version, i.e.:
+>
+> <D:expand-property xmlns:D="DAV:">
+>  <D:property name="checked-in">
+>    <D:property name="checkout-set"/>
+>    <D:property name="checkout-fork"/>
+>  </D:property>
+> </D:expand-property>
+>
+> If the checkout-set is non-empty and checkout-fork is forbidden,
+> you know the checkout will fail.
+>
+>    Currently, I don't support forking so only 1 checkout (INPLACE or
+>    WORKING) is allowed.  But if I did support multiple checkouts, I'd
+>    still keep a count so I could tell Client B, that forking was
+>    'discouraged', for example.
+>
+> Yes, if the checkout-fork is discouraged, that would be something
+> you'd want to warn them about (and if they said "do it anyway", you
+> would know to include the DAV:fork-ok flag with the CHECKOUT).
+>
+>    Are people implementing this without tracking the count of working
+>    resources created off the versions of a VCR?
+>
+> The list of checkouts is important, which is why the server is
+> required to maintain DAV:checkout-set.
+>
+> Cheers,
+> Geoff
+
+
+

@@ -1,0 +1,142 @@
+docno="lists-036-4326156"
+received="Mon Apr 28 02:59:28 2003"
+isoreceived="20030428065928"
+sent="Sun, 27 Apr 2003 23:58:55 -0700"
+isosent="20030428065855"
+name="Trevor Perrin"
+email="trevp@trevp.net"
+subject="secure URIs"
+id="5.2.0.9.0.20030427235734.02f99d28@pop.comcast.net"
+charset="us-ascii"
+expires="-1"
+
+To:uri@w3.org
+
+
+
+
+Greetings URI-IG,
+
+I'd like to propose a (very tentative) idea for URIs.  Apologies for the 
+length.
+
+
+General idea
+-------------
+The idea is to have a "secure URI" format, which associates:
+- a URI
+- cryptographic data (e.g. document hash, public key fingerprint, etc.)
+
+These cryptographic data can be used for authenticated and/or encrypted 
+communications with the resource.  For example (ignoring the exact syntax):
+
+http://SomeSite.com/Document.xml[sha256=mY3Shx9...]
+https://SomeSite.com[x509_sha1=vI2nZ7K...]
+mailto:Alice@Acme.com[pgp_url=http://Acme.com/keys/Alice,pgp_sha1=...]
+
+The first secure URI contains a document hash.  If you sign an XML document 
+that contains URIs like this, the signature will cover the contents of 
+those URIs as well.  If you receive an HTML page that embeds images using 
+URIs like this, you can authenticate the images even if they come over a 
+non-secure connection.
+
+The second secure URI gives the fingerprint of an SSL server 
+certificate.  URIs like this could be used for scenarios like above, but 
+where the resources being pointed to vary over time so a static hash is 
+insufficient.
+
+The third secure URI gives the fingerprint of a PGP key, and a URL where 
+that key can be found.
+
+
+Justification
+--------------
+Looking at Tim Berners-Lee's "Design Issues" for the web, Axiom 2a of Web 
+Architecture says:
+'a URI will repeatedly refer to "the same" thing.'
+http://www.w3.org/DesignIssues/Axioms.html
+
+Clearly, it's desirable to guarantee this through authentication.  Normally 
+the web assumes authentication will be handled using out-of-band methods 
+like PKI, but this arguably violates Axiom 1:
+'It doesn't matter to whom or where you specify that URI, it will have the 
+same meaning.'
+
+If the web relies implicitly on external trust infrastructure, then a URI 
+may have different meanings to different parties, since these different 
+parties may have different trust roots.  Thus it might be preferable to 
+internalize trust into the web itself, so that URIs can be unambiguously 
+bound to  documents or principals.
+
+
+Details
+--------
+Here's the best approach I could think of, I'm sure there's problems and 
+possible improvements...
+
+A scheme name that consists of a "-" appended to some base scheme indicates 
+a secure URI for the base scheme:
+
+http-://SomeSite.com/Document.xml[sha256=mY3Shx9...]
+https-://SomeSite.com[x509_sha1=vI2nZ7K...]
+mailto-:Alice@Acme.com[pgp_url=http://Acme.com/keys/Alice,pgp_sha1=...]
+
+This way a secure URI will simply look like an unknown scheme to a client 
+that isn't familiar with secure URIs (backwards-compatibility would be 
+preferable, where a secure URI looks like a normal URI to such a client, 
+but I don't see how that's possible).
+
+A secure URI for a hierarchical scheme will allow a relative URI after the 
+scheme name:
+http-:../../../Document.xml[sha256=mY3Shx9...]
+
+Otherwise, it wouldn't be possible for a relative URI without a scheme name 
+to indicate that it's a secure URI.
+
+The bracketed crypto data should be considered part of the URI-Reference 
+instead of part of the URI, since, like the fragment identifier, it comes 
+into play after the retrieval action has been completed.  For readability, 
+it should be placed outside the fragment identifier:
+http-://SomeSite.com/Document.xml#Chapter3[sha256=mY3Shx9...]
+
+Different types of crypto data could be attached:
+
+sha1, sha256, etc. = a hash of the resource and some scheme-specific 
+metadata - in HTTP this might entail hashing a concatenation of the 
+Content-Type, Content-Language, Content-Encoding, and entity body.
+
+x509_sha1 = a hash (i.e. fingerprint) of the X.509 certificate of the 
+server authoritative for this resource.  This would be useful for referring 
+to dynamic resources or service endpoints that couldn't be represented with 
+a static hash.  In HTTP and some other schemes, this would be the server's 
+SSL/TLS or IPsec certificate.  In the mailto scheme, it would be an S/MIME 
+certificate.
+
+pgp_sha1 = fingerprint of the PGP key, for use with the mailto scheme.
+
+x509_id = a hash of a root certificate and the end-entity Subject Name.  In 
+conjunction with path validation, this can be used to identify a 
+certificate chain.  Since it requires cert path validation it's more 
+complicated than a fingerprint, but it has the advantage over x509_sha1 
+that if the CA revokes one end-entity cert and issues another one with the 
+same name, the x509_sha1 will change, but this new cert will have the same 
+x509_id.
+
+x509_url, pgp_url, etc. = a URL where the end-entity cert (or cert chain) 
+can be retrieved.  Used in the mailto scheme, along with one of the above 
+ways of identifying a cert or cert chain.
+
+Multiple types of data could be attached to a single URI - for example, 
+hashes using different algorithms, or a fingerprint along with a URL 
+location in a mailto URI.
+
+
+Anyways, I'm sure it would take an enormous effort to get this right and 
+get it adopted.  But I think it makes a lot of sense, given URI philosophy, 
+and addresses some real problems.  Is this a pipe dream, or does it seem 
+viable and worthwhile to anyone?
+
+Trevor
+
+
+

@@ -1,0 +1,100 @@
+docno="lists-040-12465243"
+received="Thu Aug  2 02:30:11 2001"
+isoreceived="20010802063011"
+sent="Thu, 2 Aug 2001 16:27:01 +1000"
+isosent="20010802062701"
+name="Alan Kent"
+email="ajk@mds.rmit.edu.au"
+subject="Re: rfc2518 issue: DEFER_LOCK_NULL_RESOURCES_IN_SPEC"
+id="20010802162701.F19978@io.mds.rmit.edu.au"
+charset="us-ascii"
+inreplyto="3906C56A7BD1F54593344C05BD1374B103CA8F44&#64;SUS-MA1IT01"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+Here is a proposal I think someone else posted a while back.
+
+- LOCK on existing resource stays as is
+
+- LOCK on unmapped URI should (must? can?) create a non-collection resource
+
+- UNLOCK on the same URI without a PUT should (can?) delete the resource
+
+- MKCOL on a LOCKed unmapped URI will fail (pity, but too bad).
+
+This allows implementations to create a file in the underlying file
+system if they want to.
+
+In order to completely remove the concept of LNR, PROPFIND must be
+cleaned up too. Here are some alternatives:
+
+(1) I would say a LOCK on a unmapped URI MUST create a resource and lock it.
+    That way it will appear in PROPFIND's. A PUT on the resource would then
+    say 200, not 201.
+
+(2) If a LOCK creates a temporary file, PROPFIND returns it. If a LOCK does
+    not create a temporary file, PROPFIND does not return it.
+
+(3) Keep more of the current semantics. PROPFIND returns info about LNR
+    resources.  If your implementation creates a temporary file, then your
+    implementation does not have to worry about LNR (but it stays in
+    the standard as a concept).
+
+I was actually going to propose a new optional flag to say for locks
+that the intent is to create a non-collection resource or a collection
+resource (where non-collection is the default for backwards
+compatibility). The idea is in order to be able to create a temporary
+placeholder resource in the underlying file system, get the client to
+say in advance whether it is going to PUT or MKCOL. Have a default
+value of PUT means MS Word will probably be conformant as is (or pretty
+close) for example.
+
+The problem with this however was a sequence of LOCK /a, MKCOL /a
+would probably have troubles (MKCOL would not like the fact that
+/a already existed). The implementation would have to remember that
+the collection created was temporary (which is probably fine actually)
+so the MKCOL just clears the 'temporary' status of it.
+
+Another variation (which could always be added later) is to add new
+variations of LOCK which has an additional mode/flag/header field to
+'create collection resource' and 'create non-collection resource' so
+you can create and lock in an atomic operation.
+
+
+One question then. If LOCK on an unmapped URI creates a resource,
+should the resource be marked with a WebDAV property of being 'temporary'.
+That way a PUT or MKCOL on an existing resource marked as 'temporary'
+could behave as if the resource did not exist before (and return 201).
+The implementation however would simply clear the 'temporary' flag.
+A PROPFIND on the resource would also clearly identify it as being
+temporary.
+
+
+There are lots of variations possible. One could even go full circle
+and say "well, temporary resources are really just LNR's". The only
+difference is that LOCK on a unmapped URL should be able to determine
+in advance if its going to be a non-collection or collection resource.
+That way an implementation can send things down to the lower level
+file system if needed. (ie, it can create a temporary file or directory
+which other applications see as a file or directory - not as a LNR).
+
+Also in the new proposal, an UNLOCK does not have to remove the LNR
+(it should, but its not mandatory). To be clean, I would say it really
+should be a MUST not a SHOULD, but some existing implementations don't
+do it correctly. I guess backwards compatibility with currently
+implementaions is not a requirement.
+
+Oh dear, I seem to be arguing against myself. In this last bit I guess
+I am really saying maybe the problem with LNR's is that they dont have
+a resource type (collection/non-collection) when they are created.
+If they did have a resource type, then they could be immediately
+created as such a resource in the underlying file system. The WebDAV
+layer could remember that they are 'temporary' (LNR) resources and
+so remove them later, or make PUT on them return 201 etc.
+
+Alan
+
+
+

@@ -1,0 +1,110 @@
+docno="lists-000-3320802"
+received="Mon Sep 13 17:51:26 1999"
+isoreceived="19990913215126"
+sent="Mon, 13 Sep 1999 15:50:48 -0600"
+isosent="19990913215048"
+name="Randy Waki"
+email="rwaki@sun10.whizbanglabs.com"
+subject="Recovering from an unexpected &quot;&lt;&quot;"
+id="000101befe32$09e2f000$ce9946a6@whizbanglabs.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"HTML Tidy Mailing List"<html-tidy@w3.org>
+
+
+It would be nice if Tidy could recover from an unexpected "<" in the same
+way as IE and Netscape.
+
+Described below are what I think are the changes needed to do this.  I'm
+using the 26-Jul-99 version of Java Tidy.  There should be a close
+correspondence to the C version; my apologies for being unable to provide
+the exact changes for C.  These changes seem to work for us although I'm a
+bit concerned that I may have missed something because Tidy makes a special
+effort to escalate an unexpected "<" from a warning to an error.
+
+It looks like there are two cases to consider: "<" in attribute names and
+"<" in attribute values.
+
+For example,
+
+-------- Example input document --------
+<html <BAD1>
+<head>
+<title>t</title>
+</head>
+<body>
+<a href=foo.fee<BAD2>This is a link</a>
+</body>
+</html>
+----------------------------------------
+
+26-Jul-99 Tidy issues errors for the "<" before "BAD1" and "BAD2", plus some
+spurious warnings/errors, and does not produce an output document.  After
+the changes described below, Tidy issues a warning about the unknown
+attribute "<BAD1" and produces the following (which seems to correspond to
+IE 5's and Netscape 4.5's interpretation):
+
+-------- Example output document -------
+<html>
+<head>
+<title>t</title>
+</head>
+<body>
+<a href="foo.fee&lt;BAD2">This is a link</a>
+</body>
+</html>
+----------------------------------------
+
+The changes are as follows.
+
+First, for "<" in attribute names, search Lexer.java (lexer.c) for the first
+occurrence of "UNEXPECTED_GT" and change:
+
+    this.in.ungetChar(c);
+    Report.attrError(this, this.token, null, Report.UNEXPECTED_GT);
+    return null;
+
+to:
+
+    // The '<' is unexpected; recover by skipping to the next '>',
+    // '/', or whitespace character (mimics IE and Netscape).
+    StringBuffer buf = new StringBuffer();
+    buf.append('<');
+    while (c != '>' && c != '/' && c != StreamIn.EndOfStream)
+    {
+        map = MAP((char)c);
+        if ((map & WHITE) != 0)
+            break;
+
+        buf.append((char)c);
+        c = this.in.readChar();
+    }
+    this.in.ungetChar(c);
+    Report.attrError(this, this.token, buf.toString(),
+Report.UNKNOWN_ATTRIBUTE);
+    continue;
+
+Second, for "<" in attribute values, search Lexer.java (lexer.c) for the
+remaining occurrence of "UNEXPECTED_GT" and change:
+
+    if (c == '<')
+    {
+        this.in.ungetChar(c);
+        Report.attrError(this, this.token, null, Report.UNEXPECTED_GT);
+        break;
+    }
+
+to:
+
+    // Note: Accept unescaped '<' in attribute values (seems to mimic IE
+    // and Netscape).
+
+In addition, once these two changes have been made, it should be possible to
+remove everything associated with the reporting of the "UNEXPECTED_GT" error
+although I haven't tried to do so.
+
+Randy
+
+
+

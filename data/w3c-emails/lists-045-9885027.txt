@@ -1,0 +1,206 @@
+docno="lists-045-9885027"
+received="Fri Mar 30 13:34:03 2001"
+isoreceived="20010330183403"
+sent="Fri, 30 Mar 2001 10:33:17 -0800"
+isosent="20010330183317"
+name="John Boyer"
+email="JBoyer@PureEdge.com"
+subject="RE: XML Encryption Data/Processing Model"
+id="7874BFCCD289A645B5CE3935769F0B520C337F@tigger.PureEdge.com"
+inreplyto="XML Encryption Data/Processing Model"
+expires="-1"
+
+
+To:"Hiroshi Maruyama"<MARUYAMA@jp.ibm.com>,<xml-encryption@w3.org>,<w3c-ietf-xmldsig@w3.org>
+Cc:"Andy_Clark/Santa_Teresa/IBM"<Andy_Clark/Santa_Teresa/IBM@jp.ibm.com>
+
+Hi Hiroshi,
+
+Summary: 
+
+Your problem has little to do with a 'consistency' issue on C14N, and is
+trivially solvable.  The solution you are considering is fraught with
+problems.  Details below.
+
+John Boyer
+Senior Product Architect, Software Development
+Internet Commerce System (ICS) Team
+PureEdge Solutions Inc. 
+Trusted Digital Relationships
+v: 250-708-8047  f: 250-708-8010
+1-888-517-2675   http://www.PureEdge.com <http://www.pureedge.com/>  
+ 
+
+
+<hiroshi>
+One thing that we noticed as problematic when looking at
+signature/encryption
+is the treatment of xml:lang and xml:space in
+C14N, if we use C14N for serialization.  C14N requires you to "push" the
+nearest
+xml:lang and xml:space declarations in the outer context into the C14Ned
+form.
+
+For example, canonicalizing the <bar/> element in
+
+<foo xml:lang='JA">
+   <bar />
+</foo>
+
+will yield
+
+<bar xml:lang="JA"/>.
+
+</hiroshi>
+
+<john>
+It would actually be <bar xml:lang="JA"></bar>.
+This is a desired behavior, esp. according to I18N types.
+</john>
+
+<hiroshi>
+Now, consider a sign-and-then-encrypt scenario for the following
+document.
+
+<el2sign xml:lang="JA">
+   <el2enc>secret</el2enc>
+</el2sign>
+
+where <el2sign> is signed and then <el2enc> is encrypted.  If we use
+C14N
+before encrypting <el2enc>, it will be converted to
+
+<el2enc xml:lang="JA">secret</el2enc>
+
+and consequently, after decryption the signature verifier will see
+
+<el2sign xml:lang="JA">
+   <el2enc xml:lang="JA">secret</el2enc>
+</el2sign>
+
+Unfortunately, C14Ning this will not remove the duplicate xml:lang
+declaration
+in <el2enc>.  Therefore, the signature does not verify.
+
+</hiroshi>
+
+<john>
+Firstly, if you change something that is signed after it is signed, the
+signature is supposed to break.  This is a good thing.
+
+As to your practical problem, it does not appear to have a very
+difficult solution.  The fact that it is a sign-then-encrypt scenario
+does not mean you are restricted to two black box operations to be done
+in precisely that sequence.  If you know it is a sign then encrypt, then
+you should simply apply the C14N to the block to be encrypted, then
+affix the signature, then perform the encryption.
+</john>
+
+***
+
+We rather think this is due to lack of consistency in C14N.  If C14N
+treats "xml:lang in effect" rather than "xml:lang declarations" as
+significant, it should remove redundant xml:lang declarations.  If C14N
+thinks "xml:lang declarations" significant, it should not copy
+outer declaration into C14Ned element.
+
+<john>
+The fact that C14N doesn't remove unnecessary xml:* attributes seems to
+be orthogonal to the problem you are having.  The problem you are having
+is that attributes are being added when you don't want them, not that
+C14N is failing to remove unnecessary ones when you don't want them.
+
+When you C14N the <el2enc> element, you are canonicalizing it outside of
+the context of its parent, so transferring the xml:lang into the element
+is necessary.  To wit, you may have an application scenario where you
+send only the encrypted blob (containing the scrambled version of the
+<el2enc> element) to the holder of the appropriate private key.  The
+absence of xml:lang in such a case would be detrimental.
+</john>
+
+Incidentally, C14N is consistent in treatment of namespace declarations
+-
+it always treats "in-scope namespaces" only and redundant
+namespace declarations are removed.
+
+<john>
+Yes, this is what it does for namespaces, but you only receive an
+xml:lang that is in-scope, and removing redundant ones does not solve
+your problem, as mentioned above.  As an exercise, do this problem again
+with a namespace declaration.  You will see that you have the same
+trouble.  Please see Section 2.3 of C14N for details on the handling of
+namespace nodes.
+</john>
+
+<hiroshi>
+Because C14N is already fixed, I do not think we can use C14N
+as serialization of encrypted data.  We are trying to define a
+serialization
+that would preserve the declarations as they appear in the original
+document.
+</hiroshi>
+
+<john>
+This would be an unfortunate choice given the simplicity with which your
+problem can be solved, esp. given the above counterexample under which
+your technical choice would result in application limitations.
+</john>
+
+Hiroshi
+
+
+
+
+--
+Hiroshi Maruyama
+Manager, Internet Technology, Tokyo Research Laboratory
++81-46-215-4576
+maruyama@jp.ibm.com
+
+
+
+From: "Joseph M. Reagle Jr." <reagle@w3.org>@w3.org on 2001/03/30 04:15
+
+Please respond to "Joseph M. Reagle Jr." <reagle@w3.org>
+
+Sent by:  xml-encryption-request@w3.org
+
+
+To:   Takeshi Imamura/Japan/IBM@IBMJP
+cc:   "XML Encryption WG " <xml-encryption@w3.org>, Hiroshi
+      Maruyama/Japan/IBM@IBMJP
+Subject:  Re: XML Encryption Data/Processing Model
+
+
+
+At 19:33 3/29/2001 +0900, Takeshi Imamura wrote:
+>The serialization is not so sensitive if only encryption is performed.
+>However, that may not be true if both encryption and signature are
+>performed on a document.  For example, suppose that a user signs and
+then
+>encrypts a document, where he defines and uses his own serialization
+which
+>does not preserve information set.  Another user will fail in verifying
+the
+>signature because the original document cannot be retrieved.  For such
+>reason, I think we should define at least a serialization for
+information
+>set.
+
+Very good point, I added that to the text in that section. However, I
+don't
+think the Infoset or DOM data models lack anything required by Canonical
+XML. (The part of XPath data model used by Canonical XML is a subset of
+both
+DOM and Infoset, right?) Even if this is the case (doesn't necessitate
+the
+use of Infoset or DOM), do you have a preference between the two?
+
+__
+Joseph Reagle Jr.                 http://www.w3.org/People/Reagle/
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/Signature
+W3C XML Encryption Chair          http://www.w3.org/Encryption/2001/
+
+
+

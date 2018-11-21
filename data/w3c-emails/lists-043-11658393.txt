@@ -1,0 +1,193 @@
+docno="lists-043-11658393"
+received="Tue Aug 10 21:04:33 1999"
+isoreceived="19990811010433"
+sent="Tue, 10 Aug 1999 21:09:24 -0400"
+isosent="19990811010924"
+name="David Solo"
+email="dsolo@worldnet.att.net"
+subject="Revised syntax proposal"
+id="002601bee396$2749cc60$3b0d4f0c@default"
+charset="iso-8859-1"
+expires="-1"
+
+To:<w3c-ietf-xmldsig@w3.org>
+Cc:<dsolo@alum.mit.edu>
+
+
+Attached is the revised syntax proposal from Richard, Barb, and I (although
+given some late changes, they may choose to disavow certain aspects, and any
+egregious glitches are purely mine).  There have been some major changes
+since the last post (summarized in the document), mainly to address the
+usage discussions that have been taking place.  The plan at this point in
+conjunction with discussion here is to produce a more complete ID in time
+for Irvine in accordance with Joe's outline.
+
+Dave
+
+-----
+
+10 August 1999
+
+Updated Syntax Proposal
+
+This is the updated draft syntax proposal for the XML digital
+signature effort.  There are several changes from the last posting as
+well as a number of remaining open questions.
+
+1) Major changes:
+
+a) The signature element is now the top level element and it may be
+used for detached signatures (with the signed object external) or
+encapsulating signatures (containing the signed object).
+
+b) A Manifest is one type of object which may be either internal or
+external, but isn't a core part of the syntax.
+
+c) Rearranged algorithm identifiers.  Also each algorithm is an
+element in which the ID is a type attribute and the contents, if any,
+are additional data.
+
+d) There is only a single signature.  An application may create
+multiple signature elements pointing to the same object or to other
+signatures.
+
+2) Open Issues:
+
+a) Signed attributes are currently visible at the top level of
+signedInfo but could be moved into object.
+
+b) Need to look at how things (signature, manifest, algorithms,
+resources) are named and referenced.
+
+c) Do we need two processing models for external references: one in
+which validation stops with the resource record (signature checked
+over the digest) and one in which the digest is recalculated over the
+external object.  Currently this is the distinction between the reference
+option and the object option.  For example with a reference, the digest over
+the item pointed to is recalculated while if a manifest
+were included as an object, only the manifest itself is validated.
+Note, the actual signature calculation process is the same in both
+cases, the issue is whether the hash is recalculated. Also, do we we
+want to restore the notion of a signature calculation in which the two
+objects are concatenated?
+
+d) Need to deal with namespace issues.
+
+e) Need to review the algorithm and keyInfo elements to make sure they
+handle defined cases.
+
+f) Need to specify mandatory to implement algorithms and keyInfo
+types.
+
+g) Need to consider specifying other packages and/or useful types.
+
+h) Support for one-pass processing.
+
+3) Signature DTD:
+
+<?xml version="1.0"?>
+
+ <!ELEMENT signature (signedInfo, keyInfo?, sigValue)>
+ <!ATTLIST signature
+         id     ID      #IMPLIED>
+
+ <!ELEMENT signedInfo (algorithms, (object|reference), signedAttributes?)>
+
+ <!ELEMENT keyInfo ANY>
+ <!ATTLIST keyInfo
+         type CDATA #REQUIRED >
+
+ <!ELEMENT sigValue (#PCDATA)>
+ <!-- base64 encoded signature value -->
+
+ <!ELEMENT algorithms (c14nAlg, sigAlg)>
+
+ <!ELEMENT c14nAlg ANY>
+ <!ATTLIST c14nAlg
+         type CDATA #REQUIRED >
+
+ <!ELEMENT sigAlg ANY>
+ <!ATTLIST sigAlg
+         type CDATA #REQUIRED >
+
+ <!ELEMENT digestAlg ANY>
+ <!ATTLIST digestAlg
+         type CDATA #REQUIRED >
+
+ <!ELEMENT signedAttributes (attributeData+)>
+ <!-- must be at least one attributeData or omit the element-->
+
+ <!ELEMENT attributeData ANY>
+ <!ATTLIST attributeData
+         type CDATA #REQUIRED >
+
+ <!ELEMENT reference (resource)>
+
+ <!ELEMENT object (c14nAlg, content)>
+
+ <!ELEMENT content ANY>
+ <!ATTLIST content
+ type CDATA #IMPLIED>
+
+ <!ELEMENT resource (location, c14nAlg, digestAlg, digest)>
+ <!ATTLIST resource
+ type CDATA #IMPLIED>
+
+ <!ELEMENT location (#PCDATA)>
+
+ <!ELEMENT digest (#PCDATA)>
+ <!-- base64 encoded digest value -->
+
+ <!ELEMENT manifest (resource+)>
+ <!-- the manifest may be used as an object, or referred to by a
+      reference; but is not part of the core signature syntax -->
+  <!ATTLIST manifest
+         id     ID      #IMPLIED>
+
+4. Example
+
+<signature id="foo">
+   <signedInfo>
+      <algorithms>
+         <c14nAlg type="identity"/>
+         <sigAlg type="rsaWithSHA-1"/>
+      </algorithms>
+      <object>
+         <c14nAlg type="identity"/>
+         <content type="manifest">
+            <manifest id="bar">
+               <resource>
+                  <location> syntax.txt </location>
+                  <c14nAlg type="identity"/>
+                  <digestAlg type="sha-1"/>
+                  <digest> a23bcd43 </digest>
+               </resource>
+            </manifest>
+         </content>
+      </object>
+      <signedAttributes>
+         <attributeData type="signingTime">Its midnight here</attributeData>
+      </signedAttributes>
+   </signedInfo>
+   <keyInfo type="keyName"> 3 </keyInfo>
+   <sigValue> dd2323dd </sigValue>
+</signature>
+
+5) Processing:
+Validation of an XML signature consists of the following steps
+a) canonicalization of the signed object based on c14n algorithm ID in
+the object element.
+b) c14n of the signedInfo element based on the c14n algorithm ID in
+the algorithms element.
+c) obtain the validation keying info from keyInfo or externally.
+d) validate the sigValue based on the sigAlg ID in the algorithms
+element and the key obtained in step c.
+  - Digest calculation is performed over the canonicalized signedInfo
+    element including start and end tags.
+  - All signedAttributes are treated as opaque with respect to
+    processing.
+  - If a reference element is present, recalculate digest on item
+    referenced and compare to digest value in resource element.
+
+
+

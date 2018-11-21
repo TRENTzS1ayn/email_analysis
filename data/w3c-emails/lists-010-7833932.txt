@@ -1,0 +1,225 @@
+docno="lists-010-7833932"
+received="Sat Aug 17 22:15:56 1996"
+isoreceived="19960818021556"
+sent="Sat, 17 Aug 1996 22:03:35 0700"
+isosent="19960818050335"
+name="Roy T. Fielding"
+email="fielding@liege.ICS.UCI.EDU"
+subject="Re: Problems with draft-ietf-http-v11-spec07"
+id="9608172203.aa23227@paris.ics.uci.edu"
+inreplyto="Pine.SUN.3.94.960815203855.28794L100000&#64;xochi.tezcat.com"
+expires="1"
+
+To: Klaus Weide<kweide@tezcat.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+> I have to disagree that Section 2.2 (or the draft as a whole) is clear
+> about character sets.  What is included in parentheses in the quote 
+> above may be the intention, but it is not explicit.
+
+The question of character sets/encoding is one that has been embroiled
+in controversy for every single draft that has gone through the applications
+area in the past three years.  For that reason, Henrik and I chose to
+be inclusive of character set possibilities wherever it was safe
+(interoperable) to do so, and not add any explicit requirements that
+would prevent future use of things like UTF-8 for some key areas of the
+protocol.  This was all done with the understanding that HTTP is an
+8-bit clean protocol (but all protocol features do have 7-bit alternatives).
+
+> I tried to answer for myself the question "Where, if at all, does
+> HTTP 1.1 allow non-US-ASCII characters (other than within message-
+> body)?", according to the latest draft.  I ran into several problems
+> with figuring out the answer.
+> 
+> First, I would prefer if the answer to that question was clearly
+> and explicitly stated somewhere in the draft.  As it is now, one
+> has to work one's way through several layers of BNF.
+
+Yes.  My only defense for this is simply that we didn't want to answer
+that question when we didn't need to.  That was a political choice, not
+a technical one.
+
+> On to the details:  Unencoded non-US-ASCII octets (octets with the
+> most significant bit set, simply called eightbit chars in the following)
+> come in to the BNF in two ways:
+> 
+> 2.2
+>        OCTET          = <any 8-bit sequence of data>
+> 
+> whence TEXT, comment and ctext, quoted-string and qdstring
+> are all allowed to have eightbit chars.  (but not quoted-pair.)
+> 
+> Note that this allows eightbit chars in lots of places, for example
+> Etags or MIME parameters (including boundaries).
+
+Yep -- the keyword being "allows".
+
+> 3.2 Uniform Resource Identifiers
+> 3.2.1
+>        national       = <any OCTET excluding ALPHA, DIGIT,
+>                         reserved, extra, safe, and unsafe>
+> 
+> whence unreserved, uchar and pchar, and therefore nearly all parts
+> of a URI (apart from the scheme) are allowed to have eightbit chars.
+
+Yep, as explained below.
+
+> 3.2.1:
+>     "The BNF above includes national characters not
+> allowed in valid URLs as specified by RFC 1738, since HTTP servers are
+> not restricted in the set of unreserved characters allowed to represent
+> the rel_path part of addresses, and HTTP proxies may receive requests
+> for URIs not defined by RFC 1738."
+> 
+> I read that as meaning that HTTP application which handle such URIs
+> with eightbit chars can conform to the HTTP/1.1 spec, even if those
+> URIs don't conform to RFC 1738.
+
+That is correct.  RFC 1738 did not define the syntax for URNs and there
+is no reason for HTTP to restrict URI's to the URL syntax exclusively.
+
+> Although the quoted sentence doesn not explicitly speak of generating
+> such URIs, there is nothing forbidding it.  (And it seems logical
+> that a server accepting requests for such URI's should also be allowed
+> to generate Location: headers etc. containing them.)
+
+The spec doesn't say that.  Wherever possible, it leaves the issue of
+naming resources in the hands of the origin server.
+
+> On the other hand, in
+> 4.2 Message Headers
+> 
+>        message-header = field-name ":" [ field-value ] CRLF
+> 
+>        field-name     = token
+>        field-value    = *( field-content | LWS )
+>  
+>        field-content = <the OCTETs making up the field-value
+>                         and consisting of either *TEXT or combinations
+>                         of token, tspecials, and quoted-string>
+> 
+> Note that it doesn't say
+> 
+>        field-content = <the OCTETs making up the field-value
+>                         and consisting of either *TEXT or combinations
+>                         of token, tspecials, URI, and quoted-string>
+> 
+> nor does it say
+> 
+>        field-content = <the OCTETs making up the field-value
+>                         and consisting of either *TEXT or combinations
+>                         of token, tspecials, quoted-string etc.>
+> 
+> From this I conclude that
+> (a)  an URI in a field-content (which is not within a quoted-string),
+>      since it is not defined as arbitrary *TEXT, has to be understood 
+>      as being comprised of component tokens, and
+> (b)  (since eightbit chars are not allowed in tokens) an URI in a
+>      field-content cannot contain unencoded eightbit chars.
+
+Nope -- that is an invalid extrapolation.  The generic syntax for
+parsing header fields considers a URI to be *TEXT.  This has no affect
+on specific field definitions, because those specific definitions add their
+own requirements to the interpretation of the field-content of a specific
+field *after* it has been extracted by the message parser.
+
+In practice, you can put 8-bit text in any of the locations where the
+spec allows it -- current HTTP/1.0 applications work that way.
+
+> But the BNF for specific headers uses rules which seem to allow
+> eightbit chars, for example
+> 
+> 14.30
+>        Location       = "Location" ":" absoluteURI
+> 
+> I conclude that the draft is far from clear.
+
+Well, look at how the BNF defines messages -- the only fields that are
+defined in terms of <field-content> are the extension fields (those not
+defined by the specification itself).
+
+Saying that the draft is "far from clear" is not useful.  Do you have
+specific wording that could be added, and where it should be added, which
+would help clarify the issue without harming the protocol's extensibility?
+
+> Some other (mostly BNF related) weirdnesses:
+> 
+> SInce URI is comprised of tokens (see (a) above), the following
+> seems to apply:
+
+I'll pass on the rest, since the assumption is false.
+
+> Comments (within parentheses) should probably allowed in more
+> places - at least, in 19.4.7
+>        MIME-Version   = "MIME-Version" ":" 1*DIGIT "." 1*DIGIT
+> should probably be
+>        MIME-Version   = "MIME-Version" ":" 1*DIGIT "." 1*DIGIT *comment
+
+Why? A comment in that location serves no useful purpose.
+
+> Also,
+>       Via =  "Via" ":" 1#( received-protocol received-by [ comment ] )
+> in 14.44 should maybe become
+>       Via =  "Via" ":" 1#( received-protocol received-by [ *comment ] )
+
+Comments can be nested and we did not wish to encourage multiple
+comments in a protocol that is normally only machine-read (unlike mail).
+
+> 10.3.6 305 Use Proxy
+> 
+> The requested resource MUST be accessed through the proxy given by the
+> Location field. The Location field gives the URL of the proxy. The
+> recipient is expected to repeat the request via the proxy.
+> 
+> How exactly does is a proxy "given" by a Location field?
+> Location normally contains an URI, and URIs point to resources but
+> not (normally) applications (the proxy).  Does the URI have to be
+> a http_URL, does the abs_path have to be empty (or is it required
+> to be "/"), and what if not?
+
+On the contrary, proxies are normally identified by URL.  The URL
+does not need to be an http URL (though it would be in current practice)
+and the interpretation of the path (if any) would be dependent on
+the method of proxying (http would not use any path).
+
+Please keep in mind that the spec does not prevent people from doing
+things that won't work -- it doesn't have to.
+
+> 3.6 Transfer Codings
+> ...
+>        hex-no-zero    = <HEX excluding "0">
+> 
+>        chunk-size     = hex-no-zero *HEX
+> ...
+>        chunk-data     = chunk-size(OCTET)
+> 
+> Why does this rule use HEX and not DIGIT?  Does this mean the
+> chunk-size is hexadecimally encoded?
+
+Yes. It should have said that in the text as well, but fails to.
+
+>                           *   *   *
+> 
+> A remark regarding 14.1 Accept:
+> It's a pity there is a "q=", but not a "mxb=".  An oversight or
+> intentional?
+
+The conneg group decided it "wasn't needed" based on the observation
+that browsers didn't implement it.  Koen is wrong in that the presence
+of Range does absolutely nothing to replace the functionality of mxb.
+The only problem with mxb is that it adds complexity to the process
+of configuring a browser and there is no convenient way to adjust the
+maximum based on the purpose of an individual request.  Given the
+lack of enthusiasm about Accept, and the growing complexity of content
+negotiation in general, there was not enough reason to restore it to
+the specification once it was removed.
+
+
+ ...Roy T. Fielding
+    Department of Information & Computer Science    (fielding@ics.uci.edu)
+    University of California, Irvine, CA 92697-3425    fax:+1(714)824-4056
+    http://www.ics.uci.edu/~fielding/
+
+
+

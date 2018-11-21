@@ -1,0 +1,191 @@
+docno="lists-046-2197009"
+received="Thu Jan 10 13:23:31 2002"
+isoreceived="20020110182331"
+sent="Thu, 10 Jan 2002 10:22:46 -0800"
+isosent="20020110182246"
+name="John Boyer"
+email="JBoyer@PureEdge.com"
+subject="RE: Notes on xml-exc-c14n rev 1.21"
+id="7874BFCCD289A645B5CE3935769F0B520C34FE@tigger.PureEdge.com"
+inreplyto="Notes on xml-exc-c14n rev 1.21"
+expires="-1"
+
+
+To:<reagle@w3.org>,"Thomas Maslen"<tmaslen@wedgetail.com>,<w3c-ietf-xmldsig@w3.org>
+
+
+
+Hi all, 
+
+Please see comments marked <jb> below.
+
+-----Original Message-----
+From: Joseph Reagle [mailto:reagle@w3.org]
+Sent: Wednesday, January 09, 2002 3:33 PM
+To: Thomas Maslen; w3c-ietf-xmldsig@w3.org; John Boyer
+Subject: Re: Notes on xml-exc-c14n rev 1.21
+
+
+OPEN
+
+On Wednesday 09 January 2002 04:28, Thomas Maslen wrote:
+>     (e)A paragraph in section 1.1 says "The namespace axis of
+an element
+> contains nodes for all namespace declarations [...]".  If this
+is
+> meant to be consistent with XPath semantics, it should mention
+the
+> absence of a node for xmlns="".
+
+John, can you confirm and provide text?
+
+<jb>
+Confirmed.  Proposed new text:
+
+The namespace axis of an element contains nodes for all non-default
+namespace declarations made within the element as well as non-default
+namespace declarations inherited from ancestors of the element. The
+namespace axis also contains a node representing the default namespace
+if it is not the empty string, whether the default namespace was
+declared within the element or by an ancestor of the element.  Any
+subset of the nodes in a namespace axis can be included in a document
+subset.
+</jb>
+
+
+>     (2)Where is the exc-c14n behaviour of the default namespace
+> specified?
+>
+> The default namespace ("xmlns") has various funny properties
+that
+> have to be dealt with in definitions, particularly
+>
+>       -since the default namespace doesn't have a namespace
+prefix,
+> phrases like "For namespace prefixes ..." don't apply to
+it,
+>
+>       -since XPath very thoughtfully indicates xmlns="" by the
+> absence of a namespace node, phrases like "each
+namespace
+> node" don't do the job either.
+>
+> The Canonical XML recommendation jumped through the appropriate
+> hoops to correctly define the behaviour of the default namespace
+> (despite XPath), but I don't think that the exc-c14n draft does.
+>
+> Section 1.1 of exc-c14n is fine:  the definition of "visibly
+> utilizes" does have a sentence that accounts for the default
+> namespace [well, assuming that it is *not* using XPath
+semantics,
+> i.e. the incredible disappearing xmlns="" node].
+
+Right, that's this bit, "which occurs if E has no namespace prefix".
+
+<jb>Actually, it is accounted for by the whole sentence that ends with
+the dependent clause given by Joseph above. </jb>
+
+> Section 3 contains two definitions of exc-c14n, and I don't
+think
+> that either of them really addresses the default namespace:
+>
+>
+>       -the first definition is "Canonical XML, with these three
+> exceptions".
+>
+> The wording in the exceptions (2 and 3) talks about
+> "namespace prefixes", so it doesn't include the default
+> namespace -- so presumably the default namespace just
+> inherits the Canonical XML behaviour, i.e. it uses
+> inclusive c14n?
+>
+> Is that the intent?  (I would have guessed that the
+> default namespace was meant to be handled exclusively).
+>
+>
+>       -the second definition is the pseudocode algorithm.
+>
+> Step 3 of the pseudocode talks about "namespace nodes"
+> in the XPath sense, so implicitly [accidentally?  Or
+> deliberately?] it applies to xmlns="mumble" and will
+> treat it exclusively -- c.f. the first definition,
+> above -- but it does not handle xmlns="" at all.
+>
+>
+> I think that there are two options for the spec that would give
+> consistent results:
+>
+>     (I)state that the default namespace is always treated
+> inclusively, i.e. effectively the InclusiveNamespaces
+> PrefixList invisibly contains the default namespace
+> (which, of course, doesn't have a prefix)
+>
+>    (II)modify Section 3 (I haven't figured out how) so that
+both
+> xmlns="mumble" and xmlns="" are canonicalized
+exclusively,
+> i.e. they only show up when they are visibly utilized
+>
+> Of these, I definitely prefer (II), because I think it produces
+> the less surprising behaviour.
+>
+> [Or is there something I haven't realized about exc-c14n that
+> makes this all a silly question, e.g. element names are always
+> prefixed?]
+
+No, I think you identified a blind spot. I've modified 3.1.3 to read:
+
+  For every /+namespace node with a+/ prefix that does not appear in
+ the InclusiveNamespacePrefix List, a namespace declaration is output
+ at every output element where that prefix is visibly utilized and that
+ prefix and its value is not already in an output ancestor.
+
+However, I wonder what if their is a semantic difference between a
+missing 
+InclusiveNamespace PrefixList and one equal to "" ?
+
+<jb>
+Yes, there should be, though it is no longer specified.  In the 5 July
+2001 draft, I had the following text for #3 (Pertinent meant that it
+would be in the output):
+
+The Exclusive XML Canonicalization method receives an additional string
+parameter UnsuppressedNamespacePrefixList containing a comma separated
+list of namespace prefixes that are not to be suppressed (e.g.
+"ns1,ns2,ns3" with no intervening whitespace). Any namespace node that
+declares a namespace prefix in this list is automatically pertinent. If
+there is an empty entry in the UnsuppressedNamespacePrefixList (e.g.
+",ns1" or "ns1," or "ns1,,ns2"), then default namespace nodes are
+automatically pertinent. 
+</jb>
+
+<jb>
+Some of the parts of Section 3 don't sound quite right:
+
+1) The third exception says "For every namespace node with a prefix that
+does not appear in the InclusiveNamespacePrefix List, a namespace
+declaration is output at every output element where that prefix is
+visibly utilized and that prefix and its value is not already in an
+output ancestor."  Shouldn't it be the case that the *nearest* output
+ancestor has to have the same value?
+
+2) In implementation note 3.2, shouldn't it say that when the recursion
+returns, then the namepsace nodes should be popped from the stack?
+Otherwise, doesn't an element get interference from the namespaces at
+play by the last processed descendant of the element's preceding
+sibling?
+
+3) In the Note after the implementation method, it says that "many XPath
+implementations do not distinguish namespace nodes from attribute
+nodes."  This is actually an incorrect implementation of XPath.  The
+next sentence should start with something other than "This is
+necessary..." such as "It is necessary to distinguish namespace nodes
+from attribute nodes because ... [same ending]".
+
+Cheers,
+John Boyer
+PureEdge Solutions Inc.
+</jb>
+
+
+

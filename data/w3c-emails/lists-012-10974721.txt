@@ -1,0 +1,246 @@
+docno="lists-012-10974721"
+received="Mon Aug  2 07:52:17 1999"
+isoreceived="19990802115217"
+sent="Sun, 01 Aug 1999 23:57:05 0400"
+isosent="19990802035705"
+name="Henrik Frystyk Nielsen"
+email="frystyk@w3.org"
+subject="RE: Comments on HTTP TLS Upgrade draft"
+id="3.0.5.32.19990801235705.00832500@localhost"
+charset="usascii"
+inreplyto="000f01bed76d$2b637ce0$954768c0&#64;oyster.agranat.com"
+expires="1"
+
+
+To:"Scott Lawrence"<lawrence@agranat.com>,"Rohit Khare"<rohit@4k-associates.com>
+Cc:<http-wg@hplb.hpl.hp.com>
+
+At 09:45 26/07/1999 -0400, Scott Lawrence wrote:
+
+>> * Chapter 5.1: There is no link between the use of the Upgrade header
+>field
+>> and the cachability of a response as you indicate in the second last
+>> paragraph. Upgrade is optional and it is fully ok for a cache to serve an
+>> already cached HTTP response either using HTTP or HTTP/TLS (if the cache
+>> chooses to honor the Upgrade header field). Obviously, it is not OK to do
+>> it the other way.
+>
+>I believe that you are referring to:
+>
+>   Furthermore a caching proxy SHOULD not reply to a request with
+>   Upgrade tokens from its cache.
+>
+>The intent here is just to remind the proxy that Upgrade, as a
+>hop-by-hop header, is not appropriate to cache with a response and
+>forward as part of that response; it is not a property of the returned
+>entity, but of the immediate (in this case origin-proxy) connection.
+
+I was referring to this in 5.1:
+
+   Furthermore a caching proxy SHOULD not reply to a request with
+   Upgrade tokens from its cache. Clients are still advised to
+   explicitly include "Cache-control: no-cache" in this case.
+
+which seems to say something else (which in fact is not true) - see below.
+
+>> If the client starts with an OPTIONS request and the cache honors the
+>> upgrade request, subsequent requests on that secure connection must of
+>> course be served on top of the same secure connection.
+>
+>The rules that govern what happens after any upgrade are those of the
+>protocol to which the connection has changed, and are therefor beyond
+>the scope of this document.
+
+In general yes, but you are not dealing with the general case - you are
+describing the very specific case of changing from HTTP on TCP to HTTP on
+SSL. I think you have to describe how responses that have been obtained via
+HTTP can be reused by caches after proper end-to-end validation and served
+via HTTP/SSL.
+
+>> * Chapter 7: Saying that the protocol is HTTP doesn't say a whole lot more
+>> about the service than saying that it is TLS.
+>
+>> More importantly, the Upgrade header field is also intended to upgrade
+>HTTP
+>> itself, for example from HTTP/1.1 to some future HTTP/3.0. However, when
+>> you collapse HTTP and TLS into one token, you loose the capability (or run
+>> into a multiplicative explosion) expressing that the application would
+>like
+>> to upgrade to both HTTP/3.0 *and* TLS/1.0. Instead it is more useful to do
+>> it like this:
+>
+>> Upgrade: HTTP/3.0, TLS/1.0
+>
+>> In other words, there is no need for the "clustering" of Upgrade header
+>> field tokens.
+>
+>We considered this alternative at some length, and at one point had
+>written the draft that way.  We liked the idea of the Upgrade response
+>header being able to specify a series of protocol tokens so as to
+>specify a stack to be used after the change.  We were not sure that
+>this would be understood, however.  RFC 2616 is vague on just what
+>multiple tokens could mean in an Upgrade response.  We elected for the
+>simpler set of expectations.
+
+Unfortunately this leads easily to an explosion of tokens that have to be
+registered. HTTP doesn't have to say anything about the relationship
+between the various tokens in the upgrade header field. It is sufficient
+for the protocols (or sub protocols) independently to define how they can
+interact with other protocols. For example, it can be stated in the
+registration of the SSL upgrade token that it can work with any version of
+HTTP.
+
+>> A general problem with the Upgrade header field tokens is, however, that
+>> they do not allow for parameters to be passed along: How do I specify
+>other
+>> parameters such as required encryption strength, the scope of resources
+>> available through that secure link, etc? It should not be part of the
+>> extension mechanism to describe such parameters directly but it must be
+>> possible for the application to at least pass that information through.
+>
+>The syntax just doesn't have a space for it (for some reason, even the
+>usual extension mechanism of 'stuff after a semicolon' was omitted
+>from the Upgrade syntax).  In any event, TLS provides for negotiation
+>of these parameters directly; I suspect that leaving option
+>negotiation to the protocol to which we are switching (as opposed to
+>trying to shortcut it by doing it in HTTP) is the better approach.
+
+It is not a short cut - it is an exchange of hints (metadata) which can put
+the recipient in a better position to select the best choice. It would be a
+short cut if it was binding for what happens after the upgrade is done - it
+is not.
+
+>> * Chapter 9: There is no guarantee that "http://w3.org" and
+>> "https://w3.org" point to the same resource just as well as there is no
+>> guarantee that "ftp://w3.org" and "http://w3.org" point to the same
+>> resource. In general, it is not possible to declare that the http
+>namespace
+>> can take over the https namespace as you write in chapter 9.
+>
+>It was not our intent to redefine the 'https' scheme, or to suggest
+>that implementations should somehow map it to this new mechanism.
+>That scheme exists and will forever mean HTTP over SSL on TCP port
+>443.  From the reactions we got, we were evidently not successful at
+>making this clear.
+
+ok
+
+>> * I think there is a problem with the OPTIONS method and how you specify
+>> that it should interact with the upgrade header field. The OPTIONS request
+>> can be forwarded all the way to the origin server as described in HTTP/1.1
+>> section 5.1.2. However, the Upgrade header field can't (which you also
+>> point out) as it is a hop-by-hop header field. For example, the user agent
+>> sends an OPTIONS request like this:
+>
+>> OPTIONS http://w3.org HTTP/1.1
+>> Upgrade : HTTP+TLS/1.0
+>> Connection: Upgrade
+>
+>> this will be forwarded through the first proxy as
+>
+>> OPTIONS http://w3.org HTTP/1.1
+>> or
+>> OPTIONS * HTTP/1.1
+>> Host: w3.org
+>
+>> Note that the proxy hasn't agreed on tunneling yet - it has only forwarded
+>> the request according to normal HTTP/1.1 rules. If the user agent instead
+>> sends a request like this:
+>
+>> OPTIONS * HTTP/1.1
+>> Host: w3.org
+>> Upgrade : HTTP+TLS/1.0
+>> Connection: Upgrade
+>
+>> then the request is intended for the proxy only (in the role as a server)
+>> and won't get forwarded.
+>
+>I'm not sure that I agree with your interpretation of this latter
+>formulation - I think that they are both the same, but I'm afraid that
+>I do agree with your conclusion that the Upgrade header should not be
+>forwarded, which causes some problems with what we suggest as an
+>end-to-end solution.  It would require, in effect, that the user agent
+>understand the entire proxy chain and do a series of OPTIONS/Upgrade
+>requests to create secure connections through each individually (not
+>an optimal solution, IMHO).
+>
+>I wonder what existing proxies really do with Upgrade; in particular:
+> - Do they in fact forward it (incorrectly?) in a response if it is
+>   _not_ (incorrectly) listed in a Connection header?
+> - Whether or not they react to it in a 101 response (our draft would have
+>   them switch to tunnel mode - what do they do today)?
+>
+>> I believe the intended semantics (I call it "repeated hop-by-hop") can be
+>> modeled by the HTTP extension framework like this (and is sort of the idea
+>> of the CONNECT draft [1]):
+>
+>> M-OPTIONS http://w3.org HTTP/1.1
+>> Host: w3.org
+>> Man: "http://www.iana.org/http/ext/tls"
+>
+>> This request will be tunneled through the proxy because it doesn't know
+>the
+>> extension (or if it does then it will know what it must tunnel), or it
+>will
+>> fail and refuse to cooperate (which also is the case for the OPTIONS
+>> method). As the extension is not hop-by-hop, it will be forwarded all the
+>> way to the ultimate recipient.
+>
+>That is still a change to an existing proxy, though - because it
+>requires that the proxy conform to the extensions draft.  I agree that
+>would be a good thing, but I don't think that it changes our situation
+>at all now.
+
+Nope, a proxy would regardless of whether it knows HTTP extension framework
+or not dive into tunnel mode or return a 501 (Not Implemented). Similarly,
+an optional extension would be passed through to the end:
+
+OPTIONS http://w3.org HTTP/1.1
+Host: w3.org
+Opt: "http://www.iana.org/http/ext/tls"
+
+It would work even with proxies that don't support the extension framework.
+
+>> The response could of course still be a 101 Switching Protocols which
+>would
+>> then be propagated all the way back to the user agent and all
+>> intermediaries will already be in tunnel mode.
+>
+>But will they be expecting to stay there for all subsequent requests,
+>or will they just switch to tunnel mode for the current request and
+>then expect to be 1.1 again afterwards?
+
+Once a proxy agrees to tunnel, it does not take part of the HTTP
+communication and stays in tunnel mode until both transport connections
+have been closed, see 1.2:
+
+tunnel
+
+An intermediary program which is acting as a blind relay between
+two connections. Once active, a tunnel is not considered a party
+to the HTTP communication, though the tunnel may have been initiated
+by an HTTP request. The tunnel ceases to exist when both ends of the
+relayed connections are closed.
+
+There is actually a bug here - the 101 (Switching Protocol) status code is
+passed though proxies (and-to-end) while the Upgrade header field it is
+responding to is hop-by-hop. This means that a client behind a proxy will
+get the 101 response even though it hasn't asked for an upgrade but the
+proxy did.
+
+It should be mentioned that 101 (Switching Protocols) shouldn't be
+forwarded by proxies if not tunnelling. In 5.1, you mention that a proxy
+receiving a 101 should tunnel but this does not work if the proxy initiated
+the Upgrade header field by itself.
+
+The HTTP extension framework solves this problem by having the Ext: and
+C-Ext: header fields to indicate who accepted an extension.
+
+Henrik
+--
+Henrik Frystyk Nielsen,
+World Wide Web Consortium
+http://www.w3.org/People/Frystyk
+
+
+

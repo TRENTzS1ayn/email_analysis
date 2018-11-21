@@ -1,0 +1,413 @@
+docno="lists-000-14888923"
+received="Fri Aug 11 11:37:06 2000"
+isoreceived="20000811153706"
+sent="Fri, 11 Aug 2000 10:24:43 -0500"
+isosent="20000811152443"
+name="Gary Deschaines"
+email="gary.deschaines@netmechanic.com"
+subject="Re: dt/center processing problem fix"
+id="39941ABB.AA4963FE@netmechanic.com"
+charset="us-ascii"
+inreplyto="3992F05A.31F854DA&#64;netmechanic.com"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+> dt/center processing problem fix
+>
+> From: Gary Deschaines (gary.deschaines@netmechanic.com)
+> Date: Thu, Aug 10 2000
+>
+> *Next message: Andy Quick: "Re: Bug: Possible dangling pointer in istack.c"
+>
+>    * Previous message: Sebastian Lange: "RE: tidy4aug00 update"
+>    * Messages sorted by: [ date ] [ thread ] [ subject ] [ author ]
+>    * Other mail archives: [this mailing list] [other W3C mailing lists]
+>    * Mail actions: [ respond to this message ] [ mail a new topic ]
+>
+>   ------------------------------------------------------------------------
+>
+> Date: Thu, 10 Aug 2000 14:24:04 -0400 (EDT)
+> Message-ID: <3992F05A.31F854DA@netmechanic.com>
+> From: Gary Deschaines <gary.deschaines@netmechanic.com>
+> To: html-tidy@w3.org
+> Subject: dt/center processing problem fix
+>
+> Dave,
+>
+> The 4 August 2000 and earlier versions of HTML Tidy contain a bug
+> which causes a segmentation fault in the InsertNodeAfterElement
+> procedure when the specified element does not contain a parent.
+> This problem occurs when HTML Tidy attempts to parse an inferred
+> definition list which contains a center element as illustrated
+> in the following segment of HTML code.
+>
+>   <BODY>
+>    <CENTER><H1>Heading 1</H1></CENTER>
+>     <DT><IMG src="redball.gif"><B>Term 1</B></DT>
+>     <DT><IMG src="redball.gif"><B>Term 2</B><HR></DT>
+>    <CENTER><H1>Heading 2</H1></CENTER>
+>
+> This problem had been reported by Glenn Carroll as a "dt/center
+> processing problem" in an e-mail dated Wed, Apr 19 2000, but I
+> have found no record of a reported fix in the html-tidy@w3.org
+> mail archive.
+>
+> By using the HTML source file and HTML Tidy configuration file
+> presented in sections 1 and 2 of the text file attached with
+> this letter, I traced the problem to the code block labeled
+> "/* center in a dt or a dl breaks the dl list in two */" in the
+> ParseDefList procedure (lines 1457 to 1475 in parser.c).
+>
+>   1457         /* center in a dt or a dl breaks the dl list in two */
+>   1458         if (node->tag == tag_center)
+>   1459         {
+>   1460             if (list->content)
+>   1461                 InsertNodeAfterElement(list, node);
+>   1462             else /* trim empty dl list */
+>   1463             {
+>   1464                 InsertNodeBeforeElement(list, node);
+>   1465                 DiscardElement(list);
+>   1466             }
+>   1467
+>   1468             /* and parse contents of center */
+>   1469             ParseTag(lexer, node, mode);
+>   1470
+>   1471             /* now create a new dl element */
+>   1472             list = InferredTag(lexer, "dl");
+>   1473             InsertNodeAfterElement(node, list);
+>   1474             continue;
+>   1475         }
+>
+> In the code block, ParseTag is called for the <CENTER> node
+> following the first set of <DT> elements which are not contained
+> in a <DL>...</DL> element.  When the <H1> node immediately after
+> the <CENTER> node is encountered by the ParseBlock procedure
+> (ParseTag procedure for center tag), the <CENTER> element is
+> discarded by the following block of code (lines 765 to 781 of
+> parser.c)
+>
+>    765             else if (node->tag->model & CM_BLOCK)
+>    766             {
+>    767                 if (lexer->excludeBlocks)
+>    768                 {
+>    769                     if (!(element->tag->model & CM_OPT))
+>    770                         ReportWarning(lexer, element, node,
+>                                              MISSING_ENDTAG_BEFORE);
+>    771
+>    772                     UngetToken(lexer);
+>    773
+>    774                     if (element->tag->model & CM_OBJECT)
+>    775                         lexer->istackbase = istackbase;
+>    776
+>    777                     TrimSpaces(lexer, element);
+>    778                     TrimEmptyElement(lexer, element);
+>    779                     return;
+>    780                 }
+>    781             }
+>
+> extracted from ParseBlock since the value of lexer->excludeBlocks
+> is true.  When processing returns from the ParseBlock (ParseTag)
+> procedure, the center element has been discarded and the center
+> element "node" passed in the call to InsertNodeAfterElement for
+> the inferred dl element "list" does not contain a valid pointer
+> to a parent node.
+>
+> The occurrence of a center element in the definition list results
+> in the definition list to be split into two lists around the center
+> element.  Consequently, the center element is no longer contained
+> in a definition list and block elements are permitted.  Therefore,
+> based on my interpretation of HTML Tidy processing in this case, I
+> believe the lexer->excludeBlocks flag needs to be set to no before
+> the center node is parsed and then set to yes before ParseDefList
+> processing continues with a new definition list as illustrated
+> below.
+>
+>   1466             }
+>   1467
+>   1468             /* and parse contents of center */
+> +                  lexer->excludeBlocks = no;
+>   1469             ParseTag(lexer, node, mode);
+> +                  lexer->excludeBlocks = yes;
+>   1470
+>   1471             /* now create a new dl element */
+>
+> The text file "INFO_1.txt" provided as an attachment with this
+> letter contains the following sections which present information
+> to substantiate my findings.
+>
+>   1. HTML Source File - coredump2_O.htm
+>   2. HTML Tidy Configuration File - coredump2.cfg
+>   3. Original HTML Tidy Execution
+>   4. Examination of Core Dump with gdb
+>   5. HTML Tidy Source Patches
+>   6. Patched HTML Tidy Execution
+>
+> The HTML source file contains a condensed portion of an actual
+> web page which caused the segmentation fault and incorporates the
+> same HTML coding errors -- missing <DL> and </DL> tags,  needless
+> </DT> tags, missing <DD> tags, and incorrect use of UL tags
+> instead of DL tags.  I presume the web page author intended to
+> use a definition list to create custom bullets for an unordered
+> list instead of utilizing CSS to define a list-style-image property
+> for unordered list elements.
+>
+> Respectfully,
+> Gary Deschaines
+> gary.deschaines@netmechanic.com
+>
+> FILE:  INFO_1.txt (attachment to MEMO_1.txt)
+> DATE:  10 AUG 2000
+>
+> -------------------------------------
+> 1. HTML Source File - coredump2_O.htm
+> -------------------------------------
+> <HTML>
+>  <HEAD>
+>   <TITLE>Core Dump Case 2</TITLE>
+>  </HEAD>
+>  <BODY>
+>   <CENTER><H1>Heading 1</H1></CENTER>
+>    <DT><IMG src="redball.gif"><B>Term 1</B></DT>
+>    <DT><IMG src="redball.gif"><B>Term 2</B><HR></DT>
+>   <CENTER><H1>Heading 2</H1></CENTER>
+>   <UL>
+>    <DT><IMG src="redball.gif"><B>Term 3</B></DT>
+>    <DT><IMG src="redball.gif"><B>Term 4</B><HR></DT>
+>   </UL>
+>  </BODY>
+> </HTML>
+>
+> -----------------------------------------------
+> 2. HTML Tidy Configuration File - coredump2.cfg
+> -----------------------------------------------
+> write-back: no
+> tidy-mark: no
+> quote-ampersand: no
+> show-warnings: yes
+> char-encoding: raw
+> markup: yes
+> show-acc-warnings: no
+> hide-endtags: no
+> uppercase-tags: no
+> uppercase-attributes: no
+> wrap-script-literals: no
+> numeric-entities: no
+> indent: auto
+> wrap: 0
+> logical-emphasis: no
+> clean: no
+> drop-font-tags: no
+>
+> -------------------------------
+> 3. Original HTML Tidy Execution
+> -------------------------------
+> ../orig/tidy -e -config coredump2.cfg coredump2_O.htm
+>
+> Tidy (vers 4th August 2000) Parsing "coredump2_O.htm"
+> line 7 column 4 - Warning: <dt> isn't allowed in <body> elements
+> line 7 column 4 - Warning: inserting implicit <dl>
+> line 7 column 8 - Warning: <img> lacks "alt" attribute
+> line 8 column 8 - Warning: <img> lacks "alt" attribute
+> line 8 column 44 - Warning: <hr> isn't allowed in <dt> elements
+> line 8 column 48 - Warning: trimming empty <dt>
+> line 9 column 11 - Warning: missing </center> before <h1>
+> line 9 column 11 - Warning: trimming empty <center>
+> Segmentation fault (core dumped)
+>
+> ------------------------------------
+> 4. Examination of Core Dump with gdb
+> ------------------------------------
+> gdb -nx ../orig/tidy -c core
+>
+> GNU gdb 19991004
+> Copyright 1998 Free Software Foundation, Inc.
+> GDB is free software, covered by the GNU General Public License, and you are
+> welcome to change it and/or distribute copies of it under certain conditions.
+> Type "show copying" to see the conditions.
+> There is absolutely no warranty for GDB.  Type "show warranty" for details.
+> This GDB was configured as "i386-redhat-linux"...
+> Core was generated by `../orig/tidy -e -config coredump2.cfg coredump2_O.htm'.
+> Program terminated with signal 11, Segmentation fault.
+> Reading symbols from /lib/libc.so.6...done.
+> Reading symbols from /lib/ld-linux.so.2...done.
+> #0  0x804a6bd in InsertNodeAfterElement (element=0x8071a88, node=0x8071a88) at parser.c:205
+> 205         if (parent->last == element)
+>
+> (gdb) where
+>
+> #0  0x804a6bd in InsertNodeAfterElement (element=0x8071a88, node=0x8071a88) at parser.c:205
+> #1  0x804cc13 in ParseDefList (lexer=0x806f2c0, list=0x8071a88, mode=0) at parser.c:1473
+> #2  0x804ac47 in ParseTag (lexer=0x806f2c0, node=0x8071640, mode=0) at parser.c:432
+> #3  0x804f4ef in ParseBody (lexer=0x806f2c0, body=0x80714c0, mode=0) at parser.c:2883
+> #4  0x804ac47 in ParseTag (lexer=0x806f2c0, node=0x80714c0, mode=0) at parser.c:432
+> #5  0x804fe81 in ParseHTML (lexer=0x806f2c0, html=0x8071390, mode=0) at parser.c:3217
+> #6  0x804ffb9 in ParseDocument (lexer=0x806f2c0) at parser.c:3264
+> #7  0x80604a4 in main (argc=2, argv=0xbffff9f0) at tidy.c:956
+>
+> (gdb) l 205
+>
+> 200         Node *parent;
+> 201
+> 202         parent = element->parent;
+> 203         node->parent = parent;
+> 204
+> 205         if (parent->last == element)
+> 206             parent->last = node;
+> 207         else
+> 208         {
+> 209             node->next = element->next;
+>
+> (gdb) p element->parent
+>
+> $1 = (struct _node *) 0x0
+>
+> ---------------------------
+> 5. HTML Tidy Source Patches
+> ---------------------------
+> *** ./orig/parser.c     Fri Aug  4 12:21:05 2000
+> --- ./code/parser.c     Thu Aug 10 09:27:27 2000
+> ***************
+> *** 1466,1472 ****
+> --- 1466,1474 ----
+>               }
+>
+>               /* and parse contents of center */
+> +             lexer->excludeBlocks = no;
+>               ParseTag(lexer, node, mode);
+> +             lexer->excludeBlocks = yes;
+>
+>               /* now create a new dl element */
+>               list = InferredTag(lexer, "dl");
+>
+> ------------------------------
+> 6. Patched HTML Tidy Execution
+> ------------------------------
+> ../code/tidy -e -config coredump2.cfg coredump2_O.htm
+>
+> Tidy (vers 4th August 2000) Parsing "coredump2_O.htm"
+> line 7 column 4 - Warning: <dt> isn't allowed in <body> elements
+> line 7 column 4 - Warning: inserting implicit <dl>
+> line 7 column 8 - Warning: <img> lacks "alt" attribute
+> line 8 column 8 - Warning: <img> lacks "alt" attribute
+> line 8 column 44 - Warning: <hr> isn't allowed in <dt> elements
+> line 8 column 48 - Warning: trimming empty <dt>
+> line 10 column 3 - Warning: trimming empty <dl>
+> line 11 column 4 - Warning: missing <li>
+> line 11 column 4 - Warning: inserting implicit <dl>
+> line 11 column 8 - Warning: <img> lacks "alt" attribute
+> line 12 column 8 - Warning: <img> lacks "alt" attribute
+> line 12 column 44 - Warning: <hr> isn't allowed in <dt> elements
+> line 12 column 48 - Warning: trimming empty <dt>
+> line 13 column 3 - Warning: missing </dl> before </ul>
+>
+> coredump2_O.htm: Document content looks like HTML 3.2
+> 14 warnings/errors were found!
+>
+> <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2//EN">
+> <html>
+>   <head>
+>     <title>Core Dump Case 2</title>
+>   </head>
+>
+>   <body>
+>     <center>
+>       <h1>Heading 1</h1>
+>     </center>
+>
+>     <dl>
+>       <dt><img src="redball.gif"><b>Term 1</b></dt>
+>
+>       <dt><img src="redball.gif"><b>Term 2</b></dt>
+>
+>       <dd>
+>         <hr>
+>       </dd>
+>     </dl>
+>
+>     <center>
+>       <h1>Heading 2</h1>
+>     </center>
+>
+>     <div style="margin-left: 2em">
+>       <dl>
+>         <dt><img src="redball.gif"><b>Term 3</b></dt>
+>
+>         <dt><img src="redball.gif"><b>Term 4</b></dt>
+>
+>         <dd>
+>           <hr>
+>         </dd>
+>       </dl>
+>     </div>
+>   </body>
+> </html>
+>
+> The alt attribute should be used to give a short description
+> of an image; longer descriptions should be given with the
+> longdesc attribute which takes a URL linked to the description.
+> These measures are needed for people using non-graphical browsers.
+>
+> For further advice on how to make your pages accessible
+> see "http://www.w3.org/WAI/GL". You may also want to try
+> "http://www.cast.org/bobby/" which is a free Web-based
+> service for checking URLs for accessibility.
+>
+> HTML & CSS specifications are available from http://www.w3.org/
+> To learn more about Tidy see http://www.w3.org/People/Raggett/tidy/
+> Please send bug reports to Dave Raggett care of <html-tidy@w3.org>
+> Lobby your company to join W3C, see http://www.w3.org/Consortium
+>
+>   ------------------------------------------------------------------------
+>
+>    * Next message: Andy Quick: "Re: Bug: Possible dangling pointer in istack.c"
+>    * Previous message: Sebastian Lange: "RE: tidy4aug00 update"
+>    * Messages sorted by: [ date ] [ thread ] [ subject ] [ author ]
+>    * Other mail archives: [this mailing list] [other W3C mailing lists]
+>    * Mail actions: [ respond to this message ] [ mail a new topic ]
+
+BTW.  The code patch presented in Glenn Carroll's e-mail must also be incorporated to account
+for empty center element discarded by ParseTag processing.  Specifically, the modifications to
+
+the ParseDefList procedure (lines 1457 to 1475 in parser.c) should be:
+
+  1457         /* center in a dt or a dl breaks the dl list in two */
+  1458         if (node->tag == tag_center)
+  1459         {
+  1460             if (list->content)
+  1461                 InsertNodeAfterElement(list, node);
+  1462             else /* trim empty dl list */
+  1463             {
+  1464                 InsertNodeBeforeElement(list, node);
+  1465                 DiscardElement(list);
+  1466             }
+  1467
+  +                  /* ParseTag can destroy node, if it finds that
+  +                   * this <center> is followed immediately by </center>.
+  +                   * It's awkward but necessary to determine if this
+  +                   * has happened.
+  +                   */
+  +                   parent = node->parent;
+  +
+  1468             /* and parse contents of center */
+  +                   lexer->excludeBlocks = no;
+  1469             ParseTag(lexer, node, mode);
+  +                   lexer->excludeBlocks = yes;
+  1470
+  1471C           /* now create a new dl element,
+  +                    * unless node has been blown away because the
+  +                    * center was empty, as above.
+  +                    */
+  +                   if (parent->last == node)
+  +                   {
+  1472C                list = InferredTag(lexer, "dl");
+  1473C                InsertNodeAfterElement(node, list);
+  +                   }
+  1474             continue;
+  1475         }
+
+Gary
+
+
+

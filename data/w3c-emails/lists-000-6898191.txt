@@ -1,0 +1,80 @@
+docno="lists-000-6898191"
+received="Wed May  3 10:04:38 2000"
+isoreceived="20000503140438"
+sent="Wed, 3 May 2000 15:04:30 +0100"
+isosent="20000503140430"
+name="Fred Bone"
+email="fred.bone@dial.pipex.com"
+subject="Re: 30apr00 bugs: spaces in attributs, empty ALT attributes"
+id="39103FFE.22914.1FFDA49@localhost"
+charset="US-ASCII"
+inreplyto="4.3.1.2.20000503130044.00b80e08&#64;pop3.cyperfection.de"
+expires="-1"
+
+To: Sebastian Lange<lange@cyperfection.de>
+CC:html-tidy@w3.org
+
+
+On 3 May 2000, at 14:37, Sebastian Lange wrote:
+
+> with $Message = '<FONT FaCe="Comic Sans MS">test</A>', $tidiedMessage will be:
+> <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2//EN">
+> <HTML>
+> <HEAD>
+> <TITLE></TITLE>
+> </HEAD>
+> <BODY>
+> <FONT FACE="Comic" SANS="" MS="">test</FONT>
+> </BODY>
+> </HTML>
+> 
+> The irrelevant lines (doctype to body, /body to /html) are then 
+> automatically removed by my perl script, which leaves $tidiedMessage to be 
+> '<FONT FACE="Comic" SANS="" MS="">test</FONT>'.
+> Having this tidied again, turns $tidiedMessage into '<FONT FACE="Comic" 
+> SANS="MS=">test</FONT>' which then stays like that on subsequent tidy attempts.
+
+This looks to me like a bug in lexical analysis. Or possibly two 
+(inter-related?) bugs.
+
+1. Something is trying to allow a double-quote-delimited string to 
+include paired double-quotes to represent a "real" double-quote. IOW, 
+you want a value of xyz"abc, so you code it as "xyz""abc". But it's 
+got it wrong and is treating "" (null string) as an attempt at paired 
+*internal* double-quotes.
+
+2. Something (else?) is treating an embedded space as terminating a 
+double-quoted value.
+
+So:
+  Face="Comic Sans MS"
+gets tokenised as 
+  Face
+  =
+  "Comic
+  Sans
+  MS"
+and the 'Sans' and 'MS' are then treated as empty-value keywords, so 
+"corrected" to 'kwd=""' form, yielding
+  Face="Comic"
+  Sans=""
+  MS=""
+as 3 'kwd=value' sets.
+
+Then on the second pass, it gets tokenised as
+  Face
+  =
+  "Comic"
+  Sans
+  =
+  " MS="
+(note double-doublequotes reduced to single-doublequotes)
+and then output as 2 kwd=value pairs
+  Face="Comic"
+  Sans="MS="
+
+Does this point you in the right direction? Sorry I can't go into the 
+code myself ...
+
+
+

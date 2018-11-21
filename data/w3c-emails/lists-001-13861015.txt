@@ -1,0 +1,143 @@
+docno="lists-001-13861015"
+received="Wed Nov 21 14:49:45 2001"
+isoreceived="20011121194945"
+sent="Mon, 19 Nov 2001 07:58:40 -0500 (EST)"
+isosent="20011119125840"
+name="Alexey Zelkin"
+email="phantom@FreeBSD.org"
+subject="[PATCH] workaround of entities processing for non-english languages"
+id="20011119145721.A20796@ark.cris.net"
+charset="us-ascii"
+expires="-1"
+
+To:html-tidy@w3.org
+
+
+hi,
+
+I am person involved into The FreeBSD Documentation Project. This project
+utilizes tidy very much and we ran into problems with processing of
+html documents for translation teams. When tidy processes files which
+contains entities like &copy; it converts it to its ASCII representation.
+
+I have wrote a patch which is allowing us to leave such entities untouched.
+It would be nice to have it integrated into main distribution of tidy.
+
+This patch has been tested against Russian, Chezch and Japanese languages
+and appears to do expected things.
+
+diff -u work/tidy4aug00/config.c tidy4aug00.patched/config.c
+--- work/tidy4aug00/config.cFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/config.cThu Nov 15 21:55:25 2001
+@@ -94,6 +94,7 @@
+ Bool TidyMark = yes;        /* add meta element indicating tidied doc */
+ Bool Emacs = no;            /* if true format error output for GNU Emacs */
+ Bool LiteralAttribs = no;   /* if true attributes may use newlines */
++Bool PreserveEntities = no; /* if true don't convert entities to chars */
+ 
+ typedef struct _lex PLex;
+ 
+@@ -186,6 +187,7 @@
+     {"doctype",         {(int *)&doctype_str},      ParseDocType},
+     {"fix-backslash",   {(int *)&FixBackslash},     ParseBool},
+     {"gnu-emacs",       {(int *)&Emacs},            ParseBool},
++    {"preserve-entities", {(int *)&PreserveEntities}, ParseBool},
+ 
+   /* this must be the final entry */
+     {0,          0,             0}
+@@ -533,6 +535,12 @@
+     {
+         QuoteAmpersand = yes;
+         HideEndTags = no;
++    }
++
++ /* Avoid &amp;copy; in preserve-entities case */
++    if (PreserveEntities)
++    {
++       QuoteAmpersand = no;
+     }
+ }
+ 
+diff -u work/tidy4aug00/html.h tidy4aug00.patched/html.h
+--- work/tidy4aug00/html.hFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/html.hThu Nov 15 21:55:26 2001
+@@ -758,6 +758,7 @@
+ extern Bool Word2000;
+ extern Bool Emacs;  /* sasdjb 01May00 GNU Emacs error output format */
+ extern Bool LiteralAttribs;
++extern Bool PreserveEntities;
+ 
+ /* Parser methods for tags */
+ 
+diff -u work/tidy4aug00/lexer.c tidy4aug00.patched/lexer.c
+--- work/tidy4aug00/lexer.cFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/lexer.cThu Nov 15 21:55:26 2001
+@@ -1517,8 +1517,10 @@
+ 
+                     continue;
+                 }
+-                else if (c == '&' && mode != IgnoreMarkup)
+-                    ParseEntity(lexer, mode);
++                else if (c == '&' && mode != IgnoreMarkup
++&& !PreserveEntities) {
++               ParseEntity(lexer, mode);
++}
+ 
+                 /* this is needed to avoid trimming trailing whitespace */
+                 if (mode == IgnoreWhitespace)
+@@ -2624,7 +2626,7 @@
+                 seen_gt = yes;
+         }
+ 
+-        if (c == '&')
++        if (c == '&')/* XXX: possibly need support for PreserveEntities */
+         {
+             AddCharToLexer(lexer, c);
+             ParseEntity(lexer, null);
+diff -u work/tidy4aug00/localize.c tidy4aug00.patched/localize.c
+--- work/tidy4aug00/localize.cFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/localize.cThu Nov 15 21:55:26 2001
+@@ -736,6 +736,7 @@
+     tidy_out(out, "  -xml            use this when input is wellformed xml\n");
+     tidy_out(out, "  -asxml          to convert html to wellformed xml\n");
+     tidy_out(out, "  -slides         to burst into slides on h2 elements\n");
++    tidy_out(out, "  -preserve       to preserve entities as is in source file\n");
+     tidy_out(out, "\n");
+ 
+     tidy_out(out, "Character encodings\n");
+diff -u work/tidy4aug00/man_page.txt tidy4aug00.patched/man_page.txt
+--- work/tidy4aug00/man_page.txtFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/man_page.txtThu Nov 15 21:55:26 2001
+@@ -12,6 +12,7 @@
+ .IR column ]
+ .RB [ -upper ]
+ .RB [ -clean ]
++.RB [ -preserve ]
+ .RB [ -raw
+ |
+ .B -ascii
+@@ -106,6 +107,9 @@
+ .TP
+ .B -slides
+ Burst into slides on <H2> elements.
++.TP
++.B -preserve
++Preserve source file entities as is.
+ .TP
+ .BR -help ", " -h
+ List command-line options.
+diff -u work/tidy4aug00/tidy.c tidy4aug00.patched/tidy.c
+--- work/tidy4aug00/tidy.cFri Aug  4 19:21:05 2000
++++ tidy4aug00.patched/tidy.cThu Nov 15 21:55:26 2001
+@@ -785,6 +785,8 @@
+                 Quiet = yes;
+             else if (strcmp(arg, "slides") == 0)
+                 BurstSlides = yes;
++            else if (strcmp(arg, "preserve") == 0)
++                PreserveEntities = yes;
+             else if (strcmp(arg, "help") == 0 ||
+                      argv[1][1] == '?'|| argv[1][1] == 'h')
+             {
+
+
+

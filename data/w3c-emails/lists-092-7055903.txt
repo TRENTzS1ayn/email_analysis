@@ -1,0 +1,108 @@
+docno="lists-092-7055903"
+received="Mon Jan 10 02:59:14 2000"
+isoreceived="20000110075914"
+sent="Sun, 9 Jan 2000 19:35:13 -0500 (EST)"
+isosent="20000110003513"
+name="bglbv@my-deja.com"
+email="bglbv@my-deja.com"
+subject="i18n of Amaya, typing, memory leaks, etc."
+id="20000110003120.5358.qmail@my-deja.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-amaya-dev@w3.org
+
+I've been working on the XK_Multi_key recognition problem, thinking it would
+be an easy fix. But that has been like opening Pandora's box: I keep
+discovering latent bugs, type mismatches (I'm an Ada programmer at heart,
+my notion of type matching is stricter than most C compilers'---but that's
+what it takes to write portable, bug-free code), and so on.
+
+1. thotlib/unicode/uconvert.c : 
+
+Just how is one supposed to know whether the value returned by ISO2WideChar()
+has been dynamically allocated by TtaAllocString() --- and should therefore
+be deallocated after use, since Amaya doesn't seem to include a garbage
+collector --- or simply cast from the input argument (in which case it is
+out of the question to deallocate it)?
+
+I've seen code that uses the result of ISO2WideChar() as part of a larger
+expression, without capturing it in a named variable; this will have to
+change if ISO2WideChar() is determined to return dynamically allocated memory.
+
+A proper, well-designed interface specification is needed for these string
+conversion routines.
+
+Another problem I see is the lack of a counted-string version of ISO2WideChar(),
+one that would take the number of characters to be converted as an additional
+argument instead of relying on a final '\0'.
+
+2. GTK+ stuff:
+
+I've just been patching the GTK version of XCharTranslation()
+(in thotlib/dialogue/interface.c). Please respect the GTK+ type system!
+In particular, be careful about type casts between guint and int, gchar
+and char. Don't write
+   gpointer data;
+   int frame;
+   frame = (int) data;
+but rather
+   frame = GPOINTER_TO_INT (data);
+
+GTK+ itself has a problem with internationalisation: they haven't decided
+what to do. What's worse, they define their own character type gchar but
+don't provide any API calls that I could find to convert between gchar
+and other character types (char, wchar, etc.) To me, that's reason enough to:
+
+(a) take one's time in converting from Motif to GTK+, since the latter
+isn't i18n-ready and some of us would like to see support for Arabic and
+so on; [actually I'm more interested in Cyrillic, Latin-2, Latin-3, but
+I entirely sympathise with those who want to play with bidirectional text;
+anyway, some of the issues are common, and might even help Chinese users]
+
+(b) define what interface would be required. How about the following?
+I'd rather not start writing too much code before the interface has been
+agreed upon, so can the Amaya development team please let us know what
+_they_ would be willing to adopt? Thanks.
+---------
+/* gconvert.h */
+gchar char2gchar (const char c);/* may be a macro */
+char gchar2char (const gchar gc);/* may be a macro */
+
+/* The following write the result into the memory pointed to by their
+   last argument, and return a pointer to that memory. They do not
+   allocate any memory from the heap.
+ */
+gchar *str2gstr (const char *from, gchar *to);
+gchar *nstr2gstr (const char *from, size_t n, gchar *to);
+char *gstr2str (const gchar *from, char *to);
+char *ngstr2str (const gchar *from, size_t n, char *to);
+
+/* The following translate exactly n characters */
+void nchar2gchar (size_t n, const char *from, gchar *to);
+void ngchar2char (size_t n, const gchar *from, char *to);
+----------
+/* ugconvert.h */
+CHAR_T gchar2Uchar (const gchar c);/* may be a macro */
+gchar Uchar2gchar (const UCHAR_T uc);/* may be a macro */
+
+STRING gstr2Ustr (const gchar *from, STRING to);
+STRING ngstr2Ustr (const gchar *from, size_t n, STRING to);
+gchar *Ustr2gstr (const STRING from, gchar *to);
+gchar *nUstr2gstr (const STRING from, size_t n, gchar *to);
+
+void ngchar2Uchar (size_t n, const gchar *from, STRING to);
+void nUchar2gchar (size_t n, const STRING from, gchar *to);
+----------
+If you can come up with more readable names that still fit into some
+coherent pattern, please feel free. 
+
+Note the avoidance of dynamic memory allocation in this proposal:
+the choice between malloc(), XtMalloc(), g_malloc(), TtaAllocString(),
+TtaGetMemory() and who knows what else is best left to the caller.
+It is my opinion that the stuff in uconvert.h should be equally
+free of memory allocation side effects. That means ISO2WideChar() is bad.
+
+
+

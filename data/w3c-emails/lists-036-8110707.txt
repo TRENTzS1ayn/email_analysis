@@ -1,0 +1,100 @@
+docno="lists-036-8110707"
+received="Tue Jun 17 13:45:34 2003"
+isoreceived="20030617174534"
+sent="Tue, 17 Jun 2003 10:45:28 -0700"
+isosent="20030617174528"
+name="Rob Cameron"
+email="cameron@cs.sfu.ca"
+subject="Re: Semantic Bug"
+id="200306171045.28348.cameron@cs.sfu.ca"
+charset="iso-8859-1"
+inreplyto="D63C9705-9ED8-11D7-9A5D-000393753936&#64;apache.org"
+expires="-1"
+
+To:"Roy T. Fielding"<fielding@apache.org>,"Mark Thomson"<marktt@excite.com>
+Cc:uri@w3.org
+
+
+
+Below I suggest modifications to section 5.3 that ensure correct URI 
+construction for all (scheme, authority, path, query, fragment) 5-tuples.
+
+Motivation:
+
+Suppose that an infostructure is to be moved from h://a/b/c/d to f:/d with all 
+links made relative.
+
+It is not inconceivable that the document at h://a/b/c/d contains URIs like 
+h://a/b/c//e and http://a/b/c/this:that
+
+In the first case, the following relative_URI calculation may be performed.
+
+(URIbis3.py) 
+>>> compute_relative_URI('h://a/b/c/d', 'h://a/b/c//e') 
+'.//e'
+
+This relative URI is fine when resolved with respect to the original base, 
+applying the algorithm of 5.2.
+
+>>> resolve_relative_URI('h://a/b/c/d', './/e')
+'h://a/b/c//e'
+
+But when interpreted relative to f:/d, we have a problem. 
+>>> resolve_relative_URI('f:/d', './/e')
+'f://e'
+
+Here e has been erroneously interpreted as an authority. 
+build_URI('f', None, '//e', None, None) should ensure that "/." 
+is prepended to path.
+
+In the second case, the computation of a relative URI might attempt the 
+following construction: build_URI(None, None, 'this:that', None, None) 
+yielding "this:that" rather than "./this:that" as mentioned at the end of 
+section 4.2
+
+For example, uripath.py exhibits this behaviour. 
+>>> refTo('h://a/b/c/d', 'h://a/b/c/this:that')
+'this:that'
+
+With only slight modifications to 5.3, these ambiguities of URI 
+construction can be avoided.
+
+   if defined(scheme) then
+      append scheme to result;
+      append ":" to result;
+   endif;
+
+   if defined(authority) then
+      append "//" to result;
+      append authority to result;
+   endif;
+
+   if defined(path) then
+      if defined(authority) then
+         if path is neither empty nor begins with "/" then 
+             error('an absolute or empty path is required')
+         endif
+      elsif path begins "//" then append "/." to result
+      elsif not defined(scheme) and 
+              the first path segment contains ":" then
+        append "./" to result
+      endif;
+      append path to result
+   else
+      error('undefined path')
+   endif;
+
+   if defined(query) then
+      append "?" to result;
+      append query to result;
+   endif;
+
+   if defined(fragment) then
+      append "#" to result;
+      append fragment to result;
+   endif;
+
+   return result;
+
+
+

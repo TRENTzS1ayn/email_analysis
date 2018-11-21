@@ -1,0 +1,87 @@
+docno="lists-104-7792311"
+received="Thu Feb 14 12:43:31 2002"
+isoreceived="20020214174331"
+sent="Thu, 14 Feb 2002 10:43:52 -0700"
+isosent="20020214174352"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="DOMInputSource.inputStream in L3 Load/Save problematic (at least  for COM)"
+id="70E215722F6AD511820A000103D141D40AA7B8@thor.aeathtl.com"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+The DOMInputSource.byteStream attribute is defined as returning a binding
+dependent type that represents a byte of streams (aka a DOMInputStream not
+DOMInputSource as appears in the interface definition).
+
+In the Java binding this would be fairly straight forward as:
+
+public interface DOMInputSource {
+     java.io.InputStream getByteStream();
+...
+} 
+
+If you trying to define a COM interface, you would be tempted to try:
+
+[propget]
+HRESULT byteStream([retval,out] IStream** byteStream);
+
+IStream is not an Automation-compatible type, so using it as a return type
+makes the entire interface unusable from scripting languages and Visual
+Basic.
+
+As a fall back, you might try to either return the IStream as a variant
+which may keep the interface usable, however automation clients can't do
+anything with return value from byteStream.  Otherwise, you now have to
+define an automation compatible wrapper object for IStream.
+
+However, all of that is unnecessary since the calling code has no need to
+interact with the DOMInputSource.  It is just there so the eventual call to
+parse() can get at the byte stream.
+
+The whole thing can be avoided if DOMInputSource only provides the
+additional information necessary to interpret the stream and DOMInputSource
+and a binding specific stream interface are both implemented on the object.
+
+In Java this would be something like:
+
+public interface DOMInputSource {
+/*   return null if encoding declaration in stream should be used.
+           Otherwise ignore encoding declaration in stream.    
+           Typically null for streams from URL sources, "UTF-16" for streams
+               from String's.
+      */
+String getEncoding();
+/*   URI used to interpret relative URI.  May have no connection
+to the location used to create the InputStream  */
+String getBaseURI();
+}
+
+And in an implementation something like:
+
+public class MyURLSource implements InputStream, DOMInputSource {
+}
+
+In COM, the object would implement both IStream and DOMInputSource.
+
+This design would allow non-script implementations to implement their own
+custom classes for arbitrary input streams.  Script implementations should
+have access to standard source implementations through create functions on
+DocumentLS such as:
+
+public interface DocumentLS {
+   DOMInputSource createURLSource(String url, String baseURI);
+   DOMInputSource createStringSource(String source, String baseURI);
+}
+
+createPublicIDSource() and createSystemIDSource() would not seem to be
+necessary since the resolution will either result in a URL and which can be
+passed to createURLSource() or can be captured in a String and can be passed
+to createStringSource().  Non script languages could also use a custom
+object implementing both DOMInputSource and the platform appropriate stream
+type.
+
+
+

@@ -1,0 +1,328 @@
+docno="lists-035-8398019"
+received="Tue Oct 10 18:45:41 2000"
+isoreceived="20001010224541"
+sent="Tue, 10 Oct 2000 20:07:07 +0200"
+isosent="20001010180707"
+name="Xuan Baldauf"
+email="xuan&ndash;&ndash;uri@baldauf.org"
+subject="Re: UTF-8 in URIs"
+id="39E35ACB.A98A4B3E@baldauf.org"
+charset="iso-8859-1"
+inreplyto="4.2.0.58.J.20001009154338.02c3f630&#64;sh.w3.mag.keio.ac.jp"
+expires="-1"
+
+
+To:"Martin J. Duerst"<duerst@w3.org>
+CC:uri@w3c.org
+
+
+
+"Martin J. Duerst" wrote:
+
+> Hello Xuan,
+>
+> For a general overview, please see
+> http://www.w3.org/International/O-URL-and-ident.html.
+>
+> At 00/10/09 01:27 +0200, Xuan Baldauf wrote:
+> >Hello,
+> >
+> >I'm new to this list (and therefore maybe this issue has been flamed to
+> >death or is an FAQ), but I could not find anything in the list archives
+> >to following issue:
+> >
+> >The use of "UTF-8 over %HH" as default encoding for non-ASCII characters
+> >as recommended in memo RFC2718 Section 2.2.5 is a BadThing(tm) and
+> >strongly against "common practice".
+> >
+> >Many applications (including current Netscape Communicator and Internet
+> >Explorer) tend to assume that every byte above 127 is Latin-1 or even
+> >cp1252.
+>
+> This is definitely wrong. It may look like that on systems
+> that assume everything else is Latin-1, but there are many
+> other systems. And RFC 2396 very clearly says that URIs
+> escape bytes, not characters, and that the byte <-> character
+> mapping is undefined.
+
+Well, RFC1630 (a bit outdated, but many applications seem to obey this RFC) defines:
+
+<quote>
+CONVENTIONAL URI ENCODING SCHEME
+
+      Where the local naming scheme uses ASCII characters which are not
+      allowed in the URI, these may be represented in the URL by a
+      percent sign "%" immediately followed by two hexadecimal digits
+      (0-9, A-F) giving the ISO Latin 1 code for that character.
+      Character codes other than those allowed by the syntax shall not
+      be used unencoded in a URI.
+</quote>
+
+Here, "ISO Latin 1" is clearly stated to be the character encoding of choice.
+
+RFC1945 refers to RFC1630, so at least for HTTP/1.0 "ISO Latin 1" is the standard
+encoding.
+RFC2068 refers to RFC1630
+RFC2616 refers to RFC1630, so even current HTTP/1.1 _defines_ encoded bytes from %80
+to %FF to be of "ISO Latin 1"
+
+(at least for my understanding).
+
+This is the RFC|standards side of the problem. Changing the definition of the meaning
+of %HH escapes breaks HTTP/1.0 and HTTP/1.1
+
+The reality seems to be following: Every User Agent encodes using its local
+char-to-byte mapping, and newer ones encode it using the encoding of the web page
+which contains the URI to be encoded. In most cases, as long as we are in the same
+country, the same encoding is used. There already might be ambiguities due to
+different encodings used in parallel in the CJK region, but those ambiguities won't
+get more unambigous if there would be a third or fourth possible interpretation of
+%HH bytes.
+
+>
+>
+> >This assumption will get wrong when HTTP clients start to use
+> >the byte-space of Latin-1 for UTF-8. That's why I implemented Unicode it
+> >on my project both client and server side as UTF-16 encoding like
+> >
+> >%uHHHH
+> >
+> >where H is a hex digit, big endian. The full value makes up a UTF-16
+> >value. Because in the old escape form %HH, H can only be in range
+> >['0'..'9','A'..'F','a'..'f'], we have plenty of namespace which is
+> >currently undefined (from %gXXXX to %zXXXX).
+>
+> Something like this has been around for a short time in
+> ECMAScript, but it has been superseeded by the UTF-8 method.
+>
+> >Servers which do not understand this must reply with "400 Bad Request"
+> >(RFC2616), so the client knows it should retry with Latin-1 or signal
+> >the user that the server is not capable of Unicode-URLs.
+>
+> Why should it retry with Latin-1? Why not shift_JIS or euc-kr,
+> or so?
+
+I should generalize, it should retry with this encoding it would try to use if there
+was no %uHHHH escaping.
+
+> And why spend additional round trips on this problem?
+
+Because URIs have no way to define the used charset in one step except per global
+definition of URIs. But if a client uses formerly free namespace, it can know wether
+the namespace is accepted or not. A client which uses the same namespace for
+different meaning never knows wether the new or old meaning is interpreted and never
+knows wether its data is interpreted correctly. Only the human user probably could
+sometimes, but not always check the results the server interpreted (e.g. by a
+resulting web page). A human intervention, which is not possible in all case, is a
+magnitude worse than an additional round trip.
+
+>
+>
+> >But the current behaviours makes it ambigous wether %da%bf represents
+> >U+6bd (ARABIC LETTER TCHEH WITH DOT ABOVE) (new understanding of
+> >URL-escape) or wether it represents " x " (U+da, U+bf) (old understanding
+> >of URL-escape).
+>
+> I general, it doesn't represent either, it just represents these
+> bytes, and nothing more. Even an URI of 'abc' doesn't really represent
+> the characters 'abc', it just represents the bytes 0x61, 0x62, and
+> 0x63. The chance of coincidence between the 'abc' in the URI and
+> an original 'abc' is much greater in that case, but not at all
+> guaranteed.
+
+It is guaranteed by RFC1630. RFC1630 consequently refers to "names" and "characters",
+but never "bytes" or "octets".
+
+>
+>
+> >This ambiguity is a magnitude worse than a "400 Bad Request" which can
+> >be retried. Please think about this comment and imagine a world where
+> >servers do not understand clients and vice-versa because the one
+> >interpretes URLs with Latin-1 charset, the next one with UTF-8 charset.
+> >Using the unused namespace after '%' like %uHHHH provides a clean
+> >transition from old conventions to new ones, not a collission where
+> >conventions compete and the competition case is the failure case.
+>
+> Well, maybe, except that it not only gives a 400, it also
+> confuses or kills any other part of the Web infrastructure
+> that handles URIs. Just a bit too much to risk.
+
+Do you have examples?
+
+"UTF-8 over %HH" might produce less confusion on the technical implementation side,
+but it produces more confusion on the data side (because data is accepted, but
+corrupted). Judging between digital confusion and error messages on the one hand and
+data corruption and ambiguity on the other hand, I'd always opt for the former
+possibility. "Syntax errors" always can be recovered with an error rate of 0% by
+updating the software which formerly did not understand the syntax, corrupted,
+ambigous data in large databases never can be recovered without large human
+intervention, and even then there might be a error rate of more than 0%.
+
+Probably you might want to argue that sending "GET /test%uABCDtest.html HTTP/1.1"
+might crash several servers, but this is independent of wether %uHHHH is widely used
+or not, because crashing is always a bug.
+
+>
+>
+> >This cleanup is not needed so strongly for "common" web sites, because
+> >most web sites have the ability to choose the filename used and
+> >therefore can choose wether to require unicode support or not. But it is
+> >needed for internationalized forms, because the most common (and most
+> >efficient) content-type for POST requests is x-www-form-urlencoded, and
+> >GET requests obviously are URL-encoded.
+>
+> Ok, now it's clear what your problem is. It would have helped
+> to know it up front. Forms are indeed a serious problem, but
+> there is some help, see below.
+>
+> >http://www.w3.org/TR/html401/interact/forms.html#h-17.13.4.1 defines
+> >content-type x-www-form-urlencoded to be only ASCII-capable, this is not
+> >necessary and this is not current common practice. Content-type
+> >multipart/form-data could be a solution, but it is largely inefficient,
+> >not supported by current browsers and not usable for GET requests,
+> >because POST requests cannot be represented by URLs and URLs|URIs often
+> >are the only way to effciently specify a resource.
+> >
+> >The conrete problem I have is a web-chat-server which enables the user
+> >to input his|her chat comments into ordinary <INPUT TYPE=TEXT> input
+> >lines. Browsers sent data encoded by Latin-1 and cp1252, the chat server
+> >is per definition unable to comply both the practical requirement to
+> >interpret URLs as UTF-8 and to interpret URLs as Latin-1|cp1252 as UTF-8
+> >and Latin-1 are byte-incompatible.
+>
+> It seems that you are worried mainly/only about the distinction
+> between Latin-1 and UTF-8 in form replies.
+
+Mainly (this is the current practical problem), but not only (there will be other
+problems which do not involve the query part of an URL, all other parts are also
+candidates for being represented by Unicode characters).
+
+> This can be dealt with
+> rather well with current infrastructure:
+>
+> - Most current browsers (definitely v4.0 and up of the major browsers)
+>    try to send back the answer in the same encoding as the page they
+>    received. So if you use UTF-8 and label your page as such, it
+>    should just work. You may also have two pages, one for Latin-1
+>    (for older browsers) and one for UTF-8 (for newer browsers).
+
+Is there a guarantee (is it a standard) that every browser encodes URLs with UTF-8
+when it receives UTF-8 encoded web pages?
+
+This is one vague option. Unlike many web sites, for several reasons, I follow a
+stateless approach for user interaction, so I do not have any cookies, internal
+"session" objects or the like. That's why I cannot store and lookup browser
+information in session-specific data, I have to determine the browsers capabilites
+(e.g. "Does it accept utf-8?", "Which URL encoding does the browser use for this URL
+or POST data?") for ever request. Now if I send the web page as UTF-8, the server
+still does not know that %HH escapes should be interpreted as UTF-8. Is it the right
+way to always use "uricharset=utf-8" in the query part of the URL to tell the URL
+decoder engine to use utf-8 as decoding charset? If so, it probably solves form
+problems, but not problems like file names, domain names, ... . Decoding
+"http://host:port/dir/file?foo=b%da%bfr&uricharset=utf-8" described as above is
+possible, but is not very feasible, because the charset parameter can be at the end
+of the query part, decoding everything before this parameter cannot be done on the
+fly.
+
+I would have to change every form to correctly supply the "uricharset" parameter. To
+change every form in the world is much more work than to change every server or
+client in the world. People who do not have the ability to create dynamic content
+will be forced to create and maintain two web pages for every page, just to tell the
+browser which charset to use in forms. Imagine two forms in the web page, the one
+referencing a server assuming UTF-8, the other one referencing a server which assumes
+Latin-1. This won't be possible. If there is no better solutions, every URL reference
+(like the FORM-Tag) should have an attribute to define how to encode.
+
+Imagine there are two pages (as you proposed), one for Latin-1 and one for UTF-8. At
+some point, a web site must decide to which page it should point to. Nearly all
+implementations would work as follows: Access the Latin-1 page, some ECMA-Script
+decides to access the UTF-8 page. You see, two pages are loaded. Because the pages
+are maybe about 10KB big, the time between first access and final page reply is
+larger than the time between a rejected %uHHHH request.
+
+An alternative to changing all forms could be the use of information within the
+Referrer-Header-Field. But Referrers are controversal discussed (security
+considerations), and the most practical variant, to add a query parameter
+"useuricharset=utf-8", is not possible for POST requests, because all the parameters
+are in the POST body, not in the URL.
+
+> - For those cases where that doesn't work, and as an additional
+>    safety check, you can make use of the fact that in most cases,
+>    UTF-8 and Latin-1 are easy to distinguish. The sequence of bytes
+>    resulting from encoding a text in Latin-1 usually doesn't qualify
+>    as UTF-8, because UTF-8 has some very special byte sequence patterns.
+>    The other way round, UTF-8 interpreted as Latin-1 results in wierd
+>    garbage.
+
+I do not know an easy and fast algorithm which can distinguish "weird garbage" from
+"not so weird but user-intended garbarge". The day I introduce algorithms for
+heuristic decision where it is not necessary into a working application is the day
+where I introduce a bug.
+
+> For details, please see my paper at:
+>    http://www.ifi.unizh.ch/mml/mduerst/papers/PDF/IUC11-UTF-8.pdf
+>    (in particular page 21).
+
+<quote>
+The possibility for such character combinations to appear is truely low, but it turns
+
+out that we are not done yet. To produce an actual case of confusion, not only do
+these letter combinations have to appear, but there have to be two resource names
+that are identical except for the complete exchange of all letters in the first
+column
+by the corresponding combination in the second column.
+</quote>
+
+This is not true, because often people are allowed to enter anything into forms.
+Because there is a "grant always" on the server side, corrupted data like mis-spelled
+names may be the result.
+
+>
+
+> For windows-1252 (please note that this
+>    is the officially registered identifier, please avoid cp1252
+
+I'll try this in the future. :o)
+
+> ),
+>    this table may have to be slightly extended.
+>
+> Regards,    Martin.
+
+To summarize:
+- Guessing is no option, because it is ambigous.
+- Referrers are no option, because browsers are not required to send referrers, POST
+requests do not generate sufficient referrers and URLs copied from a newspaper cannot
+contain referrers.
+- Simply assuming utf-8 is not an option, because many browsers send in Latin-1 and
+other encodings and assuming UTF-8 violates RFC1630 (and therefore HTTP/1.0 and
+HTTP/1.1).
+- Sending UTF-8 pages and then assuming UTF-8 URLs is theoretically not allowed,
+there is no standard which specifies this behaviour. (Is there one?)
+- What is with x-www-form-urlencoded POST data? Will such data also be encoded by
+UTF-8 when the defining form is written in UTF-8?
+-> Assuming UTF-8 URLs is more than risky
+
+My theoretical conclusion:
+Redefining used namespace by violating current standards and practice is magnitudes
+worse than extending to formerly unused namespace. The latter may result in errors
+during adaption time, the former may result in data corruption during adaption time.
+Please don't allow that. Please either find a way to specify the used URL charset or
+_extend_ the URL namespace. N.B.: For IPv6, the URL namespace also was extended,
+characters '[' and ']' are now valid. What consequences will this have to URL
+handling web infrastructure? ;-)
+
+My practical conclusion:
+I'll have to explore the limited possibility of the UTF-8-response -> UTF-8-request
+for URLs, slow down my URL decoder to 50% (I will have to parse twice), create a
+browser black- and white-list (which browsers support UTF-8-URLs, which don't),
+change all my forms to contain charset parameters, test URL-encoding on POST-data and
+to probably use more applets for input in future than now, because when using
+applets, I can decide what and how to encode. Seen for all serious web site
+developers working with forms, this work is a magnitude more than updating the web
+server. (Of course, the web server already should internally work with unicode.)
+
+Xu?n.
+
+
+

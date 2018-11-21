@@ -1,0 +1,105 @@
+docno="lists-098-12425191"
+received="Fri Nov 29 10:52:18 2002"
+isoreceived="20021129155218"
+sent="29 Nov 2002 16:51:52 +0100"
+isosent="20021129155152"
+name="Dominique Haza?l-Massieux"
+email="dom@w3.org"
+subject="HowTo set up content-negotiation for resources out of local server on Apache"
+id="1038585113.17524.74.camel@stratustier"
+charset="ISO-8859-15"
+expires="-1"
+
+To:www-archive@w3.org
+
+
+W3C recently announced the transition of its European Host from INRIA to
+ERCIM. One of the amazing characteristic of this announce was that the
+Press Release was translated in 18 languages:
+http://www.w3.org/2002/11/ercim-pressrelease
+
+This mail documents one of the hidden aspect of this fact: the 18
+translations are language-negotiated on the above URI, even though 14 of
+them reside on non www.w3.org servers. 
+
+The basic options in Apache doesn't allow to do this: either you use the
+content-negotiation by file extension, but that require to have all the
+files with the same name in the same directory, or you use the type-map
+file system, that give more freedom in the name, but more or less
+require to be in the same directory or in one of its subdirectory.
+http://httpd.apache.org/docs/content-negotiation
+
+Note that this addresses the case of language negotiation, but would
+work as well for content negotiation in general.
+
+One could probably use symbolic links to work around this, but symbolic
+links work only in Unix (I think) and do not fit well our mirroring
+setup anyway. 
+
+After some trials, here is one solution that should work [it is slightly
+simplified compared to the one used in the ERCIM PR example, and has not
+been completely tested, but I'm pretty confident it will work as is]:
+It presupposes you have mod_asis enabled on your apache server
+http://httpd.apache.org/docs/mod/mod_asis.html
+the MultiViews option need to be enabled as always for the classical
+content negotiation in Apache.
+
+Say you want to content negotiate a resource on
+http://example.org/bar/foo
+On your example.org server, you have an English translation in
+/bar/foo.en. You want to language-negotiate it with the French
+translation maintained at http://example.COM/baz/foo.fr
+To do that (everything that follows is on your server, example.org):
+- create a redirect file in /bar/ . A redirect file is a file served
+with the magic mime-type "httpd/send-as-is" that forces the server to
+send the file without adding any headers, assuming they are included in
+the files [the default extension in out-of-the box Apache is .asis, but
+it's usually not enabled; on our server, we have the .redirect extension
+for this]. Say that we call it foo-fr.redirect (FWIW, do NOT call it
+foo.fr.redirect):
+-------------------------------------------
+Status: 301 Moved Permanently
+Location: http://example.COM/baz/foo.fr
+Content-Type: text/html
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN">
+<title>Redirection</title>
+<p>The correct URI for this page is <a
+href="http://example.COM/baz/foo.fr">http://example.COM/baz/foo.fr</a>.
+---------------------------------------------
+
+- then we create a type-map file (classically associated with the .var
+extension, possibly not enabled by default), called foo.var in /bar/:
+[ We assume that both resources are text/html for sake of simplicity,
+but adapt the content-type lines to fit your needs otherwise ]
+----------------------------------------------
+URI: foo
+
+URI: foo.en
+Content-Language: en
+Content-Type: text/html
+
+URI: foo-fr.redirect
+Content-Language: fr
+Content-Type: text/html
+----------------------------------------------
+
+Et voil?! Now http://example.org/bar/foo will give foo.en for those
+requesting English and redirect to http://example.COM/baz/foo.fr for
+those requesting French.
+
+[PS: in the case of the ERCIM PR, it was also necessary to create nice
+URIs in the directory where the local version resided, which means that
+/2002/11/ercim-pressrelease.html.fi was supposed to work and to redirect
+to the Finish translation; a simple .htaccess provided the ad-hoc
+rewriteRule from the .fi version to the redirect file]
+
+Dom
+-- 
+Dominique Haza?l-Massieux - http://www.w3.org/People/Dom/
+W3C/INRIA
+mailto:dom@w3.org
+
+
+
+

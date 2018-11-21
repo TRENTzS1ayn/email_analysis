@@ -1,0 +1,205 @@
+docno="lists-018-13408622"
+received="Wed Jun 18 11:49:09 2003"
+isoreceived="20030618154909"
+sent="Wed, 18 Jun 2003 11:49:28 0400"
+isosent="20030618154928"
+name="Eric Johnson"
+email="eric@tibco.com"
+subject="Re: rescue; error recovery facilities needed"
+id="3EF08A08.2090705@tibco.com"
+charset="ISO-88591"
+inreplyto="3EF07BD8.50703&#64;pinkjuice.com"
+expires="1"
+
+
+To:public-qt-comments@w3.org
+
+
+I encountered a problem of a somewhat similar nature using XSLT 1.0, 
+using the document function.  In certain scenarios, using Java, the user 
+could make a "document()" reference to a document that might not be 
+there, or might not parse correctly, and I wanted to be able to handle 
+the error in the XSLT, not in the Java code.
+
+My work-around was to always return a document via the URIResolver, just 
+that sometimes it would have special "error" content.  I mention this in 
+the context of this suggestion to note that it might make more sense 
+with a different syntax.  Two alternatives suggest themselves to me:
+
+A) Within an "xsl:do" block, have multiple "xsl:rescue" blocks with the 
+appropriate "match" attributes.
+....
+<xsl:rescue match="errns:notFound">
+    <xhtml:p>Unable to find document</xhtml:p>
+</xsl:rescue>
+<xsl:rescue match="*">
+    <xhtml:p>An unexpected error occurred</xhtml:p>
+</xsl:rescue>
+
+B) Forgo the "xsl:do" and "xsl:rescue" altogether.  Instead, the xsl:try 
+implicitly does an <xsl:apply-templates /> on the xml of the error 
+message, should an error occur.  Note that the "mode" on the "xsl:try" 
+would be passed through to the <xsl:apply-templates />
+<xsl:try mode="retrieval-error">
+   <xsl:copy-of select="unparsed-text($file_abs,'utf-8')"/>
+</xsl:try>
+
+Actually, now that I think about it, option (B) seems like a pretty good 
+fit for an extension element if it doesn't end up in the spec.
+Of course, it might make sense for implementations to eventually agree 
+on what the error info-set looks like.
+
+-Eric.
+
+Tobias Reif wrote:
+
+>
+> Hi
+>
+> Here's a request for XSLT 2, possibly also applying to XPath 2 and 
+> related technologies.
+>
+>
+> Problem Summary:
+>
+> Current drafts of XSLT 2 / XPath 2 don't provide error recovery 
+> facilities. This current limitation results in various problems: an 
+> XSLT application can not finish it's job, even if it could continue 
+> after the error. The app should be able to deal with error if it can 
+> handle it, so that the transfomation can continue.
+>
+>
+> Scenario, Problem Details:
+>
+> The input document references a file, via facilities specific to the 
+> input's language (not via generic mechanisms such as XInclude, XML 
+> external entity references, etc).
+> The transformation application handles this with the unparsed-text() 
+> function; here's a snippet:
+>
+> <xsl:template match="textdata[@fileref]">
+>   <xsl:variable name="file_abs"
+>     select="resolve-uri(@fileref,base-uri(/))"/>
+>   <xsl:copy-of select="unparsed-text($file_abs,'utf-8')"/>
+> </xsl:template>
+>
+> If the path supplied by the fileref attribute doesn't point to a file, 
+> then my XSLT processor raises a fatal error [1], and aborts the 
+> transformation. Especially in cases where there is no human 
+> supervision, eg when the whole thing runs on the server, this is 
+> inacceptable.
+>
+> This is a very common scenario.
+>
+>
+> Solution, Request:
+>
+> Please add error recovery facilities [2] to XSLT 2 / XPath 2.
+>
+> The syntax for the mechanism could look like this:
+>
+> XSLT 2:
+>
+> <xsl:do>
+>   <xsl:try>
+>     <xsl:copy-of select="unparsed-text($file_abs,'utf-8')"/>
+>   </xsl:try>
+>   <xsl:rescue>
+>     <xsl:variable name="message">
+>       <xsl:text>could not insert </xsl:text>
+>       <xsl:copy-of select="$file_abs"/>
+>     </xsl:variable>
+>     <xsl:message>
+>       <xsl:copy-of select="$message"/>
+>     </xsl:message>
+>     <xsl:comment>
+>       <xsl:copy-of select="$message"/>
+>     </xsl:comment>
+>   </xsl:rescue>
+> </xsl:do>
+>
+> An analog mechanism might also make sense as addition to XPath 2.
+>
+> http://www.w3.org/TR/xslt20/#dt-recoverable-error
+> "An error that is not detected until a source document is being 
+> transformed is referred to as a dynamic error. Some dynamic errors are 
+> classed as recoverable errors. When a recoverable error occurs, this 
+> specification allows the processor either to signal the error (by 
+> reporting the error condition and terminating execution) or to take a 
+> defined recovery action and continue processing. It is 
+> implementation-defined  whether the error is signaled or the recovery 
+> action is taken. If the implementation does choose to take recovery 
+> action, it must  take the recovery action defined in this specification."
+>
+> I need a way to specify the recovery action to be taken. No matter 
+> what the processor chooses to do in the absence of this user specified 
+> recovery action (abort or recover); when a user supplied action is 
+> present (xsl:rescue), all processors must carry it out if the first 
+> action failed.
+>
+>
+> Alternatives
+>
+> There are various solutions specific to the problem described in the 
+> scenario. They solve this specific problem, but don't address the 
+> underlying general issue.
+>
+> A function resource-exists() for example would solve the problem 
+> encountered in the specific use case described above, but it would not 
+> help in all other cases where user supplied error recovery action is 
+> required.
+>
+>
+> Use Case:
+>
+> See Scenario.
+>
+>
+> Possible Issues:
+>
+> The "rollback" issue mentioned in [3] should be solvable.
+>
+> AFAICS, Rollback of the result tree should not be required.
+>
+> One possible solution might be:
+>
+> Any action contained in xsl:try is only carried out if the complete
+> contents of the xsl:try succeed.
+>
+> If one or more action fails, then none of them are carried out.
+>
+> They are simulated/attempted/tested first, without affecting the 
+> result tree. This can represent a performance penalty, but where 
+> reliability and predictable program execution is of high importance, 
+> this most often is acceptable.
+>
+> Then the actions contained inside xsl:rescue are carried out.
+>
+>
+> Discussion:
+>
+> Please also see
+> http://www.biglist.com/lists/xsl-list/archives/200306/threads.html#00593
+>
+>
+> Tobi
+>
+>
+> [1]
+> http://www.w3.org/TR/xslt20/#unparsed-text
+> http://www.w3.org/TR/xslt20/#d0e16677
+> "[ERR119] It is a dynamic error if a URI cannot be used to retrieve a 
+> resource containing text. This is a recoverable error. The processor 
+> must either signal the error, or must recover by treating the URI as 
+> if it referenced a resource containing a zero-length string."
+>
+> [2]
+> Analog to begin-rescue (eg in Ruby), try-catch, etc in other languages.
+>
+> [3]
+> http://www.biglist.com/lists/xsl-list/archives/200306/msg00614.html
+>
+>
+
+
+

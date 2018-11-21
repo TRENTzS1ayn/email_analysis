@@ -1,0 +1,152 @@
+docno="lists-040-1093867"
+received="Mon Feb 14 13:52:19 2000"
+isoreceived="20000214185219"
+sent="Mon, 14 Feb 2000 13:51:54 -0500"
+isosent="20000214185154"
+name="Slein, Judith A"
+email="JSlein@crt.xerox.com"
+subject="RE: Review: Redirect Reference Resources &ndash;&ndash; Part one"
+id="8E3CFBC709A8D21191A400805F15E0DBD245A6@crte147.wc.eso.mc.xerox.com"
+charset="iso-8859-1"
+inreplyto="Review: Redirect Reference Resources &ndash;&ndash; Part one"
+expires="-1"
+
+
+To:"'Juergen Reuter'"<reuterj@ira.uka.de>, WebDAV WG<w3c-dist-auth@w3.org>
+Cc:jjh@ira.uka.de
+
+Juergen,
+
+Thanks very much for your detailed review of the first 6 sections of
+Redirect References.  I am sure that most of your suggestions for improved
+language and focus in the spec will be accepted.  I'll just comment here on
+a few of the deeper issues that you raise.
+
+-----Original Message-----
+From: Juergen Reuter [mailto:reuterj@ira.uka.de]
+Sent: Monday, February 07, 2000 8:51 AM
+To: WebDAV WG
+Cc: reuterj@ira.uka.de; jjh@ira.uka.de
+Subject: Review: Redirect Reference Resources -- Part one
+
+
+> If the client is aware that it is operating on a redirect reference 
+> resource, it can resolve the reference by retrieving the reference 
+> resource's DAV:reftarget property (defined in Section 12.1 below), whose 
+> value contains the URI of the target resource.  It can then submit 
+> requests to the target resource. 
+
+Why not using the HTTP Location header field to resolve the reference?
+This can be (and usually is) done even by clients that are unaware of
+the above.  The true reason for introducing a DAV:reftarget property
+seems to be the possibility to *modify* the URI of the target resource
+rather than resolving the reference.
+
+<js>
+You are right that we need to step back and consider why we introduced the
+DAV:reftarget property to begin with:
+
+There is no other way to find the redirect references to a given resource
+except by doing a search on this property.  (Even with DAV:reftarget, you
+can only discover the local redirects to a given resource.)
+
+A referencing-aware client can operate more efficiently with this property.
+For example, if it needs to perform some operation on the targets of all of
+the redirect references in a collection, it can do a PROPFIND to retrieve
+all the DAV:reftarget properties at once, and submit requests directly to
+the target resources, instead of performing two round-trips for each
+redirect reference.
+
+At the moment the spec prevents the use you suggest, since it says that
+DAV:reftarget is readonly.  The rationale for this was that changing the
+value of DAV:reftarget (changing what resource it points to) is effectively
+to create an entirely new redirect reference, so we would do better to
+require clients to do a new MKRESOURCE with the desired DAV:reftarget.
+
+But since the server is (probably) not going to maintain DAV:reftarget, the
+client might just be wanting to update it to keep it pointing at the same
+resource.  So maybe it should be a client-writable property.
+</js>
+
+> A redirect reference resource is a new type of resource. To distinguish 
+> redirect reference resources from non-reference resources, a new value 
+> of the DAV:resourcetype property (defined in [WebDAV]), DAV:redirectref, 
+> is defined in Section 13.1 below.
+
+Just wondering: is there a standardized registration procedure for new
+DAV:resourcetype property values, e.g. something like MIME
+registration procedures as defined in RFC 2048?  If not, that might
+substantially impair interoperability.
+
+<js>
+There is no standardized registration procedure.  Should we make this an
+issue on the RFC-2518 list?
+</js>
+
+> 5.1 MKRESOURCE
+>
+> The body of the new resource is empty.
+
+What is the body of a resource?  For standard data containers, the
+intended meaning seems to be clear, but what is the meaning for other
+resource types?  In this case, this probably should read "The entity
+body of a response returned from a GET request on the new resource
+MUST be empty.", or the term "body of a resource" should be defined
+somewhere else.  (N.b.: WebDAV also uses the term "body of a resource"
+in sections 8.10.2 and 17.5 without prior definition).  Anyway, for
+clients that do not support automatic redirection, it is sensible to
+provide some text/html response body to be returned from a GET request
+that can be shown to the user.  Hence, I move to take away the
+restriction that the body must be empty.
+
+<js>
+You are right that something needs to be done about this language.  Joe
+Orton also pointed out that there is confusion here and in our discussion of
+PUT with redirect references about what is allowed and what the result is.
+
+MKRESOURCE is defined not just for this spec, but also for DeltaV, and the
+plan is for the two specs to contain identical definitions (Section 5.1 of
+redirect references should be identical to what appears in the DeltaV spec).
+The intent is that the MKRESOURCE method lets you create a resource and set
+its properties, but it doesn't provide any way to do the equivalent of a
+PUT.  So we need to find a way to express that without preventing the useful
+behavior you describe, of responding to GET with a response body explaining
+that the resource you are looking for is located somewhere else.
+</js>
+
+> The properties of the new resource are as specified by the 
+> DAV:propertyupdate request body, using PROPPATCH semantics.
+
+.
+.
+.
+
+This leads to a new question: is MKRESOURCE atomic (from all WebDAV
+client's perspective)?  Or can another client access the new
+resource's properties before they fully have been initialized?
+
+If an error is encountered while initializing the properties, that
+means that some properties may have been initialized, while others
+still are undefined; atomicity would at least in that case be broken.
+However, if MKRESOURCE could atomically create and (read & write) lock
+a resource, this would prevent other clients from accessing the newly
+created resource until the creator decides to remove the lock.  Hence,
+I would like to put up for discussion the following question: Should a
+MKRESOURCE request may contain a DAV:lockinfo XML element and those
+request headers defined for the LOCK method in order to request atomic
+creation and locking of a new resource?
+
+<js>
+I would rather not take on this issue in the context of redirect references.
+Whatever the semantics of PROPPATCH are in RFC 2518, that's what you get
+here.  If RFC 2518 provides a way to ask that a resource be read-locked
+while its properties are being set, it can be used here.  Otherwise, not.
+
+I would actually be just as happy myself to have MKRESOURCE do nothing more
+than create a resource, and make setting its properties be a separate
+operation.  But I know that others feel strongly that MKRESOURCE needs to do
+both.
+</js>
+
+
+

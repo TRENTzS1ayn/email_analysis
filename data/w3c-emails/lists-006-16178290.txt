@@ -1,0 +1,195 @@
+docno="lists-006-16178290"
+received="Wed Dec 12 06:41:52 2001"
+isoreceived="20011212114152"
+sent="Wed, 12 Dec 2001 11:40:58 +0000"
+isosent="20011212114058"
+name="Tim Ellison"
+email="Tim_Ellison@uk.ibm.com"
+subject="Re: VCR Fork and GET"
+id="OFEB8F2717.AA276747-ON80256B20.003DC710@portsmouth.uk.ibm.com"
+charset="us-ascii"
+inreplyto="VCR Fork and GET"
+expires="-1"
+
+To:"Ietf-Dav-Versioning (E-mail)"<ietf-dav-versioning@w3.org>
+
+
+"Kirmse, Daniel" <daniel.kirmse@sap.com> wrote:
+
+> Hi,
+> 
+> another question:
+> 
+> Suppose a VCR with the history shown below. As DeltaV states
+> in "3.2.1 DAV:checked-in (protected)" a checked in VCR gots
+> a property "<!ELEMENT checked-in" (href)>" assigned to it.
+> In the example it would be the URL of version V3 of the VCR
+> that has to be stored with this property.
+
+Yes.  (You meant V2, not V3)
+
+>          /foo.html (version-controlled resource)
+> 
+>           +----+
+>           | S2 |
+>           +----+
+>        Checked-In=V2
+> 
+> 
+>          /his/73 (version history for /foo.html)
+> 
+>          +----+
+>          | S1 | V1
+>          +----+
+>             |
+>             |
+>          +----+
+>          | S2 | V2
+>          +----+
+> 
+> 
+> Further suppose a user checks out the VCR. With that the URL
+> stored in the "Checked-in" property has to be stored in a
+> "Checked-out" property of that very VCR. The "Checked-in"
+> property vanishes to nothing. No damage done so far.
+
+Agreed.  The DAV:checked-out property is removed.
+
+>             ===checkout user 1==>
+> 
+> 
+>          /foo.html (version-controlled resource)
+> 
+>           +----+    |    +----+
+>           | S2 |    |    | S2 |
+>           +----+    |    +----+
+>        Checked-In=V2|Checked-Out=V2
+> 
+> 
+>          /his/73 (version history for /foo.html)
+> 
+>          +----+     |   +----+
+>          | S1 | V1  |   | S1 | V1
+>          +----+     |   +----+
+>             |       |      |
+>             |       |      |
+>          +----+     |   +----+
+>          | S2 | V2  |   | S2 | V2
+>          +----+     |   +----+
+>                     |
+
+Agreed.  However, there is no guarantee that the state of the 
+version-controlled resource will remain at S2 as it is now mutable.
+
+> Now suppose another user that wants to check out the very
+> same VCR. Checkout fork is allowed and/or fork-ok is sent
+> with the request.
+
+Ok, but that version-controlled resource is already checked-out, so the 
+new user would be unable to check it out again.  Remember that there is no 
+concept of 'user' or 'session' in DeltaV, so whether the request for 
+another check-out came from a new user or the original user the effect is 
+the same (i.e., the attempt would fail for the same reason, that the 
+version-controlled resource is already checked out).
+
+> Now (my) trouble starts:
+> 
+> 1. There is no "checked-in" property that could give me the
+> version to check out. One Precondition for check out is:
+> 
+>    (DAV:must-be-checked-in): If a version-controlled
+>    resource is being checked out, it MUST have a
+>    DAV:checked-in property.
+> Is this a condradiction? What is the solution?
+
+Given what I wrote above, you can see that this precondition would cause 
+the second check-out to fail.
+
+The solution is to create a second version-controlled resource (using 
+VERSION-CONTROL) whose DAV:checked-in property refers to V2, or to 
+check-out the version directly, thereby creating a working resource.
+
+> O.k., suppose the checkout of both of the users was
+> successfull
+
+It won't be successful.
+
+>        ===checkout user 1==> ===checkout user 2==>
+> 
+> 
+>          /foo.html (version-controlled resource)
+> 
+>           +----+    |    +----+    |    +----+
+>           | S2 |    |    | S2 |    |    | S2 |
+>           +----+    |    +----+    |    +----+
+>        Checked-In=V2|Checked-Out=V2|Checked-Out=V2
+> 
+> 
+>          /his/73 (version history for /foo.html)
+> 
+>          +----+     |   +----+     |    +----+
+>          | S1 | V1  |   | S1 | V1  |    | S1 |
+>          +----+     |   +----+     |    +----+
+>             |       |      |       |       |________
+>             |       |      |       |       |        |
+>          +----+     |   +----+     |    +----+   +----+
+>          | S2 | V2  |   | S2 | V2  |    | S2 |   | S3 |
+>          +----+     |   +----+     |    +----+   +----+
+>                     |              |
+> Now there are two checked out versions of the VCR. But there
+> is only one Checked-Out property.
+
+There is no such thing as a "checked-out version".  The situation you have 
+drawn can occur (again, by using another version-controlled resource on 
+V1, or working resource of V1, then checking them in to create V3). So 
+your version history diagram is possible using a number of intermediate 
+steps.
+
+> 2. Does a VCR got a checked-out property for every checked out
+> version?  If not, how a fork is handled correctly?
+
+A checked-out version controlled resource only has a single (and 
+single-valued) DAV:checked-out property.  To cause a fork in history 
+requires checking out a version twice.
+
+> 3. After checkin of both versions without merging (fork-ok or
+> checkin-fork not forbidden) there are two checked in versions
+> of the VCR now. There are two checked-in properties now  to?
+
+Nope, there is a one-to-one between checked-in version-controlled 
+resources and versions.
+
+> As far as I know a not versioning aware client sends a GET request
+> to the VCR itself to get the content of it.
+
+Indeed any client can send a GET to retrieve the content of a 
+version-controlled resource.
+
+> Asuming a single line of descent the content to deliver simply
+> is the most current checked in version.
+
+That is true only if the server does not support UPDATE.
+
+> (Same applies to a server that implements only basic versioning
+> features (i.e. no version histoty and with that no version
+> resource URI)).
+
+Even if a server does not expose the version history resource, versions 
+will still have a (server generated) URL.
+
+> 4.If there is no single line of descent, the server has to provide
+> a reasonable reply. What would it be?
+
+The version-controlled resource has its own content, so the server always 
+answers the content of the version-controlled resource.  When the 
+version-controlled resource is checked-in the content is identical to the 
+content of the version identified by the DAV:checked-in property; when the 
+version-controlled resource is checked-out the content is initially the 
+same as when it was checked-in, but the content is mutable so it can 
+become anything that the client PUTs there.
+
+Regards,
+Tim
+
+
+

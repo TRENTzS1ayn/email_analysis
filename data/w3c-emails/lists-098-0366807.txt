@@ -1,0 +1,193 @@
+docno="lists-098-0366807"
+received="Wed Nov 28 03:43:45 2001"
+isoreceived="20011128084345"
+sent="Wed, 28 Nov 2001 02:43:40 -0600"
+isosent="20011128084340"
+name="Dan Connolly"
+email="connolly@w3.org"
+subject="concat: the missing link from SW to WS"
+id="3C04A3BC.97F715BF@w3.org"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-archive@w3.org,hugo@w3.org,danbri@w3.org
+
+A while back, I said that if TimBL would just
+add string concatenation, I could use
+that along with log:uri and log:resolvesTo (now
+called log:semantics) to do semantic web services.
+
+TimBL has since added string concatenation,
+but I didn't follow up right away on the
+web services angle. [where's that agent
+that does notification when pending dependencies
+are satisfied? anyway...]
+
+Tonight I just got a use case working: I've
+combined a database-backed web service with
+semantic web rules to answer the query:
+
+Who's been nominated to the WG but
+not subscribed to the mailing list?
+
+This is about 1/3rd usefully general stuff
+and 2/3rds kludge-for-now stuff...
+
+
+Given the "group id" key into our database-backed mailing
+list subscription system, I can conjure up
+the address of a service that provides the
+subscription data in RDF; then using log:uri,
+I can treat that address as a URI/symbol...
+
+---8<---
+this log:forAll :grp, :doc, :pg, :who, :mbox, :fname, :gname.
+this log:forAll :grpNum.
+
+{ :grp dbwg:group :grpNum.
+  :pg log:uri [ string:concat
+    ("http://www.w3.org:80/2000/09/dbwg/detailsRDF.php3?" "group" "="
+:grpNum)].
+}
+ log:implies
+  { :grp :subscriptionPg :pg }.
+]
+---8<---
+
+TODO: I'd rather key of the WG home page than
+its dbwg:group, but the WG home page isn't in
+the database yet.
+
+TODO: Also, I'd like to figure out a richer idiom
+for connecting the dbwg:group property
+to the ...detailsRDF.php3?group=12312 address...
+something to deal with application/x-www-form-urlencoded
+in general.
+
+TODO: and there's the whole N3/SQL remote-query
+pile of stuff; I haven't gotten very far in my thinking
+about that yet...
+
+Meanwhile, then using log:semantics, I can get the actual
+data and process it.
+
+In this case, I use log:notIncludes to find
+missing subscriptions:
+
+---8<---
+
+#find missing folks from dbwg database
+{
+  :grp org:charter :doc;
+    org:member :who.
+  :who
+    contact:mailbox :mbox;
+    contact:familyName :fname;
+    contact:givenName :gname.
+
+  :grp :subscriptionPg :pg.
+  :pg log:semantics [ log:notIncludes {
+    [ org:member [ contact:mailbox :mbox ] ].
+  } ].
+
+}
+ log:implies {
+  :pg :missingSubscription :mbox.
+}.
+
+---8<---
+
+And I'd really like to compute the data that should
+be POSTED in order to add the missing subscription.
+
+In this case, it's messy because it might involve
+two transactions: (1) creating an account for the
+subscriber, and (2) subscribing that account to the group.
+
+But if I had that, I'd like to run it every night
+and have it notify me if something's missing;
+the notification would have everything all set
+up to synchronize, ala:
+"<DOIT>: subscribe <foo@glorp> to the WebOnt WG,
+cuz he was nominated 21 Nov 2001"
+
+For that, we need SemanticWebCron because it
+needs access credentials. And to do SemanticWebCron,
+we need ProofBasedAuthorization. Turtles all the way down.
+
+Meanwhile, I nearly got completely depressed because
+the data are so messy.
+
+there's no logically compelling argument that the guy who
+gave oisin.hurley@iona.com as his email address when he
+applied for member-access is the guy who was nominated
+to the WG with mailbox ohurley@iona.com .
+
+I could add independent assertions that the same guy
+uses both those addresses, but (a) I'd have
+to use sameThing/forgetDups all the time, which
+slows cwm to a crawl, and (b) I can't figure out
+how to say "if, for each of the guy's mailboxes,
+<detailsRDF> doesn't say that mailbox is subscribed,
+raise a flag about that guy". Well.. I can say
+it using forAll, but not in a way that cwm will
+act on.
+
+I ended up with two rules:
+if there's a (nominated) member with mailbox X
+but no X in the subscription list, conclude
+that the subscription list is missing X.
+
+meanwhile, if there's a nominated member with mailbox X
+whose surname is N,
+and there's a subscripition with mailbox Y and surname N,
+then note that Y might be an alternative
+to one of the missing mailboxes.
+
+
+
+
+Anyway... tonight I claim victory for gluing
+the Semantic Web to Web Services by using
+string:concat along with log:uri and log:semantics.
+
+The results at this point:
+
+
+ <http://www.w3.org:80/2000/09/dbwg/detailsRDF.php3?group=30310>    
+mm:missingSubscription  [
+             :mailbox <mailto:Frederik.Brysse@ivisgroup.com> ],
+                 [
+             :mailbox <mailto:warner.ten.kate@philips.com>;
+             mm:maybeSubscribedAs <mailto:warner.ten.kate@philips.com>
+],
+                 [
+             :mailbox <mailto:kohlhase@ags.uni-sb.de>;
+             mm:maybeSubscribedAs <mailto:kohlhase@ags.uni-sb.de> ],
+                 [
+             :mailbox <mailto:libby.miller@bristol.ac.uk>;
+             mm:maybeSubscribedAs <mailto:libby.miller@bristol.ac.uk> ],
+                 [
+             :mailbox <mailto:ohurley@iona.com>;
+             mm:maybeSubscribedAs <mailto:ohurley@iona.com> ],
+                 [
+             :mailbox <mailto:lynne.thompson@unisys.com>;
+             mm:maybeSubscribedAs <mailto:lynne.thompson@unisys.com> ],
+                 [
+             :mailbox <mailto:jeremy_carroll@hp.com>;
+             mm:maybeSubscribedAs <mailto:jeremy_carroll@hp.com> ],
+                 [
+             :mailbox <mailto:lorbst@mitre.org> ] .
+
+ -- http://www.w3.org/2001/sw/WebOnt/missing-stuff.n3
+ built from
+ http://www.w3.org/2001/sw/WebOnt/Makefile
+
+(lots of stuff needs chacling; sorry, it's late)
+
+-- 
+Dan Connolly, W3C http://www.w3.org/People/Connolly/
+
+
+

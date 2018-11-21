@@ -1,0 +1,109 @@
+docno="lists-020-1126966"
+received="Tue Jan  6 15:41:52 2004"
+isoreceived="20040106204152"
+sent="Tue, 6 Jan 2004 15:41:40 -0500 (EST)"
+isosent="20040106204140"
+name="Niko Matsakis"
+email="niko@datapower.com"
+subject="[XSLT2.0] value-of and backwards compatibility"
+id="Pine.LNX.4.44.0401061458460.1166-100000@diomedes.datapower.com"
+charset="US-ASCII"
+expires="-1"
+
+To:public-qt-comments@w3c.org
+
+
+
+I am writing to raise some concerns about two interrelated issues:
+
+1. Backwards Compatibility Mode is used too liberally to mask unnecessary
+changes in behavior.  Familiar elements and constructs ought to do the same
+thing in XSLT 1.0 and 2.0 to the fullest extent possible.
+
+2. In a related vein, the new behavior causes hidden performance penalties.
+
+----------------------------------------------------------------------------
+1. Backwards Compatibility
+
+An example of these concerns is xsl:value-of; I have not yet read the spec
+completely, but I am sure that there are more.
+
+In the case of value-of, the default behavior for a 2.0 processor is to output
+the concatenated string value of all elements of the sequence (possibly with
+a separator).  If, however, the element is in backwards compatibility mode,
+the 1.0 semantics of only outputting the first node are used.
+
+I think this is bad for two reasons: it's inconsistent with 1.0, 
+and it's a likely speed hit (see section 2).
+
+Changing the value of the version attribute should not cause the elements 
+on the stylesheet to start doing completely different things.  I think it
+will cause undue confusion for new users of XSLT 2.0.  I could understand
+making the change if this were an area of the spec widely criticized 
+(RTFs), but for something like value-of the current behavior seems perfectly
+adequate.
+
+I suspect that the reason this change was made is that xsl:value-of can now
+take XSLT children that form a sequence constructor.  That raises the
+question, I assume, of what to do with this:
+
+<xsl:value-of>
+<a>hi</a>
+<b>ho</b>
+</xsl:value-of>
+
+as currently defined, this will produce "hi ho".  Using the 1.0 "take the
+first item" rule, this would produce "hi".  Clearly the former is more natural,
+though it's not what I would expect (which is "hiho").  
+
+I see a number of ways to solve this.  Perhaps have the lack of a separator
+attribute mean that only the first item is used; this makes the Sequence
+Constructor case output "hi" not "hi ho", so one could say that the separator
+in Sequence Constructor cases defaults to " ".  Now everything works as
+expected: using select preserves the old behavior, using the sequence
+constructor still outputs all the items constructed, not just the first one.
+
+This makes the code mildly inconsistent between the two syntaxes, but I think
+that's okay.  People wouldn't write XSLT instructions they don't want executed,
+but they often write xpath expressions that could potentially select more nodes
+than they want.  This gets in to my optimization concerns below; furthermore,
+it preserves backwards compatibility.
+
+Another option is to create an <xsl:join separator=" "> and get rid of the
+separator attributes on everything else.  This means the above example
+would only output "hi", but you could easily get it to output "hi ho".
+This would be consistent between the xpath and xslt and would simplify the
+spec because the commands for joining things would only be located in one
+place instead of being present on many different elements.
+
+Using the Backwards Compatibility Mode to relax type restrictions makes
+sense.  Using it to select between two different behaviors for
+a given element seems excessive, particularly when it egregiously breaks
+backwards compatibility.
+
+----------------------------------------------------------------------------
+2. Speed
+
+Furthermore: the new value-of carries a hidden performance penalty.  If the
+select expression refers to exactly one node, as is commonly the case, the
+new definition will require iterating over all nodes that might match the
+expression, rather than stopping at the first match.  In the above example,
+"a/b", an XSLT processor used to be able to stop at the first "b" node, but
+now must continue searching.  I am sure that there are other places where
+the entire sequence is used that used to use only the first item, though I
+have not combed the spec enough to know.
+
+I think that changing rules that used to take only the first node so that they
+now select multiple nodes will result in "gotcha!" performance penalties for
+longtime users.  Writing XSLT that executes efficiently is hard enough without
+the language changing the rules under your feet.
+
+
+
+Thank you for your time and consideration.  
+
+Niko Matsakis
+DataPower Technology
+
+
+

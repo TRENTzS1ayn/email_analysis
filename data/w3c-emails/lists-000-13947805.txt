@@ -1,0 +1,121 @@
+docno="lists-000-13947805"
+received="Fri Jul 28 09:55:44 2000"
+isoreceived="20000728135544"
+sent="Fri, 28 Jul 2000 00:43:18 -0700"
+isosent="20000728074318"
+name="Terry Teague"
+email="teague@mailandnews.com"
+subject="Line endings on/from other platforms not handled correctly?"
+id="l03130300b5a6dcf31960@[17.219.108.18]"
+charset="us-ascii"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+Dear Dave,
+
+While I don't really expect you to maintain entirely portable
+cross-platform code for Tidy, there appear to be some issues with line
+endings on/from other platforms, that I wanted to make you aware of, and
+get some feedback from others on the mailing list.
+
+As you probably know the common line endings in use are :
+
+UNIX : linefeed (0x0A)
+DOS : carriage return+linefeed (0x0D0A)
+Mac : carriage return (0x0D)
+
+Standard C libraries map 0x0A (<lf>) to '\n' (newline), and 0x0D (<cr>) to
+'\r' (carriage return).
+
+Since Tidy was developed as a UNIX or DOS/Windows program, naturally it
+uses '\n' throughout the code to handle line endings.
+
+When I first ported Tidy to Mac OS, I ran into a number of problems with
+line endings if the input text was a Macintosh file and only contained
+<cr>'s. Most notably the entire file was treated as a single long line of
+text, so error reporting was usually something like : Line 1, column 54321
+blah blah blah. This is inconvenient to say the least.
+
+Fortunately there were 2 relatively simple solutions :
+
+1) Use a 3rd party product, convert all <cr>'s in the file to <lf>'s, then
+use Tidy.
+2) The Mac OS development environments allow you specify a different
+mapping for '\n' and '\r' - specifically, reversing the standard C mapping.
+This involves a compiler option and a different version of the standard C
+libraries (that have been compiled with this option turned on).
+
+Option 1 is inconvenient for users.
+
+Option 2 has proven to have a drawback - current versions of Tidy don't do
+the right thing with input files that are NOT Macintosh files - the mapping
+of <lf> to '\r' confuses Tidy.
+
+Specifically here is a piece of HTML from "overview.html" (with UNIX line
+endings) :
+
+<hr width="80%" class="c4" />
+<p class="c3"><a href="#help">How to use Tidy</a> | <a
+href="#download">Downloading Tidy</a> | <a
+href="release-notes.html">Release Notes</a><br />
+<a href="#quotes">Integration with other Software</a> | <a
+href="#acks">Acknowledgements</a></p>
+
+With the current version of Tidy for Mac OS, errors are reported something
+like :
+
+line 1 column 2075 - Warning: <ahref> unexpected or duplicate quote
+mark
+line 1 column 2075 - Warning: <ahref> unknown attribute value ""
+line 1 column 2075 - Error: <ahref> is not recognized!
+line 1 column 2075 - Warning: discarding unexpected <ahref>
+
+(and as you can see, Tidy treats the entire file as 1 long line).
+
+So it appears that Tidy is removing the whitespace including the (now
+remapped) '\r', and getting confused.
+
+I have looked at the source, and there aren't too many places that do
+special handling of line endings.
+
+But it seems there is some inconsistency in how the various line ending
+combinations are handled (particularly in lexer.c) - it seems that Tidy
+mapping \r\n, \r to \n is probably the correct thing to do, if it was
+consistent.
+
+More specifically, at about line 1325 of lexer.c there is the comment :
+
+        /* treat \r\n as \n and \r as \n */
+
+but the code associated with this comment is much further on, leading me to
+think that maybe some code was cut out, or moved to the wrong place.
+
+I would think the best place to do special handling of line endings would
+be in the low-level char reading routines, such as ReadCharFromStream() in
+tidy.c or GetC() in config.c - and map them all to '\n' (or better still
+perhaps something that can't be remapped, by using a symbolic constant like
+#define lineending 0x0A). I assume the UnGetChar() type functions would
+continue to work without problem with this change.
+
+
+I would be curious to know if others on this mailing list have to deal with
+cross-platform issues with Tidy, and have experienced any problems with
+files from a different platform, etc.
+
+I might try and fix the source to solve my problem, but unfortunately I
+have no way of building Tidy for other platforms and thereby testing my
+fixes for other platforms.
+
+There is always the issue of files containing mixed line endings (e.g.
+files edited on multiple platforms - many of the editors for Mac OS can
+convert or preserve line endings for other platforms, transparently for the
+user).
+
+Any comments welcomed.
+
+Regards, Terry
+
+
+

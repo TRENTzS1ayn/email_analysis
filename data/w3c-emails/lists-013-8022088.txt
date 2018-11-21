@@ -1,0 +1,84 @@
+docno="lists-013-8022088"
+received="Sun Mar 14 19:10:11 2004"
+isoreceived="20040315001011"
+sent="Sun, 14 Mar 2004 19:10:07 0500"
+isosent="20040315001007"
+name="Scott Lawrence"
+email="scott@skrb.org"
+subject="Re: Can the response entity be transmitted before all the request entity has been read?"
+id="1079309406.26913.33.camel@localhost.localdomain"
+inreplyto="20040314164911.GA2949&#64;mail.shareable.org"
+expires="1"
+
+To: Jamie Lokier<jamie@shareable.org>
+Cc: Joris Dobbelsteen<joris.dobbelsteen@mail.com>, WWW WG<ietf-http-wg@w3.org>
+
+
+
+On Sun, 2004-03-14 at 11:49, Jamie Lokier wrote:
+> Joris Dobbelsteen wrote:
+> > Requests and responses are *always* fully completed. There is no way of
+> > canceling a request/response half-way, except by closing the connection.
+> 
+> Thank you.  I had managed to figure that out, more recently than my
+> mail on the subject :)
+> 
+> > Just ignore the 100 response. The protocol behaves exactly with or without
+> > it.
+> 
+> I can't ignore it: I'm writing a HTTP/1.1 server.  I must send the 100
+> response at the appropriate time, to prevent the client delay.  Also
+> it's a protocol requirement: section 8.2.3.  OTOH I don't want to send
+> it if I'm generating an error response.  Pretty much what 100 is for.
+
+100 is an attempt to optimize away some of the dumb things that happen
+with > 299 responses.  It was an attempt to prevent the pipe from
+getting filled with stuff the server doesn't want to read.   So, yes,
+you had the right idea.
+
+The qualifiers and exceptions all derive from a desire to be backward
+compatible; since there were clients and servers out there using the 1.1
+version number that didn't do this, we decided to leave in exceptions
+for them. 
+
+> I delay sending the 100 response until the application (which sits on
+> top of the server) asks to read any of the request entity, which makes sense.
+> 
+> The complications arose from the question of what to do when the
+> server application doesn't read any of the request entity.
+> Conservatively the HTTP server just reads it anyway, but I was trying
+> to apply a close to optimal set of rules.  The obvious thing to do is
+> not send 100, so that the client might not sent the entity.
+> 
+> But I've looked a bit harder, and RFC 2616 section 8.2.3 states:
+> 
+>       - Upon receiving a request which includes an Expect request-header
+>         field with the "100-continue" expectation, an origin server MUST
+>         either respond with 100 (Continue) status and continue to read
+>         from the input stream, or respond with a final status code. The
+>         origin server MUST NOT wait for the request body before sending
+>         the 100 (Continue) response. If it responds with a final status
+>         code, it MAY close the transport connection or it MAY continue
+>         to read and discard the rest of the request.  It MUST NOT
+>         perform the requested method if it returns a final status code.
+> 
+> That final MUST NOT indicates that if my server application generates
+> a non-error response, i.e. a response which indicates it _did_ perform
+> the requested method, and the server application doesn't ever ask for
+> any of the request entity from the HTTP server, the HTTP server must
+> _still_ send 100.
+> 
+> Ok.
+> 
+> Furthermore, the HTTP server _must_ read _all_ of the request entity.
+> It cannot abort, because there is no way to know when the client
+> application has read the response.  It is possible to know when the
+> client's TCP stack has acknowledged all the response, but the client
+> _application_ might not see that data until it has sent all the request.
+
+Right - no matter how long you wait, the client might see your failure
+to read the body as an error, so you've got to read it, regardless of
+whether or not you send a success status.
+
+
+

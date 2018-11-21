@@ -1,0 +1,105 @@
+docno="lists-009-11144465"
+received="Fri Nov 10 06:29:50 1995"
+isoreceived="19951110112950"
+sent="Fri, 10 Nov 1995 08:26:25 0600 (CST)"
+isosent="19951110142625"
+name="Philip Thrift"
+email="thrift@osage.csc.ti.com"
+subject="HTTP POST streaming"
+id="199511101426.IAA29685@osage.csc.ti.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:thrift@osage.csc.ti.com
+
+
+I am interested in applications that can make use of having a
+continuous two-way connection to a web server and HTTP protocols that
+support it (and especially how HTTP proxies support it).
+
+Relevant is the IETF HTTP-WG Session Extension protocol, HTTP-NG,
+Keep-Alive, and perhaps server push, client pull protocols, although I
+am trying to sort them out in the context of my little test example below.
+
+Here is an example CGI script that is continuously reading data from
+the client (in this example, telnet is used for the client) and
+responding in a dialog fashion. This works using the NCSA httpd. (I
+say Content-Length: -1 just to mean I don't know how much data I will
+send). It doesn't work going through a CERN proxy, since the proxy
+seems to buffer up the POST data before sending it.
+
+------------------------------------------------------------------
+#!/share/bin/perl
+
+#  Server: NCSA httpd 1.4
+#  CGI:    /cgi-bin/nph-test-session.p
+#  Usage:
+#
+#  % telnet <host> <port>
+#  POST /cgi-bin/nph-test-session.p HTTP/1.0
+#  Content-Length: -1
+#  <empty line here>
+#  (type some non-empty lines with return and end with empty line)
+#
+
+require "flush.pl";
+print "HTTP/1.0 200\n";
+print "Content-type: multipart/x-mixed-replace;boundary=---ThisRandomString---\n\n";
+&printflush(stdout,"---ThisRandomString---\n");
+while (<STDIN>) {         # read POST data as it comes in
+    chop; chop;           # get rid of CRLF
+    if (length($_) < 1) { exit 0; }  # exit when blank line is sent
+    &printflush(stdout,"Content-type: text/plain\n\n");
+    printf("You said  %s   and transmitted %d chars\n",$_,length($_));
+    &printflush(stdout,"---ThisRandomString---\n");
+}
+------------------------------------------------------------------------
+
+Here is an example use, where > indicates data typed by the client:
+
+------------------------------------------------------------------------
+> telnet gamera 8001
+Trying 157.170.34.48 ...
+Connected to gamera.
+Escape character is '^]'.
+POST /cgi-bin/nph-test-session.p HTTP/1.0
+Content-Length: -1
+ 
+HTTP/1.0 200
+Content-type: multipart/x-mixed-replace;boundary=---ThisRandomString---
+ 
+---ThisRandomString---
+> hello
+Content-type: text/plain
+ 
+You said  hello   and transmitted 5 chars
+---ThisRandomString---
+> there
+Content-type: text/plain
+ 
+You said  there   and transmitted 5 chars
+---ThisRandomString---
+> 
+Connection closed by foreign host.
+------------------------------------------------------------------------
+
+Here the idea is that POST data is continuously streaming to the
+server and the server streams back (examples: continuously
+moving in a VRML world while the other participants are moving around
+you, moving a robot arm, bi-directional video communication, ...).
+
+I am interested in how "POST streaming" fits into the current
+session ideas.
+
+                                      Philip Thrift
+
+NET: thrift@ti.com                    TI Corporate Software Laboratory
+TEL:(214) 995-7906                    P.O. Box  655474  M.S. 238
+FAX:(214) 995-0304                    Dallas, TX 75265
+
+URL: http://www.nowhere.net/~thrift/
+URL: http://mothra.csc.ti.com:8001/                  (TI Internal)
+
+
+

@@ -1,0 +1,122 @@
+docno="lists-009-15909272"
+received="Mon Mar  4 16:18:57 1996"
+isoreceived="19960304211857"
+sent="Mon, 04 Mar 96 16:01:05 PST"
+isosent="19960305000105"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Cache validators"
+id="9603050001.AA06253@acetes.pa.dec.com"
+inreplyto="9602220119.aa00479&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    That is not what I mean.  First, I don't think that opaque
+    validators are necessary -- they may be useful, but not necessary.
+
+Of course they are not "necessary."  But then, neither is caching.
+
+    However, I am willing to give-in to that notion IF the opaque
+    validator is sufficiently useful to cover the cost of sending it.
+    That is, the opaque validator must be generally interoperable with
+    existing systems and carry sufficient semantics for use for things
+    other than cache updates.
+
+First of all, the generally understood meaning of the word "opaque"
+is "has no meaning to clients", and therefore if you want the
+validator to carry other semantics, you're not talking about an
+"opaque" validator.
+
+Second, while I agree with your emphasis on the cost of sending
+it (vs. the benefit, of course), I have no idea what your next
+sentence has to do with "cost".  Interoperability is a requirement
+of all HTTP/1.1 additions; it's not a "cost" issue.
+    
+    In order to provide that additional usefulness, we need three things:
+    
+       1) A guarantee that the validator will change if the content changes
+  and should not change if the content remains the same;
+       2) A guarantee that the validator is byte-comparable (i.e., equal
+  validators mean equal content);
+       3) A guarantee that the validator is world-unique.
+    
+    (1) is obvious.
+
+Not necessarily.  To be useful as a cache validator (unburdened
+by any other semantics), it is sufficient that the value changes
+if the content is semantically different.  It is not necessary
+that the value change on every insignificant change in the content
+(where "significant" is defined by the application that generates
+the content).
+
+    (3) is necessary for it to be used as a cache key.
+
+Who said anything about using the validator as a cache key?  This
+is something that might be an interesting design point (using
+something beside the URL as a cache key) but this is so clearly
+at variance with current practice that I think you are being
+highly inconsistent with your insistence (stated elsewhere) that
+we ought to stick to current practice.
+    
+    Not too surprisingly, this also happens to be the definition of
+    Content-ID in MIME.  Therefore, for maximum interoperabilty with
+    existing systems, we should use Content-ID if we are to have an
+    opaque validator.
+    
+What existing systems?
+
+    So, if people would like a simple precondition syntax that is useful
+    for all of the currently identified protocol needs, including cache
+    validation, byte ranges, and content negotiation, then I have the following
+    suggestion:
+    
+       1) Require Content-ID in HTTP/1.1 responses
+    
+ Content-ID  =  "Content-ID" ":" cid
+cid  =  <a content-id as defined in RFC 1521>
+    
+       2) Implement the following precondition syntax:
+    
+ If-ID  =  "If-ID" ":" 1#cid
+    
+  wherein the condition evaluates to true if the response to the
+  request would have had a Content-ID equal to one of the ones
+  given in the If-ID header field value.  Like the current definition
+  of Unless in draft 01, the response to a "false" evaluation
+  depends on whether or not Range or IMS is also present.
+    
+    That should make a sufficient number of people happy to make the
+    overhead of doing it worthwhile.  If not, then the only reasonable
+    solution is to use an IF header field with a generic syntax.
+
+I don't think it's possible to solve both the conditional-GET
+problem and the byte-range problem with a single If-ID header;
+we would need both If-ID and If-not-ID (or some other syntax).
+While you try to get around this by using this table:
+
+                        ID is in    ID not in
+                        Check-ID    Check-ID (or IMS true)
+                        ---------   ---------
+    GET                    200         412
+    GET + IMS              304         200
+    GET + Range            206         412
+    GET + IMS + Range      206         200
+    other methods       as normal      412
+
+it's not at all clear that this is easier to implement than
+simply having two different headers, and probably easier to
+get the specification right (Koen has pointed out several
+problems).  And this is almost certainly not extensible!
+
+As Koen points out, there are circumstances when one needs
+"action-if-something-matches" and other circumstances when
+one needs "no-action-if-something-matches", so why not just
+do the obvious thing and have paired headers?
+
+-Jeff
+
+
+

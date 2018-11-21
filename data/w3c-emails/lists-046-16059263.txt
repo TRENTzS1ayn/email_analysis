@@ -1,0 +1,1924 @@
+docno="lists-046-16059263"
+received="Sat Apr 14 05:33:04 2001"
+isoreceived="20010414093304"
+sent="Sat, 14 Apr 2001 10:33:13 +0100"
+isosent="20010414093313"
+name="Brian McBride"
+email="bwm@hplb.hpl.hp.com"
+subject="Re: Executable Specs [was Introduction: Graham Klyne]"
+id="3AD81959.6F36A677@hplb.hpl.hp.com"
+charset="us-ascii"
+inreplyto="OFF22B9D05.0C7B7080-ON41256A2D.0079AFFE&#64;bayer-ag.com"
+expires="-1"
+
+
+To:jos.deroo.jd@belgium.agfa.com
+CC:GK@NineByNine.org,w3c-rdfcore-wg@w3.org
+
+Hi Jos,
+
+jos.deroo.jd@belgium.agfa.com wrote:
+
+> 
+> Brian, is that informal experiment using an attribute grammar
+> with an XSLT implementation the one at
+> http://www.bmcb.btinternet.co.uk/2001/rdf/exec-grammar/spec.xsl ?
+
+Yes, and thanks for picking up on that.  It would be good discipline for
+us always to provide references where possible.
+
+The above URL is not likely to be very persistent so to make sure its in
+the archive I've included the document at the end of this message.
+ 
+Brian
+
+====================================================================
+
+<?xml version='1.0'?>
+<!-- Author:  Brian McBride $Revision: 1.8 $ $Date: 2001/02/22 12:31:14
+$ -->
+<xsl:stylesheet xmlns:xsl='http://www.w3.org/1999/XSL/Transform'
+                xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+                xmlns:rdfg='http://purl.org/NET/BMCB/2001/RDFG'
+                exclude-result-prefixes='xsl rdf rdfg'>
+
+<!-- An experiment in doing a formal specification of the RDF Syntax.
+     The goal is to more formally define the triples that any given
+     RDF XML represents.
+
+     The idea is to annotate the grammar with attributes.  Each
+production
+     in the grammar takes attributes as arguments and can return
+attributes
+     as a result.  A production emitTriple, which always succeeds but
+has
+     the side effect of emitting a triple is introduced.
+
+     There is a trivial transformation from the annotated grammar to an
+     equivalent XSLT transform, thus in effect enabling an executable
+     specification.
+
+     @@ISSUE aboutEach not handled
+     @@Issue aboutEachPrefix
+
+     @@TODO Oops - forgot xml:lang
+     @@TODO consider if XML Schema should be used to express the
+grammar.
+     @@TODO consider Schematron
+     @@TODO search for 'proper' attribute grammar tools
+
+The annotated grammar is as follows:
+
+        // Constants
+
+           RDFNS           =
+'http://www.w3.org/1999/02/22-rdf-syntax-ns#'
+           RDFGNS          = 'http://purl.org/NET/BMCB/2001/RDFG/'
+           HASMEMBER       = 'hasMember'      // container membership
+property
+           TYPE            = 'type'
+           BAG             = 'Bag'
+           URI             = 'URI'
+           ANON            = 'ANON'
+           ABOUTEACH       = 'aboutEach'
+           ABOUTEACHPREFIX =
+           LITERAL         = 'LITERAL'
+           NONE            = 'NONE'
+           AUTO            = 'NONE'           // change to 'anon' to
+turn on
+                                              // creation of bags for
+all
+                                              // description elements
+
+  [6.1] RDF()            ::= ['<rdf:RDF>'] 
+                             obj*((NONE, ''), ('', ''),
+                                  ( NONE, ''),  (NONE, '') 
+                             ['</rdf:RDF>']
+
+        // dropped the container productions - used mcbride/beckett
+approach
+        // The obj production can either be a top level resource
+immediately
+        // within an enclosing rdf:RDF or it can be the object of a
+statement.
+        //
+        // Input Attributes:
+        //   subject(Type, Valu)      type is none for top level
+        //   predicate(ns, localname)
+        //   bag(Type, Valu, next)    to hold reifications
+        //   rsid                     id of reified statement
+
+  [6.2] obj(subject, predicate, bag, rsid)
+                         ::= description(subject, predicate, bag, rsid)
+
+  [6.2.1] obj*(subject, predicate, bag, rsid)
+                         ::= obj(subject, predicate, bag, rsid)
+                             obj*(subject, predicate,
+                                  (bag.type, bag.value), rsid)
+                           |
+
+  [6.3] description(subject, predicate, bag, rsid)
+                         ::= '<rdf:Description' 
+                               idAboutAttr?
+                               emitTriple(rsid, subject, predicate,
+                                          (idAboutAttr.Type,
+idAboutAttr.Valu))
+                               emitTriple((NONE, ''),bag, 
+                                          (RDFGNS, HASMEMBER), rsid)
+                               bagIdAttr?
+                               emitTriple((NONE, ''),
+                                          (bagIdAttr.Type,
+bagIdAttr.valu),
+                                          (RDFNS, TYPE),
+                                          (URI, RDFNS+BAG))
+                               propAttr*((idAboutAttr.Type,
+idAboutAttr.Valu),
+                                         (bagIdAttr.Type,
+bagIdAttr.Valu), 0)
+                              '/>'
+                         | '<rdf:Description'
+                           idAboutAttr?
+                           emitTriple(rsid, subject, predicate,
+                                      (IidAboutAttr.Type,
+idAboutAttr.Valu))
+                           emitTriple((NONE, ''), bag, 
+                                          (RDFGNS, HASMEMBER), rsid)
+                           bagIdAttr?
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr.Type, bagIdAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, RDFNS+BAG))
+                           propAttr*((idAboutAttr.Type,
+idAboutAttr.Valu),
+                                     (bagIdAttr.Type, bagIdAttr.Valu),
+0)
+                           '>'
+                            propertyElt*(subject,
+                                         (bagIdAttr.Type,
+bagIdAttr.Valu))
+                           '</rdf:Description>'
+                         | typedNode(subject, predicate, bag, rsid)
+
+  [6.4] // container production deleted
+
+  [6.5] idAboutAttr?   ::= idAttr
+                           this.Type = idAttr.Type
+                           this.Valu = idAttr.Valu
+
+                         | aboutAttr
+                           this.Type = aboutAttr.Type
+                           this.Valu = aboutAttr.Valu
+
+                         | aboutEachAttr
+                           this.Type = aboutEachAttr.Type
+                           this.Valu = aboutEachAttr.Value
+
+                         | this.Type = ANON
+                           this.Valu = genid()
+
+  [6.6] idAttr         ::= ' ID="' IDsymbol '"'
+                            this.Type=URI
+                            this.Valu=BASEURI() + '#' + IDsymbol
+  [6.6.1]idAttr?       ::= idAttr
+                           this.Type=idAttr.Type
+                           this.Valu=idAttr.Valu
+                         | this.Type = NONE
+                           this.Valu=''
+
+  [6.7] aboutAttr      ::= ' about="' URI-reference '"'
+                           this.Type=URI
+                           this.Valu = ABSOLUTE(URI-reference)
+
+  [6.8] aboutEachAttr  ::= ' aboutEach="' URI-reference '"'
+                           this.Type = ABOUTEACH
+                           this.Valu = ABSOLUTE(URI-reference)
+
+                         | ' aboutEachPrefix="' string '"'
+                           this.Type = ABOUTEACHPREFIX
+                           this.Valu = string
+
+  [6.9] bagIdAttr?      ::= ' bagID="' IDsymbol '"'
+                            this.Type = URI
+                            this.Valu = BASEURI + '#' + IDsymbol
+                          | this.Type = AUTO
+                            this.Value = genid()
+
+ [6.10] propAttr(subject, bag, maxOrd)
+                        ::= 'xml:lang="' string '"'         // ignore
+                            this.maxOrd = 0
+                          | 'xmlns:' name '="' string '"'   // ignore
+                            this.maxOrd = 0
+                          | 'ID="' string '"'               // ignore
+                            this.maxOrd = 0
+                          | 'about="' string '"'            // ignore
+                            this.maxOrd = 0
+                          | 'aboutEach="' string '"'        // ignore
+                            this.maxOrd = 0
+                          | 'aboutEachPrefix="' string '"'  // ignore
+                            this.maxOrd = 0
+                          | 'bagID'                         // ignore
+                            this.maxOrd = 0
+                          | typeAttr(subject, bag)
+                            this.maxOrd = 0
+                          | 'rdf:li="' string '"'
+                            this.stmtType = 
+                                    if bag.Type==NONE then NONE else
+ANON
+                            this.stmtValu = genid()
+                            emitTriple((this.stmtType, this.stmtValu),
+                                       subject, 
+                                       (RDFNS, '_1') 
+                                       (LITERAL, string))
+                            emitTriple((NONE, ''), bag,
+                                       (RDFGNS, HASMEMBER),
+                                       (this.stmtType, this.stmtValu))
+                            this.maxOrd = 1
+                          | propName '="' string '"'        // with
+embedded
+                                                            // quotes
+escaped
+                            this.stmtType = 
+                                     if bag.Type==NONE then NONE else
+ANON
+                            this.stmtValu = genid()
+                            emitTriple((this.stmtType, this.stmtValu),
+                                       subject, 
+                                       (propName.ns, propName.namespace) 
+                                       (LITERAL, string))
+                            emitTriple((NONE, ''), bag,
+                                       (RDFGNS, HASMEMBER),
+                                       (this.stmtType, this.stmtValu))
+                            this.maxOrd = maxOrd(maxOrd, propName.ns,
+                                                   propName.localname)
+
+ [6.10.1] propAttr*(subject, bag, maxOrd)
+                        ::= propAttr(subject, bag)
+                            propAttr*(subject, bag)
+                            this.maxOrd=max(maxOrd, propAttr.maxOrd,
+                                             propAttr*.maxOrd)
+                          |
+
+ [6.11] typeAttr(subject, bag)
+                        ::= ' type="' URI-reference '"'
+                            this.stmtType = 
+                                       if bag.Type==NONE then NONE else
+ANON
+                            this.stmtValu = genid()
+                            emitTriple((this.stmtType, this.stmtValu),
+                                       subject, (RDFNS, TYPE),
+                                       (URI, URI-reference))
+                            emitTriple((NONE, '') bag,
+                                       (RDFGNS, HASMEMBER),
+                                       (this.stmtType, this.stmtValu))
+
+ [6.12] propertyElt(subject, bag)
+                       ::= '<' propName
+                               rsidAttr?(bag)          // modifed from
+idAttr?
+                           '>' value(subject, 
+                                     (propName.ns, propName.localname),
+bag,
+                                     (rsidAttr?.Type, rsidAttr?.Valu))
+                           '</' propName '>'
+
+                         | '<' propName
+                               rsidAttr?(bag)         // modified from
+idAttr?
+                               parseLiteral '>'
+                               literal 
+                               '</' propName '>'
+                           emitTriple((rsidAttr?.Type,rsidAttr?.Valu),
+subject,
+                                      (propName.ns, propName.localname),
+                                      (LITERAL, literal)
+
+                           emitTriple((NONE, ''), bag,
+                                      (RDFG, HASMEMBER),
+                                      (rsidAttr?.Type, rsidAttr?.Valu))
+
+                         | '<' propName
+                               rsidAttr?(bag)        // modified from
+idAttr?
+                               parseResource '>'
+                           this.objectType = ANON
+                           this.objectValu = genid()
+                           emitTriple((rsidAttr?.Type, rsidAttr?.Valu)
+                                      subject,
+                                      (propName.ns, propName.localname),
+                                      (this.objectType,
+this.objectValu))
+
+                           emitTriple((NONE, ''), bag,
+                                      (RDFG, HASMEMBER)
+                                      (rsidAttr.Type, rsidAttr.Valu))
+
+                           this.bagType = AUTO
+                           this.bagValu = genid()
+                           emitTriple((NONE, '')
+                                      (this.bagType, this.bagValu),
+                                      (RDFNS, TYPE),
+                                      (URI, RDFNS+BAG)
+
+                           propertyElt*((this.objectType,
+this.objectValu),
+                                        (this.bagType, this.bagValu))
+                           '</' propName '>'
+                         | '<' propName
+                           idRefAttr?
+                           this.stmtType = 
+                                      if bag.Type==NONE then NONE else
+ANON
+                           this.stmtValu = genid()
+                           emitTriple( this.stmtType, this.stmtValu),
+                                       subject,
+                                      (propName.ns, propName.localname),
+                                      (idRefAttr.Type, idRefAttr.Valu))
+
+                           emitTriple((NONE, ''), bag,
+                                      (RDFG, HASMEMBER),
+                                      (this.stmtType, this.stmtValu))
+
+                           bagIdAttr?
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr.Type, bagIdAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, RDFNS+BAG))
+                           propAttr*((idRefAttr.Type, idRefAttr.Valu),
+                                     (bagIdAttr.type, bagIdAttr.value),
+0) 
+                           '/>'
+
+        // new alternative added to handle unknown parseType's
+
+                         | '<' propName
+                               rsidAttr?(bag)
+                               parseType '>'         // other parse
+types
+                                                     // treated as
+literal
+                               literal 
+                               '</' propName '>'
+                           emitTriple((rsidAttr?.Type, rsidAttr?.Valu),
+                                       subject,
+                                      (propName.ns, propName.localname),
+                                      (LITERAL, literal)
+
+                           emitTriple((NONE, ''), bag,
+                                      (RDFG, HASMEMBER) ,
+                                      (rsidAttr?.Type, rsidAttr.Valu))
+
+ [6.13] typedNode(subject, predicate, bag, rsid)
+                       ::= '<' typeName
+                           idAboutAttr?
+                           emitTriple(rsid, subject, predicate,
+                                      (idAboutAttr?.Type,
+idAboutAttr?.Valu))
+                           emitTriple((NONE, ''), bag, (RDFG,
+HASMEMBER), rsid)
+                           bagIdAttr? 
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr.Type, bagIdAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, RDFNS+BAG))
+                           this.stmtType = 
+                                  if bagIdAttr.Type==NONE then NONE else
+ANON
+                           this.stmtValu = genid()
+                           emitTriple((this.stmtType, this.stmtValu), 
+                                      (idAboutAttr.Type,
+idAboutAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, typeName.ns +
+typename.Qname))
+
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr?.Type, bagIdAttr?.Valu,
+                                      (RDFG, HASMEMBER),
+                                      (this.stmtType, this.stmtValu)
+
+                           propAttr*((idAboutAttr.type,
+idAboutAttr.valu),
+                                     (bagIdAttr.type, bagIdAttr.value),
+0) 
+                           '/>'
+                         | '<' typeName
+                           idAboutAttr?
+                           emitTriple(rsid, subject, predicate,
+                                      (idAboutAttr?.Type,
+idAboutAttr?.Valu))
+                           emitTriple((NONE, ''), bag, (RDFG,
+HASMEMBER), rsid)
+                           bagIdAttr? 
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr.Type, bagIdAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, RDFNS+BAG))
+                           this.stmtType =
+                                  if bagIdAttr.Type==NONE else ANON
+                           this.stmtValu = genid()
+                           emitTriple((this.stmtType, this.stmtValu), 
+                                      (idAboutAttr.Type,
+idAboutAttr.valu),
+                                      (RDFNS, TYPE),
+                                      (URI, typeName.ns +
+typename.Qname))
+
+                           emitTriple((NONE, ''),
+                                      (bagIdAttr?.Type, bagIdAttr?.Valu,
+                                      (RDFG, HASMEMBER),
+                                      (this.stmtType, this.stmtValu)
+
+                           propAttr*((idAboutAttr.type,
+idAboutAttr.valu),
+                                     (bagIdAttr.type, bagIdAttr.value),
+0) 
+
+                           propertyElt*((idAboutAttr.Type,
+idAboutAttr.Valu),
+                                        (bagIdAttr.Type,
+bagIdAttr.Valu))
+                           '</' typeName '>'
+ [6.14] propName       ::= Qname
+                           this.ns = Qname.ns
+                           this.localname = Qname.localname
+ [6.15] typeName       ::= Qname
+                           this.ns = Qname.ns
+                           this.localname = Qname.localname
+
+ [6.16] idRefAttr?     ::= idAttr 
+                           this.Type = idAttr.Type
+                           this.Valu = idAttr.Valu
+                         | resourceAttr
+                           this.Type = resourceAttr.Type
+                           this.Valu = resourceAttr.Valu
+                         | this.Type = ANON
+                           this.Valu = genid()
+
+ [6.17] value(subject, predicate, bag, rsid)
+                        ::= obj(subject, predicate, bag, rsid) 
+                          | string
+                           emitTriple(rsid, subject, predicate,
+                                      (LITERAL, string))
+
+                           emitTriple((NONE, ''), bag,
+                                      (RDFNS, '_'+ bagNext), rsid)
+
+ [6.18] resourceAttr   ::= ' resource="' URI-reference '"'
+                           this.Type = URI
+                           this.Valu = URI-reference
+
+ [6.19] Qname          ::= [ NSprefix ':' ] name
+                           this.ns = namespaceURI(NSprefix)
+                           this.localname = name
+
+ [6.20] URI-reference  ::= string, interpreted per [URI]
+ [6.21] IDsymbol       ::= (any legal XML name symbol)
+ [6.22] name           ::= (any legal XML name symbol)
+ [6.23] NSprefix       ::= (any legal XML namespace prefix)
+ [6.24] string         ::= (any XML text, with "<", ">", and "&"
+escaped)
+ [6.25] // container production deleted
+ [6.26] // container produciton deleted
+ [6.27] // container production deleted
+ [6.28] // container production deleted @@ rdf:li processing todo
+ [6.29] // container production deleted
+ [6.30] // container production deleted
+ [6.31] // container production deleted
+ [6.32] parseLiteral   ::= ' parseType="Literal"'
+ [6.33] parseResource  ::= ' parseType="Resource"'
+ [6.34] literal        ::= (any well-formed XML)
+
+        // new productions here
+ [6.35] parseType      ::= ' parseType="' string '"'
+ [6.36] rsidAttr?(bag)
+                       ::= ' ID="' string '"'
+                           this.Type=URI
+                           this.Valu=BASEURI() + '#' + string
+                         | if bag.Type==NONE
+                             this.Type=NONE
+                           else
+                             this.Type=ANON
+                           this.Valu=genid()
+
+=============================================================================
+
+     Now for the XSLT transform.  The output language it produces is as
+     follows.  Each statement is output as a statement element.
+
+     The subject is represented by an attribute, either subjURI if the
+     subject has a known URI, or subjANON if the subject is anonymous.
+     The value of a subjRes attribute is the URI of the resource.  The
+     value of the subjAnon attribute is a generated id.
+
+     [@@TODO It doesn't currently handle aboutEach and aboutEachPrefix
+      distributed referents properly.  For now, it just outputs a
+      single statement for each with either a subjaboutEach or
+      subjaboutEachPrefix subject.]
+
+     The predicate of the statement is represented by two attributes, 
+     ns and localname.  The value of the ns attribute is the URI of
+     the namespace of the predicate.  The value of the localname
+     attribute is the localname part of the Qname representing the
+     predicate.
+
+     If the object of the statement is a literal, the value of the
+     literal is represented as the content of the element.  If the
+object
+     has an associated language, the statement element has an xml:lang
+     attribute whose value is the encoding of that langauge.
+
+     [@@TODO xml:lang processing not done]
+
+     If the object of the statement is a resource, then the statement
+     element will have either an objURI attribute or an objAnon 
+     attribute.  If the object of the statement is an anonymous
+     resource, then the statement has an objURI attribute whose value
+     is the URI of the resource.  If the object of the statement is
+     anonymous, then the statement element will have an objANONn
+     attribute whose value is an internal identifier of the resource.
+
+     Examples:
+
+     <Statement subjURI="http://aldabaran.hpl.hp.com/bwm"
+                ns="http://aldabaran.hpl.hp.com/ns/"
+                localname="root"
+                objURI="http://aldabaran.hpl.hp.com/" />
+
+     <Statement subjANON="1"
+                ns="http://aldabaran.hpl.hp.com/ns/"
+                localname="title"
+                xml:lang="en">The value of a literal object, possibly
+                including markup</Statement>
+    <Statement subjANON="2"
+               ns="http://aldabaran.hpl.hp.com/ns/"
+               localname="identity"
+               objANON="2"/>
+
+The tranform which follows is not a parser.  It assumes that the input
+is
+syntactically valid and does no syntax error checking.
+
+-->
+
+  <xsl:output method='xml' indent='yes'/>
+
+  <xsl:variable name='RDFNS' 
+               select='"http://www.w3.org/1999/02/22-rdf-syntax-ns#"'/>
+  <xsl:variable name='RDFGNS'
+                select='"http://purl.org/NET/BMCB/2001/RDFG"'/>
+  <xsl:variable name='HASMEMBER'       select='"hasMember"'/>
+  <xsl:variable name='TYPE'            select='"type"'/>
+  <xsl:variable name='BAG'             select='"Bag"'/>
+  <xsl:variable name='URI'             select='"URI"'/>
+  <xsl:variable name='ANON'            select='"ANON"'/>
+  <xsl:variable name='ABOUTEACH'       select='"aboutEach"'/>
+  <xsl:variable name='ABOUTEACHPREFIX' select='"aboutEachPrefix"'/>
+  <xsl:variable name='LITERAL'         select='"LITERAL"'/>
+  <xsl:variable name='NONE'            select='"NONE"'/>
+  <xsl:variable name='AUTO'            select='"NONE"'/>
+
+  <xsl:template match='rdf:RDF'>
+    <xsl:call-template name='RDF-6-1'/>
+  </xsl:template>
+
+  <xsl:template name='RDF-6-1'>
+
+    <xsl:element name='model'>
+      <xsl:for-each select="./*">
+        <xsl:call-template name='obj-6-2'>
+          <xsl:with-param  name='subjectType' select='$NONE'/>
+          <xsl:with-param name='subjectValu' select='""'/>
+          <xsl:with-param name='ns' select='""'/>
+          <xsl:with-param name='localname' select='""'/>
+          <xsl:with-param name='bagType' select='$NONE'/>
+          <xsl:with-param name='bagValu' select='""'/>
+          <xsl:with-param name='rsidType' select='$NONE'/>
+          <xsl:with-param name='rsidValu' select='""'/>
+        </xsl:call-template>
+      </xsl:for-each>
+    </xsl:element>
+  </xsl:template>
+
+  <xsl:template name='obj-6-2'>
+     <xsl:call-template name='rdfg:description-6-3'>
+       <xsl:with-param name='subjectType' select='$subjectType'/>
+       <xsl:with-param name='subjectValu' select='$subjectValu'/>
+       <xsl:with-param name='ns' select='$ns'/>
+       <xsl:with-param name='localname' select='$localname'/>
+       <xsl:with-param name='bagType' select='$bagType'/>
+       <xsl:with-param name='bagValu' select='$bagValu'/>
+       <xsl:with-param name='rsidType' select='$rsidType'/>
+       <xsl:with-param name='rsidValu' select='$rsidValu'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:description-6-3'>   
+     <xsl:choose>
+
+      <xsl:when test='namespace-uri()=$RDFNS
+                 and local-name()="Description"
+                 and not(./*)'>
+        <xsl:call-template name='rdfg:p6-3-a'>
+           <xsl:with-param name='subjectType' select='$subjectType'/>
+           <xsl:with-param name='subjectValu' select='$subjectValu'/>
+           <xsl:with-param name='ns' select='$ns'/>
+           <xsl:with-param name='localname' select='$localname'/>
+           <xsl:with-param name='bagType' select='$bagType'/>
+           <xsl:with-param name='bagValu' select='$bagValu'/>
+           <xsl:with-param name='rsidType' select='$rsidType'/>
+           <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS
+                 and local-name()="Description"
+                 and ./*'>
+        <xsl:call-template name='rdfg:p6-3-b'>
+           <xsl:with-param name='subjectType' select='$subjectType'/>
+           <xsl:with-param name='subjectValu' select='$subjectValu'/>
+           <xsl:with-param name='ns' select='$ns'/>
+           <xsl:with-param name='localname' select='$localname'/>
+           <xsl:with-param name='bagType' select='$bagType'/>
+           <xsl:with-param name='bagValu' select='$bagValu'/>
+           <xsl:with-param name='rsidType' select='$rsidType'/>
+           <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:call-template name='rdfg:typedNode-6-13'>
+           <xsl:with-param name='subjectType' select='$subjectType'/>
+           <xsl:with-param name='subjectValu' select='$subjectValu'/>
+           <xsl:with-param name='ns' select='$ns'/>
+           <xsl:with-param name='localname' select='$localname'/>
+           <xsl:with-param name='bagType' select='$bagType'/>
+           <xsl:with-param name='bagValu' select='$bagValu'/>
+           <xsl:with-param name='rsidType' select='$rsidType'/>
+           <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-3-a'>
+    <xsl:variable name='newSubjectType'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newSubjectValu'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidType'/>
+      <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$ns'/>
+      <xsl:with-param name='localname' select='$localname'/>
+      <xsl:with-param name='objectType' select='$newSubjectType'/>
+      <xsl:with-param name='objectValu' select='$newSubjectValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidType'/>
+      <xsl:with-param name='objectValu' select='$rsidValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+
+    <xsl:variable name='elementNS'>
+      <xsl:value-of select='namespace-uri()'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:propAttrStar-6-10'>
+      <xsl:with-param name='nodeSet' select='@*'/>
+      <xsl:with-param name='subjectType' select='$newSubjectType'/>
+      <xsl:with-param name='subjectValu' select='$newSubjectValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='elementNS' select='$elementNS'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-3-b'>
+    <xsl:variable name='newSubjectType'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newSubjectValu'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidType'/>
+      <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$ns'/>
+      <xsl:with-param name='localname' select='$localname'/>
+      <xsl:with-param name='objectType' select='$newSubjectType'/>
+      <xsl:with-param name='objectValu' select='$newSubjectValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidType'/>
+      <xsl:with-param name='objectValu' select='$rsidValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+
+    <xsl:call-template name='rdfg:propAttrStar-6-10'>
+      <xsl:with-param name='nodeSet' select='@*'/>
+      <xsl:with-param name='subjectType' select='$newSubjectType'/>
+      <xsl:with-param name='subjectValu' select='$newSubjectValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='elementNS' select='namespace-uri()'/>
+    </xsl:call-template>
+
+    <xsl:variable name='propAttrMaxOrd'>
+      <xsl:call-template name='rdfg:propAttrMaxOrd'>
+        <xsl:with-param name='nodeSet' select='@*'/>
+        <xsl:with-param name='maxOrd' select='0'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:propertyEltStar-6-12'>
+      <xsl:with-param name='nodeSet' select='./*'/>
+      <xsl:with-param name='subjectType' select='$newSubjectType'/>
+      <xsl:with-param name='subjectValu' select='$newSubjectValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='maxOrd' select='$propAttrMaxOrd'/>
+    </xsl:call-template>
+  </xsl:template>
+
+<!-- Production idAboutAttr-6-5 -->
+
+  <xsl:template name='rdfg:idAboutAttr-6-5-Type'>
+    <xsl:choose>
+      <xsl:when test='@ID and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@about and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@rdf:about'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@aboutEach and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@rdf:aboutEach'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@aboutEachPrefix and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@rdf:aboutEachPrefix'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='$ANON'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:idAboutAttr-6-5-Valu'>
+    <xsl:choose>
+      <xsl:when test='@ID and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='concat("#", @ID)'/>
+      </xsl:when>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='concat("#", @rdf:ID)'/>
+      </xsl:when>
+      <xsl:when test='@about and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='@about'/>
+      </xsl:when>
+      <xsl:when test='@rdf:about'>
+        <xsl:value-of select='@rdf:about'/>
+      </xsl:when>
+      <xsl:when test='@aboutEach and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='@aboutEach'/>
+      </xsl:when>
+      <xsl:when test='@rdf:aboutEach'>
+        <xsl:value-of select='@rdf:aboutEach'/>
+      </xsl:when>
+      <xsl:when test='@aboutEachPrefix and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='@aboutEachPrefix'/>
+      </xsl:when>
+      <xsl:when test='@rdf:aboutEachPrefix'>
+        <xsl:value-of select='@rdf:aboutEachPrefix'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='concat(generate-id(), "-IA")'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production bagIdAttr-6-9 -->
+
+  <xsl:template name='rdfg:bagIdAttr-6-9-Type'>
+    <xsl:choose>
+      <xsl:when test='@bagID and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:when test='@rdf:bagID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='$AUTO'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:bagIdAttr-6-9-Valu'>
+    <xsl:choose>
+      <xsl:when test='@bagID and namespace-uri()=$RDFNS'>
+        <xsl:value-of select='concat("#", @bagID)'/>
+      </xsl:when>
+      <xsl:when test='@rdf:bagID'>
+        <xsl:value-of select='concat("#", @rdf:bagID)'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='concat(generate-id(), "-BID")'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production 6.10 propAttr* -->
+
+  <xsl:template name='rdfg:propAttrStar-6-10'>
+    <xsl:for-each select='$nodeSet'>
+      <xsl:call-template name='rdfg:propAttr-6-10'>
+        <xsl:with-param name='subjectType' select='$subjectType'/>
+        <xsl:with-param name='subjectValu' select='$subjectValu'/>
+        <xsl:with-param name='bagType' select='$bagType'/>
+        <xsl:with-param name='bagValu' select='bagValu'/>
+        <xsl:with-param name='elementNS' select='$elementNS'/>
+      </xsl:call-template>
+    </xsl:for-each>
+  </xsl:template>
+
+  <xsl:template name='rdfg:propAttrMaxOrd'>
+    <xsl:choose>
+      <xsl:when test='count($nodeSet)>"0"'>
+        <xsl:variable name='maxOrd1'>
+          <xsl:call-template name='rdfg:incOrd'>
+            <xsl:with-param name='ns'
+                           
+select='namespace-uri($nodeSet[position()="1"])'/>
+            <xsl:with-param name='localname'
+                           
+select='local-name($nodeSet[position()="1"])'/>
+            <xsl:with-param name='maxOrd' select='$maxOrd'/>
+          </xsl:call-template>
+        </xsl:variable>
+
+        <xsl:call-template name='rdfg:propAttrMaxOrd'>
+          <xsl:with-param name='nodeSet'
+select='$nodeSet[position()!="1"]'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd1'/>
+        </xsl:call-template>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='$maxOrd'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:propAttr-6-10'>
+    <xsl:choose>
+      <xsl:when test='name()="xml:lang"
+                   or (name()="ID" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and local-name()="ID")
+                   or (name()="about" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and local-name()="about")
+                   or (name()="aboutEach" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and
+local-name()="aboutEach")
+                   or (name()="aboutEachPrefix" and $elementNS=$RDFNS) 
+                   or (namespace-uri()=$RDFNS and 
+                                            
+local-name()="aboutEachPrefix")
+                   or (name()="resource" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and
+local-name()="resource")
+                   or (name()="bagID" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and
+local-name()="bagID")'>
+      </xsl:when>
+
+      <xsl:when test='(name()="li" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and local-name()="li")'>
+        <xsl:variable name='stmtType'>
+          <xsl:choose>
+            <xsl:when test='$bagType=$NONE'>
+              <xsl:value-of select='$NONE'/>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:value-of select='$ANON'/>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name='stmtValu'>
+          <xsl:value-of select='concat(generate-id(), "-RS")'/>
+        </xsl:variable>
+        <xsl:call-template name='rdfg:emitTriple'>
+          <xsl:with-param name='rsidType' select='$stmtType'/>
+          <xsl:with-param name='rsidValu' select='$stmtValu'/>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='$RDFNS'/>
+          <xsl:with-param name='localname' select='"_1"'/>
+          <xsl:with-param name='objectType' select='$LITERAL'/>
+          <xsl:with-param name='objectValu' select='string(.)'/>
+        </xsl:call-template>
+        <xsl:call-template name='rdfg:emitTriple'>
+          <xsl:with-param name='rsidType' select='$NONE'/>
+          <xsl:with-param name='rsidValu' select='""'/>
+          <xsl:with-param name='subjectType' select='$bagType'/>
+          <xsl:with-param name='subjectValu' select='$bagValu'/>
+          <xsl:with-param name='ns' select='$RDFGNS'/>
+          <xsl:with-param name='localname' select='$HASMEMBER'/>
+          <xsl:with-param name='objectType' select='$stmtType'/>
+          <xsl:with-param name='objectValu' select='$stmtValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='(name()="type" and $elementNS=$RDFNS)
+                   or (namespace-uri()=$RDFNS and local-name()="type")'>
+        <xsl:call-template name='rdfg:typeAttr-6-11'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:variable name='stmtType'>
+          <xsl:choose>
+            <xsl:when test='$bagType=$NONE'>
+              <xsl:value-of select='$NONE'/>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:value-of select='$ANON'/>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name='stmtValu'>
+          <xsl:value-of select='concat(generate-id(), "-RS")'/>
+        </xsl:variable>
+        <xsl:call-template name='rdfg:emitTriple'>
+          <xsl:with-param name='rsidType' select='$stmtType'/>
+          <xsl:with-param name='rsidValu' select='$stmtValu'/>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='namespace-uri()'/>
+          <xsl:with-param name='localname' select='local-name()'/>
+          <xsl:with-param name='objectType' select='$LITERAL'/>
+          <xsl:with-param name='objectValu' select='string(.)'/>
+        </xsl:call-template>
+        <xsl:call-template name='rdfg:emitTriple'>
+          <xsl:with-param name='rsidType' select='$NONE'/>
+          <xsl:with-param name='rsidValu' select='""'/>
+          <xsl:with-param name='subjectType' select='$bagType'/>
+          <xsl:with-param name='subjectValu' select='$bagValu'/>
+          <xsl:with-param name='ns' select='$RDFGNS'/>
+          <xsl:with-param name='localname' select='$HASMEMBER'/>
+          <xsl:with-param name='objectType' select='$stmtType'/>
+          <xsl:with-param name='objectValu' select='$stmtValu'/>
+        </xsl:call-template>
+      </xsl:otherwise> 
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production 6.11 typeAttr -->
+
+  <xsl:template name='rdfg:typeAttr-6-11'>
+    <xsl:variable name='stmtType'>
+      <xsl:choose>
+        <xsl:when test='$bagType=$NONE'>
+          <xsl:value-of select='$NONE'/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:value-of select='$ANON'/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name='stmtValu'>
+       <xsl:value-of select='concat(generate-id(), "-RS")'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$stmtType'/>
+      <xsl:with-param name='rsidValu' select='$stmtValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='string(.)'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$stmtType'/>
+      <xsl:with-param name='objectValu' select='$stmtValu'/>
+   </xsl:call-template>
+  </xsl:template>
+
+<!-- Production 6.12 propertyElt -->
+
+  <xsl:template name='rdfg:propertyEltStar-6-12'>
+    <xsl:if test='count($nodeSet)>"0"'>
+      <xsl:for-each select='$nodeSet[position()="1"]'>
+        <xsl:call-template name='rdfg:propertyElt-6-12'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:for-each>
+
+      <xsl:variable name='maxOrd1'>
+        <xsl:call-template name='rdfg:incOrd'>
+          <xsl:with-param name='ns'
+                         
+select='namespace-uri($nodeSet[position()="1"])'/>
+          <xsl:with-param name='localname'
+                         
+select='local-name($nodeSet[position()="1"])'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:variable>
+
+      <xsl:call-template name='rdfg:propertyEltStar-6-12'>
+        <xsl:with-param name='nodeSet'
+select='$nodeSet[position()!="1"]'/>
+        <xsl:with-param name='subjectType' select='$subjectType'/>
+        <xsl:with-param name='subjectValu' select='$subjectValu'/>
+        <xsl:with-param name='bagType' select='$bagType'/>
+        <xsl:with-param name='bagValu' select='$bagValu'/>
+        <xsl:with-param name='maxOrd' select='$maxOrd1'/>
+      </xsl:call-template>
+    </xsl:if>
+ </xsl:template>
+
+  <xsl:template name='rdfg:propertyElt-6-12'>
+    <xsl:variable name='parseLiteral'>
+      <xsl:call-template name='rdfg:parseLiteral-6-32'/>
+    </xsl:variable>
+    <xsl:variable name='parseResource'>
+      <xsl:call-template name='rdfg:parseResource-6-33'/>
+    </xsl:variable>
+
+    <xsl:choose>
+      <xsl:when test='$parseLiteral!="Literal"
+                  and $parseResource!="Resource"
+                  and (./* or text())'>
+        <xsl:call-template name='rdfg:p6-12-a'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='$parseLiteral="Literal"'>
+        <xsl:call-template name='rdfg:p6-12-b'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='$parseResource="Resource"'>
+        <xsl:call-template name='rdfg:p6-12-c'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='not(text() or ./*)'>
+        <xsl:call-template name='rdfg:p6-12-d'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='maxOrd' select='$maxOrd'/>
+        </xsl:call-template>
+      </xsl:when>
+    </xsl:choose>
+ </xsl:template>
+
+  <xsl:template name='rdfg:p6-12-a'>
+    <xsl:variable name='rsidAttrType'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Type'>
+        <xsl:with-param name='bagType' select='$bagType'/>
+      </xsl:call-template>
+    </xsl:variable>
+    <xsl:variable name='rsidAttrValu'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Valu'/>
+    </xsl:variable>
+    <xsl:variable name='predLN'>
+      <xsl:call-template name='rdfg:propName-6-14'>
+        <xsl:with-param name='maxOrd' select='$maxOrd'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:value-6-17'>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='namespace-uri()'/>
+      <xsl:with-param name='localname' select='$predLN'/>
+      <xsl:with-param name='bagType' select='$bagType'/>
+      <xsl:with-param name='bagValu' select='$bagValu'/>
+      <xsl:with-param name='rsidType' select='$rsidAttrType'/>
+      <xsl:with-param name='rsidValu' select='$rsidAttrValu'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-12-b'>
+    <xsl:variable name='rsidAttrType'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Type'>
+        <xsl:with-param name='bagType' select='$bagType'/>
+      </xsl:call-template>
+    </xsl:variable>
+    <xsl:variable name='rsidAttrValu'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Valu'/>
+    </xsl:variable>
+    <xsl:variable name='predLN'>
+      <xsl:call-template name='rdfg:propName-6-14'>
+        <xsl:with-param name='maxOrd' select='$maxOrd'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidAttrType'/>
+      <xsl:with-param name='rsidValu' select='$rsidAttrValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='namespace-uri()'/>
+      <xsl:with-param name='localname' select='$predLN'/>
+      <xsl:with-param name='objectType' select='$LITERAL'/>
+      <xsl:with-param name='objectValu' select='./*'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidAttrType'/>
+      <xsl:with-param name='objectValu' select='$rsidAttrValu'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-12-c'>
+    <xsl:variable name='rsidAttrType'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Type'>
+        <xsl:with-param name='bagType' select='$bagType'/>
+      </xsl:call-template>
+    </xsl:variable>
+    <xsl:variable name='rsidAttrValu'>
+      <xsl:call-template name='rdfg:rsidAttr-6-36-Valu'/>
+    </xsl:variable>
+    <xsl:variable name='objectType'>
+      <xsl:value-of select='$ANON'/>
+    </xsl:variable>
+    <xsl:variable name='objectValu'>
+      <xsl:value-of select='concat(generate-id(), "-OBJ")'/>
+    </xsl:variable>
+    <xsl:variable name='predLN'>
+      <xsl:call-template name='rdfg:propName-6-14'>
+        <xsl:with-param name='maxOrd' select='$maxOrd'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidAttrType'/>
+      <xsl:with-param name='rsidValu' select='$rsidAttrValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='namespace-uri()'/>
+      <xsl:with-param name='localname' select='$predLN'/>
+      <xsl:with-param name='objectType' select='$objectType'/>
+      <xsl:with-param name='objectValu' select='$objectValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidAttrType'/>
+      <xsl:with-param name='objectValu' select='$rsidAttrValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:value-of select='$AUTO'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:value-of select='concat(generate-id(), "-BID")'/> <!-- dodgy
+2nd call
+                                                              to
+generate-id
+                                                            -->
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:propertyEltStar-6-12'>
+      <xsl:with-param name='nodeSet' select='./*'/>
+      <xsl:with-param name='subjectType' select='$objectType'/>
+      <xsl:with-param name='subjectValu' select='$objectValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='maxOrd' select='"0"'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-12-d'>
+    <xsl:variable name='idRefAttrType'>
+      <xsl:call-template name='rdfg:idRefAttr-6-16-Type'/>
+    </xsl:variable>
+    <xsl:variable name='idRefAttrValu'>
+      <xsl:call-template name='rdfg:idRefAttr-6-16-Valu'/>
+    </xsl:variable>
+    <xsl:variable name='stmtType'>
+      <xsl:choose>
+        <xsl:when test='$bagType=$NONE'>
+          <xsl:value-of select='$NONE'/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:value-of select='$ANON'/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name='stmtValu'>
+      <xsl:value-of select='concat(generate-id(), "-RS")'/>
+    </xsl:variable>
+
+    <xsl:variable name='predLN'>
+      <xsl:call-template name='rdfg:propName-6-14'>
+        <xsl:with-param name='maxOrd' select='$maxOrd'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$stmtType'/>
+      <xsl:with-param name='rsidValu' select='$stmtValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='namespace-uri()'/>
+      <xsl:with-param name='localname' select='$predLN'/>
+      <xsl:with-param name='objectType' select='$idRefAttrType'/>
+      <xsl:with-param name='objectValu' select='$idRefAttrValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$stmtType'/>
+      <xsl:with-param name='objectValu' select='$stmtValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+
+    <xsl:call-template name='rdfg:propAttrStar-6-10'>
+      <xsl:with-param name='nodeSet' select='@*'/>
+      <xsl:with-param name='subjectType' select='$idRefAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idRefAttrValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='elementNS' select='namespace-uri()'/>
+    </xsl:call-template>
+  </xsl:template>
+
+<!-- Production typedNode 6.13 -->
+
+  <xsl:template name='rdfg:typedNode-6-13'>
+    <xsl:choose>
+      <xsl:when test='not(./*)'>
+        <xsl:call-template name='rdfg:p-6-13a'>
+          <xsl:with-param  name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='$ns'/>
+          <xsl:with-param name='localname' select='$localname'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='rsidType' select='$rsidType'/>
+          <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:call-template name='rdfg:p-6-13b'>
+          <xsl:with-param  name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='$ns'/>
+          <xsl:with-param name='localname' select='$localname'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='rsidType' select='$rsidType'/>
+          <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p-6-13a'>
+    <xsl:variable name='idAboutAttrType'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Type'/>
+    </xsl:variable>
+    <xsl:variable name='idAboutAttrValu'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidType'/>
+      <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$ns'/>
+      <xsl:with-param name='localname' select='$localname'/>
+      <xsl:with-param name='objectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='objectValu' select='$idAboutAttrValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidType'/>
+      <xsl:with-param name='objectValu' select='$rsidValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+
+    <xsl:variable name='stmtType'>
+      <xsl:choose>
+        <xsl:when test='$newBagType=$NONE'>
+          <xsl:value-of select='$NONE'/>
+        </xsl:when>
+        <xsl:otherwise>
+           <xsl:value-of select='$ANON'/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name='stmtValu'>
+      <xsl:value-of select='concat(generate-id(), "-RS")'/>
+    </xsl:variable>
+<foobar/>
+
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$stmtType'/>
+      <xsl:with-param name='rsidValu' select='$stmtValu'/>
+      <xsl:with-param name='subjectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idAboutAttrValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu'
+                      select='concat(namespace-uri(), local-name())'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$stmtType'/>
+      <xsl:with-param name='objectValu' select='$stmtValu'/>
+    </xsl:call-template>
+
+    <xsl:call-template name='rdfg:propAttrStar-6-10'>
+      <xsl:with-param name='nodeSet' select='@*'/>
+      <xsl:with-param name='subjectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idAboutAttrValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/>
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='elementNS' select='namespace-uri()'/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p-6-13b'> 
+    <xsl:variable name='idAboutAttrType'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Type'/>
+    </xsl:variable>
+    <xsl:variable name='idAboutAttrValu'>
+      <xsl:call-template name='rdfg:idAboutAttr-6-5-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidType'/>
+      <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$ns'/>
+      <xsl:with-param name='localname' select='$localname'/>
+      <xsl:with-param name='objectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='objectValu' select='$idAboutAttrValu'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidType'/>
+      <xsl:with-param name='objectValu' select='$rsidValu'/>
+    </xsl:call-template>
+
+    <xsl:variable name='newBagType'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Type'/>
+    </xsl:variable>
+    <xsl:variable name='newBagValu'>
+      <xsl:call-template name='rdfg:bagIdAttr-6-9-Valu'/>
+    </xsl:variable>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' select='concat($RDFNS, $BAG)'/>
+    </xsl:call-template>
+
+    <xsl:variable name='stmtType'>
+      <xsl:choose>
+        <xsl:when test='$newBagType=$NONE'>
+          <xsl:value-of select='$NONE'/>
+        </xsl:when>
+        <xsl:otherwise>
+           <xsl:value-of select='$ANON'/>
+         </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:variable name='stmtValu'>
+      <xsl:value-of select='concat(generate-id(), "-RS")'/>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$stmtType'/>
+      <xsl:with-param name='rsidValu' select='$stmtValu'/>
+      <xsl:with-param name='subjectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idAboutAttrValu'/>
+      <xsl:with-param name='ns' select='$RDFNS'/>
+      <xsl:with-param name='localname' select='$TYPE'/>
+      <xsl:with-param name='objectType' select='$URI'/>
+      <xsl:with-param name='objectValu' 
+                      select='concat(namespace-uri(), local-name())'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$newBagType'/>
+      <xsl:with-param name='subjectValu' select='$newBagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$stmtType'/>
+      <xsl:with-param name='objectValu' select='$stmtValu'/>
+    </xsl:call-template>
+
+    <xsl:call-template name='rdfg:propAttrStar-6-10'>
+      <xsl:with-param name='nodeSet' select='@*'/>
+      <xsl:with-param name='subjectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idAboutAttrValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/> <!--@@??-->
+      <xsl:with-param name='bagValu' select='$newBagValu'/> <!--@@??-->
+      <xsl:with-param name='elementNS' select='namespace-uri()'/>
+    </xsl:call-template>
+
+    <xsl:variable name='propAttrStarMaxOrd'>
+      <xsl:call-template name='rdfg:propAttrMaxOrd'>
+        <xsl:with-param name='nodeSet' select='@*'/>
+        <xsl:with-param name='maxOrd' select='"0"'/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:call-template name='rdfg:propertyEltStar-6-12'>
+      <xsl:with-param name='nodeSet' select='./*'/>
+      <xsl:with-param name='subjectType' select='$idAboutAttrType'/>
+      <xsl:with-param name='subjectValu' select='$idAboutAttrValu'/>
+      <xsl:with-param name='bagType' select='$newBagType'/> <!-- @@????
+-->
+      <xsl:with-param name='bagValu' select='$newBagValu'/>
+      <xsl:with-param name='maxOrd' select='$propAttrStarMaxOrd'/>
+    </xsl:call-template>
+  </xsl:template>
+
+<!-- Production propName 6.14 -->
+
+  <xsl:template name='rdfg:propName-6-14'>
+    <xsl:choose>
+      <xsl:when test='namespace-uri()=$RDFNS and local-name()="li"'>
+        <xsl:value-of select='concat("_", $maxOrd + 1)'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='local-name()'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production idRefAttr 6.16 -->
+
+  <xsl:template name='rdfg:idRefAttr-6-16-Type'>
+    <xsl:choose>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @ID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:when test='@rdf:resource'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @resource'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:value-of select='$ANON'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:idRefAttr-6-16-Valu'>
+    <xsl:choose>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='@rdf:ID'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @ID'>
+        <xsl:value-of select='@ID'/>
+      </xsl:when>
+
+      <xsl:when test='@rdf:resource'>
+        <xsl:value-of select='@rdf:resource'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @resource'>
+        <xsl:value-of select='@resource'/>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:value-of select='concat(generate-id(), "-IDR")'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production value 6.17 -->
+
+  <xsl:template name='rdfg:value-6-17'>
+    <xsl:choose>
+      <xsl:when test='./*'>
+        <xsl:call-template name='rdfg:p6-17a'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='$ns'/>
+          <xsl:with-param name='localname' select='$localname'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='rsidType' select='$rsidType'/>
+          <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+      <xsl:when test='text()'>
+        <xsl:call-template name='rdfg:p6-17b'>
+          <xsl:with-param name='subjectType' select='$subjectType'/>
+          <xsl:with-param name='subjectValu' select='$subjectValu'/>
+          <xsl:with-param name='ns' select='$ns'/>
+          <xsl:with-param name='localname' select='$localname'/>
+          <xsl:with-param name='bagType' select='$bagType'/>
+          <xsl:with-param name='bagValu' select='$bagValu'/>
+          <xsl:with-param name='rsidType' select='$rsidType'/>
+          <xsl:with-param name='rsidValu' select='$rsidValu'/>
+        </xsl:call-template>
+      </xsl:when>
+
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-17a'>
+    <xsl:for-each select='./*'>
+      <xsl:call-template name='obj-6-2'>
+        <xsl:with-param name='subjectType' select='$subjectType'/>
+        <xsl:with-param name='subjectValu' select='$subjectValu'/>
+        <xsl:with-param name='ns' select='$ns'/>
+        <xsl:with-param name='localname' select='$localname'/>
+        <xsl:with-param name='bagType' select='$bagType'/>
+        <xsl:with-param name='bagValu' select='$bagValu'/>
+        <xsl:with-param name='rsidType' select='$rsidType'/>
+        <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      </xsl:call-template>
+    </xsl:for-each>
+  </xsl:template>
+
+  <xsl:template name='rdfg:p6-17b'>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$rsidType'/>
+      <xsl:with-param name='rsidValu' select='$rsidValu'/>
+      <xsl:with-param name='subjectType' select='$subjectType'/>
+      <xsl:with-param name='subjectValu' select='$subjectValu'/>
+      <xsl:with-param name='ns' select='$ns'/>
+      <xsl:with-param name='localname' select='$localname'/>
+      <xsl:with-param name='objectType' select='$LITERAL'/>
+      <xsl:with-param name='objectValu' select='text()'/>
+    </xsl:call-template>
+    <xsl:call-template name='rdfg:emitTriple'>
+      <xsl:with-param name='rsidType' select='$NONE'/>
+      <xsl:with-param name='rsidValu' select='""'/>
+      <xsl:with-param name='subjectType' select='$bagType'/>
+      <xsl:with-param name='subjectValu' select='$bagValu'/>
+      <xsl:with-param name='ns' select='$RDFGNS'/>
+      <xsl:with-param name='localname' select='$HASMEMBER'/>
+      <xsl:with-param name='objectType' select='$rsidType'/>
+      <xsl:with-param name='objectValu' select='$rsidValu'/>
+    </xsl:call-template>
+  </xsl:template>
+
+<!-- Production parseLiteral 6.32 -->
+
+  <xsl:template name='rdfg:parseLiteral-6-32'>
+    <xsl:choose>
+      <xsl:when test='(@parseType="Literal" and namespace-uri()=$RDFNS)
+                  or  @rdf:parseType="Literal"'>Literal</xsl:when>
+      <xsl:otherwise/>
+    </xsl:choose>
+  </xsl:template>
+
+
+<!-- Production parseResource 6.33 -->
+
+  <xsl:template name='rdfg:parseResource-6-33'>
+    <xsl:choose>
+      <xsl:when test='(@parseType="Resource" and namespace-uri()=$RDFNS)
+                  or  @rdf:parseType="Resource"'>Resource</xsl:when>
+      <xsl:otherwise/>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- Production rsidAttr 6.36 -->
+
+  <xsl:template name='rdfg:rsidAttr-6-36-Type'>
+    <xsl:choose>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @ID'>
+        <xsl:value-of select='$URI'/>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:choose>
+          <xsl:when test='$bagType=$NONE'>
+            <xsl:value-of select='$NONE'/>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:value-of select='$ANON'/>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+  <xsl:template name='rdfg:rsidAttr-6-36-Valu'>
+    <xsl:choose>
+      <xsl:when test='@rdf:ID'>
+        <xsl:value-of select='concat("#", @rdf:ID)'/>
+      </xsl:when>
+
+      <xsl:when test='namespace-uri()=$RDFNS and @ID'>
+        <xsl:value-of select='concat("#", @ID)'/>
+      </xsl:when>
+
+      <xsl:otherwise>
+        <xsl:value-of select='concat(generate-id(), "-RS")'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+<!-- output a statement -->
+
+  <xsl:template name='rdfg:emitTriple'>
+    <xsl:if test='$subjectType != $NONE'>
+      <xsl:element name='statement'>
+        <xsl:attribute name='{concat("subj", $subjectType)}'>
+          <xsl:value-of select='$subjectValu'/>
+        </xsl:attribute>
+
+        <xsl:attribute name='ns'>
+          <xsl:value-of select='$ns'/>
+        </xsl:attribute>
+
+        <xsl:attribute name='localname'>
+          <xsl:value-of select='$localname'/>
+        </xsl:attribute>
+
+        <xsl:choose>
+          <xsl:when test='$objectType=$LITERAL'>
+            <xsl:copy-of select='$objectValu'/>
+          </xsl:when>
+          <xsl:when test='$objectType=$ANON or $objectType=$URI'>
+            <xsl:attribute name='{concat("obj", $objectType)}'>
+              <xsl:value-of select='$objectValu'/>
+            </xsl:attribute>
+          </xsl:when>
+        </xsl:choose>
+      </xsl:element>
+    </xsl:if>
+
+<!-- output the reified statement -->
+
+    <xsl:if test='$rsidType != $NONE'>
+      <xsl:element name='statement'>
+        <xsl:attribute name='{concat("subj", $rsidType)}'>
+          <xsl:value-of select='$rsidValu'/>
+        </xsl:attribute>
+        <xsl:attribute name='ns'>
+          <xsl:value-of select='$RDFNS'/>
+        </xsl:attribute>
+        <xsl:attribute name='localname'>type</xsl:attribute>
+        <xsl:attribute name='{concat("obj",$URI)}'>
+          <xsl:value-of select='concat($RDFNS, "Statement")'/>
+        </xsl:attribute> 
+      </xsl:element>
+      <xsl:element name='statement'>
+        <xsl:attribute name='{concat("subj", $rsidType)}'>
+          <xsl:value-of select='$rsidValu'/>
+        </xsl:attribute>
+        <xsl:attribute name='ns'>
+          <xsl:value-of select='$RDFNS'/>
+        </xsl:attribute>
+        <xsl:attribute name='localname'>subject</xsl:attribute>
+        <xsl:attribute name='{concat("obj",$subjectType)}'>
+          <xsl:value-of select='$subjectValu'/>
+        </xsl:attribute> 
+      </xsl:element>
+      <xsl:element name='statement'>
+        <xsl:attribute name='{concat("subj", $rsidType)}'>
+          <xsl:value-of select='$rsidValu'/>
+        </xsl:attribute>
+        <xsl:attribute name='ns'>
+          <xsl:value-of select='$RDFNS'/>
+        </xsl:attribute>
+        <xsl:attribute name='localname'>predicate</xsl:attribute>
+        <xsl:attribute name='{concat("obj",$URI)}'>
+          <xsl:value-of select='concat($ns, $localname)'/>
+        </xsl:attribute> 
+      </xsl:element>
+      <xsl:element name='statement'>
+        <xsl:attribute name='{concat("subj", $rsidType)}'>
+          <xsl:value-of select='$rsidValu'/>
+        </xsl:attribute>
+        <xsl:attribute name='ns'>
+          <xsl:value-of select='$RDFNS'/>
+        </xsl:attribute>
+        <xsl:attribute name='localname'>object</xsl:attribute>
+        <xsl:choose>
+          <xsl:when test='$objectType=$LITERAL'>
+            <xsl:copy-of select='$objectValu'/>
+          </xsl:when>
+          <xsl:when test='$objectType=$ANON or $objectType=$URI'>
+            <xsl:attribute name='{concat("obj", $objectType)}'>
+              <xsl:value-of select='$objectValu'/>
+            </xsl:attribute>
+          </xsl:when>
+        </xsl:choose>
+      </xsl:element>
+    </xsl:if>
+  </xsl:template>
+
+<!-- function to determine whether max ord has increased -->
+
+  <xsl:template name='rdfg:incOrd'>  <!-- @@TODO what if namespace
+missing -->
+    <xsl:choose>
+      <xsl:when test='$ns = $RDFNS and substring($localname,1,1)="_"'>
+        <xsl:variable name='n'>
+          <xsl:value-of select='number(substring($localname,2))'/>
+        </xsl:variable>
+        <xsl:choose>
+          <xsl:when test='round($n)=$n and $n>number($maxOrd)'>
+            <xsl:value-of select='$n'/>
+          </xsl:when>
+          <xsl:otherwise>
+            <xsl:value-of select='$maxOrd'/>
+          </xsl:otherwise>
+        </xsl:choose>
+      </xsl:when>
+      <xsl:when test='$ns=$RDFNS and $localname="li"'>
+        <xsl:value-of select='$maxOrd + 1'/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select='$maxOrd'/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+</xsl:stylesheet>
+
+
+

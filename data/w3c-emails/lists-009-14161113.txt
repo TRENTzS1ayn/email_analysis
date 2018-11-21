@@ -1,0 +1,121 @@
+docno="lists-009-14161113"
+received="Wed Dec 20 12:17:20 1995"
+isoreceived="19951220171720"
+sent="Wed, 20 Dec 1995 14:11:45 0600"
+isosent="19951220201145"
+name="Daniel DuBois"
+email="ddubois@rafiki.spyglass.com"
+subject="Rethinking content negotiation (Was: rethinking caching)"
+id="9512202011.AA06231@rafiki.spyglass.com"
+charset="usascii"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+>>>good first step. For some headers, (accept, for example), you need
+>>>more than merely knowing what it depended upon, but also the WAY in
+>>>which it depended upon the original data, so that the proxy itself can
+>>>decide whether a cached item is appropriate.
+>>
+>>Absolutely. A Vary: 1#(http-header-name) header returned by the server
+>>would help solve this problem.
+>
+>I like this syntax. The URI header would work, but this is short and
+>to the point.
+
+I think this syntax is insufficient.  This is pretty much the information
+that was contained in the HTTP/1.0-01 draft (AKA HTTP/1.1 before there was a
+1.1) and it was presumably changed because others felt likewise.  Using that
+scheme would require that the caching proxy keep the exact header(s) stored
+for the specified vary quanity for comparison purposes.  This is a huge
+burden on a proxy because it doesn't just have to save headers once, it has
+to save headers for each request that doesn't have the exact same paramters
+as previous requests.
+
+An example might be useful here, if not longwinded.  This demonstrates the
+insufficent-ness of the old URI:, and a Vary: header scheme as well.
+
+   ---Request 1
+GET /index HTTP/1.1
+Accept: image/gif, image/jpeg, image/helper-app1, image/helper-app2
+   ---Response
+URI: </index.gif>, </index; vary=language, type>
+   ---cache has to store
+1./index | T | Accept: image/gif, image/jpeg, image/helper-app1,
+image/helper-app2
+
+   ---Request 2
+GET /index HTTP/1.1
+Accept: image/gif, image/jpeg, image/helper-app1
+Accept-Language: fr
+   ---Response
+URI: </index.gif>, </index; vary=language, type>
+   ---cache has to store
+1. /index | T | Accept: image/gif, image/jpeg, image/helper-app1,
+image/helper-app2
+2. /index | T | Accept: image/gif, image/jpeg, image/helper-app1,
+image/helper-app2 | L | Accept-Language: fr
+
+   ---Request 3
+GET /index HTTP/1.1
+Accept: image/gif, image/jpeg, image/helper-app1
+   ---Response
+URI: </index.gif>, </index>; vary=language, type
+   ---cache has to store
+1. /index | T | Accept: image/gif, image/jpeg, image/helper-app1,
+image/helper-app2
+2. /index | T | Accept: image/gif, image/jpeg, image/helper-app1,
+image/helper-app2 | L | Accept-Language: fr
+3. /index | T | Accept: image/gif, image/jpeg, image/helper-app1
+
+This is totally unworkable.  It's not just going to be one header
+permutation combo of charsets/encodings/types/langs per browser either, as
+good browsers now let people set some of these parameters to their
+preference.  This list will grow forever, and proxies just won't cache
+things that vary, or will forget about content negotiation altogether.
+
+The new scheme has the big advantage of including all variants, their
+metainformaiton, and the qs's of the variants in the URI header.  This gives
+the proxy the information it needs to do the negotiation itself, and is the
+only way to assure a trip to the original server would yield the same
+result, and that serving from the cache is acceptable.  (I completely ignore
+the vary by User-Agent here, but until we invent the psychic proxy, no proxy
+can solve for server's varying content outside of the content negotiation
+scheme without listing all 2000 user agents that come through its doors.)
+
+I've always been very hesitant about the server's content variant-picking
+algorithm being part of the protocol, because I saw that as a server-side
+implementation issue, but as time goes on, I become more and more convinced
+of the weight of this issue and its impact on the scalabilty of the web.
+The new URI header solves this caching problem perfectly, and
+single-handedly convinces me of the concept of opening the algorithm to the
+protocol.
+
+Now, if I can just 1) convince Roy to default charsets/encodings to .001 on
+absent headers, and 2) propose a different sytax than the URL: {} lispism, I
+might die happy.  The current one can cause extremely big headers (you think
+Accept is bad?) and doesn't parse like existing headers.
+
+How about:
+
+Location: http://www.spyglass.com/index.html
+URI: "/index.html"; t=text/html; qs=.9,
+     "/index.en.html"; t=text/html; l=en; qs=.9
+URI: "/index.jp.txt"; t=text/plain; l=jp-JP; c=isp-2022-jp1; qs=.1
+
+And maybe even <uhg>:
+URI "/index.nscp.html"; ua="Mozilla/1.2N (Windows; I; 32bit)"
+
+where the absence of an encoding, language, or charset mean they're
+indeterminate for that resource.  I like saving a few bytes on the
+"language" & "encoding" etc tags, and on the default to "variant=", and I
+like sticking with a format that parses like the Accept headers.  Besides
+the current 9/22 draft looks too much like Logic Bags :)  If anyone wishes,
+I will gladly write up a BNF.
+-----
+Dan DuBois, Software Animal             http://www.spyglass.com/~ddubois/
+I absolutely do not speak for Spyglass.
+
+
+

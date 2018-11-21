@@ -1,0 +1,183 @@
+docno="lists-102-4084804"
+received="Tue Jun  2 17:10:33 1998"
+isoreceived="19980602211033"
+sent="Tue, 02 Jun 1998 23:05:30 +0200"
+isosent="19980602210530"
+name="ANOQ of the Sun"
+email="anoq@vip.cybercity.dk"
+subject="Performance efficient alternative to AttributeList...."
+id="3574691A.8B8ED570@vip.cybercity.dk"
+charset="us-ascii"
+expires="-1"
+
+
+To: DOM List<www-dom@w3.org>, Berlin Design<design@berlin-consortium.org>
+
+Hi!
+
+
+First of all, I'm not quite sure wheter the general opinion
+is to have everything in DOM implemented as Nodes/NodeIterators
+or if attributes should be a special case, with an
+AttributeList.
+
+I would like to see a special-case implementation for
+attributes, as opposed to using Nodes for attributes.
+
+---
+
+Here I present an alternative to AttributeList,
+designed with performance efficient implementation
+and usage in mind:
+
+-
+
+1) Each document should have an AttributeIndex object.
+2) This object has a list of AttributeDefinitions.
+3) The document can create AttributeData objects,
+   which are used thoughout the document instead
+   of the old AttributeLists.
+
+Something like this:
+
+interface AttributeDefinition //Abstract superclass for defining the
+interface
+{
+  readonly attribute wstring name;
+  readonly attribute wstring type;// Returns the name of the subclass of
+                                  // this instance.
+                                 // (This may not be necessary with
+RTTI)
+
+  // Conversion functions for reading and writing the attribute value as
+known types
+  // Will raise an exception if the desired conversion is not possible
+  attribute wstring asString;
+  attribute long asLong;
+  attribute datetime asDateTime;// This type is just an example...
+  attribute rgbColor asRGBColor;// Another example
+  attribute cmykColor asCMYKColor;// Still example...
+  //Add more conversion functions here
+}
+
+interface StringAttrDef : AttributeDefinition
+{ // Implements an attribute stored as a string
+  // If say, get_asLong is called, then the string is converted
+  // to "long" if it has a valid format. Otherwise an exception is
+raised
+}
+
+interface longAttrDef : AttributeDefinition
+{} // Implements an attribute stored as a long.
+
+interface datetimeAttrDef : AttributeDefinition
+{} // Implements an attribute stored as some datetime type.
+
+interface colorAttrDef : AttributeDefinition
+{} // Implements an attribute stored as color
+
+
+
+interface AttributeIndex
+{
+  unsigned long attributeDefs();// Count AttributeDefinitons
+  
+  AttributeDefinition attributeDefAtIndex(in unsigned long index);
+  AttributeDefinition attributeDefByName(in wstring name);
+
+  AttributeDefinition addAttributeDef(in wstring name, in wstring type);
+    // Adds a subclass of AttributeDefinition to the list, and returns
+it.
+    // If an AttributeDefinition with the same name exists,
+    // the existing one is returned instead. If the existing
+    // one have a different type, an exception is raised.
+
+  void removeAttributeDefAtIndex(in unsigned long index);
+  void removeAttributeDefWithName(in wstring name);
+}
+
+
+
+interface AttributeData
+{
+  void activate();// You call this to operate on the
+                  // attribute data stored in this object.
+}
+
+The above architecture have one limitation though:
+
+Any attributes in the document (AttributeData) with a
+given name (say, FGColor), has to be of the same
+AttributeDefinition type. But isn't this what is intended?
+
+
+Here is an example using this architecture:
+
+AttributeIndex index = document.getAttrIndex();
+
+// You want to create an FGColor attribute:
+
+  // First make sure the FGColor type exists in the index:
+AttributeDefinition fgColor = index.addAttributeDef("FGColor",
+"colorAttrDef");
+
+  // Now create the data object to store the attribute:
+AttributeData data1 = document.createAttrData();
+
+  // Now store the color:
+data1.activate();
+fgColor.set_asRGBColor(0xffffff);
+
+// You want to store another FGColor some other place in the document:
+
+AttributeData data2 = document.createAttrData();
+data2.activate();
+fgColor.set_asRGBColor(0x8050ff);
+
+// You also want to store BGColor in data2
+
+AttributeDefinition bgColor = index.addAttributeDef("BGColor",
+"colorAttrDef");
+
+data2.activate(); // Just to make sure... ;)
+bgColor.set_asRGBColor(0x101010);
+
+// You want to read data1's FGColor as a string:
+
+data1.activate();
+wstring fgColStr = data1.get_asString();
+  // fgColStr might be: "R:FF,G:FF,B:FF", if that is the RGB-string
+format.
+
+
+If you want to know why I think this architecture is performance
+efficient compared to something like AttributeList
+(or Node/NodeIterator), I can post my implementation
+ideas too...
+
+-
+
+If any of you people knows Delpi, this architecture is
+similar to TTable and TField operating on a database-table
+with records, where:
+
+TTable is similar to AttributeIndex,
+TField is similar to AttributeDefinition
+each database record is similar to AttributeData.
+
+You just navigate the "database table" with attrData.activate();
+instead of table.First();, table.Next(), table.EOF() etc.
+
+Any comments appreciated.
+
+
+Cheers
+-- 
+,
+ANOQ of the Sun / Johnny Andersen
+
+E-Mail:   anoq@vip.cybercity.dk or anoq@berlin-consortium.org
+Homepage: http://users.cybercity.dk/~ccc25861/
+
+
+

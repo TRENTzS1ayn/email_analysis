@@ -1,0 +1,209 @@
+docno="lists-007-4327229"
+received="Thu Jul 11 03:27:23 2002"
+isoreceived="20020711072723"
+sent="Thu, 11 Jul 2002 09:26:59 +0200"
+isosent="20020711072659"
+name="Julian Reschke"
+email="julian.reschke@greenbytes.de"
+subject="RE: error condition for delete of VHR when VCR is in checked-in c ollection"
+id="JIEGINCHMLABHJBIGKBCKENPEOAA.julian.reschke@greenbytes.de"
+charset="iso-8859-1"
+inreplyto="3906C56A7BD1F54593344C05BD1374B1077612EB&#64;SUS-MA1IT01"
+expires="-1"
+
+To:"Clemm, Geoff"<gclemm@rational.com>,<ietf-dav-versioning@w3.org>
+
+
+
+Geoff,
+
+again thanks for taking the time. Comments inline.
+
+>    let me try to summarize.
+>    In the presence of BINDs, DELETE is defined as
+>
+>    1) removing the binding specified in the request URI,
+>
+> Yes.
+>
+>    2) optional deletion of the resource identified by the URI if there
+>    are no references left to it. Note that references may be in other
+>    namespaces, on other servers and even in different URI schemes.
+>
+> If there are no "bindings" to it.  A reference (e.g. a redirect
+> reference, or a DAV:href reference) is not a binding.
+
+I agree that a reference in the sense of a DAV:href or a redirect reference
+does not *require* the server to keep the resource. But my point is that
+with bindings, there's no way a client can definitively know, and a server
+can decide to keep a resource as long as it wants. The BIND spec defines how
+long a resource MUST be kept, but not when it should be cleaned up after all
+client-visible bindings are gone.
+
+Thus, a specific RFC3253 implementation is absolutely free to *treat* a
+"soft" reference (like a DAV:href in the DAV:version-controlled-binding-set)
+as internal reference to the resource, and thus keep the resource. In this
+specific case, this allows the server to resurrect a bind to the VHR at the
+original URI although the client has done a DELETE on it in the meantime.
+
+Are you saying that this behaviour breaks the spec in some way?
+
+>    Any spec that wants to cooperate with bindings can NOT change this
+>    semantics of DELETE
+>
+> Correct, but it can supplement the definition with additional
+> explicit semantics (RFC3253 does so in a number of places).
+
+My point is that these semantics need to distinguish between:
+
+- removing the bind (something the BIND spec defines -- the name is gone,
+that's all) and
+- removing the resource (and here's the catch --  spec can define what
+removing the resource means, but it can't define *when* this happens or
+whether it happens at all)
+
+>    (or does RFC3253 explicitly say that a VHR can have only a single
+>    binding???).
+>
+> No (in fact, it explicitly introduces other bindings in working
+> collections).
+>
+>    So we have a VCR that refers to a VHR through the
+>    DAV:version-history property. The client issues a DELETE on the VHR
+>    URI. Possible results:
+>
+>    a) the server may refuse to perform the Delete, either because
+>    deletion of VHRs is not supported, or because a VCR still refers to
+>    the VHR.
+>
+> Or pretty much for any reason that it wants.
+>
+>    b) the server deletes the VHR and un-version-controls the VCR (to avoid
+>    breaking the live versioning properties).
+>
+>    c) the server deletes the VHR and keeps the VCR version-controlled - in
+>    which case the spec should say what happens to the
+>    DAV:checked-in/DAV:checked-out and DAV:version-history.
+>
+>    I think RFC3253 needs to either forbid b) and c) or properly define the
+>    semantics.
+>
+> Well, (c) is probably what an interoperable client has to assume,
+> given what is currently stated in the spec (where the semantics is
+> just that you get a "404" when you try to use the URL in the
+> DAV:checked-in/DAV:checked-out and DAV:version-history properties).
+
+OK with me.
+
+> The problem is that we could not achieve consensus on any semantics
+> like "b", even though some variant of "b" is what some existing
+> versioning servers do (where each kind of server has its own variant).
+>
+>    More below...
+>
+>    > From:  Clemm, Geoff
+>    >
+>    > ... checking in a VCC never creates a binding to a VHR, but
+>    > rather just creates a reference to the VHR in its
+>    > DAV:version-controlled-binding-set property (i.e. it doesn't
+>    > create a new name for that VHR, but just uses an existing name to
+>    > create a reference).
+>
+>    I don't think it's really relevant whether the collection version
+>    has a reference or a binding.
+>
+> A binding is very different semantically from a reference (this is
+> emphasized in the binding spec).  If you delete a binding to a
+
+Agreed. I wasn't using the term "reference" in the sense of "redirect
+reference", but in the sense of "any internal reference that the server may
+have to the resource".
+
+> resource, any other binding to that resource can still be used to
+> locate (and apply methods to) that resource.  But a reference just
+> contains a URL, which means that if you delete any of the bindings
+> used by that URL, that reference can no longer be used to locate the
+
+Agreed. In POSIX speak, a "redirect reference" is like a symbolic link,
+while a bind is like a hard link...
+
+> resource.  Similarly, if you MOVE a resource (give it a different
+> binding), that has no effect on other bindings to that resource, while
+> references will always have the same URL, which means that they will
+> identify whatever resource is currently identified by that URL
+> (which changes if you MOVE a different resource to that URL).
+
+In the particular case (a DAV:href pointing to a VHR) this is no issue
+because RFC3253 clearly states that the URL for a VHR may never be reused
+for a different resource. May point is that is MAY be reused for the same
+resource, if the server is able to do that after a DELETE.
+
+>    Servers may delay the de-allocation of a resource until there is no
+>    reference left, whether it's visible or not.
+>
+> Servers must delay the deallocation of a resource until there are no
+> bindings to that resource, but a reference to a resource just contains
+> a URL, and if you issue a DELETE on that URL, the reference will no
+> longer be usable to locate that resource.  So as far as a reference
+> is concerned, the resource is gone as soon as a successful DELETE
+> has been performed on the URL contained by that reference.
+
+Yes.
+
+>    If we allow clients to permanently destroy VHRs that are
+>    referenced in a collection version, there's no way to satisfy the
+>    postconditions for an UNCHECKOUT of the VCC, right? That's why our
+>    implementation keeps the reference, and therefore is able to
+>    resurrect the VHR when needed.
+>
+> For UNCHECKOUT, it creates a new binding in the VCCl "when a version
+> history is identified by the DAV:version-controlled-binding-set".  But
+> if the VHR has been deleted, then that VHR is not longer identified by
+> the DAV:version-controlled-binding-set (i.e. the VHR URL no longer
+> identifies a resource), so no "restoration" semantics is implied.
+
+I think that would come as a surprise to the user. It means that the result
+of a UNCHECKOUT may be imcomplete in the sense that the server silently
+drops a version-controlled member. If this really is the intention (and
+required), this should be explained.
+
+Again the question: if a server is able to reconstruct the VHR at it's
+original location, is it *allowed* to do so?
+
+>    > - a subsequent delete on the VHR URL just deletes the original
+>    > binding to the VHR, but the version history resource (and the
+>    > versions inside the version history) is not affected
+>    >
+>    > Since the DAV:version-controlled-binding-set just has a reference to
+>    > that VHR using its server-assigned URL, if you DELETE that URL, you
+>    > break all references to that VHR from the DAV:v-c-b-s properties of
+>    > collection versions.
+>
+>    So if the VHR can not be re-created, should the server forbid
+> the delete?
+>
+> That is certainly one option.  The other is to allow the delete and
+> effectively treat every version-controlled-binding to that VHR as no
+> longer existing.
+>
+>    >    - thus, upon UNCHECKOUT of the VCC, I can reconstruct the VHR
+>    >    (re-creating the original binding)
+>    >
+>    > The members of the VCC also refer to the VHR via the
+>    > server-assigned URL, so even if UNCHECKOUT could restore the
+>    > version-controlled member of the VCC, the DAV:version-history
+>    > property of that member would contain the VHR URL that was
+>    > deleted.
+>
+>    But that's not a problem if the '*same* VHR is reconstructed at the
+>    original URL.
+>
+> Yes, but nothing in the semantics of UNCHECKOUT imply such a
+> reconstruction.
+
+OK, I can live with servers *not* doing that -- what I'd like to know is
+whether this behaviour (reconstructing the VHR) actually is RFC3253
+compliant.
+
+
+

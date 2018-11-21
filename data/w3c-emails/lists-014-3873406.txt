@@ -1,0 +1,140 @@
+docno="lists-014-3873406"
+received="Thu Jan 30 17:21:39 1997"
+isoreceived="19970130222139"
+sent="Thu, 30 Jan 97 14:19:00 PST"
+isosent="19970130221900"
+name="John H Wilson"
+email="John_H_Wilson@ccm.jf.intel.com"
+subject="Compatible extension for peer-topeer authentication in TLS"
+id="Thu, 30 Jan 97 14:21:03 PST_2@ccm.hf.intel.com"
+expires="1"
+
+
+To:ietf-tls@www10.w3.org
+
+The inherent assumption in TLS is that the negotiated
+session is for Client to Server communication; the
+Server can force the Client to authenticate (to protect
+its assets), but the Server can unilaterally decide to 
+be anonymous.
+
+We (Intel, but really, the wider Internet Telephony commnunity)
+plan to use TLS as the foundation for secure person-to-person
+communication. This communication is inherently peer-to-peer; a
+user would like the same control over authentication whether 
+they are caller (TLS client) or callee (TLS server). And I am 
+sure there will be many other peer-to-peer applications when 
+all is said and done.
+
+I believe TLS can be simply extended in a compatible manner to
+suport a peer-to-peer relationship.
+
+Basically, the ClientHello would be extended with an optional
+CertificateRequest structure. (Which, obviously, a down-level
+client would not include). An up-level Server would respond 
+with an appropriate certificate or a no_certificate Alert. 
+A down-level Server would ignore the CertificateRequest (as 
+extraneous octets on the end of an otherwise valid ClientHello; 
+see Forward Compatibility note at the end of 6.4.1.2), 
+and would proceed as per the current definition. If it does not 
+send a certificate, or sends one that does not conform to the 
+(ignored) request, the Client may send an Alert. Assuming success, 
+the Server can then proceed as usual (possibly, with its own
+CertificateRequest).
+
+Details
+-------
+
+Section 6.3: paragraph beginning: "Following the hello messages...."
+             [last paragraph on page 24], becomes:
+
+Following the hello messages, if the client has requested a server 
+certificate, the server must send either a suitable certificate or 
+a no-certificate alert. If the client has not requested a certificate, 
+the server may send a certificate (or not) at its discretion.
+The server may request a certificate from the client, if client 
+authentication is desired. Additionally, a server key exchange 
+message may be sent, if it is required (e.g., if no certificate was 
+sent, or if the certificate is for signing purposes only). Now the....
+
+Section 6.4.1.2: Client hello
+[page 29]
+
+Add an optional CertificateRequest structure to the ClientHello message:
+
+enum {False(0), True(1), (255)} Bool:
+struct {
+    ProtocolVersion client_version;
+    Random random;
+    SessionID session_id;
+    CipherSuite cipher_suites<2..2^16-1>;
+    CompressionMethod compression_methods<1..2^8-1>;
+    Bool certificate_request;
+    select (certificate_request) {
+        case False: stuct {};
+        case True:  CertificateRequest;
+    } body;
+} ClientHello;
+
+6.4.2 Server Certificate
+[page 31] 
+
+When this message will be sent:
+ 
+The server must send a certificate whenever the agreed-upon key
+exchange method is not an anonymous one, or the client requests 
+a certificate. If the client has requested a certificate, and the
+server has no suitable certificate, it must send a no-certificate
+alert instead. This alert is only a warning, however, the client 
+may respond with a fatal handshake alert if server authentication 
+is required.
+
+6.4.4 Certificate Request
+[page 35]
+   
+When this message will be sent:
+
+The server can optionally request a certificate from the client, 
+either for key exchange purposes or to force client authentication.
+
+This message.........when legal.
+
+Structure of this message:
+
+enum  {
+     rsa_sign(1), dss_sign(2), rsa_fixed_dh(3), dss_fixed_dh(4),
+     rsa_ephemeral_dh(5), dss_ephemeral_dh(6), (255)
+} CertificateType;
+
+opaque DistinguishedName<1..2^16-1>;
+
+struct  {
+     CertificateType certificate_types<1..2^8-1>;
+     Distinguishedname certificate_authorities<3..2^16-1>;
+} CertificateRequest;
+
+certificate_types
+     This field is a list of the types of certificates requested,
+     sorted in order of preference.
+
+Delete the last Note on this page.
+
+A.4.1 Hello messages
+[page 45]
+
+enum {False(0), True(1), (255)} Bool:
+struct {
+    ProtocolVersion client_version;
+    Random random;
+    SessionID session_id;
+    CipherSuite cipher_suites<2..2^16-1>;
+    CompressionMethod compression_methods<1..2^8-1>;
+    Bool certificate_request;
+    select (certificate_request) {
+        case False: stuct {};
+        case True:  CertificateRequest;
+    } body;
+} ClientHello;
+
+
+

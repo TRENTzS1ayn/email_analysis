@@ -1,0 +1,88 @@
+docno="lists-020-3029799"
+received="Fri Jan 23 04:14:26 2004"
+isoreceived="20040123091426"
+sent="Fri, 23 Jan 2004 01:07:18 -0800"
+isosent="20040123090718"
+name="Michael Dyck"
+email="jmdyck@ibiblio.org"
+subject="[XQuery] A.2.2 Lexical Rules: bad transitions"
+id="4010E446.524516B8@ibiblio.org"
+charset="us-ascii"
+expires="-1"
+
+To:public-qt-comments@w3.org
+
+
+
+XQuery 1.0: An XML Query Language
+W3C Working Draft 12 November 2003
+
+A.2.2 Lexical Rules
+
+Some of the lexical states have incorrect transitions, causing the lexer
+to reject valid queries.
+
+Specifically:
+
+------------------------------------------------------------------------
+Query:   <!---- blah ----> | e
+Query:   <?PITarget ?> | e
+Query:   <![CDATA[x]]> | e
+
+Problem: In each case, after the ">", the lexer is in DEFAULT, which
+         doesn't recognize "|" (or any other operator).
+
+Fix:     In DEFAULT, for the transitions on "<!----", "<?", and
+         "<![CDATA[", change "pushState()" to "pushState(OPERATOR)".
+
+Note: I reported this on November 28, 2002 (three versions ago), in
+http://lists.w3.org/Archives/Public/public-qt-comments/2002Nov/0105.html
+
+------------------------------------------------------------------------
+
+Query:   <Q> { typeswitch (e) case e return e default return e } </Q>
+
+Problem: After the "}", the lexer is in OPERATOR, which doesn't
+         recognize "</".
+
+Fix:     In DEFAULT, the transition for <"typeswitch" "("> should not
+         involve "pushState(OPERATOR)".
+
+------------------------------------------------------------------------
+
+Query:   processing-instruction {x} {x}
+
+Problem: Accepting the last "}" causes popState() on an empty stack.
+
+Fix:     In OPERATOR, the transition for "{" needs "pushState()".
+
+------------------------------------------------------------------------
+
+Query:   declare variable $x as processing-instruction()? external; e
+
+Problem: After the ")", the lexer is in OPERATOR, which doesn't
+         recognize "?".
+
+Fix:     In ITEMTYPE, the transition for <"processing-instruction" "(">
+         should change "pushState(OPERATOR)" to
+         "pushState(OCCURRENCEINDICATOR)".
+
+------------------------------------------------------------------------
+
+Query:   declare variable $x  external; e
+Query:   declare function Q() external; e
+
+Problem: These leave DEFAULT on the stack. It's not clear whether this
+         means that the lexer should reject them, but even if not, it's
+         still bad form: a lexer with a maximum stack size would be much
+         more likely to hit its limit.
+
+Fix:     In DEFAULT, for the transitions on <"declare" "variable" "$">
+         and <"declare" "function">, don't "pushState(DEFAULT)".
+
+------------------------------------------------------------------------
+
+-Michael Dyck
+
+
+

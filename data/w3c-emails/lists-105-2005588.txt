@@ -1,0 +1,86 @@
+docno="lists-105-2005588"
+received="Fri Jan  9 01:08:01 2004"
+isoreceived="20040109060801"
+sent="Fri, 09 Jan 2004 00:07:59 -0600"
+isosent="20040109060759"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: L3 Core: adopting into their existing document"
+id="3FFE453F.9080702@houston.rr.com"
+charset="ISO-8859-1"
+inreplyto="20040109014833.GA9186&#64;doxdesk.com"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+
+Andrew Clover wrote:
+
+>Curt Arnold <carnold@houston.rr.com> wrote:
+>
+>  
+>
+>>Test documentadoptnode28 (unintentionally?) adopts a node into its 
+>>current document.  Allowing this case seems undesirable
+>>    
+>>
+>
+>I'm not entirely convinced. I think allowing it could be useful for writing
+>simpler code in situations where you want an orphan node and you don't care
+>where it's coming from.
+>
+>Experience shows destination.importNode(source) where source.ownerDocument
+>can be destination to be useful even though the spec is (it seems to me)
+>equally as unclear on the question of whether "another document" is allowed
+>to be "this document". If the user expectation for adoptNode is "like
+>importNode but the source disappears" I think it's reasonable to allow it.
+>
+>  
+>
+I guess that importNode to the same document ends up functionally 
+equivalent to a cloneNode operation.  In either case, the user's 
+expectation is fulfilled in that neither the source or the destination 
+document is modified.
+
+>Certainly it should either be allowed or throw WRONG_DOCUMENT; a no-op or a
+>clone are both undesirable as they leave the source document in an
+>unexpected state. One shouldn't have the same parentNode after being adopted!
+>
+>  
+>
+My take on it was that if you were using adoptNode, your interest was in 
+the target document and you didn't care how badly you mangled or did not 
+mangle the source document.  That the user's expectation was the target 
+document was unmodified, the returned node was null or could be inserted 
+into the target document and any modification to the source document was 
+just a necessary evil.   A no-op would not result in an insertable node 
+since you could get an IN_USE error.  adoptNode as equivalent to 
+cloneNode matched the expectation of no target document modification and 
+an insertable node, but no longer changed the source document.  
+adoptNode as equivalent to removeChild had the unexpected affect of 
+mutating the target document. 
+
+Returning null might be a good solution.  adoptNode allows 
+implementations to return null at their discretion anytime they do not 
+feel like adopting a node, so good client code should always call 
+adoptNode in a construct like:
+
+Node newNode = newDoc.adoptNode(otherNode);
+if (newNode == null) {
+    newNode = newDoc.importNode(otherNode);
+}
+
+The client code really wanted the source/destination mutation, they 
+could do:
+
+Node newNode = newDoc.adoptNode(otherNode);
+if (newNode == null) {
+    newNode = newDoc.importNode(otherNode);
+    if (otherNode.getParentNode() != null) {
+          otherNode.getParentNode().removeChild(otherNode);
+   }
+}
+
+
+

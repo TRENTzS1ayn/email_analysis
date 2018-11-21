@@ -1,0 +1,112 @@
+docno="lists-009-11351311"
+received="Sun Nov 12 06:39:45 1995"
+isoreceived="19951112113945"
+sent="Sun, 12 Nov 1995 08:34:28 0600"
+isosent="19951112143428"
+name="Chuck Shotton"
+email="cshotton@biap.com"
+subject="Re: Comments on Byte range draft"
+id="v02130515accbb07ab14e@[198.64.246.22]"
+charset="usascii"
+inreplyto="Comments on Byte range draft"
+expires="1"
+
+
+To: Benjamin Franz<snowhare@netimages.com>, Gavin Nicol<gtn@ebt.com>
+Cc:montulli@mozilla.com,fielding@avron.ICS.UCI.EDU,masinter@parc.xerox.com,ari@netscape.com,john@math.nwu.edu,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+>On Sun, 12 Nov 1995, Gavin Nicol wrote:
+
+>> Byte ranges are a lazy replacement for a general naming mechanism.
+>
+>You still have those blinders on. The whole universe of documents is
+>not SGML/HTML/PDF/(favorite text markup language with naming mechanism).
+>The ability to restart an interrupted transfer is an item that naming
+>mechanisms are insufficiently powerful to handle in the general case.
+>Byte ranges are not a 'lazy replacement' - they are the only general
+>mechanism for restarting interrupted transfers of documents containing
+>arbitrary content.
+
+We've had this discussion before but here we go again. Wanna see how
+screwed up byte ranges can really be? OK, here's the prime example. Suppose
+you're a HTTP client and you're half way through downloading a huge HTML
+document, the transfer terminates, and you decide to resume the transfer at
+the "appropriate" byte offset. Fine concept on the surface, but an
+implementation and performance nightmare for the following reason.
+
+Only in the case of binary files does the byte stream transmitted by the
+server stand a chance of being identical to what what it has stored locally
+on disk. In the case of multi-fork or multi-part files, this won't be the
+case. In the case of HTML files, for example, end of line termination ruins
+the whole byte range theory. Many servers politely convert their machine
+specific EOL sequence into a normalized version (LF or CR/LF) for the
+transmission of text-only files. This means that there is a potential creep
+of at least 1 byte per EOL in the file. A client asking to resume a
+transfer at byte 900,000 only has the data stream it was receiving to go
+by. This means that the server has to completely re-read the file,
+translating line ends and looking for the "virtual" 900,000th byte as
+rendered by the server. It's not simply a matter of jumping forward in the
+file 900,000 bytes and resuming reading.
+
+I spent weeks of my time trying to negotiate a more reasonable solution
+with the Adobe engineers regarding how to read portions of PDF files. If
+all the byte range proposal is really about is reading PDF (and it appears
+that this is what is driving Netscape and Adobe), consider the following.
+First, the reason people seem to be trying to shove a change to the URL
+syntax into place is because of the variety of syntax specifications for
+URLs (specifically, PATH arguments) on various servers. If everyone will
+remember, the entire portion of the URL after the host specification is
+SUPPOSED to be opaque to the client and the sole province of the server.
+Clients have no business generating URLs like this. They are SUPPOSED to
+simply return a URL originally provided by the server. That bit of
+philosophy aside, here was the solution that was proposed to Adobe.
+
+Rather than perturb the URL standard to meet the needs of 2 vendors,
+existing mechanisms should be used. It is trivial to implement a CGI that
+will return a range of bytes from a file specified as an argument to the
+CGI. This was Adobe's original approach. As a network saavy helper app,
+Acrobat Reader has the ability to generate and communicate URLs and
+transmit them to servers. It can just as easily generate a URL that
+includes a CGI name as it can generate a URL with byte range info. Since
+the goal is to optimize the return of data for Acrobat, it makes more sense
+to have a CGI on the server that understands the intricacies of PDF files
+and can communicate more closely with the PDF reader than to warp the
+non-conforming URL spec to Acrobat's needs.
+
+The problem with this proposal on the surface is one of non-standard
+techniques for passing arguments to CGIs as part of URLs. This was solved
+by proposing that at a minimum, the CGI reside at the same URL for all
+servers providing PDF content. This seems trivially possible for all
+popular WWW servers now. Variations in path argument syntax were resolved
+by making a call to the CGI with no parameters, with the reply from the
+server (CGI) containing a format statement that specifies the syntax of
+future URLs with byte-range requests. This provides the client (Acrobat
+Reader) with a template that could be used to insert byte range begin and
+end specifications into without having explicit knowledge of the actual URL
+syntax (e.g., replace [START] with the starting byte, replace [END] with
+the ending byte, and return the modified template to the server as a URL,
+not changing the rest of the template text.) Simple solution, meets
+Acrobat's needs (and any other tool that decides to conform to the services
+of this CGI), and doesn't require lengthy standards harrangues.
+
+In many cases, standardizing on a particular convention is preferable to
+shoving more baggage onto an existing standard that doesn't have very much
+to do with the problem. Especially when it is done without much forethought
+as to the implications. I'd like to encourage people to look at
+standardizing server behavior rather than "legislating" it through
+mutations of the URL standard. If Adobe/Netscape chose to, they could
+distribute a CGI for every server platform that would work with every
+version of Acrobat reader, making both freely available to users on the
+net. There would be no standards hassles, no mutation of the URL syntax,
+URL path information would remain private to servers, and all PDF
+users/publishers would have timely and correctly implemented access to the
+tools necessary to efficiently serve PDF documents.
+
+--_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+Chuck Shotton                               StarNine Technologies, Inc.
+chuck@starnine.com                             http://www.starnine.com/
+cshotton@biap.com                                  http://www.biap.com/
+                 "Shut up and eat your vegetables!"
+
+
+

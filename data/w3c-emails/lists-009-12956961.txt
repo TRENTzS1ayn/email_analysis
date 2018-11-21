@@ -1,0 +1,77 @@
+docno="lists-009-12956961"
+received="Wed Dec  6 12:37:52 1995"
+isoreceived="19951206173752"
+sent="Wed, 6 Dec 1995 12:34:11 0800 (PST)"
+isosent="19951206203411"
+name="Alexei Kosut"
+email="akosut@nueva.pvt.k12.ca.us"
+subject="HTTP 1.1 Unless header"
+id="Pine.HPP.3.91.951206121526.16646A100000@ace.nueva.pvt.k12.ca.us"
+charset="USASCII"
+expires="1"
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+Hi...
+
+Reading over draft-ietf-http-v11-spec-00.txt, which in general looks 
+rather good, I have become confused about a certain part. In section 
+10.40, regarding the Unless header, it says:
+
+   When a request containing an Unless header field is received, the 
+   server must evaluate the expression defined by the listed 
+   logic-bags (Section 3.11). If the expression evaluates to false, 
+   then no change is made to the semantics of the request. If it 
+   evaluates true and the request is not a conditional GET 
+   (If-Modified-Since, Section 10.23) or a partial GET (Range, 
+   Section 10.33), then the server must abort the request and respond 
+   with the 412 (unless true) status code. If the request is a 
+   conditional GET, then the server must disregard the 
+   If-Modified-Since value and respond as it would for a normal GET. 
+   Similarly, if the request is a partial GET, then the server must 
+   disregard the Range value and respond as it would for a normal GET.
+
+This handing of conditional GETs seems to me completely wrong. If I read 
+the above correctly, here's what happens:
+
+* No If-Modified-Since, but an Unless:
+- Unless true: 412 response
+- Unless false: send the document
+
+* If-Modified-Since, no Unless:
+- Not modified since: 304 response
+- Modified since: send the document
+
+All well and good so far, but...
+
+* If-Modified-Since, and an Unless:
+- Unless true and not modified since: send document
+- Unless false and not modified since: 304 response
+- Unless true and modified since: send document
+- Unless false and modified since: send document
+
+The first two are backwards! The first one will send me the document, even
+though it's matched all the paramters I told it to match. For example if I
+said "Unless: {eq {Content-MD5 "whatever"}}, but also threw in an
+If-Modified-Since, I'd get a 304 if the MD5 *didn't* match. In other
+words, it's behaving more as an If:  header than an Unless: header. This
+seems rather contradictory. It seems to me the only change to Unless
+semantics when an If-Modified-Since header is present should be to replace
+the 412 with a 304 if it's found true, and add an {le {Modified-Since
+"date"}} to the internal parsing of the Unless header.
+
+It seems to me that more often then not, browsers will send Unless and 
+If-Modified-Since at the same time, to maintain compatibility with HTTP 
+1.0 servers. However, the current draft's wording on this is very oblique 
+and hard to interpret. The above is what I think it says, but I have to 
+admit I'm really not sure. Is it possible to get some clarification on 
+this point?
+
+--/ Alexei Kosut <akosut@nueva.pvt.k12.ca.us> /--------/ Lefler on IRC
+----------------------------/ <http://www.nueva.pvt.k12.ca.us/~akosut/>
+The viewpoints expressed above are entirely false, and in no way
+represent Alexei Kosut nor any other person or entity. /--------------
+
+
+

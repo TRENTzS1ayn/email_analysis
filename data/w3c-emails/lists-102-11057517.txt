@@ -1,0 +1,96 @@
+docno="lists-102-11057517"
+received="Fri Nov 13 11:48:13 1998"
+isoreceived="19981113164813"
+sent="Fri, 13 Nov 1998 16:46:09 -0000"
+isosent="19981113164609"
+name="Miles Sabin"
+email="msabin@cromwellmedia.co.uk"
+subject="RE: Walking the DOM (was: XML APIs)"
+id="c=US%a=_%p=Cromwell_Media%l=ODIN-981113164609Z-22477@odin.cromwellmedia.co.uk"
+inreplyto="Walking the DOM (was: XML APIs)"
+expires="-1"
+
+
+To:"'John Cowan'"<cowan@locke.ccil.org>,"'DOM list'"<www-dom@w3.org>
+
+John Cowan wrote,
+
+> Miles Sabin wrote:
+> 
+> > OK, I agree that this check is O(1). However, that's only
+> > because the granularity of the check is so coarse: a single
+> > document-level timestamp will cause a lot of unnecessary
+> > invalidation ...
+> 
+> Agreed.  But this isn't so important if there are few active
+> iterators (= iterators that will ever be resumed), which was my
+> point.
+> 
+> > I suspect that it would make the performance
+> > of modifying a document via iterators unacceptably poor.
+> 
+> Here I think the JDK 1.2 java.util.Iterator class is useful: it has
+> a "remove" method which removes the last element iterated to
+> in a safe way, or raises an exception if the underlying
+> container is read-only.
+
+Hmm ... I'm afraid I don't think this will be good enough.
+
+Sure it solves the following problem,
+
+  Iterator i = element.???();
+  while(i.hasMore())
+  {
+    Node node = (Node)i.next();
+    node.getParentNode().removeChild(node); // correct, but invalidates
+                                            // iterator, so poor
+performance
+  }
+
+but that's only one way we might want to use iterators to
+modify the structure of a document. How about something like
+this,
+
+  Iterator i = elementA.???();
+  Iterator j = elementB.???();
+  while(i.hasMore() && j.hasMore())
+  {
+    Node nodeA = i.next();
+    Node nodeB = j.next();
+
+    if(nodeA.getNodeType() == Node.ELEMENT_NODE &&
+       nodeB.getNodeType() == Node.ELEMENT_NODE)
+    {
+      Element elementA = (Element)nodeA;
+      Element elementB = (Element)nodeB;
+
+      if(elementA.getAttribute("foo").equals(elementB.getAttribute("foo"
+))
+        elementB.getParentNode().removeChild(elementB);
+  }
+
+(run through the iterators and remove corresponding elements
+ with duplicated foo attributes ... OK, a bit artificial I
+ know, but I'm sure someone can come up with a more
+ realistic case).
+
+Even with a remove() operation on the iterator class, this
+will still cause serious problems, because i will be
+invalidated every time a node is removed via j.
+
+Cheers,
+
+
+Miles
+
+-- 
+Miles Sabin                          Cromwell Media
+Internet Systems Architect           5/6 Glenthorne Mews
++44 (0)181 410 2230                  London, W6 0LJ
+msabin@cromwellmedia.co.uk           England
+
+
+    
+
+
+

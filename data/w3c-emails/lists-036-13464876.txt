@@ -1,0 +1,196 @@
+docno="lists-036-13464876"
+received="Tue Apr 20 02:03:54 2004"
+isoreceived="20040420060354"
+sent="Tue, 20 Apr 2004 00:03:56 -0600 (MDT)"
+isosent="20040420060356"
+name="Mike Brown"
+email="mike@skew.org"
+subject="a percent-encoding how-to (sort of)"
+id="200404200603.i3K63uAI015550@chilled.skew.org"
+charset="ISO-8859-1"
+expires="-1"
+
+
+To:uri@w3.org
+
+
+I hate to post and then run off on vacation for 3 weeks, (I'm going to western
+Japan, seeing as much as I can from Ibusuki to Tokyo, if anyone wants to show
+me around...), and I am sorry to rehash this same old stuff, but...
+
+In order to implement and document RFC 2396bis related functions in Python, I
+am trying to write up an idiot-proof description of the process of creating
+URI components from arbitrary data. This is proving to be quite difficult, for
+even in draft 05, percent-encoding is still being explained in bits & pieces
+across multiple sections of the spec, and seems to be incomplete in terms of
+describing existing practice, prescribing recommendations, and accounting for
+all possible interpretations of the data.
+
+Here is how I would describe the process to somebody today, based on my
+understanding of draft 04, my attempts to implement it, and my recollection of
+what I've seen in practice. Please let me know where I got it wrong. I'm
+probably misunderstanding something again.
+
+
+---------------
+
+Each URI component must ultimately be constructed as a sequence of Unicode
+characters. Therefore, in order to represent arbitrary data in a URI
+component, one must first determine whether the data is character based, and
+if so, whether it is a Unicode string or an encoded string. Then, the
+following guidelines apply:
+
+
+A. Non-character data
+=====================
+When the data is not character based, it must be converted to either
+characters or octets, unless it is in octet form already. The spec
+governing the URI scheme or data format should mandate how the data
+is to be converted, but it may also be an implementation-dependent
+decision.
+
+If the data is converted to characters, then proceed according to (B)
+or (C), below.
+
+If the data is converted to or was already in octet form, then each
+octet becomes a percent-encoded sequence representing that octet.
+
+Example: here are the first 16 bytes of a GIF entity, in hex:
+
+  47 49 46 38 39 61 07 00 07 00 A2 00 00 00 00 00
+
+Option 1: Convert the octets to percent-encoded sequences:
+
+  %47%49%46%38%39%61%07%00%07%00%A2%00%00%00%00%00
+
+Option 2: Convert to characters, such as with Base64:
+
+  R0lGODlhBwAHAKIAAAAAAA
+
+This can then be treated as character data, according to (B) or (C),
+below.
+
+
+
+B. ISO/IEC 10646 (Unicode) character data
+=========================================
+When the data consists of ISO/IEC 10646 (Unicode) characters, each
+character is handled as follows:
+
+1. Each character that is in the reserved set but that is not being
+used for its reserved purpose becomes a percent-encoded sequence
+representing that character's octet in US-ASCII.
+
+2. Each character between U+0000 and U+007F that is in the
+unreserved set either:
+
+   a. does not change (the preferred outcome), or
+
+   b. becomes a percent-encoded sequence representing the
+   character's octet in the US-ASCII encoding.
+
+3. Each character between U+0000 and U+007F that is in neither the
+reserved nor unreserved sets becomes a percent-encoded sequence
+representing that character's octet in US-ASCII.
+
+4. Each character above U+007F becomes one or more percent-encoded
+sequences representing that character's octet(s) in UTF-8, unless
+a different encoding is mandated by the spec governing the URI scheme.
+
+For example, here's the Unicode string "greeting=" followed by an
+actual greeting in Japanese:
+
+  U+0067 U+0072 U+0065 U+0065 U+0074 U+0069 U+006E U+0067 U+003D
+  U+4ECA U+65E5 U+306F
+
+If the destination is the query component of a URI, and the intent
+is to use the "=" for its reserved purpose -- that is, to express,
+for example, in an 'http'-schemed URI a query argument consisting of
+the name "greeting" and the 3 Japanese characters U+4ECA U+65E5 U+306F
+as the argument's value, then one must first convert all but the "="
+to UTF-8 octets:
+
+  g  r  e  e  t  i  n  g       =       U+4ECA   U+65E5   U+306F
+  67 72 64 64 74 69 6E 67 (unchanged) E4 BB 8A E6 97 A5 E3 81 AF
+
+Then convert the octets to unreserved characters and percent-encoded
+sequences:
+
+  greeting=%E4%BB%8A%E6%97%A5%E3%81%AF
+
+If, however, the "=" were not being used for its reserved purpose,
+then it would be percent-encoded:
+
+  greeting%3D%E4%BB%8A%E6%97%A5%E3%81%AF
+
+In either case, the unreserved characters ("greeting") could become
+percent-encoded sequences without changing their meaning. For example,
+
+  %67%72%64%64%74%69%6E%67=%E4%BB%8A%E6%97%A5%E3%81%AF
+
+is equivalent to
+
+  greeting=%E4%BB%8A%E6%97%A5%E3%81%AF
+
+
+C. Encoded character data
+=========================
+When the data consists of characters that have already been encoded as
+octets (i.e., any encoded character string, such as an iso-8859-1 or
+windows-1252 byte string), one of the following courses of action is
+chosen. The spec governing a URI scheme may mandate one course of action over
+the other, but in practice, it is generally left up to the implementation,
+a situation which leaves much room for misinterpretation of the URI
+component down the line.
+
+1. The octets are treated opaquely:
+
+Each octet that, in US-ASCII, represents an unreserved character
+becomes that character (this is the preferred outcome) or becomes a
+percent-encoded sequence representing that octet. Any other octet
+becomes a percent-encoded sequence representing that octet.
+
+or...
+
+2. The octets are treated as representing characters:
+
+Each octet in the data is decoded back into Unicode characters
+according to the known encoding of the data. If the encoding is not
+known, then UTF-8 should be assumed, but in practice, a platform
+default encoding is the common assumption. Such assumptions are only
+as reliable as the URI producer's knowledge of how the encoded string
+was generated.
+
+The Unicode sequence is then treated as in B, above.
+
+Example:
+
+A directory named "4 ? 3" on a non-Unicode filesystem might manifest
+as an encoded string like this (in hex):
+
+  34 20 F7 20 33
+
+In the opaque scenario, the octets are converted to unreserved
+characters and percent-encoded sequences directly, resulting in
+
+  4%20%F7%203
+
+In the decode-first scenario, the octets are converted to Unicode
+characters (possibly incorrectly, if the encoding isn't known). Then,
+following the procedure in (B), some of the characters become percent-
+encoded sequences, resulting in this sequence, assuming UTF-8 was the
+basis for the percent-encoding of the division sign:
+
+  4%20%C2%B7%203
+
+
+------------------
+
+(Also note that the way I have described things, there is no need to specify
+that "%" needs to become "%25".)
+
+
+-Mike
+
+
+

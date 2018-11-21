@@ -1,0 +1,200 @@
+docno="lists-101-13507080"
+received="Tue Dec 30 08:24:46 2003"
+isoreceived="20031230132446"
+sent="Tue, 30 Dec 2003 14:24:44 +0100"
+isosent="20031230132444"
+name="Sander Bos"
+email="sander@x-hive.com"
+subject="RE: X-Hive LS implementation report"
+id="41D11F414A26E942912B7E7696DC8E228482F1@JAKARTA.xhive.archipel"
+charset="iso-8859-1"
+inreplyto="X-Hive LS implementation report"
+expires="-1"
+
+
+To:<www-dom-ts@w3.org>
+Cc:"Jeroen van Rotterdam"<jeroen@x-hive.com>
+
+
+
+
+Dear Curt,
+
+> HasFeature04 and HasFeature05 will be modified to only be applicable 
+> when hasFeature("Core", "3.0") is true.  GetFeature02 already 
+> had that 
+> precondition.
+
+I am not sure what is going on here now. I now have as HasFeature04.xml:
+
+<test xmlns="http://www.w3.org/2001/DOM-Test-Suite/Level-3"
+name="HasFeature04">
+  <metadata>
+    <title>HasFeature04</title>
+    <creator>Curt Arnold</creator>
+    <description>Implementations should return true for
+hasFeature("+lS", "3.0").</description>
+<date qualifier="created">2003-12-09</date>
+<!--  DOMImplementation.hasFeature  -->
+<subject
+resource="http://www.w3.org/TR/2003/CR-DOM-Level-3-Core-20031107/core#ID
+-5CED94D7"/>
+  </metadata>
+  <!--  + on feature names requires L3 Core   -->
+  <hasFeature name="Core" version='"3.0"'/>
+  <var name="domImpl" type="DOMImplementation"/>
+  <var name="hasLS" type="boolean"/>
+  <implementation var="domImpl"/>
+  <hasFeature var="hasLS" obj="domImpl" feature='"+lS"'
+version='"3.0"'/>
+  <assertTrue actual="hasLS" id="hasFeature_LS3"/>
+</test>
+
+But the generated Java-test is essentially:
+
+   public void runTest() throws Throwable {
+      DOMImplementation domImpl;
+      boolean hasLS;
+      domImpl = getImplementation();
+      hasLS = domImpl.hasFeature("+lS", "3.0");
+assertTrue("hasFeature_LS3", hasLS);
+   }
+
+So why am I not seeing from <hasFeature name="Core" version='"3.0"'/>?
+Am I not up to date with something, I did a CVS update on whole
+DOM-Test-Suite just now, but I do not grab the spec-jars and zips every
+time, is that necessary (I would think not, isn't all of this processed
+in test-to-java.xsl)?
+
+Could you check in your version whether anything from <hasFeature
+name="Core" version='"3.0"'/> is present in the Java-code? (I also do
+not know what to expect, does it call return; to end the test?)
+
+Anyway, for whatever reason those checks for Core/3 are not processed by
+us now.
+
+> >   Issue      : throws FileNotFoundException in stead of reporting to
+> >                the Error Handler
+> >   Resolution : We will change our implementation in such a 
+> way that our
+> >
+> >                default error handler will throw the 
+> exception. The test
+> >
+> >                will have to set a null error handler to 
+> support this !
+> >
+> >  
+> >
+> Andrew Clover 
+> (http://lists.w3.org/Archives/Public/www-dom/2003OctDec/0077.h
+> tml) also 
+> implemented his Python L&S where parse failures threw IO and similar 
+> exceptions.  The spec doesn't give a huge guideance on the 
+> reporting of 
+> error conditions, the current scheme of swallowing exceptions and 
+> returning null in the Java implementations is compelled by method 
+> signature in the Java binding prohibiting throwing checked exceptions 
+> other than DOMException.
+> 
+> Instead of immediately conforming to the other Java 
+> implementations, I'd 
+> hold off until we address this issue.  Could you describe the 
+> exceptions 
+> you are throwing?  
+
+I am also holding off improving the errors in those test until I am sure
+it is not being altered. We're throwing all kinds of exceptions, wrapped
+in a (temporary code!) DOMException. Our first implementation was based
+on a spec-version where e.g. the parse-methods could just throw any
+Exception.
+
+> Could you formulate a proposal for changes to L&S 
+> where parse failures are signalled by exception when not 
+> suppressed by 
+> the error handlers?  I think it would probably involve 
+> deriving DOMError 
+> off "Exception" and ideally having a innerException member 
+> that could be 
+> a platform exception like an IOException.
+
+What follows is for a large part my personal opinion and not necessarily
+that of my employer:
+
+<partly-personal-rant>
+Jeroen told me that this thing was discussed at length in the working
+group, with the current solution being errors are swallowed unless error
+handler, so there is little chance of changing it. And the reason is
+apparently that there can be so many different errors, and you don't
+want to specify them all in the spec (apparently it is not necessary to
+specify all possible errors that can be sent to the error handler).
+
+I understand the issue, but cannot agree with the resolution. As I
+mentioned before
+(http://lists.w3.org/Archives/Public/www-dom/2003OctDec/0057.html) I
+fully agree with Andrew that from an (beginning) application programmer
+perspective it is not understandable that
+  Document willThisBeNull =
+implementation.createLSParser(....).parseURI("file:///c:/does_not_exist.
+xml"
+);
+will not give an error, where most other things in Java will give
+exceptions (like opening a file-stream). I do some of X-Hive/DB's
+technical support, and I do not think that this is supportable.
+
+Fortunately, there is a loophole in the spec, which allows me to set a
+default error handler. So we are just going to set that, with an
+implementation like:
+  public boolean handleError(DOMError error) {
+    if (error.getSeverity() != DOMError.SEVERITY_WARNING) {
+      if (error.getRelatedException() != null) {
+        Throwable wrappedException = (Throwable)
+error.getRelatedException();
+        if (wrappedException instanceof Error) {
+          throw (Error) wrappedException;
+        } else if (wrappedException instanceof RuntimeException) {
+          throw (RuntimeException) wrappedException;
+        } else {
+          // Cannot throw it directly, so wrap it
+          throw new XhiveException(XhiveException.LS_ERROR,
+wrappedException, wrappedException.getMessage());
+        }
+      } else {
+        String message = error.getMessage();
+        if (error.getType() != null) {
+          message = message + "(type: " + error.getType() + ")";
+        }
+        throw new XhiveException(XhiveException.LS_ERROR, message);
+      }
+    }
+    return true;
+  }
+(I thought I would include it to show how elegant this thing can be if
+handleError has no throws declaration).
+
+Then we are in compliance, and our users will get some feedback (and can
+always set another error handler if they don't like this one). Only, as
+Jeroen indicated, the tests that are checking for errors will have to
+explicitly set the error-handler to null if they don't set it to
+anything else.
+
+So perhaps not so much ranting in the end, but that is only because I
+did not bring up WG email feedback....
+
+</partly-personal-rant>
+
+> >6. DOMInputSourceTest5 
+> 
+> I've already rewritten it.
+
+Our mistake, we did test with the rewritten version but did not adjust
+the comment in the mail (it still fails, but now because of an issue
+with the base system id not being set that I have not investigated
+further yet).
+
+Kind regards,
+
+--Sander.
+
+
+

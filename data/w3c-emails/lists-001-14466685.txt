@@ -1,0 +1,108 @@
+docno="lists-001-14466685"
+received="Mon Dec 17 11:56:48 2001"
+isoreceived="20011217165648"
+sent="Mon, 17 Dec 2001 10:01:53 -0700"
+isosent="20011217170153"
+name="Lee Passey"
+email="lee@novonyx.com"
+subject="Re: need two runs"
+id="3C1E2501.AE849089@novonyx.com"
+charset="us-ascii"
+inreplyto="m2r8q775cg.fsf_-_&#64;Mdan.jacobson.tw"
+expires="-1"
+
+
+To: Dan Jacobson<jidanni@yam.com.tw>
+CC:html-tidy@w3.org
+
+I ran into this same problem myself while attempting to clean HTML
+produced by (shudder) Microsoft Word.
+
+Theoretically, tidy should work like this:
+1.  Load the "questionable" HTML into a DOM
+2.  Clean the DOM
+3.  Write the DOM back out as "good" HTML/XHTML
+
+As usual, the reality is somewhat more complex than the theory.  As tidy
+is currently implemented, some of the cleanup occurs both in the input
+step and the output step.  In your case, the code that discards empty
+paragraphs (or converts them to <br /><br />) is implemented in the
+input step.
+
+While you did not provide us with your orignal HTML file, I suspect it
+contains a construct similar to the following:
+
+<p><small>[some junk that's going to get trimmed into
+oblivion]</small></p>
+
+In this case, tidy sees that the paragraph is not empty, so it creates a
+node for it in the DOM.  Once the document is loaded, cleanup routines
+are called, which trim away what was in the paragraph; in my case this
+was DropSections().  Now in cleaning away unused nodes, the program
+calls CanPrune() to see if a node can be trimmed.  This routine returns
+false if the node has content, _even if the content is a zero length
+text node_! The empty paragraph never gets trimmed, and so prints out
+<p></p> which should have been trimmed.  The next time through, tidy
+trims the empty paragraph.
+
+I'll put a bug in someone's ear, and send them some diffs to see if we
+can get this cleared up.
+
+Dan Jacobson wrote:
+> 
+> Firstly i would like to commend tidy on being such a critical piece of
+> software [if something goes wrong then "my web pages are ruined" :-(
+> ], OK,
+> 
+> It seems two runs in a row are required until I've got a file tidyed
+> till it can't be tidyed anymore.  "This thing doesn't have a self
+> adjusting spin cycle, so I had to run it again before I got the
+> whitest whites" as Suzy Homemaker would say.
+> 
+> you see, first I strip all the big5 chars out of a file to make an
+> alternative english version...
+> 
+> make english
+> b5strip mapping.htm|sed '1,/content="zh-tw">/{/<META/,/content="zh-tw">/d;}'>mapping_en.html
+> tidy01nov01 -qm mapping_en.html
+> mapping_en.html:59:10: Warning: trimming empty <em>
+> mapping_en.html:176:7: Warning: trimming empty <h3>
+> mapping_en.html:330:6: Warning: trimming empty <p>
+> make: [mapping_en.html] Error 1 (ignored)
+> tidy01nov01 -q mapping_en.html|diff mapping_en.html -
+> mapping_en.html:57:6: Warning: trimming empty <p>
+> mapping_en.html:309:6: Warning: trimming empty <p>
+> mapping_en.html:311:13: Warning: trimming empty <small>
+> mapping_en.html:311:21: Warning: trimming empty <p>
+> mapping_en.html:325:6: Warning: trimming empty <p>
+> mapping_en.html:327:6: Warning: trimming empty <p>
+> 57,58d56
+> <   <P></P>
+> <
+> 308,311d305
+> <
+> <   <P></P>
+> <
+> <   <P><SMALL></SMALL></P>
+> 324,327d317
+> <
+> <   <P></P>
+> <
+> <   <P></P>
+> make: [mapping_en.html] Error 1 (ignored)
+> tidy01nov01 -qm mapping_en.html
+> mapping_en.html:57:6: Warning: trimming empty <p>
+> mapping_en.html:309:6: Warning: trimming empty <p>
+> mapping_en.html:311:13: Warning: trimming empty <small>
+> mapping_en.html:311:21: Warning: trimming empty <p>
+> mapping_en.html:325:6: Warning: trimming empty <p>
+> mapping_en.html:327:6: Warning: trimming empty <p>
+> make: [mapping_en.html] Error 1 (ignored)
+> tidy01nov01 -q mapping_en.html|diff mapping_en.html -
+> tidy01nov01 -qm mapping_en.html
+> tidy01nov01 -q mapping_en.html|diff mapping_en.html -
+> --
+> http://www.geocities.com/jidanni/ Tel+886-4-25854780
+
+
+

@@ -1,0 +1,265 @@
+docno="lists-102-2009331"
+received="Thu Dec 18 02:03:50 1997"
+isoreceived="19971218070350"
+sent="Wed, 17 Dec 1997 22:59:09 -0800"
+isosent="19971218065909"
+name="Mark L. Fussell"
+email="mark.fussell@chimu.com"
+subject="Comments about the Java DOM interfaces"
+id="3498C9BD.6DA0@chimu.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-dom@w3.org
+CC: Gavin Nicol<gtn@eps.inso.com>, Jonathan Robie<jonathan@texcel.no>
+
+The following are some comments on the Java DOM interfaces and some
+follow up based on a discussion with Jonathan Robie.  
+
+============================================================
+============================================================
+============================================================
+
+I did a simple implementation of the Java DOM interfaces and have some
+suggestions for corrections.  Most of these are pretty minor and some
+are just suggested conventions.  
+
+Corrections
+-----------
+OccurrenceType should be an interface and not a class.  Otherwise you
+need to put 'static' in front of each of the constants or the constants
+will not be accessible outside the class.  Besides handling the static
+problem, if you make it an interface you can "use" it (use OPT directly
+without the prefix) with an implements statement.
+
+All the inner classes should have 'static' in front of the 'class' as
+well as having 'static' in front of the constants.  If you do not put
+static in front of the 'class' you are saying the class is embedded
+within the enclosing class's objects (the objects themselves) instead of
+just within the enclosing class's namespace.  Without both 'static's you
+cannot access any of the constants outside the class's own objects.  And
+again I would suggest using interfaces instead.
+
+Conventional Suggestions
+------------------------
+I would recommend not using inner classes for the enumerated types. 
+This makes them hard to use for clients:
+   if (AttributeDefinition.DeclaredValueType.NAME_TOKEN_GROUP == foo) {
+And hard to see and to extend.  I would suggest not 'final'ing any
+classes.  Note a valid reason to extend them would be to add Object
+wrappers to them and potentially a list of String names [see below].
+
+I would suggest suffixing the enumeration class/interface name with
+'Constants'.  This makes them obviously not a real type that someone can
+implement (e.g. DocumentType) and may help to avoid confusion or
+collisions with a real-object form of enumeration (where every 'int' is
+replaced with a single Object).  It works extremely well for imports
+also:
+  public class ConnectionTypeFactory 
+                implements /*uses*/ ConnectionTypeConstants {
+
+Although it is unnecessary, it is a good habit to put 'public' in front
+of methods in an interface.  This is solely to aid in copying to and
+from the implementation of those methods which must be declared 'public'
+in the class (all interface methods are public, so the class must follow
+the signature).
+
+By the way, I strongly applaud using the normal name-space for
+interfaces/Types.  I consider this to be far more important than all my
+suggestions put together.
+
+Minor Functionality Suggestions
+-------------------------------
+It would be nice to have Integer wrappers for all the Enumerated ints. 
+It would also be nice to have an array of String names that are being
+enumerated.  Beyond this, it might be nice to have a real-object
+enumeration, but that is a significantly different implementation.
+
+As an example, my modification to one of the files looks like this:
+  public interface ConnectionTypeConstants {
+    String[] CONNECTION_TYPE_NAMES = {"OR","SEQ","AND"};
+
+    int OR =  0;  // |
+    int SEQ = 1;  // ,
+    int AND = 2;  // & ?? not in XML
+
+    Integer OR_OBJECT  = new Integer(OR);
+    Integer SEQ_OBJECT = new Integer(SEQ);
+    Integer AND_OBJECT = new Integer(AND);
+  }
+
+I added an UNKNOWN=-1 NodeType so I could return a nodeType for the
+DocumentType classes.  This would seem reasonable or a fuller
+enumeration of nodeTypes is required.
+
+
+Larger/Less-likely Functionality Suggestions
+--------------------------------------------
+There seems to be a number of inconsistencies between the DOM and the
+Grove model.  It would seem these two should be more fully aligned.
+
+I would suggest using more general Collection classes.  I think have DOM
+specific collections (NodeLists) and iterators is going to hamper its
+usefulness.  Java is already pretty barren (e.g compared to Smalltalk)
+in terms of collection functionality, but the 1.2 List and Map
+interfaces and their implementations are likely to be much more
+functional and be easies to use than the simplified DOM versions.
+
+
+
+============================================================
+=== Follow up to the above comments ========================
+============================================================
+
+Jonathan Robie wrote:
+> I have to say that I've been struggling to find a way to express the enums
+> well. Getting rid of the inner classes can be interpreted in two ways - are
+> you saying that it should be taken out of the AttributeDefinition class so
+> that you could say, e.g.,
+> 
+> if (DeclaredValueType.NAME_TOKEN_GROUP == foo)
+
+Yes, that is what I meant (not removing them completely).  I think
+taking them out is better unless the naming can be made 'Class-relative'
+(AttributeDefinition.Types.CONSTANT), which I don't think works in this
+case.  All the constants could also be placed together in a DOMConstants
+interface.  I don't think that is particularly better in this case
+either.
+
+> 
+> >I would suggest suffixing the enumeration class/interface name with
+> >'Constants'....
+> >  public class ConnectionTypeFactory
+> >                implements /*uses*/ ConnectionTypeConstants {
+> 
+> This does increase typing again, bringing us up to:
+> 
+> if (DeclaredValueTypeConstants.NAME_TOKEN_GROUP == foo)
+
+Actually it shrinks the typing to:
+   if (NAME_TOKEN_GROUP == foo)
+if someone want to 'use' the Constants.  The above 'implements'
+effectively imports the Constants and avoids the extra naming.  The
+advantage of the 'Constants' suffix is that it make it obvious this is a
+'use' and that a ConnectionTypeFactory is not a subtype of a real
+ConnectionType interface.
+
+> What is the advantage of the Integer implementation? Do you know a good way
+> to implement enums that gives me type safety without introducing really
+> cumbersome gunk?
+
+No, just different types of cumbersome gunk :-) with different
+benefits.  I usually enumerate with actual objects, so I would have
+OccurrenceType:
+    interface OccurrenceType {
+        public int id();
+        public String key();    // Unique identifier (probably 
+                                // just the name in this case)
+        public String name();   // e.g. OPT
+          //...The above are standard and usually part 
+          //   of a more abstract interface...
+        public String symbol(); // e.g. '?'
+        ...
+    }
+And a registry of the objects based on the id and possibly also the
+key.  This "guarantees" that both the object and the type are legitimate
+for:
+    public void setOccurrence(OccurrenceType occurrence);
+    public OccurrenceType getOccurrence();
+
+It also make OccurrenceType more useful to clients that need to look
+them up (by key), display them, stick them into collections, use them
+with Beans, etc.  The identity test '==' can still be used when
+comparing them because there should never be more than one of each
+enumerated value around.
+
+But that is a slightly "heavier" approach even if it is more useful. 
+The reason I put the Integer wrappers around the enumerations was to
+avoid creating multiple Integer objects (i.e. creating each when I
+encountered them) when I had to pass the values to other parts of the
+system.  Java primitives are second class citizens to all the
+functionality of class libraries and higher-level programming, and
+constantly wrapping them is a pain and a performance problem.
+
+
+> I would love a list of the inconsistencies that you have discovered. In
+> general, we want to be close to the Grove model, but it is not completely
+> normative for us, as I understand it.
+
+Unfortunately I don't think I can do that properly (the Grove spec hurts
+my brain), and I would think James Clark would be better at this since
+SP has Grove-like functionality.
+
+> >I would suggest using more general Collection classes.  I think hav[ing] DOM
+> >specific collections (NodeLists) and iterators is going to hamper its
+> >usefulness.  Java is already pretty barren (e.g compared to Smalltalk)
+> >in terms of collection functionality, but the 1.2 List and Map
+> >interfaces and their implementations are likely to be much more
+> >functional and be easies to use than the simplified DOM versions.
+
+> Please elaborate on this.
+
+Well, I understand wanting to minimize the functionality required of a
+client, but if a language has core interfaces (especially) and classes
+then clients will expect to be able to use them.  In pre-1.2 things were
+pretty barren with only Enumeration being a general interface (and so
+your Enumerator should really be Enumeration compatible).  But with 1.2,
+a core set of Collection interfaces will be available and all the major
+class libraries will be supporting them.  People will expect to be able
+to use these libraries for general collections and not have to
+constantly wrap them in weaker interfaces to work with a particular
+library.
+
+And, for Java, having specific-type list interfaces is not worth it. 
+Without template support clients are always having to cast (typecheck)
+anyway for subtypes placed in the original list.  
+
+So considering that the DOM is coming out as 1.2 is coming out, I would
+suggest you assume the 1.2 interfaces exist (or bundle your own
+copy/package of them) and use List/Map/Iterator instead of your own
+NodeList, NamedNodeList, Enumerator, and the old util.Vector.  
+
+By the way, I use a convention of a comment immediately after the
+collection to identify the collection element type:
+    List /*of Attribute*/ getAttributes();
+
+==========
+
+Oh, I see what I think is another "bug": you have a method
+'setAttribute' in Element that seems like it should be named either
+'addAttribute' (and assume the 'replaceness') or 'includeAttribute'.  I
+think 'add' is fine since the 'Set-like' behavior is apparent for
+attributes/properties.  Using 'set' implies an Element has a single
+attribute.
+
+==========
+
+By the way, I assume you are proposing the DOM as a required set of
+interfaces instead of a conceptual set.  I think it is more likely to
+succeed as the later (because of small but strong need variations), but
+I assume you are hoping for more compatibility than that.  Actually, you
+might consider standardizing on the MONDO recipes along with the
+interfaces as both the conceptual and possible actual interfaces.  
+Then if anyone deviates from the interface (in minor ways) they 
+at least know an ObjectBuilder can build their new types of objects
+from the same XML source.
+
+============================================================
+============================================================
+============================================================
+
+Yet another minor comment about the Java DOM API is that the usual
+convention is for boolean 'getters' to be prefixed with 'is'.  This
+could be in addition to the 'get' method or substitute for it.  This is
+still Bean compatible in either form.
+
+--Mark
+mark.fussell@chimu.com
+
+  i   ChiMu Corporation      Architectures for Information
+ h M   info@chimu.com         Object-Oriented Information Systems
+C   u    www.chimu.com         Architecture, Frameworks, and Mentoring
+
+
+

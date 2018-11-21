@@ -1,0 +1,218 @@
+docno="lists-010-10390999"
+received="Fri Oct 11 16:07:46 1996"
+isoreceived="19961011200746"
+sent="Fri, 11 Oct 96 15:49:03 MDT"
+isosent="19961011214903"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: criticism of http 1.1 caching"
+id="9610112249.AA15477@acetes.pa.dec.com"
+inreplyto="9610020825.AA07999&#64;ns.ms.mff.cuni.cz"
+expires="1"
+
+
+To: Adam Dingle<dingle@ksvi.mff.cuni.cz>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    I have written a paper which extensively criticizes HTTP 1.1's
+    cache consistency features.  The paper recommends numerous small
+    but important changes to the specification.  I presented the paper
+    at the Web Caching workshop this week in Warsaw, Poland
+    (http://w3cache.icm.edu.pl/workshop/).
+
+First of all, I'd suggest that people interested in Web caching
+take a look at the online papers available from this page.  Does
+anyone know if a printed proceedings is available to non-attendees?
+    
+    The paper is on the Web at
+    
+    http://libra.ms.mff.cuni.cz/internet/caching/consistency.html
+    
+I enjoyed reading this paper, even if I don't agree with all of
+the points you raised.  It's clear that you have given this a
+lot of careful thought, and your Java implementation shows that
+the HTTP/1.1 spec probably does not require a tremendous amount
+of code to implement at the proxy (although you only implemented
+part of it, so far).
+
+One general comment: in many cases, you point out that the HTTP/1.1
+spec is silent about certain aspects of cache behavior, and you
+recommend that it be more explicit.  We tried not to constrain
+cache implementors more than necessary for ensuring interoperability
+and "correct" operation (whatever "correct" was taken to mean), and
+so we intentionally left some things unspecified.  This clearly
+gives some freedom to a cache implementor, either to do something
+clever that we hadn't considered, or do the minimum necessary
+implementation, or (in some cases) to do something that is stupid
+and inefficient, but still interoperable.
+
+For example, the spec does not say anything (that I can recall)
+about prefetching or postfetching, which you write about
+under "When to update cached pages".  As long as the prefetching
+or postfetching doesn't violate the rest of the spec, it is
+not necessary for the spec to say anything about it.  Especially
+since we don't really know exactly what the best policies might be.
+
+Specific comments:
+--------------
+    Thus, the notion of whether a page is stale or fresh at a given
+    time is independent of any single user request for that page; this
+    fact is not stated clearly in the HTTP 1.1 specification, and
+    should be.
+
+Actually, if you read these four definitions together:
+    explicit expiration time
+      The time at which the origin server intends that an entity should no
+      longer be returned by a cache without further validation.
+    
+    heuristic expiration time
+      An expiration time assigned by a cache when no explicit expiration
+      time is available.
+    
+    freshness lifetime
+      The length of time between the generation of a response and its
+      expiration time.
+    
+    fresh
+      A response is fresh if its age has not yet exceeded its freshness
+      lifetime.
+
+then you should be able to see that whether or not a response is
+fresh depends on the current time, and either:
+(1) the explicit expiration time supplied by the origin server
+or
+(2) a heuristic expiration time assigned by a cache
+which implicitly excludes any dependency on the specific request.
+
+--------------
+
+    The HTTP 1.1 specification refers to "the least [sic] restrictive
+    freshness requirement of the client, server, and cache", a related
+    concept, in section 13.1.1 "Cache Correctness". First, this is
+    certainly an error: the term "least" should be "most".
+
+Actually, this is really what was intended.  The reason is that
+some people believe that a client ought to be able to loosen
+the freshness requirement beyond what is specified by the
+origin server.
+
+The confusion may come, as you note, because the next item:
+
+  3. It includes a warning if the freshness demand of the client or the
+     origin server is violated (see section 13.1.5 and 14.45).
+
+seems to result in a contradiction.  For example, if the origin
+server says "max-age=10", the client says "max-age=100", and
+the actual age is 50, a response with a Warning is consistent
+with both conditions (#2, which you quote from, and #3 above).
+
+The missing piece is that this particular section does not
+explictly require a Warning in this case, although this is
+clearly required by the specification of Warning in 14.45.
+That is, 13.1.1 describes some but not all of the criteria
+for correctness.
+
+It seems reasonable that we should try to reword 13.1.1 so
+that it makes this point clearer, although the current wording
+is not actually in error.
+
+--------------
+
+    There has been some controversy over how to handle
+    If-Modified-Since in a cache hierarchy.  Apparently some people
+    feel that every If-Modified-Since request should be passed all the
+    way up the cache hierarchy to the origin server; others feel that
+    If-Modified-Since requests should stop at some point on the cache
+    hierarchy if a cache has a copy of the requested page that is new
+    enough. The HTTP 1.1 specification is unfortunately vague in this
+    respect.
+
+During our discussions, I believe it was implicitly agreed that
+if a conditional (e.g., If-Modified-Since or If-None-Match) request
+is satisfiable by an intermediate cache, then it should not be
+forwarded all the way to the origin server.  
+    
+Also, 13.1.1 allows a cache to respond with an "appropriate 304
+(Not Modified)" message, which would only be possible if it were
+intercepting conditional requests.  So I think any reasonable
+reading of the HTTP/1.1 spec allows the interception behavior
+(although it does not make it mandatory).
+
+--------------
+
+    In fact, in the definition of cache correctness in section 13.1.1
+    the specification lists Not Modified responses as being exempt from
+    the freshness requirements placed on responses containing a
+    document; this implies that Not Modified responses may be
+    arbitrarily old! (The specification text does say "4. It is an
+    appropriate 304 (Not Modified) ... response message", but it is
+    anyone's guess just what the adjective "appropriate" means here.)
+
+you apparently failed to read this section:
+
+    13.4 Response Cachability
+
+[...]
+    A response received with any other status code MUST NOT be returned
+    in a reply to a subsequent request unless there are Cache-Control
+    directives or another header(s) that explicitly allow it. For
+    example, these include the following: an Expires header (section
+    14.21); a "max-age", "must-revalidate", "proxy-revalidate",
+    "public" or "private" Cache- Control directive (section 14.9).
+
+So, if you think about it, the "304 (Not Modified)" message cannot
+be fresh any longer than the actual response would have been.
+
+As you point out, there may be some ambiguity in the wording in 13.1.1.
+Perhaps this sentence:
+    
+      4. It is an appropriate 304 (Not Modified), 305 (Proxy Redirect), or
+ error (4xx or 5xx) response message.
+
+should be    
+
+      4. It is an appropriate 304 (Not Modified), 305 (Proxy Redirect), or
+ error (4xx or 5xx) response message, generated at that cache.
+
+--------------
+
+    Section 13.1.1 "Cache Correctness" of the HTTP 1.1 specification
+    says that a response must include a warning "if the freshness
+    demand of the client or the origin server is violated". HTTP 1.1
+    defines a warning "10 Response is stale" to be issed when the
+    server's maximum age requirement is violated, even if the server's
+    age requirement is explicitly relaxed by the client. Unfortunately,
+    the specification defines no warning to be issued when the client's
+    freshness demand is violated!
+
+This is a good point.  However, it might be acceptable to let
+Warning 10 apply to this case, too (by changing the definition);
+is there any real need to distinguish the two cases?
+
+----------------
+
+You end by summarizing about 15 recommended changes to the
+specification.  I think it might be helpful if you could divide
+these into three categories:
+
+(1) issues where an actual change to the intent of the
+specification is required, or at least where a change
+might be useful.
+
+(2) ways in which the specification's wording or organization
+leads to confusion, although the actual intent is right.
+I.e., clarification is needed.
+
+(3) "advice to implementors": areas where the specification
+properly leaves some freedom to implementors, but we can
+give some advice that seems to be "best current practice".
+
+We have decided that items in category #3 should not appear in
+the actual specification.  Martin Hamilton (MARTIN@MRRL.LUT.AC.UK)
+was collecting a set of these, for possible use in a companion
+document.
+
+-Jeff
+
+
+

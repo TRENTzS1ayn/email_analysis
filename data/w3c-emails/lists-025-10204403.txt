@@ -1,0 +1,141 @@
+docno="lists-025-10204403"
+received="Mon Jul 21 15:59:11 2003"
+isoreceived="20030721195911"
+sent="Mon, 21 Jul 2003 12:48:56 -0700"
+isosent="20030721194856"
+name="Assaf Arkin"
+email="arkin@intalio.com"
+subject="Re: Decoupling of low-level and high-level MEP"
+id="3F1C43A8.3060809@intalio.com"
+charset="ISO-8859-1"
+inreplyto="4.3.2.7.2.20030720104117.033a9140&#64;franklin.cisco.com"
+expires="-1"
+
+
+To: Ricky Ho<riho@cisco.com>
+CC:public-ws-chor@w3.org
+
+
+This is still not out-of-bands but a transformation of one protocol into 
+another.
+
+Out of band would be:
+
+3) The binding layer (this is what you call the "protocol handler", 
+consider it to be the client stub of the POHandlerPT) decides to use the 
+RM services.  So it invokdes submitPO on PO-HandlerPT (notice: 
+business-level port and operation). But it adds all the relevant RM 
+headers which are marked as mustUnderstand="true".
+3-4) The implementation of submitPO (at received side, part of 
+business-level MEP) receives message. Detecting RM headers which it must 
+understand, it asks the RM protocol handler to make sense of them 
+*before* forwarding the message to the application. (If it has no RM 
+support it rejects the message with a standard SOAP fault)
+4) The protocol handler, as per the RM protocol specification, reviews 
+the RM headers, persists the message, invokes the sendAck operation on 
+the sender side, or anything else it needs to do. Then it delivers the 
+message to the application.
+
+Note that the business-level MEP is not changed or transformed in any 
+way, it is still executed as is. So a monitoring tool would see a 
+message exchange as specified in the business-level MEP -- important for 
+management purposes or users would have no clue what has just transpired.
+
+The sendAck operation is indeed defined by some RM-ReceiverPT that is 
+specified in the RM specification. That same porttype/operation is used 
+anywhere RM is used.
+
+arkin
+
+Ricky Ho wrote:
+
+>
+> Arkin, your idea here is very interesting to me.  I try to use an 
+> example to confirm my understanding ...
+>
+> Business-level MEP
+> ===============
+> - Submit PO
+> - A one-way message (no response is expected at the business level)
+>
+> MEP SubmitPO {
+>         role: buyer, seller (implements PO-HandlerPT)
+>         sequence {
+>                 buyer invoke seller (operation = submitPO, portType = 
+> PO-HandlerPT)
+>         }
+> }
+>
+> PortType PO-HandlerPT {
+>         Operation submitPO {
+>                 Input: (PO)
+>         }
+> }
+>
+> However, since the PO must be send reliably (ie, it has certain QOS 
+> requirement).  Therefore, at the implementation level, this 
+> "business-layer MEP" is build on the RM MEP
+>
+> Infrastructure-level MEP
+> ==================
+>
+> MEP RM {
+>     role: sender (implements RM-SenderPT), receiver (implements 
+> RM-ReceiverPT)
+>     sequence {
+>         while (no Ack received) {
+>             sender invoke receiver (operation = sendMessage, portType 
+> = RM-ReceiverPT)
+>             switch {
+>                 case1: {
+>                     receiver invoke sender (operation = sendAck, 
+> portType = RM-SenderPT)
+>                 }
+>                 case2: {
+>                     timeout
+>                 }
+>             }
+>         }
+>     }
+> }
+>
+> PortType RM-ReceiverPT {
+>         Operation sendMessage {
+>                 Input: (Message, Ack-CallbackAddress)
+>         }
+> }
+>
+> PortType RM-SenderPT {
+>         Operation sendAck {
+>                 Input: (Ack)
+>         }
+> }
+>
+> Here is what happens at runtime ...
+>
+> 1) The buyer engage in the SubmitPO MEP when it follows the 
+> choreography definition and invoke the "submitPO" operation.
+> 2) There is separate QOS requirement specified by the buyer (maybe 
+> communicate out of band) that the operation must be done reliably.
+> 3) The binding layer (this is what you call the "protocol handler", 
+> consider it to be the client stub of the POHandlerPT) decides to use 
+> the RM services.  So it invoke the "sendMessage" operation of the 
+> RM-ReceiverPT instead (the client stub may encapsulate the business 
+> SOAP message inside the RM SOAP message).
+> 4) The implementation of sendMessage (at receiver side, which you call 
+> the "protocol handler") invoke the sendAck operation of the sender 
+> side.  At the same time, it also invoke the "submitPO" operation of 
+> the receiver side.
+>
+> The key point here is that the binding between the business-level-MEP 
+> and RM-MEP is captured "somewhere else" (what you call "out-of-band"), 
+> so that they can essentially decoupled with each other.  This 
+> "decoupling" introduce tremendously reusability and flexibility and 
+> still retain simplicity.
+>
+> Do I accurately rephrase what you mean ?
+>
+> Rgds, Ricky
+
+
+

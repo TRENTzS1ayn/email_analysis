@@ -1,0 +1,350 @@
+docno="lists-050-5640978"
+received="Thu Jan 31 19:44:03 2002"
+isoreceived="20020201004403"
+sent="Thu, 31 Jan 2002 18:44:28 -0600"
+isosent="20020201004428"
+name="Pat Hayes"
+email="phayes@ai.uwf.edu"
+subject="Datatypes: the Bermuda Triangle, and how to fly over it."
+id="p05101050b87e2ed2db4d@[65.212.118.208]"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-rdfcore-wg@w3.org
+Cc:hendler@cs.umd.edu
+
+(I'm CCing this msg to Jim Hendler. Jim, FYI particularly the last 2 
+paragraphs, relevance to 'layering'. More on that tomorrow. )
+
+Sorry this is such a long msg, but I think it might solve a lot of problems.
+
+Tinkering with the TDL MT, and offline conversations with Graham, 
+convince me that there is a central problem with several of the 
+proposed datatyping schemes. Basically, rdf:type just doesn't handle 
+datatypes properly, no matter how much one wriggles. You can push the 
+problem around, but I don't think there is any way of getting rid of 
+it without doing something different. I have a proposal for what to 
+do.
+
+First the central problem. (Much of this is a kind of review of what 
+other people have noticed, but it helped me get my head clear.) 
+Consider any graph with the following kind of 'triangle' with a blank 
+node in it (eg see section 3.1 of 
+http://lists.w3.org/Archives/Public/www-archive/2002Jan/att-0133/02-tdl.htm, 
+or 'idiom B' and 'idiom P' in 
+http://lists.w3.org/Archives/Public/www-archive/2002Jan/att-0133/01-s.htm)
+
+eg:thing---eg:prop--->_:1
+_:1 ---AAA---> UUU
+_:1 ---rdf:type---> DDD
+
+where AAA is some 'special' name like rdf:namedBy or rdf:value or 
+whatever, UUU is a unicode string, ie a literal , and DDD is a 
+datatype name. The idea is to state some kind of ingeniously worded 
+conditions on interpretations of those three triples which guarantee 
+that any satisfying interpretation of such a graph will be one where 
+the bnode denotes the value of UUU under the datatype mapping 
+associated with the datatype DDD, so that the eg:prop of eg:thing is 
+that value. (By 'value' here I mean an element of the value space of 
+the datatype, eg for xsd:integer it would be an integer.)
+
+The problem is that no such conditions *on RDF triples* are going to 
+work properly. Whatever we do, we can't keep a value in a Bermuda 
+triangle. Something will fail and the right value will be lost, never 
+to be seen again.
+
+Here's why.  In order for the first triple to mean what it is 
+supposed to mean, the blank node has to denote the value of UUU under 
+the datatype mapping identified by DDD; but that value does not 
+provide enough information to enable one to state semantic conditions 
+on the other two triples which would restrict UUU to be interpreted 
+by the DDD mapping, since the same value may well be the value of a 
+different literal under a different datatype mapping.
+
+TDL fixes the last problem by making the bnode denote a pair; but 
+then the first triple doesn't make sense. (But we hope some other 
+application software will figure it out. Hmm, I wonder if all 
+application software is savvy enough to do that...) In Patrick's 
+terminology, what we need is some way to state conditions which 
+enable the pairing of UUU and DDD to together impose a value on the 
+bnode; and the problem is that if that they are only connected at the 
+middle blank node, and if its value is the one that any other triple 
+would expect it to be (eg Bill eg:age _:x expects the value to be an 
+integer, say) then it can't do the pairing all by itself.
+
+Now, it would be possible to fix this problem by stating appropriate 
+semantic conditions on the entire subgraph containing the last two 
+triples (details below). That option amounts to implicitly giving 
+such 'datyping doublets' a special datyped-RDF status, and assigning 
+them a meaning that goes beyond their meanings as two separate 
+triples, so that a 'datatype doublet' would be more than just a 
+conjunction (in a datatype-sensitive interpretation); it really 
+amounts to assigning those graphs a special semantic status that 
+stands outside the conventional model theory in a particular way. 
+That is a slightly unconventional idea in normal logical model 
+theory, but it seems to work (and it might be a neat way to approach 
+'layering' on RDF in any case, an idea I am trying to write up for 
+the webont WG). I'll come back to this proposal later.
+
+However, even if we were to state such 'doublet conditions', we still 
+have another problem. If DDD is an rdfs:subClassOf EEE, then this 
+graph entails another triangle:
+
+eg:thing---eg:prop--->_:1
+_:1---AAA--->UUU
+_:1---rdf:type--->DDD
+_:1---rdf:type--->EEE
+
+and now any condition that we can state on AAA, UUU and DDD in order 
+to restrict I(UUU) to have the relationship to I(_:1) sanctioned by 
+I(DDD) is going to apply just as well to I(EEE).  Even if we state 
+conditions on doublets, there are two doublets in this graph.  But if 
+EEE is a datatype, there is no guarantee that the lexical-to-value 
+mapping associated with EEE is compatible with that associated with 
+DDD.
+
+One reaction is to just stop this happening by some kind of fiat: 
+forbid subClassOf to be applied to datatypes ....
+(objection: in order to make use of RDFS reasoning on datatypes, we 
+presumably want to be able to say that one datatype is a sub-datatype 
+of another, and it seems natural to do that by saying that one of 
+them is an rdfs:subClassOf the other. In fact, its more than natural: 
+its the *only* way we have of doing it, if datatypes are classes. 
+Another objection: it might follow from normal class reasoning that 
+one datatype value space is a subset of another. After all, they are, 
+as a matter of fact.)
+.....or declare that we will only allow the use of rationally 
+constructed datatype schemes....
+(objection: XSD isn't rational enough.)
+But none of these seem satisfactory as a solution.
+
+Now, the key point about this second problem is not the details of 
+the semantic conditions or the use of bnodes or whatever: it is RDFS 
+class inheritance. That is what causes all this trouble.  And that 
+arises from our using rdf:type in the triangle in the first place. 
+Even if we allowed literals as subjects, so that we could put the 
+literal and the datatype name in a single triple (which is about as 
+'local' as one could get in a triples notation with datatype class 
+names) :
+
+UUU rdf:type DDD .
+
+the problem would still be there.
+
+So here is my proposal to fix this second problem: DON'T use rdf:type 
+to associate datatypes with nodes. Instead use a new property, which 
+I will call rdf:dtype. This can be required to be an 
+rdfs:subPropertyOf rdf:type, so we can do a fair amount of 
+class-membership reasoning using it. But now the bad inferences are 
+blocked, because
+
+foo rdf:dtype DDD .
+DDD rdfs:subClassOf EEE .
+
+does not entail
+
+foo rdf:dtype EEE .
+
+The utility of this is that it enables us to carefully limit the 
+extent to which this datatyping property gets inherited. For example, 
+we might want to impose a 'ranging condition':
+
+If:
+foo rdf:Range DDD
+xxx foo yyy
+then:
+yyy rdf:dtype DDD
+
+whenever I(DDD) is a datatype. Then we can use ordinary subclass 
+reasoning on the ranges, using rdfs:subClass, but that will only give 
+us assertions using rdf:type, not rdf:dtype, so they will not get the 
+datatyping constraints confused.  (Recall that foo rdf:Range baz and 
+baz rdfs:subClassOf bar does *not* entail foo rdf:Range bar, even 
+though rdf:type is inherited by superclasses.)
+
+I think that is the only change this would require to the current MT 
+would be to add
+
+rdf:dtype rdfs:subPropertyOf rdf:type .
+
+to #1 in the RDFS closure.
+
+It would be perfectly *permissible* to use rdf:type in a doublet, of 
+course, and in 'simple' cases it would have the same effect (which I 
+am willing to bet would cover all the legacy uses)  but it is 
+potentially dangerous, since it might lead to inconsistencies  with 
+more complicated datatype hierarchies. (Notice the it would be quite 
+harmless to conclude that DDD was a subclass of EEE as long as EEE 
+wasn't a datatype class, that would have no effect an anything.) So 
+we can still allow it, but deprecate it in favor of rdf:dtype. The 
+'simple' cases would be those in which rdf:type rdfs:subPropertyOf 
+rdf:dtype, so that the two were equivalent in meaning; and if someone 
+were willing to assert that, then they could use rdf:type freely to 
+attach datatypes to literals and it would work just fine from normal 
+rdfs reasoning, as long as there were no datatype mapping inheritance 
+inconsistencies.  (And even then, all that would happen is that some 
+particularly dumb RDF graphs might give silly or inconsistent 
+results; the reasoners wouldn't actually break.) Of course, a DPH 
+could achieve the same effect, and run the same risks, just by 
+ignoring the difference between rdf:type and rdf:dtype, and we could 
+even point this out to said DPH, with our blessing.
+
+Now, with this change, we can solve the Bermuda triangle property by 
+stating semantic conditions on doublets as follows. (This is an 
+adaptation of an idea from Graham):
+
+A dt-interpretation I of E   - with respect to some externally 
+defined set D of datatypes, where each datatype d in D has an 
+associated lexical-to-value mapping LV(d)  - is an 
+rdfs-interpretation of E where for every doublet
+
+S rdf:value "uuu"
+S rdf:dtype ddd
+
+in E, if I(ddd) is in D, then I(S)=LV(I(ddd))(uuu)
+
+Notice that this really is a condition on the doublet because it 
+mentions both ddd and uuu. It is consistent with I("uuu") being the 
+string uuu, so we could make graphs tidy on literals (keeps Sergey 
+and Dan C happy and simplifies the graph syntax.)  It is a 
+restriction on an rdfs-interpretation, so every dt-interpretation is 
+an rdfs-interpretation, so dt-entailment is a strengthening of 
+rdfs-entailment, as we would want.
+
+BTW, the easiest way to understand rdf:value here would be that it is 
+a union (disjunction) of inverses of canonical submappings of the 
+datatype mappings in D, ie IEXT(I(rdf:value)) = {<x,y> : for some 
+datatype d in D, LV(d)(y)=x} . But this really doesn't matter all 
+that much (as long as it can be given some consistent 
+interpretation), since the only significant role of the rdf:value 
+triple is to be part of the datatyping doublet. Also, we could call 
+that property anything we like, as long as it is reserved for this 
+special use.
+
+Notice that uses exactly the same RDF graph as the TDL proposal 
+(apart from the rdf:dtype change). Its just a different MT.  It works 
+pretty much the same way for rdfs:Range as well.
+
+As stated, this only works for 'local typing', ie where the (rdfs 
+closure of the) graph contains an actual triple with "rdf:dtype" in 
+it.  What about ranges and so on? Well, we can introduce yet a 
+further semantic extension, which would be a range-dt-interpretation, 
+which also satisfies the ranging condition described above, ie that 
+if both
+
+fff rdf:Range ddd
+xxx fff yyy
+
+are true then
+
+yyy rdf:dtype ddd
+
+must be true also. Obviously this has a corresponding closure rule 
+that would add the appropriate rdf:dtype assertions to a graph, and 
+then we can characterize 'remote' datatyping by saying that it 
+amounts to doing local datatyping in the range-dt-closure of the 
+graph. Then we would have an entailment lemma for each kind of 
+datatyping as an extension of the previous kind, extending the 
+'layers' that we already have for simple/rdf/rdfs/...entailment. 
+Expressed more operationally, that is just saying that in order to 
+check 'remote' datatyping, we need to do some extra inferencing of a 
+particular kind. Most of it will be normal rdfs inference, but it 
+needs to pay special attention to rdf:dtype.
+
+We could even express something like a preference for local over 
+global, by saying that one is supposed to check dt-entailment before 
+checking for range-dt-entailment. That makes the distinction 
+rigorously clear in MT terms without actually including barbaric 
+things like defaults into the MT itself :-) Notice that something can 
+be range-dt-inconsistent but still be dt-consistent; that would be a 
+range d.t. contradicting a local d.t.. But if we decide to stick with 
+simple dt-entailment and only worry about that, and never check 
+range-dt-entailment, then we will never notice the higher-level 
+inconsistency, and indeed the graph will be consistent as far as we 
+are concerned. And all these graphs are perfectly fine seen as simple 
+RDFS, though they aren't saying much about the values of the bnodes 
+in the triangles when looked at from that low a level.
+
+<datatyping proposal />
+  <more general issue>
+
+Now, all this business of defining more and more different notions of 
+interpretation and associated kinds of entailment might seem kind of 
+a crock: after all, RDF is supposed to be a single language, not a 
+whole series of languages, right? But in fact, I would argue that it 
+is appropriate, since RDF(S) is supposed to be a 'ground layer' for 
+the whole SWeb, so one would expect that it should support a whole 
+lot of different kinds of interpretation, as one puts more and more 
+things into it that are supposed to have extra meanings over and 
+above the basic RDF meaning. In a sense, it *is* a series of 
+languages, but which are all encoded in the same RDF triples-graph 
+syntax, so we have to define a whole range of different kinds of 
+entailment for the same syntax.  And this is all OK, as long as those 
+special 'extra' meanings are indeed genuinely extra, ie if you ignore 
+the extra constraints, then the RDF triples that are there can be 
+understood as normal RDF triples at some 'lower' level of the layer 
+cake, and all their conclusions will be valid there (and will not 
+screw up any higher levels). Which they are in this case. (Though not 
+when we get to DAML, which is a problem for the webont WG; but that's 
+another story.) Then each 'layer' can be seen as a licence to use 
+some extra kind of inferencing or processing power on the same graph, 
+rather than an extension to the notation/syntax of the language. 
+Presumably the licence to use such extra power would come from some 
+kind of enclosing tags, like the <daml> tags that DAML uses; or, we 
+could introduce the new vocabulary with a new Qname prefix, and write 
+rdfd:type and rdfd:value to indicate that they constitute a new 
+name-space with special meanings, maybe. (Can we, the RDF WG, do 
+that?).
+
+The overall picture one gets is something like Tim's famous 
+layer-cake, but with finer structure in the layers. (But then we 
+ought to expect that when we get closer, we can see finer structure, 
+right?) Like this:
+
+Full datatype entailment (where datatypes on rdf:ranges of properties 
+can fix meanings of literals)
+---------------------------------
+Local datatype entailment (where only the explicit typing triples fix 
+meanings of literals)
+---------------------------------
+RDFS entailment (where the rdf: and rdfs: vocabulary is properly 
+interpreted but literals are just strings)
+---------------------------------
+RDF entailment (where rdf:type and rdf:Property is properly 
+interpreted: it might not be worth distinguishing this layer, in 
+practice.)
+---------------------------------
+Simple RDF entailment(just from the raw triples)
+---------------------------------
+(I guess XML is under here somewhere :-)
+
+Its the same syntax everywhere: sets of RDF triples. But each layer 
+adds some inferential power to the layer below, expressed in the MT 
+as a new set of semantic constraints on allowable interpretations 
+imposed on some part of the vocabulary. When those restrictions have 
+to mention more than one triple (as here) then in a sense we could 
+say that this amounts to encoding a different, higher-level, syntax 
+in the RDF graph, but we aren't *obliged* to talk about it that way.
+
+BTW, since the top two are relative to D, this is really a tree, if 
+there are several datatyping schemes in use. But RDFS is all in the 
+trunk.
+
+Pat
+
+PS. More later on the S idioms and how they can be included into this 
+picture. They don't need the use of rdf:dtype to avoid inappropriate 
+inheritance.
+
+
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

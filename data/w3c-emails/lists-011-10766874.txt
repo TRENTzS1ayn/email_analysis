@@ -1,0 +1,126 @@
+docno="lists-011-10766874"
+received="Sun Nov 16 23:48:27 1997"
+isoreceived="19971117044827"
+sent="Mon, 17 Nov 1997 04:18:42 +0200"
+isosent="19971117021842"
+name="Life is hard... and then you die."
+email="Ronald.Tschalaer@psi.ch"
+subject="Syntax (and other) problems in Digest spec"
+id="97111704184247@psiclb.psi.ch"
+expires="1"
+
+
+To:HTTP-WG%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+While implementing the client side of the Digest authentication scheme
+(RFC-2069 and draft-ietf-http-digest-aa-rev-00.txt) I've hit a few syntax
+and other problems.
+
+1) RFC-2069 specifies the domain param in a challenge as
+
+     domain              = "domain" "=" <"> 1#URI <">
+
+     domain
+     A comma-separated list of URIs, as specified for HTTP/1.0.  The
+     intent is that the client could use this information to know the
+     set of URIs for which the same authentication information should be
+     sent.  The URIs in this list may exist on different servers.  If
+     this keyword is omitted or empty, the client should assume that the
+     domain consists of all URIs on the responding server.
+
+   However, the list of URIs is not (unambiguously) parseable because the
+   "," may be part of the URI (it's one of "uchar"). Consider the following
+   two examples:
+
+     domain="http://www.other.com/a/weird,/path"
+     domain="http://www.other.com/,http://www.this.com/"
+
+   Either can be parsed into a single or into two valid URIs.
+
+   Studying the syntax given in section 3.2.1 of rfc-1945 I conclude that
+   the only separators usable would be one of the "unsafe" class minus the
+   "%". Of those, SP seems the most reasonable choice to me. Therefore I
+   would suggest changing the domain param definition to:
+
+     domain              = "domain" "=" <"> URI *( 1*SP URI ) <">
+
+   Another issue is that "as specified for HTTP/1.0" is a little unclear.
+   Does this really mean any URI? Or just http URLs (and possibly related
+   ones, such as https://...)? And what about relative URIs - I assume that
+   they are to be interpreted relative to the absolute URI of the request
+   which elicited this response? Could this be clarified in the spec.
+
+
+2) Is there a particular reason the syntax for the digest challenge and
+   credentials does not follow the general syntax given in rfc-1945 and
+   rfc-2068?
+
+     challenge      = auth-scheme 1*SP realm *( "," auth-param )
+     credentials    = basic-credentials
+                      | auth-scheme #auth-param
+     auth-param     = token "=" quoted-string
+
+   This syntax is violated in three respects in the digest spec: 
+
+   1: The value parts of the params "stale", "algorithm" and "uri" are not
+      quoted strings:
+
+        stale               = "stale" "=" ( "true" | "false" )
+        algorithm           = "algorithm" "=" ( "MD5" | token )
+        digest-uri          = "uri" "=" digest-uri-value
+        digest-uri-value    = request-uri         ; As specified by HTTP/1.1
+
+      Suggested changes:
+
+        stale               = "stale" "=" <"> ( "true" | "false" ) <">
+        algorithm           = "algorithm" "=" <"> ( "MD5" | token ) <">
+        digest-uri-value    = <"> request-uri <">   ; As specified by HTTP/1.1
+
+
+   2: The "digest-required" param does not even have a value part:
+
+        digest-required     = "digest-required"
+
+      Suggested change:
+
+        digest-required     = "digest-required" = <"> ( "true" | "false" ) <">
+
+      (with a corresponding change in textual description of this param)
+
+
+   3: The realm need not be the first param in the challenge:
+
+        digest-challenge    = 1#( realm | [ domain ] | nonce |
+                              [ opaque ] |[ stale ] | [ algorithm ] |
+                              [ digest-required ] )
+
+      Suggested change:
+
+        digest-challenge    = realm 1#( [ domain ] | nonce |
+                              [ opaque ] |[ stale ] | [ algorithm ] |
+                              [ digest-required ] )
+
+      Note that all servers which implement the Digest scheme that I've
+      run into (to wit: Apache, Agranat-EmWeb, WN and DMKHTD) all do
+      actually send the realm first.
+
+
+3) The digest-uri-value is defined as:
+
+        digest-uri-value    = <"> request-uri <">   ; As specified by HTTP/1.1
+
+   I believe this is wrong, or at least misleading. When a proxy is involved
+   the digest-uri-value must be the request-uri that the server will see,
+   not the one sent by the client (i.e. the absolute path, not the full
+   absolute uri). I'm not sure how to best describe this in the spec
+   though.
+
+
+
+  Cheers,
+
+  Ronald
+
+
+

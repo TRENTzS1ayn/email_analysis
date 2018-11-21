@@ -1,0 +1,86 @@
+docno="lists-010-0734503"
+received="Wed Mar 27 13:48:54 1996"
+isoreceived="19960327184854"
+sent="Wed, 27 Mar 96 16:43:10 0500"
+isosent="19960327214310"
+name="hallam@w3.org"
+email="hallam@w3.org"
+subject="Re: gethostbyname (was Re: (DNS) draft wording for W.G. review. )"
+id="9603272143.AA14831@zorch.w3.org"
+inreplyto="Pine.SUN.3.91.960327144422.27612B100000&#64;cybercash.com"
+expires="1"
+
+
+To:"Donald E. Eastlake 3rd"<dee@cybercash.com>,  Anawat Chankhunthod<chankhun@catarina.usc.edu>,  'Paul Vixie'<paul@vix.com>,http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com,iip@tis.com
+Cc:hallam@w3.org,paulle@microsoft.com
+
+
+Now I'm back into remembering when and why I wrote the code I remember that I 
+gave up on it precisely because of the security stuff.
+
+I'm pretty indifferent to the interface except that:-
+
+1) It should allow access to whatever data is avaliable
+
+2) It should be possible to use it in a non blocking fashion.
+
+(2) is a problem since it would mean that the interface could not be abstracted 
+off the network layer to the extent I would like. On the other hand it might be 
+possible to work out something that would be based on sockets as opposed to UDP.
+E.g.
+
+DNS_initialize (&context, DNS_default)
+//returns a dns query context with the system default
+//DNS lookup daemons instantiated. Note that context is an
+//opaque structure, the calling program is not allowed to 
+//meddle with it.
+DNS_add_resolver (context, &address}
+//address = {18.24.1.191, weight} i.e. we give it an extra
+//resolver to look at, this structure could have a weight
+//associated with it allowing information. 
+//This is particularly usefull when doing higher level
+//hacking, e.g. looking to find an authoratative server.
+DNS_query (context, &name, &address, &query_id, flag)
+//flag can be
+//  DNS_SYNC- wait for DNS query to return
+//  DNS_ASYNC- asynchronous, if query cannot be resolved
+//immediately will return a socket which can be
+//waited on as part of query_id.
+DNS_test (context, query_id, flag)
+//Checks to see if a query has completed. Flag allows caller to 
+//chose to wait. Note that this function would generally
+//be called after a select on the query_id socket. The idea
+//being to allow multiple DNS queries to be grouped on the
+//same socket.
+//Alternatively context could have a pointer to a linked list
+//of resolved query_id structures. An application could then
+//avoid having to check each outstanding DNS query in turn.
+//Internaly the code is likely to want to use a hash table or
+//balanced tree to match queries with responses.
+DNS_close (context, query_id)
+//Dispose of query, return
+DNS_terminate (context)
+//Free any structures held open (e.g. application level cache)
+
+Note that this is a considerably more complex interface than people are used to. 
+I think that this is unavoidable if we are to have something that will work in 
+multiprocessor environments (I believe that we will be using boxes with large 
+arrays of MIMD processors in the realatively near future. By large I mean 64+, 
+not the 4 to 16 that shared memory models give you).
+
+Note that the idea of the context is not a very Berkley or UNIX style of API but 
+it does mean that progams can avoid using global variables. This is essential if 
+code is to run in multithreaded, multiprocessor environments.
+
+The sort of place where this code would be of most use would be in code to do 
+bulk DNS queries to build up databases - e.g. to asist in analysis of log files 
+or as a prefilter inside a mailing list distributor.
+
+
+I think that the right place for this battle is a cabal in the back of an IETF 
+meeting rather than POSIX or such like. 
+
+Phill
+
+
+

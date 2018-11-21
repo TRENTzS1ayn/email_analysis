@@ -1,0 +1,83 @@
+docno="lists-039-10919576"
+received="Wed Oct 27 09:07:45 1999"
+isoreceived="19991027130745"
+sent="Wed, 27 Oct 1999 09:07:42 -0400"
+isosent="19991027130742"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="why URL protection is not feasible when you version collections"
+id="9910271307.AA26053@tantalum"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+
+
+One of the key pieces of functionality that a versioning server can
+provide is the ability to version collections.  The versioning server
+remembers the states (revisions) of a collection (i.e. the list of
+internal members).  This lets a client roll back to a previous state
+of the URL namespace, hold the namespace fixed while it is making
+changes and then updating to the current state, or even let let
+clients make changes to the namespace in parallel and then merge the
+results when appropriate.
+
+Now suppose you are a versioning unaware client, but you do know about
+locking.  There is a default workspace (containg the revision selection
+rules that compute what revision of a collection will show up in the
+workspace) that all your requests work against.
+
+Suppose you LOCK /x/y/z/foo.html.  The versioning server will
+automagically check it out into the default workspace, and lock the
+resulting working resource.
+
+But it's not just /x/y/z/foo.html that is versioned, but also the
+collections /x/y/z and /x/y and even /x, just for good measure.  Now
+some other client wants to add a label to some revision of /x/y.  Is
+this OK?  Well, if locked resources cannot be renamed, before the
+server can let the label be added, it has to compute the revision
+selection rule to see if this would cause a new revision of /x/y to be
+selected in the default workspace.  If this new revision of /x/y
+renames the member named "z" to be "oldz", the server must fail the
+label request (or else /x/y/z/foo.html will be renamed
+/x/y/oldz/foo.html).
+
+You have to run this check on *every* change to *any* metadata
+(e.g. label, activity), against *every* workspace that might use
+that metadata.  Thus the term "computationally infeasible" (:-).
+
+So one alternative is the one I've proposed earlier ... require
+that *if* a server allows renaming of locked resources, then it MUST
+return a 302 indicating where that locked resource ended up.
+A server is of course free to refuse the move ... it's only servers
+that allow the move that need to do the tracking for 302 responses.
+Today's locking servers are all protocol compliant; versioning servers
+are protocol compliant; and clients just have to handle the occasional
+(but rare) 302 coming back on access to a locked resource.
+
+There is another alternative: have versioning servers tightly
+constrain the default workspace so that URL protection is feasible
+(perhaps, only allow a single label rule).  Then define locking
+to have the above behavior whenever a Target-Selector header is
+included in the LOCK request (indicating a versioning aware client),
+but have the URL protection behavior if there is no Target-Selector
+header specified.
+
+I believe this is a significantly inferior alternative, since it
+defines two subtly different locking behaviors based on the
+presence of a non-lock related header.  Its only benefit is that
+a versioning unaware client is protected from 302's.
+
+Since there are at least a couple of non-versioning implementors
+on this list that prefer the 302 behavior, I believe it is not
+just a complexity introduced by versioning, but rather it is something
+that is actually simpler for some classes of simple servers as
+well.  I'd still like to hear a convincing argument as to why it
+is hard for a client to deal with a 302 on an access to a locked
+resource.
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,55 @@
+docno="lists-009-4283142"
+received="Thu Mar 23 12:01:32 1995"
+isoreceived="19950323170132"
+sent="Thu, 23 Mar 95 11:48:30 PST"
+isosent="19950323194830"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Suggestion for HTTP 1.0"
+id="9503231948.AA15467@acetes.pa.dec.com"
+inreplyto="9503231720.AA15538&#64;terpsichore.sse.ie"
+expires="1"
+
+
+To:Adrian.Colley@sse.ie
+Cc:Dove@eworld.com,  http-wg (will serve files for coffee)<http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com>,mogul@pa.dec.com
+
+    > 1. The mobile client requests a document from the proxy, indicating it only
+    >  wants a single "page" (of client-specified length).
+    > 2. The proxy fetches the full document (or perhaps only the first page,
+    >  depending on the version of its source)
+    > 3. The proxy returns the desired "page" to the client.
+    
+    The mobile client can do this by specifying a small TCP receive
+    window and not opening it again.  If you want the first 1024 bytes,
+    for instance, you set the TCP receive window to 1024 + the probable
+    length of the reply header.  When you receive the reply header,
+    make sure the TCP window doesn't move, but will decrease to zero.
+
+Manipulating the TCP window in this way is potentially risky, because
+it can interact with the so-called "Silly-Window Syndrome Avoidance
+Algorithm" to produce long delays when absolutely nothing happens for
+many seconds.  Presumably, on a low-bandwidth link, this is exactly
+what you don't want to do!
+
+The standard sender-side SWS-avoidance algorithm will not send less
+than one TCP segment if it has ever seen a window larger than one
+segment.  E.g., if your segment size (MSS) is 512 bytes, the receiver
+has at least once advertised a window of 1024 bytes, and has shrunk
+the window to (say) 256 bytes, the sender-size SWS-avoidance algorithm
+will delay transmission.  In theory, this delay is supposed to be
+about 200 msec (i.e., not very long), but in most BSD-derived systems,
+a bug pegs this delay at about 5 seconds.
+
+So the key to making your suggestion work is "never shrink the window
+size below the MSS."  (In fact, the lower limit might be 2*MSS; I
+remember that this was a critical limit in some cases, but I can't
+remember exactly which ones.  It has to do with the standard delayed
+ACK policy.)  I suppose it is likely that on a low-bandwidth link, the
+MSS will be set fairly small ... but it is not always possible for the
+application to know/control the actual MSS.  Proceed with caution.
+
+-Jeff
+
+
+

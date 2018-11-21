@@ -1,0 +1,94 @@
+docno="lists-035-11521514"
+received="Fri Jul 20 03:13:46 2001"
+isoreceived="20010720071346"
+sent="Fri, 20 Jul 2001 14:13:40 +0700"
+isosent="20010720071340"
+name="James Clark"
+email="jjc@jclark.com"
+subject="RFC  2732's mods to RFC 2396 syntax"
+id="3500975073.995638420@pomelo.jclark.com"
+charset="us-ascii"
+expires="-1"
+
+To:uri@w3.org
+
+
+The XML schema anyURI simple type allows any string which after escaping 
+disallowed characters as described in Section 5.4 of XLink is a URI 
+reference as defined in RFC 2396, as amended by RFC 2732. This raises the 
+question of what exactly it takes for an implementation to check this.
+
+Putting on one side the RFC 2732 amendments (and the consequent 
+non-escaping of square brackets by the XLink algorithm), I believe it's 
+very simple.  To check a string, do the following:
+
+1. Check that every % is followed by two hex digits.
+
+2. Check that there is at most one # character in the string.
+
+3. If the string contains a ":" character that precedes all "/", "?" and 
+"#" characters, then the string is an absolute URI and the substring 
+preceding the first such colon must match the regex [a-zA-Z][-+.a-zA-Z0-9]*.
+
+4. If the string is an absolute URI (as in 3), the the first colon must not 
+be immediately followed by a # or the end of the string. (For example, 
+"foo:" and "foo:#bar" are illegal.)
+
+I think that's it. It's not straightforwatd to deduce this from RFC 2396 
+and XLink, so I am not 100% confident.
+
+RFC 2732 seems to radically complicate things. It adds "[" and "]" to the 
+set of reserved characters and removes them from unwise. This has the 
+effect of allowing square brackets in the query component and the fragment 
+component.  The first problem arises with the path component.  Since pchar 
+is defined in RFC 2396 as
+
+unreserved | escaped |
+  ":" | "@" | "&" | "=" | "+" | "$" | ","
+
+it is unaffected by RFC 2732 and thus square brackets are not allowed in 
+the path component.  This is a little bit strange, since intuitively pchar 
+is an any uric other than "/", "?" and ";", but it complicates checking 
+only a little.
+
+The big problem is with the authority component.  Before RFC 2732, checking 
+generic URI syntax did not require any complex parsing of the authority 
+component, because an authority can be a reg_name, which allows one or more 
+of any uric other than "/" and "?".  The problem is that because reg_name 
+is defined as:
+
+1*( unreserved | escaped | "$" | "," |
+    ";" | ":" | "@" | "&" | "=" | "+" )
+
+it is unaffected by RFC 2732.  Thus square brackets are not allowed to 
+appear arbitrarily in the authority component, but can only appear if the 
+authority component matches the server production (as amended by RFC 2732). 
+This means that a generic URI checker now has to do a complex parse of the 
+authority component.
+
+This seems completely at variance with the intent of section 3.2.1 of RFC 
+2396:
+
+"The structure of a registry-based naming authority is specific to the URI 
+scheme, but constrained to the allowed characters for an authority 
+component."
+
+I would therefore suggest at a mininum that RFC 2732 should be fixed to 
+allow "[" and "]" in reg_name.  I also think it would be cleaner and more 
+in harmony with RFC 2396 to also allow them in the path component.  In 
+terms of the BNF I would suggest introducing an other_reserved symbol:
+
+other_reserved = "&" | "=" | "+" | "$" | "," | "[" | "]"
+
+Then in each place in RFC 2396 replace occurrences of
+
+ "&" | "=" | "+" | "$" | ","
+
+(specifically in uric_no_slash, rel_segment, reg_name, userinfo, pchar, 
+reserved) by a reference to other_reserved. I believe this would also make 
+the BNF in RFC 2396 easier to understand.
+
+James
+
+
+

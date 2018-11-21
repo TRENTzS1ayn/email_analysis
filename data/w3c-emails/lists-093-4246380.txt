@@ -1,0 +1,236 @@
+docno="lists-093-4246380"
+received="Fri Jul 11 23:13:00 1997"
+isoreceived="19970712031300"
+sent="Fri, 11 Jul 1997 23:13:31 +0200 (MET DST)"
+isosent="19970711211331"
+name="Hans-Martin Keller"
+email="hkeller@gwdg.de"
+subject="core dump on DEC ALPHA"
+id="9707112113.AA05717@msfp37.gwdg.de"
+expires="-1"
+
+
+To:www-amaya@w3.org
+
+Hallo,
+
+I have downloaded and compiled Amaya 1.0b and Thot 2.1b on a Digital 
+AlphaStation 255, which runs under Digital Unix 3.2D. I really like 
+this very nice program and I would like to thank anybody who has contributed.
+
+But, I got a lot of core dumps (segmentation faults) while editing links. 
+This happens with the precompiled version as well as with the executable 
+build by the system compiler (cc -g -std). 
+
+So far I have fingered out one bug in the code. In routine 'GiveClickedAbsBox'
+(Thot/thotlib/dialogue/appli.c,L1699) a pointer (type PtrAbstractBox) is 
+converted to an integer value (int). This gives strange results on this 64bit 
+machine, because the integer is only 4 Byte long, while any pointer takes 
+8 Byte. Therefore I have changed the type of 'pave' to '(PtrAbstractBox *)',
+what it really should be, and removed all conversions to '(int *)' in all 
+places, where the routine is referenced.
+
+To avoid some compiler errors I also made some minor changes.
+
+A patch is appended.
+
+I hope this will help a little bit.
+
+Thanks again
+Hans-Martin
+
+-------------------------------------------------------------------
+Hans-Martin Keller                           Phone: +49-551-5035-48 
+Laser-Laboratorium Goettingen e.V.           Fax:   +49-551-5035-99
+Hans-Adolf-Krebs-Weg 1                       Email: hkeller@gwdg.de
+D-37077 Goettingen, Germany
+-------------------------------------------------------------------
+
+=============================================================================
+*** ../Thot_orig/thotlib/internals/f/appli_f.hTue Jan 14 16:42:33 1997
+--- thotlib/internals/f/appli_f.hFri Jul 11 19:59:58 1997
+***************
+*** 61,67 ****
+  extern void TtaResetCursor ( Document document,
+                               View view );
+  extern void GiveClickedAbsBox ( int *frame,
+!                                 int *pave );
+  extern void ChangeFrameTitle ( int frame,
+                                 char *text );
+  extern void ChangeSelFrame ( int frame );
+--- 61,67 ----
+  extern void TtaResetCursor ( Document document,
+                               View view );
+  extern void GiveClickedAbsBox ( int *frame,
+!                                PtrAbstractBox *pave );
+  extern void ChangeFrameTitle ( int frame,
+                                 char *text );
+  extern void ChangeSelFrame ( int frame );
+***************
+*** 137,143 ****
+  extern void TtaResetCursor (/* Document document,
+                                 View view */);
+  extern void GiveClickedAbsBox (/* int *frame,
+!                                   int *pave */);
+  extern void ChangeFrameTitle (/* int frame,
+                                   char *text */);
+  extern void ChangeSelFrame (/* int frame */);
+--- 137,143 ----
+  extern void TtaResetCursor (/* Document document,
+                                 View view */);
+  extern void GiveClickedAbsBox (/* int *frame,
+!                                   PtrAbstractBox *pave */);
+  extern void ChangeFrameTitle (/* int frame,
+                                   char *text */);
+  extern void ChangeSelFrame (/* int frame */);
+*** ../Thot_orig/thotlib/dialogue/appli.cMon May 12 15:17:14 1997
+--- thotlib/dialogue/appli.cFri Jul 11 19:49:37 1997
+***************
+*** 1639,1650 ****
+     designe.                                                
+    ----------------------------------------------------------------------*/
+  #ifdef __STDC__
+! void                GiveClickedAbsBox (int *frame, int *pave)
+  
+  #else  /* __STDC__ */
+  void                GiveClickedAbsBox (frame, pave)
+  int                *frame;
+! int                *pave;
+  
+  #endif /* __STDC__ */
+  
+--- 1639,1650 ----
+     designe.                                                
+    ----------------------------------------------------------------------*/
+  #ifdef __STDC__
+! void                GiveClickedAbsBox (int *frame, PtrAbstractBox *pave)
+  
+  #else  /* __STDC__ */
+  void                GiveClickedAbsBox (frame, pave)
+  int                *frame;
+! PtrAbstractBox     *pave;
+  
+  #endif /* __STDC__ */
+  
+***************
+*** 1658,1664 ****
+  
+     if (ClickIsDone == 1) {
+         *frame = 0;
+!        *pave = 0;
+     }
+  
+     /* Changement du curseur */
+--- 1658,1664 ----
+  
+     if (ClickIsDone == 1) {
+         *frame = 0;
+!        *pave = NULL;
+     }
+  
+     /* Changement du curseur */
+***************
+*** 1696,1704 ****
+  
+     *frame = ClickFrame;
+     if (ClickFrame > 0 && ClickFrame <= MAX_FRAME)
+!       *pave = (int) GetClickedAbsBox (ClickFrame, ClickX, ClickY);
+     else
+!       *pave = 0;
+  }/*GiveClickedAbsBox */
+  
+  
+--- 1696,1704 ----
+  
+     *frame = ClickFrame;
+     if (ClickFrame > 0 && ClickFrame <= MAX_FRAME)
+!       *pave = GetClickedAbsBox (ClickFrame, ClickX, ClickY);
+     else
+!       *pave = NULL;
+  }/*GiveClickedAbsBox */
+  
+  
+*** ../Thot_orig/thotlib/dialogue/interface.cWed May 14 16:01:22 1997
+--- thotlib/dialogue/interface.cFri Jul 11 20:04:46 1997
+***************
+*** 1388,1394 ****
+  *element = (Element) None;
+  *document = (Document) None;
+  
+! GiveClickedAbsBox (&frame, (int *) &absBox);
+  if (frame == 0 || absBox == 0)
+     return;
+  else
+--- 1388,1394 ----
+  *element = (Element) None;
+  *document = (Document) None;
+  
+! GiveClickedAbsBox (&frame, &absBox);
+  if (frame == 0 || absBox == 0)
+     return;
+  else
+*** ../Thot_orig/thotlib/editing/structcreation.cWed May 07 08:55:25 1997
+--- thotlib/editing/structcreation.cFri Jul 11 20:07:07 1997
+***************
+*** 1688,1694 ****
+       /* pre'alablement). Il faut donc annuler FirstCreation */
+       FirstCreation = FALSE;
+       /* demande la selection d'un pave de la cible */
+!      GiveClickedAbsBox (&frame, (int *) &pAb);
+       if (pAb != NULL)
+  /* une selection de pave a bien ete faite */
+         {
+--- 1688,1694 ----
+       /* pre'alablement). Il faut donc annuler FirstCreation */
+       FirstCreation = FALSE;
+       /* demande la selection d'un pave de la cible */
+!      GiveClickedAbsBox (&frame, &pAb);
+       if (pAb != NULL)
+  /* une selection de pave a bien ete faite */
+         {
+*** ../Thot_orig/tools/javastub/javastub.cMon May 12 15:17:30 1997
+--- tools/javastub/javastub.cWed Jul 09 23:26:01 1997
+***************
+*** 1286,1304 ****
+                  /*
+   * Dump the expected results.
+   */
+! if ((out = fopen(stubCOutputFile,"w")) < 0) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+  dump_stubs(out);
+  fclose(out);
+! if ((out = fopen(javaOutputFile,"w")) < 0) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+  dump_java(out);
+  fclose(out);
+! if ((out = fopen(stubHOutputFile,"w")) < 0) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+--- 1286,1304 ----
+                  /*
+   * Dump the expected results.
+   */
+! if ((out = fopen(stubCOutputFile,"w")) == NULL) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+  dump_stubs(out);
+  fclose(out);
+! if ((out = fopen(javaOutputFile,"w")) == NULL) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+  dump_java(out);
+  fclose(out);
+! if ((out = fopen(stubHOutputFile,"w")) == NULL) {
+      fprintf(stderr,"Cannot open %s\n", output);
+      exit(1);
+  }
+
+
+

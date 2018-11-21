@@ -1,0 +1,169 @@
+docno="lists-064-12314700"
+received="Mon May 21 21:35:34 2001"
+isoreceived="20010522013534"
+sent="Tue, 22 May 2001 02:37:59 +0100"
+isosent="20010522013759"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="EARL Test Criteria Structure"
+id="097e01c0e25f$d67a8ca0$a2ed93c3@z5n9x1"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<w3c-wai-er-ig@w3.org>
+
+In EARL 0.9, we have "earl:suite" and "earl:id" available with which
+to point to test criteria, but this cannot provide enough semantics
+for people to build well structured results, so EARL 0.95 now consists
+of the following classes and properties:-
+
+Classes
+   earl:TestCase
+   earl:TestCriteria [new]
+   earl:Exclusion [new]
+Properties
+   earl:suite
+   earl:id
+   earl:excludes [new]
+   earl:level [new]
+
+Which are arranged as set out in [1], cf. [2]. For example, the old
+model could only allow us to say that a page conforms to either a
+suite of checkpoints, or one single checkpoint, or any list thereof.
+In 0.95 we can now be much more particular about what we are
+evaluating to - for example, all guidelines except x, y, z, all
+guidelines of a certain level in a suite, and so on. Examples:-
+
+My page passes/fails...
+
+a) "All of WCAG 1.0"
+
+   :MyTestCaseA
+      earl:suite <http://www.w3.org/TR/WCAG10/> .
+
+b) "WCAG checkpoint 1.1"
+
+   :MyTestCaseB
+      earl:id <http://www.w3.org/TR/WCAG10/#tech-text-equivalent> .
+
+c) "WCAG 1.0 and WCAG 2.0"
+
+   :MyTestCaseC
+      earl:suite <http://www.w3.org/TR/WCAG10/>,
+        <http://www.w3.org/TR/WCAG20/> .
+
+d) "WCAG 1.0 Double A"
+
+   :MyTestCaseD
+     earl:testCriteria
+       [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+         earl:level "Double A" ] .
+
+e) "All of WCAG 1.0, except for checkpoint 1.1"
+
+   :MyTestCaseE
+      earl:testCriteria
+        [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+          earl:excludes
+             [ earl:id
+<http://www.w3.org/TR/WCAG10/#tech-text-equivalent> ] ] .
+
+f) "All of the WCAG 1.0 Priority 2 (AA) checkpoints" (actually: "All
+of WCAG 1.0 Double A, excluding Single A")
+   :MyTestCaseF
+      earl:testCriteria
+        [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+          earl:level "Double A";
+          earl:excludes
+             [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+               earl:level "Single A" ] ] .
+
+g) "All of WCAG 1.0 Priority 3, plus 1.1, and all of WCAG 2.0 priority
+2, except where these are in WCAG 1.0 Level A"
+:MyTestCaseG
+      earl:id <http://www.w3.org/TR/WCAG10/#tech-text-equivalent>;
+      earl:testCriteria
+        [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+          earl:level "Triple A";
+          earl:excludes
+             [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+               earl:level "Double A" ] ],
+        [ earl:suite <http://www.w3.org/TR/WCAG20/>;
+          earl:level "Double A";
+          earl:excludes
+             [ earl:suite <http://www.w3.org/TR/WCAG20/>;
+               earl:level "Single A" ],
+             [ earl:suite <http://www.w3.org/TR/WCAG10/>;
+                earl:level "Single A" ] .
+
+Note that if the above were "except where these are in WCAG priority
+2", it would be impossble without enumerating all of the IDs, because
+earl:Exclusions cannot themselves have earl:Exclusions coming off of
+them. That could be changed, but it would mean more data in the
+schema, and more layering in the instances. Do we need to give the
+language this much power? There are many such trade-offs to be
+considered here.
+
+One way to introduce this power if we really must is to introduce some
+kind of "priority" property, although I'm not sure how that would
+relate to any of the terms in EARL. I suppose that :priority would be
+a subPropertyOf earl:level - we can always add that if need be.
+
+In Daniel's original properties details, he seems to be using "suite"
+as "test suite", but I used it to point to a suite of checkpoints, so
+instead I've created earl:testSuite to take the burden off. Formal
+definitions:-
+
+earl:suite rdfs:comment """A suite of checkpoints, guidelines, or any
+other form of rules that an earl:TestSubject can be evaluated against.
+e.g. WCAG 1.0""" .
+earl:testSuite rdfs:comment """A suite of technologies against which
+one can check an earl:TestSubject, e.g. the W3C's SVG Test Suite""" .
+
+As for the purpose of earl:testCriteria... it is only to be used when
+one has to make a complex assertion about a suite or id - i.e. when
+you need to add an earl:Level, or an earl:Exclusion. In fact,
+earl:TestCriteria must have at least one earl:Level or earl:Exclusion
+hanging off of it, as set out by:-
+
+   earl:TestCriteria rdfs:subClassOf
+        [ daml:unionOf
+           ([ daml:onProperty earl:level;
+              daml:minCardinality "1" ]
+            [ daml:onProperty earl:excludes;
+              daml:minCardinality "1" ]) .
+
+Comments, suggestions etc. are most welcome,
+
+[1]
+earl:testCriteria
+   rdfs:domain earl:TestCase;
+   rdfs:range earl:TestCriteria .
+earl:suite
+   rdfs:domain
+     [ daml:disjointUnionOf
+               (earl:TestCase earl:TestCriteria earl:Exclusion) ];
+   rdfs:range earl:Suite .
+earl:id
+   rdfs:domain
+     [ daml:disjointUnionOf
+               (earl:TestCase earl:TestCriteria earl:Exclusion) ];
+   rdfs:range earl:Id .
+earl:Suite daml:disjointWith earl:Id .
+earl:excludes
+   rdfs:domain earl:TestCriteria;
+   rdfs:range earl:Exclusion .
+earl:level
+   rdfs:domain
+      [ daml:disjointUnionOf (earl:TestCriteria earl:Exclusion) ] .
+[2] http://infomesh.net/2001/05/earl/model/primer/0.95TestCriteria.jpg
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://webns.net/roughterms/> .
+:Sean :hasHomepage <http://purl.org/net/sbp/> .
+
+
+

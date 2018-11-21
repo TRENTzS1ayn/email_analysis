@@ -1,0 +1,508 @@
+docno="lists-098-1436567"
+received="Fri Sep  7 12:15:45 2001"
+isoreceived="20010907161545"
+sent="Fri, 7 Sep 2001 17:15:19 +0100"
+isosent="20010907161519"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Re: HM.applications-Profiling-Level of Details/Abstraction"
+id="004101c137b8$4cbdc5a0$59d893c3@y0r1d9"
+charset="iso-8859-1"
+inreplyto="2C61CCE8A870D211A523080009B94E43064C0E86&#64;HQ5"
+expires="-1"
+
+
+To:"Bullard, Claude L \(Len\)"<clbullar@ingr.com>,"Rex Brooks"<rexb@starbourne.com>,"Ranjeeth Kumar Thunga"<rkthunga@humanmarkup.org>,<humanmarkup-comment@lists.oasis-open.org>,<www-archive@w3.org>
+
+[Len's parts are either prefixed per-line with "> ", or wrapped in "[[["
+and "]]]" and not given a source. Anything else wrapped in those delimiters
+is quoteed material, and a source given.]
+
+> Sean, how would RDF represent this?  Then we should inquire
+> as to how a human object uses the knowledge base.
+
+Interestingly, this example reminded me very much of the one in the
+Notation3/SW Primer:-
+
+[[[
+A simple rule, then, is,
+
+{ sensor:thermostat  math:greaterThan "30" . } log:implies {
+control:furnace control:setTo "1" . } .
+If a system is built which understands all the parts, this would allow it,
+give
+
+sensor:thermostat  math:greaterThan "30" .
+to conclude
+
+control:furnace control:setTo "1"
+]]] - http://www.w3.org/2000/10/swap/Primer
+$Id: Primer.html,v 1.9 2001/01/05 14:22:22 timbl Exp $
+
+anyway, that's just a digression. The best I can do with representing your
+code in RDF is:-
+
+[[[
+Given
+
+Episodic fact:  (this.action(push red button) -> this.state(heater.On) ->
+Result = "hot" )
+Context fact:   (blue = "cold")
+]]]
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix daml: <http://www.daml.org/2001/03/daml+oil#> .
+@prefix log: <http://www.w3.org/2000/10/swap/log#> .
+@prefix : <http://infomesh.net/2001/09/humltest/ont#> .
+@prefix x: <http://infomesh.net/2001/09/humltest/#> .
+
+:Button a :Mechanism .
+:Blue a :Class; rdfs:comment "the class of things which are blue";
+   rdfs:label "Blue Thing" .
+:Red a :Class; rdfs:comment "the class of things which are red";
+   rdfs:label "Red Thing" .
+x:BlueButton a [ daml:intersectionOf (:Button :Blue) ] .
+x:RedButton a [ daml:intersectionOf (:Button :Red) ] .
+x:Heater a :Heater .
+x:AirConditioner a :AirConditioner .
+
+:Push a :Action; :performedBy :Humans; :to :Activate .
+:Activated a rdfs:Class; rdfs:comment """the class of things
+which have been activated, possibly by pushing""" .
+# I'm not sure if one can use compliments in this way, but...
+:NotActivated daml:complimentOf :Activated;
+   rdfs:comment "the class of thing that are not activated" .
+
+{ { x:RedButton a :Activated }
+log:implies
+{ x:Heater a :Activated . } } a log:Truth .
+
+{ { x:RedButton a :NotActivated }
+log:implies
+{ x:Heater a :NotActivated . } } a log:Truth .
+
+{ { x:BlueButton a :Activated }
+log:implies
+{ x:AirConditioner a :Activated } } a log:Truth .
+
+{ { x:BlueButton a :NotActivated }
+log:implies
+{ x:AirConditioner a :NotActivated } } a log:Truth .
+
+[[[
+Learns:
+
+- rules for learning
+  (this.action (this.object(controls) -> this.state(system.on))
+]]]
+
+Hmm... perhaps it is fair to say:-
+
+{ { { :x a :Activated } log:implies { :y a :Activated } .
+     { :x a :NotActivated } log:implies { :y a :NotActivated } }
+log:implies
+{ :x :activates :y } } a log:Truth .
+
+however, if the air conditioner is not activated, that does imply that the
+switch is not activated, but it doesn't imply that the air conditioner
+actives the switch.  Ah, there is a delay in the timing mechanism from the
+switch going on to the thing being activated... so the log:implies
+predicate isn't quite right here. I'll invent a new one "oftenPrecludes":-
+
+{ x:RedButton a :Activated }
+:oftenPrecludes
+{ x:Heater a :Activated } .
+
+{ x:RedButton a :NotActivated }
+:oftenPrecludes
+{ x:Heater a :NotActivated } .
+
+{ x:BlueButton a :Activated }
+:oftenPrecludes
+{ x:AirConditioner a :Activated } .
+
+{ x:BlueButton a :NotActivated }
+:oftenPrecludes
+{ x:AirConditioner a :NotActivated } .
+
+and hence the following rule works:-
+
+{ { { :x a :Activated } :oftenPrecludes { :y a :Activated } .
+     { :x a :NotActivated } :oftenPrecludes { :y a :NotActivated } }
+log:implies
+{ :x :activates :y } } a log:Truth; log:forAll :x , :y .
+
+let's feed all that junk into CWM and get it to think about it... aha, it
+concluded (correctly):-
+
+    x:BlueButton     a  [
+             daml:intersectionOf  (
+            :Button
+            :Blue  ) ];
+         :activates x:AirConditioner .
+
+    x:RedButton     a  [
+             daml:intersectionOf  (
+            :Button
+            :Red  ) ];
+         :activates x:Heater .
+
+Neat.
+
+[[[
+- rules for specific results
+  (this.action (push blue button) -> this.state (airConditioner.on) ->
+Result="cold")
+]]]
+
+Hmm... for that, we probably need:-
+
+# Just accept this for now
+{ { :x :oftenPrecludes :y } log:implies { :x log:implies :y } }
+a log:Truth; log:forAll :x , :y .
+
+then we have the action itself:-
+
+x:BlueButton a :Activated .
+
+and then we need some rules that explain that when the air conditioner is
+on, it is cold:-
+
+{ { :x a :AirConditioner; a :Activated }
+log:implies
+{ x:RoomTemperature :level :Cool } }
+a log:Truth; log:forAll :x .
+
+{ { :x a :Heater; a :Activated }
+log:implies
+{ x:RoomTemperature :level :Warm } }
+a log:Truth; log:forAll :x .
+
+of course, if both are on, then the room temperature is warm and cold... I
+couldn't be bothered to account for the fact that they aren't boolean
+states (I think CWM can deal with analogues, but it would be beyond the
+scope of a mere example). Anyway, let's feed all this new junk into CWM,
+get it to -think, and find out what it gives us. Remember, all we have said
+is that the blue button is pushed on, and then given it a set of rules to
+say that if the blue button is on, then the air conditioner is on, and so
+the room temperature is cool. Hooray, it did it:-
+
+    x:RoomTemperature     :level :Cool .
+
+result! Let's convert the entire Notation3 output into XML RDF, just for a
+laugh:-
+
+<!-- Processed by Id: cwm.py,v 1.59 2001/07/03 16:55:52 connolly Exp -->
+<!--     using base file:C:\WINDOWS\DESKTOP\BLARGH~1.N3-->
+
+<rdf:RDF xmlns="http://infomesh.net/2001/09/humltest/ont#"
+    xmlns:daml="http://www.daml.org/2001/03/daml+oil#"
+    xmlns:log="http://www.w3.org/2000/10/swap/log#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:x="http://infomesh.net/2001/09/humltest/#">
+
+    <rdf:Description>
+        <log:is rdf:parseType="log:Quote">
+            <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#BlueButton">
+            </Activated>
+        </log:is>
+        <oftenPrecludes rdf:parseType="log:Quote">
+            <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#AirConditioner">
+            </Activated>
+        </oftenPrecludes>
+    </rdf:Description>
+
+    <rdf:Description rdf:about="#_g10">
+        <log:implies rdf:parseType="log:Quote">
+            <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#AirConditioner">
+            </Activated>
+        </log:implies>
+        <rdf:Description>
+            <log:is rdf:parseType="log:Quote">
+                <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#BlueButton">
+                </NotActivated>
+            </log:is>
+            <oftenPrecludes rdf:parseType="log:Quote">
+                <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#AirConditioner">
+                </NotActivated>
+            </oftenPrecludes>
+        </rdf:Description>
+        <rdf:Description rdf:about="#_g13">
+            <log:implies rdf:parseType="log:Quote">
+                <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#AirConditioner">
+                </NotActivated>
+            </log:implies>
+            <rdf:Description>
+                <log:is rdf:parseType="log:Quote">
+                    <rdf:Description>
+                        <log:is rdf:parseType="log:Quote">
+                            <rdf:Description>
+                                <log:is rdf:parseType="log:Quote">
+                                    <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                    </Activated>
+                                </log:is>
+                                <oftenPrecludes rdf:parseType="log:Quote">
+                                    <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#y">
+                                    </Activated>
+                                </oftenPrecludes>
+                                <rdf:Description>
+                                    <log:is rdf:parseType="log:Quote">
+                                        <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                        </NotActivated>
+                                    </log:is>
+                                    <oftenPrecludes
+rdf:parseType="log:Quote">
+                                        <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#y">
+                                        </NotActivated>
+                                    </oftenPrecludes>
+                                </rdf:Description>
+                            </rdf:Description>
+                            <log:implies rdf:parseType="log:Quote">
+                                <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                    <activates
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#y"/>
+                                </rdf:Description>
+                            </log:implies>
+                        </log:is>
+                    </rdf:Description>
+                    <rdf:type
+rdf:resource="http://www.w3.org/2000/10/swap/log#Truth"/>
+                    <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#x"/>
+                    <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#y"/>
+                    <rdf:Description>
+                        <log:is rdf:parseType="log:Quote">
+                            <rdf:Description>
+                                <log:is rdf:parseType="log:Quote">
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                        <oftenPrecludes
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#y"/>
+                                    </rdf:Description>
+                                </log:is>
+                                <log:implies rdf:parseType="log:Quote">
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                        <log:implies
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#y"/>
+                                    </rdf:Description>
+                                </log:implies>
+                            </rdf:Description>
+                        </log:is>
+                        <rdf:type
+rdf:resource="http://www.w3.org/2000/10/swap/log#Truth"/>
+                        <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#x"/>
+                        <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#y"/>
+                        <rdf:Description>
+                            <log:is rdf:parseType="log:Quote">
+                                <rdf:Description>
+                                    <log:is rdf:parseType="log:Quote">
+                                        <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                            <rdf:type
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#AirConditioner"/>
+                                        </Activated>
+                                    </log:is>
+                                    <log:implies rdf:parseType="log:Quote">
+                                        <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/#RoomTemperature">
+                                            <level
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Cool"/>
+                                        </rdf:Description>
+                                    </log:implies>
+                                </rdf:Description>
+                            </log:is>
+                            <rdf:type
+rdf:resource="http://www.w3.org/2000/10/swap/log#Truth"/>
+                            <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#x"/>
+                            <rdf:Description>
+                                <log:is rdf:parseType="log:Quote">
+                                    <rdf:Description>
+                                        <log:is rdf:parseType="log:Quote">
+                                            <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/ont#x">
+                                                <rdf:type
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Heater"/>
+                                            </Activated>
+                                        </log:is>
+                                        <log:implies
+rdf:parseType="log:Quote">
+                                            <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/#RoomTemperature">
+                                                <level
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Warm"/>
+                                            </rdf:Description>
+                                        </log:implies>
+                                    </rdf:Description>
+                                </log:is>
+                                <rdf:type
+rdf:resource="http://www.w3.org/2000/10/swap/log#Truth"/>
+                                <log:forAll
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#x"/>
+                                <rdf:Description>
+                                    <log:is rdf:parseType="log:Quote">
+                                        <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#RedButton">
+                                        </Activated>
+                                    </log:is>
+                                    <oftenPrecludes
+rdf:parseType="log:Quote">
+                                        <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#Heater">
+                                        </Activated>
+                                    </oftenPrecludes>
+                                </rdf:Description>
+                                <rdf:Description rdf:about="#_g32">
+                                    <log:implies rdf:parseType="log:Quote">
+                                        <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#Heater">
+                                        </Activated>
+                                    </log:implies>
+                                    <rdf:Description>
+                                        <log:is rdf:parseType="log:Quote">
+                                            <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#RedButton">
+                                            </NotActivated>
+                                        </log:is>
+                                        <oftenPrecludes
+rdf:parseType="log:Quote">
+                                            <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#Heater">
+                                            </NotActivated>
+                                        </oftenPrecludes>
+                                    </rdf:Description>
+                                    <rdf:Description rdf:about="#_g35">
+                                        <log:implies
+rdf:parseType="log:Quote">
+                                            <NotActivated
+rdf:about="http://infomesh.net/2001/09/humltest/#Heater">
+                                            </NotActivated>
+                                        </log:implies>
+                                    </rdf:Description>
+                                    <Activated
+rdf:about="http://infomesh.net/2001/09/humltest/#AirConditioner">
+                                        <rdf:type
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#AirConditioner"/>
+                                    </Activated>
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/#BlueButton">
+                                        <rdf:type rdf:parseType="Resource">
+                                            <daml:intersectionOf
+rdf:parseType="Resource">
+                                                <daml:first
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Button"/>
+                                                <daml:rest
+rdf:parseType="Resource">
+                                                    <daml:first
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Blue"/>
+                                                    <daml:rest
+rdf:resource="http://www.daml.org/2001/03/daml+oil#nil"/>
+                                                </daml:rest>
+                                            </daml:intersectionOf>
+                                        </rdf:type>
+                                        <rdf:type
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Activated"/>
+                                        <activates
+rdf:resource="http://infomesh.net/2001/09/humltest/#AirConditioner"/>
+                                    </rdf:Description>
+                                    <Heater
+rdf:about="http://infomesh.net/2001/09/humltest/#Heater">
+                                    </Heater>
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/#RedButton">
+                                        <rdf:type rdf:parseType="Resource">
+                                            <daml:intersectionOf
+rdf:parseType="Resource">
+                                                <daml:first
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Button"/>
+                                                <daml:rest
+rdf:parseType="Resource">
+                                                    <daml:first
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Red"/>
+                                                    <daml:rest
+rdf:resource="http://www.daml.org/2001/03/daml+oil#nil"/>
+                                                </daml:rest>
+                                            </daml:intersectionOf>
+                                        </rdf:type>
+                                        <activates
+rdf:resource="http://infomesh.net/2001/09/humltest/#Heater"/>
+                                    </rdf:Description>
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/#RoomTemperature">
+                                        <level
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Cool"/>
+                                    </rdf:Description>
+                                    <rdfs:Class
+rdf:about="http://infomesh.net/2001/09/humltest/ont#Activated">
+                                        <rdfs:comment>the class of things
+which have been activated, possibly by pushing</rdfs:comment>
+                                    </rdfs:Class>
+                                    <Class
+rdf:about="http://infomesh.net/2001/09/humltest/ont#Blue">
+                                        <rdfs:comment>the class of things
+which are blue</rdfs:comment>
+                                        <rdfs:label>Blue Thing</rdfs:label>
+                                    </Class>
+                                    <Mechanism
+rdf:about="http://infomesh.net/2001/09/humltest/ont#Button">
+                                    </Mechanism>
+                                    <rdf:Description
+rdf:about="http://infomesh.net/2001/09/humltest/ont#NotActivated">
+                                        <daml:complimentOf
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Activated"/>
+                                        <rdfs:comment>the class of thing
+that are not activated</rdfs:comment>
+                                    </rdf:Description>
+                                    <Action
+rdf:about="http://infomesh.net/2001/09/humltest/ont#Push">
+                                        <performedBy
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Humans"/>
+                                        <to
+rdf:resource="http://infomesh.net/2001/09/humltest/ont#Activate"/>
+                                    </Action>
+                                    <Class
+rdf:about="http://infomesh.net/2001/09/humltest/ont#Red">
+                                        <rdfs:comment>the class of things
+which are red</rdfs:comment>
+                                        <rdfs:label>Red Thing</rdfs:label>
+                                    </Class>
+                                </rdf:Description>
+                            </rdf:Description>
+                        </rdf:Description>
+                    </rdf:Description>
+                </log:is>
+            </rdf:Description>
+        </rdf:Description>
+    </rdf:Description>
+</rdf:RDF>
+
+There's a wonderful amount of CWM syntactic junk in there, but you get the
+idea that XML RDF is a bit unweildy when it comes to expressing FOPL-type
+logical statements (implications).
+
+Cheers,
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://webns.net/roughterms/> .
+:Sean :hasHomepage <http://purl.org/net/sbp/> .
+
+
+

@@ -1,0 +1,99 @@
+docno="lists-012-2983492"
+received="Mon May  4 14:57:07 1998"
+isoreceived="19980504185707"
+sent="Mon, 04 May 98 14:55:10 MDT"
+isosent="19980504205510"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: caching vs revalidation in http1.1"
+id="9805042155.AA24716@acetes.pa.dec.com"
+inreplyto="s54de2a5.029&#64;MAILBOX.ECON.AG.GOV"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Daniel Hellerstein <danielh@MAILBOX.ECON.AG.GOV> writes:
+    There may be cases where an origin server has semi-permanent
+    resources (that change every few hours or days).  If these change
+    irregularly, allowing proxies to cache this may be problemmatic
+    (i.e.; one can not know a proper maxage value)
+
+    A second best solution would be to allow proxies to cache, but
+    insist they perform a conditional get (an If-modified of
+    If-no-match) before using the cached item.
+
+    From my reading of the ver 3 spec, there's no way of doing this
+    ("must-revalidate" sounds like it should, but it's really a "stale"
+    modifier).
+
+    Am I missing something, or is there a notion that well designed
+    caches will make such an option unnecessary, or ....
+
+The main problem is a vague definition of the verb "to cache".
+
+The naive (but perhaps linguistically reasonable) meaning of
+"to cache" is that the caching agent stores a response for
+later use.  This is the normal way of looking at, say, the
+cache lines in a CPU's data cache: a line is removed from
+a CPU cache if it's not legal to use it in the future.
+
+However, if you read the HTTP/1.1 specification, you will actually
+find language like "whether a cache may use the response to reply
+to a subsequent request without revalidation."  That is because
+we want to be able to insist that a cache entry is valid before
+being "used to reply to a subsequent request", but (with some
+execeptions noted below) we don't insist that this period of
+validity is continuous from the moment the cache entry is created
+to the moment that it is used.
+
+That is: unlike a CPU data cache, an HTTP cache has a means to
+determine if a cache entry is valid or not ... hence, it need
+not delete a cache entry whose validity is suspect.  "Stale"
+is another way of saying "not sure if it is still valid."
+
+So, when you write:
+
+    A second best solution would be to allow proxies to cache, but
+    insist they perform a conditional get (an If-modified of
+    If-no-match) before using the cached item.
+
+I would rephrase that as:
+
+    A second best solution would be to allow proxies to *store*
+    responses, but insist they perform a conditional get (an
+    If-modified of If-no-match) before using the cached item.
+
+In fact, this is exactly what the
+
+Cache-control: s-maxage=0
+
+directive does.  It says that a proxy MUST consider the response stale
+immediately, and that a proxy MUST revalidate the response  before
+every use.  ("The s-maxage directive also implies the semantics of the
+proxy-revalidate directive".)
+
+However, s-maxage does not apply to non-shared (i.e., browser)
+caches.  If you really meant:
+
+    A second best solution would be to allow *caches* to store
+    responses, but insist they perform a conditional get (an
+    If-modified of If-no-match) before using the cached item.
+
+then the proper response header would be
+
+Cache-control: must-revalidate, maxage=0
+
+It says that any cache MUST treat the response as immediately
+stale, and further that it cannot honor other advice (from the
+client's request or from a local configuration option) to ignore
+this staleness.  Thus, it MUST revalidate before every use.
+
+The asymmetry between s-maxage and maxage is because we realized
+the need for this kind of semantics somewhat too late in the
+process to change the meaning of maxage.
+
+-Jeff
+
+
+

@@ -1,0 +1,144 @@
+docno="lists-101-13249643"
+received="Thu Dec 18 06:10:22 2003"
+isoreceived="20031218111022"
+sent="Thu, 18 Dec 2003 10:51:28 +0000"
+isosent="20031218105128"
+name="Andrew Clover"
+email="and-w3@doxdesk.com"
+subject="DOM Level 3 LS test results"
+id="20031218105128.GA18785@doxdesk.com"
+charset="us-ascii"
+expires="-1"
+
+To:www-dom-ts@w3.org
+
+
+
+Sander Bos <sander@x-hive.com> wrote:
+
+> I now finally ran the LS tests (from CVS) against our implementation.
+
+Coincidentally, I just finally ran them against mine too!
+
+Speaking of which, if anyone is interested in running DOMTS against Python
+implementations, this may be useful:
+
+  http://www.doxdesk.com/file/software/py/domts.zip
+
+> that can explain some of the errors (e.g. in the missing
+> parameter department), but not all...
+
+Indeed. I've got a whole bunch more issues, which I'll dump here on the list
+for the moment (because its a bit much to file single Bugzilla reports on).
+
+----
+
+DOMBuilderTest3: there is whitespace in test2.xml, but the test assumes it
+will be ignored for some reason. Also the final <nodeName> refers to
+secondElt1 when clearly it should be thirdElt. On a related note, is it
+safe to put a <?xml text declaration at the start of a file used by
+parseWithContext? As far as I can see, the LS specification says nowhere
+whether an 'XML fragment' is the same thing as an external parsed entity.
+(If it's not, files like this could fail due to an invalid processing
+instructions.)
+
+DOMBuilderTest5: the DOMConfiguration parameters are wrong, containing
+underscores instead of hyphens. Also supported-media-types-only is an
+optional feature - should check canSetParameter first.
+
+DOMBuilderTest6: I don't see where the spec states that parsing an empty
+input results in null - it only mentions null return values for async parsers.
+An empty Document or some kind of error might also be possible?
+
+DOMBuilderTest7: doesn't do what it says it does. It claims to use a null
+LSInput but actually creates one, effectively doing the same thing as
+DOMBuilderTest6.
+
+DOMEntityResolverTest1: assumes external entities are actually resolved.
+Should add a 'validating' implementationAttribute.
+
+DOMImplementationLSTest1: has a hasFeature 'temporarily commented out' that
+should probably be put back in.
+
+DOMImplementationLSTest3: assumes the implementation supports schemas. This
+is not required. Could raise NOT_SUPPORTED_ERR.
+
+DOMInputSourceTest3: invalid. Document.inputEncoding should not be affected
+by the original LSInput.encoding unless a byteStream was used.
+
+DOMWriterFilterTest0: acceptNode's parameter should be 'nodeArg', no longer
+'n'. (does this require fiddling with TSML?)
+
+DOMWriterFilterTest1: tries to use SHOW_ATTRIBUTE, but this is not declared
+anywhere (should be in &filterVars;). Then tries to test for the acceptance
+of the attr1 node, but this should actually be filtered out according to the
+given LSSerializerFilter: unlike with LSParserFilters, Attribute nodes and the
+document element node are, I believe, supposed to be passed to acceptNode.
+Spec is currently unclear on what happend if a filter declines to be SHOWn
+an element; in Range 2.0's NodeFilter, this would result in a SKIP, not an
+ACCEPT, but I don't now if this is supposed to apply to 3.0 LS too.
+
+DOMWriterFilterTest3: SHOW_COMMENT again not defined in &filterVars;.
+
+CharacterStream1, SystemId1: tries to create an LSParser with mode 0. No such
+mode, should be 1.
+
+LSParserConfig6: the description gives the wrong parameter name, it is in fact
+testing infoset. However, it tests to see whether you can directly set it to
+false - which should have no effect. To test it with a false value, set one of
+the other parameters it affects to the 'wrong' value.
+
+LSParserConfig7: tries to set namespaces true and then tests it is false. Oop.
+(ah, you noted this one already)
+
+LSParserConfig8, LSSerializer8: actually tests for xml-declaration instead of
+well-formed
+
+LSSerializerConfig1: xml-declaration should be true by default, not false,
+surely?
+
+LSSerializerConfig2: normalize-characters is listed twice. So the result will
+be 22, not 23.
+
+LSSerializerConfig6: ignore-unknown-character-denormalizations shoud be true
+by default, not false. The canSet test and the values in the
+assertDOMException are hence also the wrong way around.
+
+----
+
+And here are the test results for pxdom 1.0-pre, WITHOUT fixing the tests
+for the above issues. The remaining failures are mostly to do with pxdom's
+lack of support for ResourceResolvers, which are omitted for the moment as
+they're a bit pointless until external entities are fully supported.
+
+PASSED 43 tests
+FAILED 21 tests:
+  DOMBuilderTest3: Assertion nextSibling_after_add failed. Expected elt2, go...
+  DOMBuilderTest4: Assertion previousSibling_after_insert_before failed. Exp...
+  DOMBuilderTest5: Calling setParameter on <pxdom.LSParserConfiguration inst...
+  DOMBuilderTest6: Assertion documentIsNull failed. Got <pxdom.Document inst...
+  DOMBuilderTest7: Assertion throw_ImplementationException failed. Exception...
+  DOMEntityResolverTest1: Assertion count_elt1_before_applying_entity_resolv...
+  DOMImplementationLSTest1: Calling createLSParser on <pxdom.DOMImplementati...
+  DOMImplementationLSTest3: Calling createLSParser on <pxdom.DOMImplementati...
+  DOMInputSourceTest3: Assertion encodingstringcheck0 failed. Expected ISO-8...
+  DOMInputSourceTest5: Calling parse on <pxdom.LSParser instance at 0x00BC50...
+  DOMWriterFilterTest1: Calling writeToString on <pxdom.LSSerializer instanc...
+  DOMWriterFilterTest3: Calling writeToString on <pxdom.LSSerializer instanc...
+  CharacterStream1: Calling createLSParser on <pxdom.DOMImplementation insta...
+  SystemId1: Calling createLSParser on <pxdom.DOMImplementation instance at ...
+  LSParserConfig6: Assertion setFalse failed. Got 1
+  LSParserConfig7: Assertion setTrueIsEffective failed. Got 1
+  LSParserConfig8: Assertion canSetFalse failed. Got 1
+  LSSerializerConfig1: Assertion xml-declaration-is-false failed. Got 1
+  LSSerializerConfig2: Assertion definedParameterCount failed. Expected 23, ...
+  LSSerializerConfig6: Assertion defaultValue failed. Got 1
+  LSSerializerConfig8: Assertion canSetFalse failed. Got 1
+
+-- 
+Andrew Clover
+mailto:and@doxdesk.com
+http://www.doxdesk.com/
+
+
+

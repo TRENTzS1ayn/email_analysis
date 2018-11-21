@@ -1,0 +1,85 @@
+docno="lists-013-2436330"
+received="Tue Aug  6 04:20:44 2002"
+isoreceived="20020806082044"
+sent="Mon, 5 Aug 2002 14:50:30 0400 (EDT)"
+isosent="20020805185030"
+name="Jeffrey Mogul"
+email="Jeff.Mogul@hp.com"
+subject="Re: TE header"
+id="200208051850.g75IoEho026692@wera.hpl.hp.com"
+inreplyto="Pine.BSF.4.10.10208030845331.31522-100000&#64;measurementfactory.com"
+expires="1"
+
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+cc: Joe Orton<joe@manyfish.co.uk>,ietf-http-wg@w3.org,Jeff.Mogul@hp.com
+
+
+
+
+
+Joe Orton writes:
+
+    I'm confused by this paragraph in section 14.39 of 2616:
+    
+       The TE header field only applies to the immediate connection.
+       Therefore, the keyword MUST be supplied within a Connection header
+       field (section 14.10) whenever TE is present in an HTTP/1.1 message.
+    
+    Since TE is already defined as hop-by-hop in section 13.5.1, it implies
+    that any hop-by-hop headers used MUST be supplied in a Connection
+    header, which is incorrect.
+    
+    Why is there a MUST that TE specifically is included in a Connection
+    header? Is it really for compatibility with RFC2068-compliant proxies,
+    which don't know that TE is hop-by-hop?
+
+Alex Rousskov writes:
+
+    The MUST clause wording is clearly buggy. The clause should
+    either be deleted or reworded to specify a different reason.
+    
+No, the MUST clause is correct.  Consider this scenario:
+
+HTTP/1.1 client sends this request to RFC2068-compliant proxy:
+
+GET http://example.com/foo.html
+Host: example.com
+TE: trailers
+
+The RFC2068-compliant proxy doesn't know about TE (it wasn't
+defined in RFC2068!) so it forwards the message to example.com.
+
+If the MUST clause wasn't there, example.com would believe that
+the proxy would accept trailer fields.  This is wrong, because
+RFC2068 doesn't include trailers.  So the server-to-proxy response
+message would be misinterpreted.
+
+If the client follows the MUST in 14.39, then the proxy (which
+*does* know about the Connection header, we had that in RFC2068)
+will correctly strip the TE field from the request before forwarding
+it to the origin server, and nothing goes wrong.
+
+There might be other scenarios where the MUST is also required,
+but this is the first one that I could think of.  Are there
+RFC2068-compliant proxies out there?  Probably.
+
+Alex Rousskov also  writes:
+
+    FWIW, in our compliance tests, we saw only one HTTP proxy
+    obeying this MUST and sending
+    
+    Connection: close, TE
+    
+    when forwarding chunked messages. On the other hand, the same proxy
+    was forwarding TE header passed to it, violating another, far more
+    important MUST!
+
+OK, I guess the proxy implementors of the world have some work
+left to do!  We're not going to rewrite the spec to legalize
+something bogus just because implementors aren't paying attention.
+
+-Jeff
+
+
+

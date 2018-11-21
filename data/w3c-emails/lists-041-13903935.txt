@@ -1,0 +1,195 @@
+docno="lists-041-13903935"
+received="Wed Oct 16 11:48:19 2002"
+isoreceived="20021016154819"
+sent="Wed, 16 Oct 2002 08:47:49 -0700"
+isosent="20021016154749"
+name="Dan Brotsky"
+email="dbrotsky@adobe.com"
+subject="Re: Interop issue: Proposal for fixing lock token provision"
+id="9FC23704-E11E-11D6-8202-0003931036B4@adobe.com"
+charset="US-ASCII"
+inreplyto="JIEGINCHMLABHJBIGKBCAEFGFIAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+Cc: Dan Brotsky<dbrotsky@adobe.com>
+To:w3c-dist-auth@w3.org
+
+
+
+Sorry not to have weighed in on any of the interop issues since then.  
+Things have been a bit busy :^).
+
+On Tuesday, October 8, 2002, at 12:25 AM, Julian Reschke wrote:
+
+>> And if it has Etag support and it's the last PUT, you might not care
+>> care if you've lost the lock as long as the content has not
+>> been updated.  There's no point in checking for the lock in that
+>> situation and spec'ing  that the check be done anyway, just causes
+>> needless delay.
+>> ...
+>
+> Wouldn't that mean to optimize for a *really* uncommon case? How 
+> frequently
+> does that happen? Does is really require special handling?
+
+In the real world this happens constantly.  Servers can make locks go 
+away whenever they want, and clients have no way of learning why or 
+what the implications are for edit state.  Workflow administrators 
+remove them, thinking they're inactive.  They expire because the client 
+is idle for reasons beyond its control (sleeping a machine).  Server 
+administrators do lock cleanups because their database seems corrupt.  
+The fact of the matter is that, the way the spec is written, real-world 
+clients constantly have to be doing rediscovery of what's happening on 
+the server so they can "convince" the server they know exactly what's 
+going on, and in fact they often have to figure out from a particular 
+series of rejected requests how that *particular* server models things.
+
+(temperature rises)
+
+Sorry if this sounds like a flame, but it's really just a heartfelt 
+complaint about the state of the spec from a client's point of view.  
+Until you've tried to write an expensive, production-quality client 
+used by a naive user that interoperates in a wide range of authoring 
+situations with 20 different servers, each of which takes a defensible 
+but slightly different interpretation of the spec, and each of whose 
+"easy to handle edge cases" mean something completely different coming 
+from another server, it's hard to have a good idea about how narrow a 
+guaranteed-successful path through the spec's garden path of 
+"defensible interpretations" is (hint: how small is epsilon :^), or how 
+hard it is to discover a path that will work for a particular server.
+
+I believe that all the client-side spec requests that came out of the 
+interop (detailed below) come from high-quality implementation teams 
+that have watched their code devolve into a series of spaghetti strands 
+each of which knows how to talk to one particular server.  As only a 
+slight exaggeration, we might as well be supporting different protocols 
+against each one.  I've even had one of my lead implementors seriously 
+suggest that we implement our client API as an abstract object which 
+first does an OPTIONS call to see (from the "Server:" header) which 
+server we're talking to and then load the appropriate concrete provider!
+
+(temperature falls)
+
+So let me go through the various proposals floating around with an eye 
+not towards clarifying their details or fixing them but just motivating 
+them from a client point of view.  First, some basic requirements that 
+underly this discussion, which I believe were in the original 
+requirements doc that Judy wrote a long time ago:
+
+R1. distributed authoring clients are very concerned about the lost 
+update problem.  (clients A and B read the same version of a doc, make 
+separate changes and then each save back not knowing the other has.  
+Whoever saved first loses.)
+
+R2. distributed authoring clients are very concerned about their users 
+not wasting time working on something they can't save.  (a variant of 
+the lost update problem, in which clients can discover that the doc has 
+been updated but not that it's going to be updated.)
+
+R3. distributed authoring clients want to be able to offer their users 
+a consistent least-common-denominator model of the server's hierarchy, 
+even though the actual situation may be far more complex than that 
+model suggests.
+
+R4. distributed authoring clients want to make the same sequence of 
+calls against all compliant servers, and know that they can rely on 
+differences in result to be due to server policy or differing 
+conditions, NOT on different server interpretations of the meaning of 
+the request.
+
+In the light of these, here's the motivation for a number of the client 
+requests (no pun intended) that Lisa mentioned in her summary message 
+from the last interop:
+
+1. require etag support (when feasible).  Without strong (or at least 
+weak) validators, there's really no way to address the lost-update 
+problem.  Mod dates are too randomly defined, which is why etags made 
+it into HTTP 1.1 in the first place, but even when a server's mod dates 
+really are weak validators there's no reason for clients to have to 
+figure out whether to use mod dates or etags on a server-by-server 
+basis (see R4).
+
+2. Provide a lock-state-checking-less way of doing an operation on a 
+locked resource.  In my experience with multiple server 
+implementations, LOCK is simply unreliable as anything other than a way 
+to satisfy R2: warn other users that I'm going to update the resource.  
+This is because, the way the spec is written, locks are simply a gating 
+factor on the succcess of certain client requests, not a reliable, 
+precise declaration of write capabilities on a resource.  Locks 
+certainly don't guarantee that a resource hasn't been updated, because 
+there's absolutely nothing in the spec that keeps the server from doing 
+that behind my back (even leaving the lock in place!), and I can show 
+you servers that do this defensibly and routinely.  Nor is loss of lock 
+a way to find out that my ability to update has changed, because locks 
+go away for any number of random reasons having nothing to do with me 
+(and I can show you servers that defensibly and routinely do that, as 
+well).
+
+ From a client's point of view, I do LOCK GET PUT UNLOCK so that YOU can 
+know not to start editing the same resource until the UNLOCK is done.  
+But I really don't care whether you do or not, and I really don't care 
+whether my lock goes away or not, because I'm going to use etags to 
+make sure to avoid lost updates (and so should you).
+
+(By the way, from this point of view shared write locks are 
+interoperable, even when used by the same principal; consider a user of 
+two clients having them warn each other that they're both in use.)
+
+3. provide a way of forcing authentication.  If I'm a distributed 
+authoring client using a server, then I expect (in the course of an 
+update) to do a LOCK (if the server supports it), then a GET and/or 
+some PROPPATCHs, then some PUTs and/or PROPPATCHs (with the PUT 
+protected by an IF: etag condition, and yes I wish there were there 
+were a similar thing for properties), and then finally (if supported) 
+an UNLOCK (or maybe a DELETE, which will do the UNLOCK very effectively 
+:^).  I want to know when I start that I have the authority to do all 
+of these calls, and I want to know right in the beginning what identity 
+I will use to do that so I can properly put some info about it in the 
+LOCK owner field.  So I want some way of forcing the server to 
+challenge me to authenticate as someone who can do this sequence, and I 
+want it even before the LOCK starts (especially cause I can't always do 
+a LOCK).
+
+4. require servers to be consistent about specifying slashes in 
+responses to propfind requests that enumerate a tree.  (and, by the 
+way, require clients always to use slashes when referring to what they 
+believe is a collection...)  This is motivated by a combination of R3 
+and R4.  I need to be able to show my users a consistent view of the 
+server's hierarchy, separating collections (which appear to contain 
+other resources) from non-collections (which don't).  When the server 
+responds to a PROPFIND enumerating a tree, I need not to be guessing 
+why this collection had a slash on the end whereas this other one 
+didn't, and I really need to know which ones of these returnees can 
+themselves be enumerated (which, by the way, is allowed to be a VERY 
+different piece of information than I get back from asking about the 
+resource type, although I don't think it was meant to be - another 
+problem :^).
+
+5. that the *same* pair of clients and servers interoperate over all 
+features before we believe we have interoperability.  The motivation 
+for this should be obvious by now: you can get pairwise 
+interoperability between DIFFERENT pairs without any guarantee that you 
+can write a generic client which is anything other than the "union" 
+client my lead implementor was proposing.
+
+6. only allow one kind of TIME in lock expiry.  this is R4.
+
+7. require PROPFIND results to use a single base URL, and that the URL 
+either be the returned content-location header URL or the one the 
+client used.  This is R3 and R4.  You may expect clients to be able to 
+keep referring to different elements of collections with different 
+preferred paths, but I can't expect my user to, and I can't hide that 
+from him.
+
+8. servers can't withhold lock owner info.  R4: it's mine, don't force 
+me to work around you withholding it.
+
+That's it for rationale.  I'll gradually be sending around proposals on 
+resolving a number of these specific issues, hopefully ones that 
+reflect the discussion so far and are acceptable to the group :^).  If 
+you got this far, thanks for your attention to such a long message.
+
+     dan
+
+
+

@@ -1,0 +1,93 @@
+docno="lists-104-5030296"
+received="Wed Apr  3 11:05:26 2002"
+isoreceived="20020403160526"
+sent="Wed, 3 Apr 2002 10:05:04 -0600"
+isosent="20020403160504"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="Re: XPath DOM and XPath 2.0"
+id="002501c1db29$51dbb5a0$a800a8c0@CurtMicron"
+charset="iso-8859-1"
+inreplyto="XPath DOM and XPath 2.0"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+After a little more thought the existing XPathResult doesn't seem that far off.
+
+Splitting XPathResult into XPathSingletonResult and XPathSequenceResult isn't really satisfying since it just starts a process that would be fulfilled when you had a distinct interface for XPathDoubleResult, XPathStringResult, etc.  Not necessarily a bad thing, but it should either be at one extreme or the other.
+
+Since resultType could have values that imply no type coersion of the values, it could be compatible with explicit casts in the XPath expression, so having coersion to three or four types specifiable through the resultType isn't a restriction to just supporting those types.
+
+The permutations for resultType start getting bad if you just try to enumerate them without any pattern.
+
+Maybe something like:
+
+const unsigned short ANY_TYPE = 0;
+//
+//   if none of the COERCE bits are set,
+//     the type is determined by the XPath expression
+//
+const unsigned short COERCE_NUMBER = 1;  
+const unsigned short COERCE_STRING = 2;
+const unsigned short COERCE_BOOLEAN = 4;
+const unsigned short COERCE_NODE = 8;
+//
+//
+//
+const unsigned short ATOMIC = 16;
+const unsigned short SNAPSHOT = 32;
+const unsigned short ITERATOR = 64;
+//
+//  order does not need to preserved in the result set
+//
+const unsigned short UNORDERED = 128;
+//
+//   existing constants expressed as combinations of the previous
+//
+const unsigned short NUMBER_TYPE = COERCE_NUMBER + ATOMIC;
+const unsigned short STRING_TYPE = COERCE_STRING + ATOMIC;
+const unsigned short BOOLEAN_TYPE = COERCE_BOOLEAN + ATOMIC;
+const unsigned short UNORDERED_NODE_ITERATOR_TYPE = 
+    COERCE_NODE + ITERATOR + UNORDERED;
+const unsigned short ORDERED_NODE_ITERATOR_TYPE = COERCE_NODE + ITERATOR;
+const unsigned short UNORDERED_NODE_SNAPSHOT_TYPE =
+    COERCE_NODE + SNAPSHOT + UNORDERED;
+const unsigned short ORDERED_NODE_SNAPSHOT_TYPE =
+    COERCE_NODE + SNAPSHOT;
+const unsigned short ANY_UNORDERED_NODE_TYPE =
+    COERCE_NODE + ATOMIC + UNORDERED;
+const unsigned short = FIRST_ORDERED_NODE_TYPE =
+    COERCE_NODE + ATOMIC;
+
+If you wanted to get something back in a schema datatype like date, you would just use ATOMIC and either use an explicit conversion or rely on the type of the expression.  If you wanted an array of dates, you would use SNAPSHOT or ITERATOR.
+
+
+To support arrays of atomic values, you could either change the result type of iterateNext and snapshotItem to be XPathResult or you could leave the Node returning methods as convienience functions for XPathResult returning functions
+
+//
+//   functionally equivalent to 
+//       XPathResult nextResult = iterateNext();
+//       return (nextResult == null) ? null : nextResult.singleNodeValue;
+//
+Node  iterateNextNode();
+//
+//   functionally equivalent to 
+//       XPathResult result = snapshotItem(index);
+//       return (result == null) ? null : result.singleNodeValue;
+//
+Node  snapshotNode(unsigned long);
+
+XPathResult iterateNext();
+XPathResult snapshotItem(unsigned long);
+
+//
+//    a clone method for defensive copying would be helpful
+//        
+XPathResult cloneResult();
+
+For XPath 2 queries that returned other types, you would need a mechanism better than the resultType enumeration to determine the type.  Foreshadowing this with a valueTypeNamespace and valueTypeLocalName would seem reasonable.  Access methods for schema datatypes, could be relegated to a XPath2Result to be defined later.
+
+
+

@@ -1,0 +1,341 @@
+docno="lists-045-3307737"
+received="Sat Dec 16 07:58:06 2000"
+isoreceived="20001216125806"
+sent="Sat, 16 Dec 2000 21:58:17 +0900 (JST)"
+isosent="20001216125817"
+name="muraw3c@attglobal.net"
+email="muraw3c@attglobal.net"
+subject="Re: Comments on &quot;XML-Signature Syntax and Processing&quot;"
+id="20001216215817Q.muraw3c@attglobal.net"
+charset="us-ascii"
+inreplyto="4.3.2.7.2.20001215175112.00ba6ec0&#64;rpcp.mit.edu"
+expires="-1"
+
+To:<w3c-ietf-xmldsig@w3.org>,muraw3c@attglobal.net
+
+
+Joseph,
+
+> Thanks! Plus given I know now how to combine entities with other content 
+
+You are welcome.
+
+> properly <smile> we could remove a level of indirection (External) and have 
+> very good equivalence with the schema structures! (Right?)
+
+Yes, I think that this approach improves readability.
+
+> See [1], excerpts:
+> 
+> [1] http://www.w3.org/Signature/Drafts/xmldsig-core/xmldsig-core-schema.dtd
+> 
+> <!ENTITY % KeyInfo.ANY ''>
+> <!ENTITY % KeyValue.ANY ''>
+> ...
+> <!ELEMENT KeyInfo       (#PCDATA|KeyName|KeyValue|RetrievalMethod|
+>              X509Data|PGPData|MgmtData %KeyInfo.ANY;)* >
+> <!ATTLIST KeyInfo
+>          Id      ID      #IMPLIED >
+> ...
+> <!ELEMENT KeyValue (#PCDATA|DSAKeyValue|RSAKeyValue %KeyValue.ANY;)* >
+> 
+
+I am comparing the XML Schema version and your latest DTD version. 
+I have some more questions and comments.
+
+
+1) The schema version allows KeyInfo to contain SPKIData, but the DTD
+does not.
+
+2) What is SPKIData?  This exists only in the XML Schema version.
+
+3) The DTD version does not allow customization of contents of PGPData.
+
+4) In the XML Schema version, KeyValue can have only one DSAKeyValue,
+but can have more than two external key values.  Is this really
+intended?
+
+5) When <any> is used in the XML Schema version, mixed="true" is
+sometimes specified and sometimes not.  Again, is this really 
+intended?
+
+- Not Specified
+   - CanonicalizationMethod
+   - SignatureMethod
+   - Transform
+   - DigestMethod
+   - Keyinfo
+- Specified
+   - KeyValue
+   - Object
+   - SignatureProperty
+
+
+By the way, my motivation is to make sure that RELAX can handle XML
+Digistal Signature without any problems.  Just in case you (a member
+of the W3C team  :-) is interested, here is a first cut.
+
+<?xml version="1.0" encoding="UTF-8"?>
+<module
+        moduleVersion="0.1"
+        relaxCoreVersion="1.0"
+targetNamespace="http://www.w3.org/2000/09/xmldsig#"
+        xmlns="http://www.xml.gr.jp/xmlns/relaxCore">
+
+  <interface>
+    <export label="Signature"/>
+
+    <import label="Method.External"/>
+    <import label="Transform.External"/>
+    <import label="KeyInfo.External"/>
+    <import label="KeyValue.External"/>
+    <import label="PGPData.External"/>
+    <import label="Object.External"/>
+    <import label="SignatureProperty.External"/>
+  </interface>
+
+<!-- <simpleType name="CryptoBinary">
+  <restriction base="binary">
+   <encoding value="base64"/>
+  </restriction>
+</simpleType> -->
+
+
+  <tag name="Signature">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="Signature">
+    <sequence>
+      <ref label="SignedInfo"/>
+      <ref label="SignatureValue"/>
+      <ref label="KeyInfo" occurs="?"/>
+      <ref label="Object" occurs="*"/>
+    </sequence>
+  </elementRule>
+
+  <tag name="SignatureValue">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="SignatureValue" type="string"/>  <!-- CryptoBinary"/>
+
+  <tag name="SignedInfo">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="SignedInfo">
+    <sequence>
+      <ref label="CanonicalizationMethod"/>
+      <ref label="SignatureMethod"/>
+      <ref label="Reference" occurs="+"/>
+    </sequence>
+  </elementRule>
+
+  <tag name="CanonicalizationMethod">
+    <attribute name="Algorithm" required="true" type="uriReference"/>
+  </tag>
+  <elementRule role="CanonicalizationMethod">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="Method.External"/>
+        <ref label="HMACOutputLength"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="SignatureMethod">
+    <attribute name="Algorithm" required="true" type="uriReference"/>
+  </tag>
+  <elementRule role="SignatureMethod">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="Method.External"/>
+        <ref label="HMACOutputLength"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="Reference">
+    <attribute name="Id" type="ID"/>
+    <attribute name="URI" type="uriReference"/>
+    <attribute name="Type" type="uriReference"/>
+  </tag>
+  <elementRule role="Reference">
+    <sequence>
+      <ref label="Transforms" occurs="?"/>
+      <ref label="DigestMethod"/>
+      <ref label="DigestValue"/>
+    </sequence>
+  </elementRule>
+
+  <tag name="Transforms"/>
+  <elementRule role="Transforms">
+    <ref label="Transform" occurs="+"/>
+  </elementRule>
+
+  <tag name="Transform">
+    <attribute name="Algorithm" required="true" type="uriReference"/>
+  </tag>
+  <elementRule role="Transform">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="Transform.External"/>
+        <element name="XSLT" type="string"/>
+        <!-- should be an xsl:stylesheet element -->
+        <element name="XPath" type="string"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="DigestMethod">
+    <attribute name="Algorithm" required="true" type="uriReference"/>
+  </tag>
+  <elementRule role="DigestMethod">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="Method.External"/>
+        <ref label="HMACOutputLength"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="DigestValue"/>
+  <elementRule role="DigestValue" type="string"/>  <!-- CryptoBinary"/>
+
+  <tag name="KeyInfo">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="KeyInfo">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="KeyInfo.External"/>
+        <element name="KeyName" type="string"/>
+        <ref label="KeyValue"/>
+        <ref label="RetrievalMethod"/>
+        <ref label="X509Data"/>
+        <ref label="PGPData"/>
+        <element name="MgmtData" type="string"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="KeyValue"/>
+  <elementRule role="KeyValue">
+    <mixed>
+      <choice>
+        <importedLabelRef label="KeyValue.External" occurs="*"/>
+        <ref label="DSAKeyValue"/>
+        <ref label="RSAKeyValue"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="RetrievalMethod">
+    <attribute name="URI" required="true" type="uriReference"/>
+    <attribute name="Type" type="uriReference"/>
+  </tag>
+  <elementRule role="RetrievalMethod">
+    <ref label="Transforms" occurs="?"/>
+  </elementRule>
+
+  <tag name="X509Data"/>
+  <elementRule role="X509Data">
+    <choice>
+      <choice occurs="+">
+        <ref label="X509IssuerSerial"/>
+        <element name="X509SKI" type="string"/>  <!-- CryptoBinary"/>
+        <element name="X509SubjectName" type="string"/>
+        <element name="X509Certificate" type="string"/>  <!-- CryptoBinary"/>
+      </choice>
+      <element name="X509CRL" type="string"/>  <!-- CryptoBinary"/>
+    </choice>
+  </elementRule>
+
+  <tag name="X509IssuerSerial"/>
+  <elementRule role="X509IssuerSerial">
+    <sequence>
+      <element name="X509IssuerName" type="string"/>
+      <element name="X509SerialNumber" type="integer"/>
+    </sequence>
+  </elementRule>
+
+  <tag name="PGPData"/>
+  <elementRule role="PGPData">
+    <choice>
+      <importedLabelRef label="PGPData.External"/>
+      <sequence>
+        <element name="PGPKeyID" type="string"/>
+        <element name="PGPKeyPacket" type="string"/>  <!-- CryptoBinary"/>
+      </sequence>
+    </choice>
+  </elementRule>
+
+  <tag name="Object">
+    <attribute name="Id" type="ID"/>
+    <attribute name="MimeType" type="string"/>
+    <attribute name="Encoding" type="uriReference"/>
+  </tag>
+  <elementRule role="Object">
+    <mixed>
+      <choice occurs="*">
+        <importedLabelRef label="Object.External"/>
+        <ref label="Signature"/>
+        <ref label="SignatureProperties"/>
+        <ref label="Manifest"/>
+      </choice>
+    </mixed>
+  </elementRule>
+
+  <tag name="Manifest">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="Manifest">
+    <ref label="Reference" occurs="+"/>
+  </elementRule>
+
+  <tag name="SignatureProperties">
+    <attribute name="Id" type="ID"/>
+  </tag>
+  <elementRule role="SignatureProperties">
+    <ref label="SignatureProperty" occurs="+"/>
+  </elementRule>
+
+  <tag name="SignatureProperty">
+    <attribute name="Target" required="true" type="uriReference"/>
+    <attribute name="Id" type="ID"/>
+  </tag>
+
+  <elementRule role="SignatureProperty">
+    <mixed>
+      <importedLabelRef label="SignatureProperty.External"/>
+    </mixed>
+  </elementRule>
+
+  <tag name="HMACOutputLength"/>
+  <elementRule role="HMACOutputLength" type="integer"/>
+
+  <tag name="DSAKeyValue"/>
+  <elementRule role="DSAKeyValue">
+    <sequence>
+      <element name="P" type="string"/>  <!-- CryptoBinary"/>
+      <element name="Q"/>  <!-- CryptoBinary"/>
+      <element name="G"/>  <!-- CryptoBinary"/>
+      <element name="Y"/>  <!-- CryptoBinary"/>
+      <element name="J" type="string" occurs="?"/> <!-- CryptoBinary"/>
+      <sequence occurs="?">
+        <element name="Seed" type="string"/> <!-- CryptoBinary"/>
+        <element name="PgenCounter" type="string"/> <!-- CryptoBinary"/>
+      </sequence>
+    </sequence>
+  </elementRule>
+
+  <tag name="RSAKeyValue"/>
+  <elementRule role="RSAKeyValue">
+    <sequence>
+      <element name="Modulus" type="string"/> <!-- CryptoBinary"/>
+      <element name="Exponent" type="string"/> <!-- CryptoBinary"/>
+    </sequence>
+  </elementRule>
+
+</module>
+
+
+

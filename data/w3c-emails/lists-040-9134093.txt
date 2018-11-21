@@ -1,0 +1,97 @@
+docno="lists-040-9134093"
+received="Wed Jun 27 02:29:16 2001"
+isoreceived="20010627062916"
+sent="Tue, 26 Jun 2001 23:09:37 -0700"
+isosent="20010627060937"
+name="Dan Brotsky"
+email="dbrotsky@Adobe.COM"
+subject="RE: Status code for creating lock-null resource"
+id="p0433012db75f1b19faab@[192.168.1.6]"
+charset="us-ascii"
+inreplyto="FDEHJMOEIDFPFLBKEICGEENCCAAA.tim&#64;peir.com"
+expires="-1"
+
+
+To:"Tim Ellison"<tim@peir.com>
+Cc:<w3c-dist-auth@w3.org>
+
+I'm definitely in the camp that thinks lock-null resources should go 
+away in the next revise of 2518, and I very much like the way this 
+discussion went, which I would summarize as:
+
+0. we don't talk about "null resources" any more, just unmapped-URIs.
+
+1. lock-null resources are just "regular resources" that are required 
+to respond to certain methods in certain ways.
+
+2. creating a lock-null resource should return 201
+
+So far I would say a simple rephrasing might be:
+
+a. The result of a LOCK call on an unmapped-URI is that the URI gets 
+mapped to a no-content resource that responds to certain (non-write) 
+methods with 404 or 405.
+
+But the problem with this rephrasing is that:
+
+3. GET on the resource returns 404 or 405 not 204 (as would be 
+expected for a "regular" no-content resource).  [Aside: 404 really 
+makes no sense here, given that the resource is required to appear as 
+a member of its parent collection - PROPFIND returns 207 but GET 
+returns 404?  But that's a different issue.]
+
+4. OPTIONS and other non-write methods return 404 or 405 for no 
+particular reason.
+
+5. UNLOCK on the resource returns the URL to an unmapped state.
+
+Note that restrictions #3 and #4 are unmotivated, as far as I can 
+tell; the only "special" aspect of this resource (aside from #5) is 
+that the server really can't know whether it's a collection or not. 
+[Aside: The DAV:resourcetype property really needs another value in 
+these cases, such as "indeterminate".  But that's another issue.]
+
+Which brings us to #5: UNLOCK (essentially) deletes the resource.  I 
+think I understand the motivation for this: a client that locks the 
+URI but then decides not to write it doesn't want to have to do a 
+delete in order not to leave an empty resource mapped to the URI. 
+But my problem is that the spec *mandates* this behavior, rather than 
+leaving up to the server (or allowing the client to request it 
+specially as part of the UNLOCK).
+
+Essentially the spec is requiring that a LOCK/UNLOCK combination with 
+no intervening write operations do *nothing* to a URI or the resource 
+mapped to it.  (This is a mandate that has been picked up in deltaV, 
+as well.)  But while I can understand that servers might want to work 
+this way, and that clients might want to request this, I can see no 
+reason to mandate this.
+
+In fact, my experience with building workflow and document-management 
+servers leads me to entirely the other conclusion: servers need the 
+discretion to interpret LOCK as a statement of intent in the 
+workflow, one that an UNLOCK does not necessarily "undo."  In 
+particular, LOCK is the only way in WebDAV for a client to create a 
+no-content resource (as opposed to one with content-length 0), and 
+just because the client doesn't create the content before unlocking 
+doesn't mean that the client wants the created resource (and live 
+properties such as its creator) to be expunged from the server.
+
+As we revise 2518, I think we should give servers much more 
+discretion about how they handle LOCK/UNLOCK pairs, and possibly we 
+should give clients a way of indicating in the UNLOCK that "the lock 
+was a mistake, undo it if you can" (much as deltaV allows undoing a 
+checkout).  If we do so, I think lock-null resources (and their 
+concomitant problems) can be done away with completely, and LOCK can 
+simply be seen as creating a no-content resource when applied to 
+unmapped URIs.  Servers who wish to preserve the lock-null kinds of 
+behavior for those resources are welcome to, and they will still be 
+in compliance with the spec.
+
+     dan
+-- 
+Daniel Brotsky, Adobe Systems
+tel 408-536-4150, pager 877-704-4062
+2-way pager email: <mailto:page-dbrotsky@adobe.com>
+
+
+

@@ -1,0 +1,154 @@
+docno="lists-014-12197736"
+received="Thu Feb 26 12:22:33 2004"
+isoreceived="20040226172233"
+sent="Thu, 26 Feb 2004 17:22:21 +0000"
+isosent="20040226172221"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Understanding &#64;keywords"
+id="403E2B4D.3010806@mysterylights.com"
+charset="usascii"
+expires="1"
+
+
+To:public-cwm-talk@w3.org
+
+
+[I've been working on a set of explanatory @keywords examples to
+better understand how it's implemented. Please consider adding
+some of these tests to the CWM regression suite.]
+
+@keywords allows one to carve out the set of reserved names which
+CWM is to use. Any that CWM does not recognize natively will be
+output as literals:
+
+$ echo '@keywords p, q, r . p q r .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+     "p"     "q" "r" .
+
+Special keywords that CWM does recognize natively will be output
+as their normal selves, which usually means retaining the keyword:
+
+$ echo '@keywords a, Doc . <> a Doc .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+     <>     a "Doc" .
+
+(Using "this" causes an error; a seperate bug report is archived at
+http://lists.w3.org/Archives/Public/public-cwm-bugs/2004Feb/0003).
+Once keywords have been declared, any bare (non-colon-prefixed) words
+that are used are put into the default prefix space if it has been
+delcared:
+
+$ echo '@keywords . @prefix : <#> . Mydoc a :Doc .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+      @prefix : <#> .
+     :Mydoc     :a :Doc .
+
+Note that "a" does not remain as an rdf:type synonym since it hasn't
+been declared as a keyword. If you try to use the default prefixing
+mechanism without using @prefix, an error will be raised:
+
+$ echo '@keywords . p a q .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+    notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+      Bad syntax (Prefix  not bound) at ^ in:
+      "@keywords . ^p a q ."
+
+The is and of keywords are not retained as special keywords outside
+of their valid context, and are converted into literals (or URIs if
+the default prefix space is declared) elsewhere:
+
+$ echo '@keywords is, a, of . is a of .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+     "is"     a "of" .
+
+Note also that they can be used both inside and outside of their
+special contexts and will be converted or recognized accordingly:
+
+$ echo '@keywords is, a, of . is is a of of .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+     "of"     "a" "is" .
+
+In the example above, "a" is not retained in its meaning of rdf:type,
+but this is a quirk of the is/of idiom, which does not allow that
+special meaning, as illustrated here:
+
+$ echo '@prefix : <#> . :is is a of :of .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+    notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+      Bad syntax (expected <property> after 'is') at ^ in:
+      "@prefix : <#> . :is is^ a of :of ."
+
+Keywords must be declared before they are used, otherwise a "bad
+syntax" error will be given:
+
+$ echo 'p q r. @keywords p, q, r .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+    notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+      Bad syntax (expected directive or statement) at ^ in:
+      "^p q r. @keywords p, q, r ."
+
+Likewise, builtin keywords can be used before they are overriden:
+
+$ echo '<> a <#Doc> . @keywords .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+      @prefix : <#> .
+     <>     a :Doc .
+
+Subsequent keyword declarations appear to overwrite all of the keywords
+delcared earlier on; they do not get appended to the keyword space:
+
+$ echo '@keywords p, q, r . p q r . @keywords s . p q r .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+    notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+      Bad syntax (Prefix  not bound) at ^ in:
+      "@keywords p, q, r . p q r . @keywords s . ^p q r ."
+
+The default prefixes even work nicely in @forAll declarations:
+
+$ echo '@keywords . @prefix : <#> . @forAll p .' | \
+    cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+     this     <http://www.w3.org/2000/10/swap/log#forAll> <#p> .
+
+Keywords must be "words"; they cannot contain special characters:
+
+$ echo '@keywords = .' | cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+    notation3.BadSyntax: Line 1 of <file:.../keyword-test/>:
+      Bad syntax ('@keywords' needs comma separated list of words)
+      at ^ in: "@keywords = .^"
+
+Declaring "@keywords prefix, keywords." is likely to cause some very
+strange bugs at the moment. (A bug report has been sent and archived
+at http://lists.w3.org/Archives/Public/public-cwm-bugs/2004Feb/0005).
+
+Keywords can be delcared in formulae, and persist outside of the
+formulae as expected:
+
+$ echo '@prefix : <#> . { @keywords p, q . p q r } => { r p q } . \
+    p r t .' | cwm | egrep -v '^[ \t]*#|^[ \t]*$'
+
+      @prefix : <#> .
+     "p"     :r :t .
+     { "p"     "q" :r .
+         }     <.../log#implies> {:r     "p" "q" . } .
+
+Please let me know if there are any other points to be added,
+
+-- 
+Sean B. Palmer, <http://purl.org/net/sbp/>
+"phenomicity by the bucketful" - http://miscoranda.com/
+
+
+

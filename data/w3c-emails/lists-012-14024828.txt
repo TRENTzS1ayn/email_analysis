@@ -1,0 +1,58 @@
+docno="lists-012-14024828"
+received="Tue Jun 20 19:24:55 2000"
+isoreceived="20000620232455"
+sent="Tue, 20 Jun 2000 11:21:07 0700"
+isosent="20000620182107"
+name="Life is hard, and then you die"
+email="ronald@innovation.ch"
+subject="Re: CRLF on POST requests, where/how specified (repost from prior bad subject line)"
+id="20000620112107.A23741@innovation.ch"
+charset="usascii"
+inreplyto="86256904.00621F0F.00&#64;internet1.neonsys.com"
+expires="1"
+
+To: Fred Bohle<fbohle@neonsys.com>
+Cc:http-wg@cuckoo.hpl.hp.com
+
+
+On Tue, Jun 20, 2000 at 12:51:11PM -0500, Fred Bohle wrote:
+> 
+>      No, not the CRLF between the headers and the body.  We are asking
+>      about a CRLF that follows the body.  It does not seem to be in
+>      the 1.0 spec, and the 1.1 spec seems to specifically prohibit it.
+>      And yet, IE5 and Netscape both will send a CRLF after the body
+>      for Content-type: application/x-www-url-encoded.
+
+The spec clearly disallows this extra CRLF, i.e. it's a bug in those
+browsers. However, there is an easy workaround which many people use:
+when reading the request line, ignore all whitespace (or empty lines)
+until you hit the actual request line.
+
+>      What do other web servers do to handle this CRLF?  We find that
+>      if we decide to close the connection with the end of the response
+>      we generate, (Connection: close) and THEN the CRLF arrives from
+>      the client, the TCP layer will generate a Reset packet.  This
+>      causes (IE5 at least) the client to fail processing the response
+>      we just sent.  So the application stops, dead in the water.
+
+This is a little tricky, but not much. Basically you need to do a
+shutdown on the socket, i.e. only close for sends; then you keep
+reading from the socket (and just discard the data) until either you get
+an EOF (in which case the client did the close), or until some timeout
+(a few seconds) in case the client doesn't close the connection. Note
+that this problem is a general problem (i.e. not limited to the extra
+CRLF), because you can get the same effect when a client pipelines
+requests.
+
+
+  Cheers,
+
+  Ronald
+
+
+P.S. take a look at the Apache source: read_request_line() in http_protocol.c
+     for the first problem, and lingering_close() in http_main.c for
+     the second - the comments are enlightening.
+
+
+

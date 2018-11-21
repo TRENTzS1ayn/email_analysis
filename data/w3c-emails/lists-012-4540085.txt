@@ -1,0 +1,144 @@
+docno="lists-012-4540085"
+received="Tue Jul 28 11:44:09 1998"
+isoreceived="19980728154409"
+sent="Mon, 27 Jul 98 10:28:49 MDT"
+isosent="19980727162849"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="IEBUG"
+id="9807271728.AA01644@acetes.pa.dec.com"
+inreplyto="9807242226.AA02500&#64;pachyderm.pa.dec.com"
+expires="1"
+
+
+To: Jim Gettys<jg@pa.dec.com>
+Cc:http-wg@cuckoo.hpl.hp.com,frystyk@w3.org,masinter@parc.xerox.com,paulle@microsoft.com,lawrence@agranat.com,fielding@ics.uci.edu,dmk@research.bell-labs.com,mogul@pa.dec.com
+
+    IEBUG: We discussed IEBUG some more; Paul will check further with
+    Josh Cohen on this.  It isn't clear any action should be taken; but
+    we don't fully remember why the response was made a 416 code rather
+    than a 200 series code, and this is nagging us.  Jeff Mogul was not
+    available for the call, and he drafted the 416 description.  I will
+    also check with Jeff to see if he remembers the reason.
+    
+I'm not sure we gave any deep theoretical analysis to the choice
+between 2xx and 4xx.
+
+To review the reason for including the 416 response: without a specific
+"Range not satisfiable" error, the client cannot tell the difference
+between (inadvertently) requesting something beyond the end of the
+resource, and simply failing to get any response at all.  I believe
+that Henrik discovered this problem while doing one of his
+implementations.
+
+Why might the client legitimately read past the end of a resource?
+Well, consider the case of a client that wants to find out the
+screen-size of a GIF image (to allow early rendering of text) without
+blocking while the entire image downloads.  Assume that the client has
+seen some or all of the enclosing HTML file, which turns out to have
+two imbedded GIFs.  The client could do these requests (please excuse
+the short-hand notation!) in a pipeline (i.e., without waiting
+for any server replies):
+
+GET imagea.gif/Range: 0-1023
+GET imageb.gif/Range: 0-1023
+GET imagea.gif/Range: 1023-
+GET imageb.gif/Range: 1023-
+
+This would be done with the assumption that all of the necessary
+screen layout information is contained in the first 1024 bytes
+of the GIF file (actually, the number is probably a lot smaller,
+but I'm using this as an arbitrary example).
+
+Now, suppose that these are really just tiny images (bullets, 
+horizontal rules, whatever) and imageb.gif is actually only
+512 bytes long.  We don't want return a "hard" error to the
+client, such as 404 Not Found, since that could imply instead
+that the entire resource is now bogus.  So this is why we wanted
+a separate code.  Note that by the time that the client receives
+the 416 response for the second request for imageb.gif, it
+has already received the first response, and so between the
+two responses (and the resource-length information in each)
+it can infer exactly why it got the 416 response.
+
+OK, back to 2xx vs. 4xx.  As I said, I don't think we gave it
+much thought at the time.
+
+Remember that the scenario above is not the only way to get
+a 416 error.  It might be the most common one, but imagine
+that we have a client interface that allows the user to select
+a specific part of a document, and the user enters a bogus
+range.  So, in some cases, this is really an "error."
+
+Section 6.1.1 (Status Code and Reason Phrase) lists the
+categories like this:
+
+    .  1xx: Informational - Request received, continuing process
+
+    .  2xx: Success - The action was successfully received, understood,
+       and accepted
+
+    .  3xx: Redirection - Further action must be taken in order to
+       complete the request
+
+    .  4xx: Client Error - The request contains bad syntax or cannot be
+       fulfilled
+
+    .  5xx: Server Error - The server failed to fulfill an apparently
+       valid request
+
+For " Requested range not satisfiable" (RRNS, I'll call it), 1xx
+and 5xx are clearly not the right categories.  3xx "Redirection"
+doesn't sound right.
+
+2xx is described as "The action was successfully received, understood,
+and accepted", but this seems to contradict the plain intent of
+416 (which is that the action was NOT accepted).  4xx is described
+as "The request ... cannot be fulfilled", which seems like it hits
+the nail on the head.  So, from the plain language of the description
+in 6.1.1, 4xx is indeed the right category, and this is presumably
+what led us to pick 416.
+
+I'm not necessarily arguing that, if we had had the foresight
+to consider the implications of interoperating with a RFC2068-compliant
+client that sends Range requests (and rather clever one, at that),
+that we might not have gone against this basic distinction between
+2xx and 4xx ... although I can't for sure say that this would have
+solved the problem for IE, and it might have created other ones.
+
+But I think we would be making a mistake to try to change the
+code number now.  Right now, we are in this situation:
+(1) The 416 code was introduced to solve a real problem.
+(2) The design in -rev-03 is at least internally consistent
+(3) We are aware of the problem with IE, but we can also
+hypothesize some workarounds
+
+If we change the code, then we may end up with problems that we
+don't understand, and I think this would be worse.  I.e., rather
+the devil you know than the (potentially several) devils you
+don't know.  (Note to Paul: I am using "devil" here as part of
+a common proverb, not in any more specific sense.)
+
+What workarounds?  I recall that someone (Roy?) suggested on
+Thursday that the server could have special code saying
+if (about to send 416) then
+    if (User-Agent == "IE4") then
+don't send 416
+    endif
+    send 416
+endif
+
+The outer condition might be something more elaborate, such
+as "about to send 416 and requested range is just after
+the end of the resource."
+
+I don't remember what was suggested instead of sending 416, but I'm
+sure that Josh can tell us what he would like to have happen
+there.
+
+Yes, I know this is a pain, but the alternatives are also painful.
+
+-Jeff
+
+
+

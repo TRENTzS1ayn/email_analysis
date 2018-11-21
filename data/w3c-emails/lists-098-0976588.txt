@@ -1,0 +1,165 @@
+docno="lists-098-0976588"
+received="Sun Oct 21 02:52:06 2001"
+isoreceived="20011021065206"
+sent="Sun, 21 Oct 2001 01:51:14 -0500"
+isosent="20011021065114"
+name="Aaron Swartz"
+email="aswartz@upclink.com"
+subject="ntriples.py 1.1"
+id="04ECB317-C5F0-11D5-964B-003065D5CE46@upclink.com"
+charset="US-ASCII"
+expires="-1"
+
+Cc:www-archive@w3.org
+To:"Sean B. Palmer"<sean@mysterylights.com>
+
+
+I hope you don't mind but I took the liberty of cleaning up ntriples.py.
+
+I made some small changes:
+  - I renamed it "NTriples Tools: Parses and serializes N-Triples 
+documents."
+  - I moved the license down to a __license__ variable.
+
+And a major one: I didn't see the reason it was a class with 
+lots of little functions. I really only wanted two things from 
+it: take an N-Triples string and give me back an RDF store 
+(parse) and take a store and give me back an N-Triples string 
+(serialize). So I linearized it into two plain old functions: 
+parse(document, store=rdf.Store()) and serialize(store).
+
+I took out the special NTriplesURLopener, since I figured 
+calling apps could deal with URIs on their own. I also took out 
+the specialized code to deal with file, file names, files, etc.
+
+I also fixed a number of bugs along the way. Resulting code is 
+104 lines + command line interface. There still looks like a lot 
+of room for tersification, but since I couldn't follow the 
+de-commented code very well, I didn't bother (and it's getting 
+late).
+
+Let me know if you have questions,
+- [ "Aaron Swartz" ; <mailto:me@aaronsw.com> ; 
+<http://www.aaronsw.com/> ]
+
+#!/usr/bin/python
+"""
+NTriples Tools: Parses and serializes N-Triples documents.
+http://infomesh.net/2001/10/ntriples/
+Built on Aaron Swartz's RDF API: http://blogspace.com/rdf/rdfapi.txt
+cf. http://www.w3.org/TR/2001/WD-rdf-testcases-20010912/#ntriples
+"""
+
+import sys, string, re, urllib
+import rdfapi as rdf
+
+__author__ = "Sean B. Palmer with Aaron Swartz"
+__version__ = '1.1'
+__license__ = """
+Copyright (C) 2001 Sean B. Palmer.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation; either version 2 of
+the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+02111-1307, USA.
+"""
+
+def parse(document, store=rdf.Store()):
+   bNodes = {}
+   CTriple = []
+
+   # Uncomprehensible regexps
+   t = r'(<[^>]+>|_:[^\s]+|\"(?:\\\"|[^"])*\")'
+   rt = re.compile(r'[ \t]*'+t+r'[ \t]+'+t+r'[ \t]+'+t+r'[ \t]*.[ \t]*')
+   rc = re.compile(r'(\#[^\n]*)')
+   rw = re.compile(r'[ \t]+')
+
+   # Normalize the new lines in document
+   if len(document) == 0: raise 'Document has no content'
+   else:
+      document = string.replace(document, '\r\n', '\n')
+      document = string.replace(document, '\r', '\n')
+
+   # Parse document into tripleList
+   lines = string.split(document, '\n')
+   for line in lines:
+      if len(line) == 0: continue # line has no content (a double '\n')
+      elif rt.match(line):
+          terms = rt.findall(line)[0]
+          for term in terms:
+             if term[0] == '<' and term[-1] == '>': # Term is a URI-view
+                CTriple.append(term[1:-1])
+             elif term[:2] == '_:': # Term is an unlabelled node: bNode
+                bNode = term[2:]
+                if re.compile(r'[A-Za-z][A-Za-z0-9]*', 
+re.S).match(bNode):
+                   if not bNode in bNodes.keys():
+                      bNodes[bNode] = rdf.node()
+                   CTriple.append(bNodes[bNode])
+                else: raise 'bnode: "'+bNode+'" is not a valid bNode'
+             elif term[0] == '"' and term[-1] == '"':
+                CTriple.append(unicode(term[1:-1]))
+             else: raise 'Term '+str(term)+' is not a valid 
+NTriples term.'
+          store.triple(CTriple[0], CTriple[1], CTriple[2])
+          CTriple = [] # Reset the current triple
+      elif rc.match(line): continue # Line is a comment
+      elif rw.match(line): continue # Line is just whitespace
+      else:
+      SyntaxError = "Line is invalid"
+      raise SyntaxError, line # Validity error
+   return store
+
+def serialize(store):
+   """Prints out as NTriples (Aaron wrote this function).
+   Aaron notes: The code is really ugly and needs to be cleaned up."""
+   nodeIdMap, nodeIdNum, output = {}, 0, []
+   for t in store.tripleList:
+      if (not hasattr(t.subject, 'uri')
+        and t.subject not in nodeIdMap.keys()):
+         nodeIdNum += 1
+         nodeIdMap[t.subject] = 'a' + `nodeIdNum`
+      if (not hasattr(t.predicate, 'uri')
+        and t.predicate not in nodeIdMap.keys()):
+         nodeIdNum += 1
+         nodeIdMap[t.predicate] = 'a' + `nodeIdNum`
+      if (not hasattr(t.object, 'uri')
+        and t.object not in nodeIdMap.keys()):
+         nodeIdNum += 1
+         nodeIdMap[t.object] = 'a' + `nodeIdNum`
+      if t.subject in nodeIdMap.keys(): sub = '_:' + nodeIdMap[t.subject]
+      else: sub = '<'+t.subject.uri+'>'
+      if t.predicate in nodeIdMap.keys(): prd = '_:' + 
+nodeIdMap[t.predicate]
+      else: prd = '<'+t.predicate.uri+'>'
+      if t.object in nodeIdMap.keys(): obj = '_:' + nodeIdMap[t.object]
+      else:
+      if t.object.uri[:6] == "data:,":
+      obj = '"'+ rdf.URIToLiteral(t.object.uri) +'"'
+      else: obj = '<'+t.object.uri+'>'
+      output.append('%s %s %s .' % (sub, prd, obj))
+   return string.join(output, '\n')
+
+def run():
+   x = parse(open(sys.argv[1]).read())
+   print serialize(x)
+
+# Main program
+
+if __name__ == "__main__":
+     run()
+
+# Phew
+
+
+

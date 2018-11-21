@@ -1,0 +1,88 @@
+docno="lists-009-14813246"
+received="Fri Dec 29 11:42:27 1995"
+isoreceived="19951229164227"
+sent="Fri, 29 Dec 95 11:32:33 PST"
+isosent="19951229193233"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 'PUT' transaction reconsidered (was Re: twophase send concerns )"
+id="9512291932.AA12092@acetes.pa.dec.com"
+inreplyto="9512281440.aa25197&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@avron.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    > A good point.  But even if the HTTP protocol allows the use of an
+    > optimistic two-phase scheme (as I am suggesting), this does not mean
+    > that it would be required (since the optimistic scheme includes the
+    > pessimistic scheme as a backstop).  In other words, a user that was
+    > being charged by the packet could choose to employ the pessimistic
+    > scheme, on its own initiative.
+    
+    If this would still require the 100 Continue response be sent upon
+    receipt of the initial headers (which is what the application
+    desiring a pessimistic scheme would be looking for anyway), it
+    sounds good to me.  It is okay if the pessimistic scheme only works
+    "well" for HTTP/1.1 servers.
+
+That sounds good to me.  Let me try to make this more specific, with
+an attempt to cover all of the cases (I'll probably botch this).  Places
+where I wasn't sure about the language I've marked with "[]" brackets.
+
+    Upon receiving a PUT-like method from a 1.1 (or later) client,
+    a 1.1 (or later) server immediately [as soon as possible] either
+    responds with "100 Continue" and continues to read from the
+    input stream, or responds with an error status.  If it responds
+    with an error status, it MAY close the TCP [transport] connection
+    or it MAY continue to read and discard the rest of the request.
+    
+    A 1.1 (or later) client doing a PUT-like method SHOULD monitor
+    the network connection for an error status while it is transmitting
+    the body of the request.  If it sees an error status, it SHOULD
+    immediately [as soon as possible] cease transmitting the body.
+    If the body was preceeded by a Content-length: header, the client
+    MUST close the connection to mark the end of the request.
+    
+    A 1.1 (or later) client MUST be prepared to accept a 100 Continue
+    status followed by a regular response.
+    
+    A 1.1 (or later) client that sees the connection close before
+    receiving any status from the server SHOULD retry the request,
+    but if it does so, it MUST use the two-phase method.  In the
+    two-phase method, the client first sends the request headers,
+    then waits for the server to respond with either a 100 Continue
+    (in which case the client SHOULD continue) or an error status
+    (in which case the client MUST NOT continue, and MUST close
+    the connection if it had sent a Content-length: header as part
+    of the request).
+    
+    If the client knows that the server is a 1.1 (or later) server,
+    because of the server protocol version returned with a previous
+    request on the same persistent connection [alternatively: within
+    the past <N> hours], it MUST wait for a response.  If the client
+    believes that the server is a 1.0 or earlier server, it SHOULD
+    continue transmitting its request after waiting at least 5 [?]
+    seconds for a status response.
+    
+    [If the client has seen the server respond with a version of 1.0
+    (or earlier) within the last <M> minutes, it MAY skip the two-phase
+    method.]
+
+    A 1.1 (or later) client that sees the connection close after
+    receiving a "100 Continue" but before receiving any other
+    status SHOULD retry the request, and need not use the two-phase
+    method (but MAY do so if this simplifies the implementation).
+
+    A 1.1 (or later) server that receives a request from a 1.0
+    (or earlier) client MUST [SHOULD] NOT transmit the "100 Continue"
+    response, and MUST accept the entire request body (without
+    prematurely closing the TCP connection) if the request includes
+    a Keep-Alive: header.  Otherwise, it MAY close the connection
+    prematurely.
+
+-Jeff
+
+
+

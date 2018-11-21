@@ -1,0 +1,103 @@
+docno="lists-096-8169329"
+received="Sat Mar 29 00:49:20 2003"
+isoreceived="20030329054920"
+sent="Sat, 29 Mar 2003 06:49:38 +0100"
+isosent="20030329054938"
+name="Henryk Pl?tz"
+email="henryk@ploetzli.ch"
+subject="Digest Access Authentication probably broken"
+id="20030329064938.6fc99a79.henryk@ploetzli.ch"
+charset="ISO-8859-1"
+expires="-1"
+
+To:www-amaya@w3.org
+
+
+
+Moin,
+
+I've been playing around with Amaya 7.2 under Gentoo Linux with kernel
+2.4.20 and Digest Access Authentication. But as soon as the server
+started sending qop="auth, auth-int" in it's WWW-Authenticate response
+header, Amaya was unable to authenticate any longer while Mozilla worked
+fine.
+
+By modifying the server code I found that Amaya uses "auth, auth-int"
+(without the quotes of course) as value for unq(qop-value) in the
+calculation of the request-digest (RFC 2617, section 3.2.2.1), while RFC
+2617 clearly states that it "... MUST be one of the alternatives the
+server indicated it supports in the WWW-Authenticate header. [...] Note
+that this is a single token, not a quoted list of alternatives as in
+WWW-Authenticate." (section 3.2.2)
+
+So, if I'm not mistaken this is a bug in Amaya, isn't it?
+
+
+Appendix: abbreviated trace of the whole process:
+
+| GET /~henryk/digestauthtest.php HTTP/1.1
+| Host: gleam.homeip.net
+| User-Agent: amaya/7.2 libwww/5.4.0
+
+| HTTP/1.1 401 Authorization Required
+| Date: Sat, 29 Mar 2003 05:15:27 GMT
+| Server: Apache/1.3.27 (Unix)  (Gentoo/Linux) PHP/4.3.1
+| WWW-Authenticate: Digest realm="Privatbereich", algorithm=MD5,
+|  qop="auth", nonce="1048914927;01b735bc99b9a649b0aaba92c80b397b"
+
+| GET /~henryk/digestauthtest.php HTTP/1.1
+| Authorization: Digest username="fubar", realm="Privatbereich",
+|  nonce="1048914927;01b735bc99b9a649b0aaba92c80b397b",
+|  uri="/~henryk/digestauthtest.php", qop=auth, nc=00000001,
+|  cnonce="012345678", response=f2c608b80ce93b01d917f868fc22440f
+
+| HTTP/1.1 200 OK
+| Date: Sat, 29 Mar 2003 05:15:27 GMT
+
+(So username/password are okay, now modify the qop-options and wait some
+time for the nonce to become stale)
+
+| GET /~henryk/digestauthtest.php HTTP/1.1
+| Authorization: Digest username="fubar", realm="Privatbereich",
+|  nonce="1048914927;01b735bc99b9a649b0aaba92c80b397b",
+|  uri="/~henryk/digestauthtest.php", qop=auth, nc=00000004,
+|  cnonce="012345678", response=db3d2bb738528b8202bf9ad2924bfe4f
+
+| HTTP/1.1 401 Authorization Required
+| Date: Sat, 29 Mar 2003 05:17:01 GMT
+| WWW-Authenticate: Digest realm="Privatbereich", stale=true,
+|  algorithm=MD5, qop="auth, auth-int",
+|  nonce="1048915021;27b59a639ad37173b20f6d64a5f6b040"
+
+| GET /~henryk/digestauthtest.php HTTP/1.1
+| Authorization: Digest username="fubar", realm="Privatbereich",
+|  nonce="1048915021;27b59a639ad37173b20f6d64a5f6b040",
+|  uri="/~henryk/digestauthtest.php", qop=auth, nc=00000001,
+|  cnonce="012345678", response=0159180556a57ae1c191a75d8198d117
+
+| HTTP/1.1 401 Authorization Required
+| Date: Sat, 29 Mar 2003 05:17:01 GMT
+| WWW-Authenticate: Digest realm="Privatbereich", algorithm=MD5,
+|  qop="auth, auth-int",
+|  nonce="1048915021;27b59a639ad37173b20f6d64a5f6b040"
+
+(Now modify the server to too use "auth, auth-int" in the request
+digest calculation)
+
+| GET /~henryk/digestauthtest.php HTTP/1.1
+| Authorization: Digest username="fubar", realm="Privatbereich",
+|  nonce="1048916207;a55a349d45382773f7451e12190679c6",
+|  uri="/~henryk/digestauthtest.php", qop=auth, nc=00000001,
+|  cnonce="012345678", response=915adaab5d6de34418915e3ac607a9ab
+
+| HTTP/1.1 200 OK
+| Date: Sat, 29 Mar 2003 05:36:47 GMT
+
+-- 
+Henryk Pl?tz
+Gr??e von der Ostsee
+
+Help Microsoft combat software piracy: Give Linux to a friend today!
+
+
+

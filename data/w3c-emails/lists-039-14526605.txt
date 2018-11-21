@@ -1,0 +1,108 @@
+docno="lists-039-14526605"
+received="Mon Jan  3 04:23:06 2000"
+isoreceived="20000103092306"
+sent="Mon, 3 Jan 2000 01:22:48 -0800"
+isosent="20000103092248"
+name="Eric Sedlar"
+email="esedlar@us.oracle.com"
+subject="Re: Locking URIs rather than Resources"
+id="00ba01bf55cc$1a312160$9a114498@us.oracle.com"
+charset="iso-8859-1"
+inreplyto="05256858.00804FA6.00&#64;D51MTA03.pok.ibm.com"
+expires="-1"
+
+
+To:<w3c-dist-auth@w3.org>
+
+I think the existing proposals are kind of crufty, because there is no
+sensible abstraction that people can understand and expand on.  They either
+have the yucky lock-null, or they introduce a new kind of object (a URL)
+that is not a resource, the "atom" (basic building block) of web
+applications.
+
+Here are the fundamental issues I see:
+
+1) are the list of names in a collection logically part of the collection,
+or do they live in some separate space outside the domain of resources?
+(I'm using the word name the way jra uses "binding"--the relationship
+between a containing collection and a particular resource which is given a
+unique name within that collection).
+
+To me the answer must be that they are a part of the collection.  The only
+type of object that can be identified within this model is a resource.  You
+are going to have (in a real system) access control on resources, and not a
+separate access control model for names.  There are too many concepts in the
+world of the web to introduce another type of object other than a resource.
+Every filesystem in the world stores the list of filenames as a part of the
+directory, and locks & access control on the directory affects all names
+within.  Let's stick with current usage unless we have compelling reasons to
+deviate.
+
+2) what kind of locks are there?
+
+IMHO, there must be two kinds of locks--name locks and resource locks.  The
+problem with just locking a collection resource is that it is to
+coarse-grained--there are lots of applications that will want to just lock a
+single name in a collection, and resource locking every collection in a path
+will reduce concurrency too much.  I think of this like table level and row
+level locks in a database--a lock on the collection is like a table level
+lock, locking all names (rows) in that collection.  Another way to think of
+a name is like a fragment within the collection document.
+
+3) what about the notion of a lock "depth"?
+
+There is no such thing.  However, depth may be one way that a protocol
+request can specify a particular set of locks.
+
+Now that we understand that, what do we do about RFC 2518 LOCK's?  (I'm
+using a capitalized LOCK to distinguish the RFC 2518 protocol request from
+name locks and resource locks).
+
+The requirements are:
+
+* a LOCK on must prevent the resource from being moved, for compatability
+with existing applications.
+* a LOCK on must prevent any changes to that resource (updates, deletes,
+etc.) if it exists
+* a LOCK token must be associated with the locked resource and URL
+
+So, it seems like that the following solution is the right abstraction:
+
+1) add the notion of name and resource locks.  A name lock applies to a
+single level name within a collection.  A resource lock applies to the data
+identified by a particular URL.  If that URL identifies a collection, a
+resource lock locks ALL of the names in that collection, and is blocked by
+any name lock within, and vice versa.
+
+2) we introduce the notion of a lock "set".  A lock set is a group of any
+number of name and resource locks.  Each lock set as a single associated
+lock token.  An RFC 2518 LOCK request applied to an existing non-collection
+resource will grant name locks to each name in the path from the root down
+to the bottom, and a resource lock on the identified resource, create a lock
+set from this group, and grant an identifying LOCK token.  An RFC 2518 LOCK
+request applied to a collection will work in the same way, except that if
+the depth header is specified, name and resource locks will be given
+recursively for each contained resource.  A LOCK request on a URL giving a
+nonexistent name in a existing collection will issue only name locks on the
+path elements.  If the URL minus the last path element does not refer to an
+existing collection, the LOCK request will fail.
+
+3) the activelocks property displays all name locks active for this
+collection as well as all resource locks.
+
+4) the "locktype" property is used to distinguish between name and resource
+locks.  If locktype "resource" is specified, only the specified resource
+lock is granted in that lock set.  If locktype "name" is specified, the
+names from root to the resource are locked, if the Depth header is not
+specified.  If the URL "/a/b/c.html" is given, negative depth values can be
+given to lock fractions of the path.  E.g. if Depth:0 is specified, the name
+"c.html" is reserved in collection /a/b, but no other locks are granted.  If
+Depth:-1 is specified, the name "b" in "/a" is also reserved (etc.)  Only if
+locktype is not specified does the LOCK request behave as it point #2
+(granting resource & name locks simoultaneously), basically for
+compatability with existing applications.
+
+--Eric
+
+
+

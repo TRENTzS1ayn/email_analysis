@@ -1,0 +1,172 @@
+docno="lists-056-1745034"
+received="Fri Jun 20 15:15:42 1997"
+isoreceived="19970620191542"
+sent="Fri, 20 Jun 1997 12:17:39 -0700"
+isosent="19970620191739"
+name="Matthew Fuchs"
+email="matt@wdi.disney.com"
+subject="Validating Namespaces - How To"
+id="9706201217.ZM9911@scrumpox.rd.wdi.disney.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-sgml-wg@w3.org
+
+Since some of us are nervous about how namespaces and validity might interact,
+ I've tried to build a model for just that.  If it holds up to scrutiny, then
+we'll be able to mix the two.  I think it may even stay SGML in some
+circumstances.
+
+Matthew Fuchs
+matt@wdi.disney.com
+
+The closest thing we have to a namespace is an external entity
+containing a bunch of rules to stick in the DTD.  I think we can build
+on that to establish an isomophism between a DTD composed mostly of a
+lot of entities and a document with a lot of namespaces.  We would
+also like to take advantage of the fact that defining namespaces
+corresponds closely to AFs could be a good thing.  Note that an
+architecture _is_ a bunch of element definitions and attlists.
+However, I'm not going to handle that one on this round.
+
+Syntactic considerations
+-----------------------
+
+A namespace is an entity containing:
+
+element definitions
+attribute definitions
+names (which could be used in attribute values)
+entity definitions
+
+We can assume these are hanging out at some URL or another.
+
+Documents and DTDs can use namespace prefixes pretty much anywhere
+there is a name - for GIs, for attributes, for attribute values, for
+entity references.
+
+Our interest now is how to bind namespaces prefixes to actual
+namespaces and how they affect DTD syntax (document syntax has already
+been discussed ad nauseum).  As prefixes are really variables, there
+will be two kinds of prefixes - bound and free.  In a valid document,
+all the prefixes must be bound.  In a DTD, however, some can be bound
+and some can be left free (and then bound in the document instance).
+
+Namespace prefixes can show up in DTDs in the following places:
+
+1) The content model of an element
+2) An attribute definition
+3) An attribute value
+
+We will view these one at a time.
+
+Content Models
+--------------
+
+Prefixes can only be on the right hand side, because the left hand
+side is declaring a name in the current namespace.  In the content
+modes, the prefix either stands alone, or prefixes an element name.
+In the first case, it means that any content model from the namespace
+can go there.  In the second, it must be the appropriate content model
+from the referenced namespace:
+
+<!element my-name (from-here, NEAR::, FAR::its-name)>
+
+Attribute Definitions and Values
+--------------------------------
+
+We can only borrow names here.
+
+<!attlist my-name attr1 cdata #implied
+                  THERE::attr2 (a | b | c) a
+                  THERE::attr3 (THERE::a THERE::b THERE::c) THERE::c
+                  attr4 (a | THERE::b | c) a>
+
+
+Semantics and Validation -- the fun part
+----------------------------------------
+
+The primary rule for namespace binding, as anyone who knows me can
+guess, is that namespaces are all lexically bound.  This means when
+parsing an element in another namespace, we are in that space, and all
+names are resolved as in that space.  This means I don't need prefixes
+for bound namespaces - if the same element is defined differently in
+two spaces, then the lexical scoping will tell me which namespace the
+current gi refers to, and I can use that content model.  If the name
+is not bound, then I will need to use a prefix.  Furthermore - and
+this is key - it means that if I have the DTD, the only namespace
+prefixes I need to worry about are those not bound by the DTD.  (Note
+that if we do curry out the prefixes, we've change the rules of SGML
+parsing, but not [I think] if we leave them in.  I think it's neater
+to take them out, as I'll do here, but that's really not necessary.)
+
+In a document instance, to refer to names in the outermost, default
+document namespace, we prepend ::, to use something from some
+other space, we prepend the appropriate prefix.  Note that within a
+namespace, we don't need to use prefixes for names that are
+
+The basic point on validation in a document, is you can stick
+namespace prefixes pretty much anywhere you want, as long as two
+properties are maintained:
+
+1) All namespace prefixes in the document are bound to some namespace
+(possibly the current one)
+2) Once all the prefixes in the document are bound, they must refer to
+the same names in the same namespaces as they do in the DTD, if the
+DTD were actually constructed.
+
+For example, let's take the content model above:
+
+<!element my-name (from-here, NEAR::, FAR::its-name)>
+
+The document may have something like one of the following:
+
+1)  <my-name><near-gi>....</near-gi><its-name>...</its-name></my-name>
+
+2)
+ <my-name><NEAR::near-gi>...</NEAR::near-gi><its-name>...</its-name></my-name>
+
+In all cases, NEAR and FAR can be bound in either the DTD, the
+document, or both.  If, for example, NEAR is bound in both, then they
+must agree.  Otherwise the instance is invalid.
+
+The big difference comes in what information would be passed to the
+application.  In example one, only a validating parser could pass
+namespace information to the application, which it could get from the
+namespace declarations in the DTD.  In the second case, a
+non-validating parser could pass on namespace info about NEAR (which
+must be bound in the instance), but not about far, while a validating
+one could do both.
+
+One place where this proposal actually buys you something new in the
+validation arena is shown in 3, where we still assume that the DTD has
+declared my-name as above.
+
+3)  <my-name><NEAR::near-gi><its-name>...<its-name></NEAR::near-gi>
+             <its-name>...</its-name></my-name>
+
+The content model for the first its-name must be defined in whatever
+the namespace for NEAR is, while that for the second must be defined
+in FAR.
+
+``Multiple Inheritance''
+------------------------
+
+In describing the contents of a namespace entity, I deliberately left
+out recursive namespace declarations (i.e., a namespace can't include
+another namespace).  This is essential to avoiding name clashes with
+only a single element in the namespace prefixes.  Otherwise, two
+namespaces could use the same name for a free prefix, and the
+including DTD or document would have no way of disambiguating them.
+On the other hand, we can see that these declarations must form a
+tree, and we can deal with the whole thing using paths through the
+tree.  If people are interested in that, it's easy to work out a
+syntax.  This would allow the NEAR namespace in the example above to use
+another namespace to define the content model for its-name, which might work
+out to be the same namespace as for FAR.
+
+-- 
+
+
+

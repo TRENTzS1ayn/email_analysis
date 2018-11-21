@@ -1,0 +1,122 @@
+docno="lists-006-9989693"
+received="Thu Jul  5 10:24:33 2001"
+isoreceived="20010705142433"
+sent="Thu, 5 Jul 2001 10:23:50 -0400 "
+isosent="20010705142350"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Version-controlled collection resources - I am still missing  something"
+id="3906C56A7BD1F54593344C05BD1374B1038E14E8@SUS-MA1IT01"
+inreplyto="Version-controlled collection resources - I am still missing  something"
+expires="-1"
+
+
+To: DeltaV<ietf-dav-versioning@w3.org>
+
+
+   From: Alan Kent [mailto:ajk@mds.rmit.edu.au]
+
+   When you use VERSION-CONTROL to create a new version-controlled
+   collection, it (as you described previously) will create a complete
+   tree of collection and leaf non-collection resources. No content
+   will be retrieved. Then the client must use UPDATE on every single
+   binding in the whole tree created to change it to the desired version.
+   My comment on performance was not volume of data (you do not download
+   the content of the resources), just the number of individual requests
+   required. You need at least one HTTP request/response per recource
+   in the tree created from the VERSION-CONTROL command.
+
+No, a single UPDATE is sufficient if the configuration you want is
+baselined or labeled, and a single MERGE is sufficient if the
+configuration you want is the latest in an activity (i.e. along a
+single line of descent), or in another workspace.
+
+   However, as soon as you UPDATE the collection to a later version,
+   it will then populate one level down in the tree. For every
+   internal member, you then need to UPDATE it to the desired version
+   (possibly creating new child version-controlled collection
+   resources). The client really needs to start from the top and
+   recursively do UPDATE requests on each request one by one until you
+   get down to the bottom. So there are lots of little requests
+   required.
+
+See above.  The server would get just one UPDATE or MERGE request.  It
+would pick the default version if your request did not specify a
+version for that version history.
+
+   > The "best default choice" is appropriately modeled as a workspace
+   > (for the server-workspace packages) or a label (for the
+client-workspace
+   > packages).
+
+   For server-workspace package how does this work? I create a new
+   workspace for the first time, then want to populate it. So no existing
+   workspace exists? 
+
+If your "best default choice" is implemented as a workspace, then you
+do have to have your /ws/best-default-choice workspace created before
+you can specify what your best default choice is for a version
+history.  A server that wants to "build in" the best default choice
+functionality would create such a workspace when that server is
+initialized on a host.
+
+The point here is that the only way to have the "best default choice"
+scale is to allow different "best default choices" for different
+groups of users.  A simple server can just support a single best
+default choice, but the concept needs to be able to scale up for
+groups of users for which there is not a single best default choice.
+
+   Or if I have a workspace and want to update everything to the latest
+   versisions (since other people have made changes), then again, I need
+   to potentially do lots of separate requests.
+
+You can just MERGE one workspace to another, if you want to initialize
+one workspace with the contents of another.
+
+   I think the answer is "tough luck" (or use baselines - I have not tried
+   to understand them yet).
+
+We try to avoid the "tough luck" answer as much as possible (:-).
+In this case, the answer is "MERGE".
+
+   Unless the version history of versions modelled a primary version
+   series with other branches off to the side (ala CVS), it is not
+   possible to say 'VERSION-CONTROL at this time point for the whole
+   tree'.
+
+That is correct, you need either a single BASELINE-CONTROL operation,
+or two operations: VERSION-CONTROL followed by either a single MERGE
+(for duplicating a workspace or line of descent) or a single UPDATE
+(for selecting a label or a baseline).
+
+   I am assuming introducing the concept of multiple linear version series
+   is too much for the DeltaV community to swallow in terms of change.
+
+This is covered by the "activity" concept.  Each activity is required
+to be linear sequence of versions.  If you want to identify one
+activity as your "primary" activity, that is fine (we in fact do so in
+our product, we call it the "main" activity).
+
+   It would support the CVS and DMA approaches quite closely. (eg:
+   Create version-controlled resources for 'whatever version existed at
+   date X' / 'latest version' for the version series called
+'primary'/'1.1.1'/
+   'with label Y'). It would allow a single VERSION-CONTROL command to get
+   the correct version across a hole collection tree. But it is not possible
+   with the current simplistic model of versions having predecessors and
+   successors. It requires something such as the more detailed model of
+   identifying linear series of versions (so you can find the last in a
+   linear series - you cannot find the last in a graph and have it make
+sense).
+
+If you want to use this concept, you would MERGE the primary activity
+into your workspace to get what you want.  But you do need two operations,
+a single VERSION-CONTROL (to specify the root of your collection) and a
+single MERGE (to indicate what linear series you want to populate the
+collection).
+
+Cheers,
+Geoff
+
+
+

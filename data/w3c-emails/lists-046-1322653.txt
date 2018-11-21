@@ -1,0 +1,147 @@
+docno="lists-046-1322653"
+received="Thu Jun  6 12:32:36 2002"
+isoreceived="20020606163236"
+sent="Thu, 06 Jun 2002 17:32:02 +0100"
+isosent="20020606163202"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: Provokant proposal on Exclusive C14n"
+id="20020606163202.CE3AD4432D@yog-sothoth.ie.baltimore.com"
+inreplyto="8972581.1023361843&#64;localhost"
+expires="-1"
+
+To: Christian Geuer-Pollmann<geuer-pollmann@nue.et-inf.uni-siegen.de>
+Cc:w3c-ietf-xmldsig@w3.org
+
+
+
+
+Hi Christian,
+
+r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.06.06/11:10:43
+>[...]
+
+> 1.) Inspect the signature: Take the reference, check that
+>     the @URI and all <ds:Transform>s are exactly like the
+>     ones which have been pre-defined by some security
+>     architects. If the signature has the specified form,
+>     then probably the constructor can use the (untrusted
+>     and maybe modified) my:object element, because he only
+>     uses nodes from that subtree which he knows are signed
+>     because of the checked form of the signature.
+>
+>     -> Sounds really complicated. For each object, it must
+>        be exactly defined how a signature MUST look like,
+>        which Transforms, which XPathes etc.
+
+This is exactly what will happen. Many protocols and standards
+that employ XMLDSIG, or deployments of these protocols and
+standards, will profile exactly how it is to be used: What
+canonicalization algorithms can be used, what transforms can
+be used, what form the signature can take, use of embedded
+objects, signature properties, key info, etc.
+
+These will be necessary to ensure that security constraints
+of a standard or organization is enforced, and to prevent
+data and DoS-type attacks.
+
+As an example, running an XML document through Xalan:
+  //node()
+    - 1s
+  //ancestor-or-self::node()//node()
+    - 20 minutes and counting
+  //ancestor-or-self::node()//ancestor-or-self::node()//node()
+    - who knows?
+
+Some systems will want XPath filtering but will not want
+DoS attacks. They will state what form the XPath filter
+MUST take.
+
+Such systems will simply discard signatures that have the
+wrong form without ever testing their validity. These
+systems can then make informed decisions about the target
+of a signature reference.
+
+> 2.) Inspect the node set prior c14n:
+>     To know which nodes from the input document can be trusted
+>     because they are signed, query the signature object about
+>     the finally node set which has been c14nized. Using this
+>     Node set, construct a form which can be read by the
+>     constructor for the object.
+>
+>     -> Sounds also complicated.
+
+In the face of the above, and even out of its face, this
+may not be too complicated.
+
+> 3.) Re-parse the digested octets:
+>     The verifier simply asks the Reference "which octets were
+>     the input for the digest", i.e. what has been signed. Now
+>     simply parse these octets (maybe after a wrap), and feed
+>     the new DOM tree or SAX sequence into the constructor for
+>     your object.
+>
+>     -> Safe and easy. But -- it only works if the digested
+>        octets can be parsed.
+
+Safe, easy, and inefficient. It depends on the throughput
+requirements of a system. For typical applications, this
+is probably a good idea. If such an application receives
+a bizarrely ill-formed document and parsing fails, then
+the answer is easy - reject the document.
+
+>But given the example between these both instances:
+>
+><foo:Contract  xmlns:foo="http://companyA.com">
+>  <foo:Detail xmlns:foo="http://companyB.com" />
+></foo:Contract>
+>
+>and
+>
+><foo:Contract  xmlns:foo="http://companyA.com">
+>  <foo:Detail />
+></foo:Contract>
+>
+>Imagine you are questioned by a lawyer on legal issues what has been the 
+>intent of the signer in the second form, if the first one was the input 
+>document.
+>
+>   Automagically including ALL namespaces into the document
+>   subset prior exclusive c14n makes all this fuzz obsolete.
+>   Prefixes are automagically in-scope with the correct
+>   namespaces, digested octet sequences are parseable
+>   in some way (well-formed or balanced), and so on.....
+>
+>That's why I think c14n is (or should be) more than only a unique 
+>representation.
+
+Don't get me wrong; I agree that you can construct seriously
+bad node sets by abusing XPath, and you shouldn't. However,
+you cannot deny the fact that some application may have a
+need to omit part of the namespace axis. By unilaterally
+prohibiting this you are ruling out any potential good uses.
+The fact that I could commit a crime with a crowbar does not
+mean I will.
+
+Let me give you an example:
+  <Foo Id="signed"><Bar xmlns:baz="http://merlin.org/baz/">baz:Blah</Bar></Foo>
+
+Say I'm signing this with exclusive c14n. I have to put baz
+on the inclusive namespace prefix list because it is used
+by a text node. What if I _know_ that this may be reparented
+into another document that defines baz. I might need to use
+an XPath filter:
+  self::node()[(local-name() != 'baz') or parent::Bar]
+
+This XPath filter strips baz from the namespace axes everywhere
+except the Bar element; this will stop another ancestral
+definition from polluting my document.
+
+Your proposal would prevent me from solving this problem.
+It is ultimately up to applications to decide what they will
+accept, not us.
+
+Merlin
+
+
+

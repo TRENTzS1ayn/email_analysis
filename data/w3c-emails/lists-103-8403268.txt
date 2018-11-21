@@ -1,0 +1,91 @@
+docno="lists-103-8403268"
+received="Fri Sep 15 17:30:56 2000"
+isoreceived="20000915213056"
+sent="Fri, 15 Sep 2000 17:30:38 -0400"
+isosent="20000915213038"
+name="Philippe Le Hegaret"
+email="plh@w3.org"
+subject="Re(2): Expected behavior of CSSRule's setCssText."
+id="39C294FE.BA0E5AF9@w3.org"
+charset="us-ascii"
+inreplyto="fc.0085846d00011a803b9aca0023705192.11a8a&#64;savagesoftware.com"
+expires="-1"
+
+
+To: Blaine Brodie<bbrodie@savagesoftware.com>
+CC:www-dom@w3.org
+
+> From: bbrodie@savagesoftware.com (Blaine Brodie)
+> Subject: Re(2): Expected behavior of CSSRule's setCssText.
+> [...]
+> >
+> >Setting this attribute will result in the parsing of the new value and
+> >resetting of all the properties in the declaration block including
+> >theremoval or addition of properties.
+> 
+> Yes, this description is good.
+
+Too late for the next publication. I'll add the text before the REC.
+
+> Can you please tell me what would happen
+> in the following case where I retrieve a CSSValue from the rule's style
+> declaration, and then make a call to the rule's setCssText method which
+> removes the value's property from the declaration?  Does the outstanding
+> CSSValue reference become detached from its parent rule and simply perform
+> method calls on the old data [without affecting the rule's declaration
+> values] or does the reference become invalid and invalid state exceptions
+> are thrown on any of the value's method calls?
+> Example.
+>         styleRule.setCssText("H1 { ascent: 10 }");
+>         CSSValue styleValue = style.getPropertyCSSValue("ascent");
+>         style.setCssText("H1 {} "); //**** ascent property is removed eventhough
+> a reference is outstanding ***//
+>         ( (CSSPrimitiveValue)styleValue).getFloatValue();
+> 
+> Does the last call throw an invalid state exception or does it return the
+> old value 10?
+
+In that case, style.getPropertyCSSValue("ascent") will return null. The ascent 
+property can be only applied on the @font-face rule [1].
+Let me rewrite your example:
+fontfaceRule.setCssText("@font-face { ascent: 10 }");
+CSSValue fontfaceValue = fontfaceRule.getPropertyCSSValue("ascent");
+style.setCssText("@font-face {} "); /**** ascent property is removed eventhough
+                             a reference is outstanding ***/
+( (CSSPrimitiveValue)fontfaceValue).getFloatValue();
+
+Since the default value of the ascent font property is undefined, getFloatValue()
+will return INVALID_ACCESS_ERR. But I certainly don't recommend this kind of
+program
+since this depends on the CSS property. Some CSS properties can be a CSSValue
+or a CSSValue or a CSSValueList.
+Let's imagine a property "foo" with the following definition:
+ inherit | <integer> | <ident>+
+
+Depending on the value, you'll cast the CSSValue in a different way.
+
+It becomes a nightmare if you invoke setCssText on the CSS*Value* after the cast.
+Some implementations can raise an INVALID_ACCESS_ERR, some others an invalid
+state exception, this depend on your implementation. I'm not sure we want to
+define
+these corners cases. It will add more constraints on the implementation of the
+interfaces and complexity in the spec for a bad practice.
+
+I recommend to change your program if you really want to do that as following:
+
+fontfaceRule.setCssText("@font-face { ascent: 10 }");
+CSSValue fontfaceValue = fontfaceRule.getPropertyCSSValue("ascent");
+style.setCssText("@font-face {} "); /**** ascent property is removed eventhough
+                             a reference is outstanding ***/
+if (fontfaceValue.getValueType() == CSS_PRIMITIVE_VALUE) {
+   // this raises an INVALID_ACCESS_ERR since it is really a CSSPrimitiveValue
+   ( (CSSPrimitiveValue)fontfaceValue).getFloatValue();
+}
+
+
+Philippe
+
+[1] http://www.w3.org/TR/CSS2/fonts.html#matching
+
+
+

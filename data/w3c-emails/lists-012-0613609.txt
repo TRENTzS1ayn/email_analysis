@@ -1,0 +1,184 @@
+docno="lists-012-0613609"
+received="Wed Mar  4 15:21:33 1998"
+isoreceived="19980304202133"
+sent="Wed, 04 Mar 98 15:18:51 PST"
+isosent="19980304231851"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Rigorously defining the interaction of conditional headers"
+id="9803042318.AA01009@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg@cuckoo.hpl.hp.com
+
+Dave Kristol in
+   http://www.ics.uci.edu/pub/ietf/http/hypermail/1998q1/0402.html
+brought up the problem that the current draft of the HTTP/1.1
+specification is ambiguous or hard to interpret in several ways.
+
+I believe we have now identified all of the actual ambiguities
+and created "issues" for them:
+    issue IM_IUS_412
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1998q1/0409.html
+    issue CACHE_CONDITIONAL
+http://www.ics.uci.edu/pub/ietf/http/hypermail/1998q1/0406.html
+    issue HEAD_WITH_IMS
+(not visible in the archive yet)
+
+This leaves the problem that it is still somewhat hard to read
+the specification, especially if one is trying to figure out
+how the various headers interact.
+
+Dave and I have spent several days coming up with pseudo-code
+that, we believe, correctly represents the specified behavior
+in all possible cases.  It was agreed during this week's editorial
+teleconference that the next draft should include such pseudo-code,
+as an explanation of how to interpret the existing specification.
+
+Since neither Dave nor I was able to get the right code on our
+first tries, we would appreciate some review of this!
+
+Because the cutoff date for Internet-Draft submission is Friday,
+March 13, and Jim Gettys will need several days to actually generate
+the draft in the required format, any comments must be received
+as soon as possible (i.e., "read this today").
+
+-Jeff (and Dave Kristol)
+
+P.S.: Note that the somewhat repetitive format of this code
+is intentional.  I found that the only way that I could be
+sure that we had covered every possible case was to fully
+expand the ELSE clauses of every IF statement.  Also, Dave
+and I (mildly) disagreed on whether it is clearer to use
+a few GOTO statements, or an auxilliary state variable which
+is set in one place and tested in another.  My preference
+was to use the GOTOs, to make the control flow as clear as possible.
+
+
+
+NEW SECTION 13.3.5  Interpreting combinations of conditional headers
+
+    HTTP/1.1 includes four request-header fields that can be used to
+    make a request conditional: If-Match (section 14.24),
+    If-Modified-Since (section 14.25), If-None-Match (section 14.26),
+    and If-Unmodified-Since (section 14.28).  The protocol allows
+    combinations of these four headers, and the proper interpretation
+    of the meaning of the possible combinations has proved to be
+    difficult to extract from the language of the specification.
+
+    We therefore include a description, in pseudo-code, of one possible
+    correct implementation of the logic for processing HTTP/1.1
+    conditional headers in order to decide whether to perform the
+    request, or to return a status code of 304 (Not Modified) or 412
+    (Predoncondition Failed).
+
+    Many other implementations are allowed by the HTTP/1.1
+    specification, but their external behavior is required to conform
+    to the behavior of the pseudo-code below, in all cases where it
+    defines a specific behavior.
+
+    Note that there is a fifth conditional header, If-Range (section
+    14.26) that is not described here.  It does not make sense to
+    combine the If-Range request-header field with other conditional
+    request-header fields, and so there is no need to define its
+    interaction with other such fields.
+    
+    /* Logic for processing HTTP/1.1 conditional headers
+     *(not including If-Range)
+     *
+     * Implicit inputs:
+     *The request message
+     *The selected resource
+     *
+     * Outputs:
+     *  the response status code, if its value is defined by this logic
+     *  otherwise, the decision to continue processing the request 
+     */
+    
+    /*
+     * Uses the following functions:
+     *
+     * BOOLEAN reqhdrs_include(STRING field_name)
+     *returns true if the request headers include the given field-name.
+     *
+     * STRING fieldval(STRING field_name)
+     *returns the request's field-value for the given field-name.
+     *(May involve combining multiple instances of the same header.)
+     *
+     * INT count_match_current_etag(STRING field_value)
+     *returns the number of entity tags in the field-value that
+     *match the current entity tag of the selected resource.
+     *
+     * BOOLEAN matches_lastmod(STRING field_value)
+     *returns true if the timestamp in the field-value matches
+     *the current last-modified timestamp of the selected resource.
+     */
+    
+    /*
+     * NOTE: all branches of the IF-THEN-ELSE statements are included
+     * in the following nested conditional, to ensure that no cases
+     * are omitted
+     */
+IF reqhdrs_include("If-None-Match") THEN {
+  IF count_match_current_etag(fieldval("If-None-Match")) > 0 THEN {
+    IF reqhdrs_include("If-Modified-Since") THEN {
+      IF matches_lastmod(fieldval("If-Modified-Since")) THEN {
+IF req_method == "GET" OR req_method == "HEAD" THEN {
+  status_code = 304; RETURN;
+} ELSE {
+  /* WARNING: meaningless If-Modified-Since ? */
+  GOTO next_step;
+} ENDIF
+      } ELSE {/* If-Modified-Since mismatch */
+GOTO next_step;
+      } ENDIF
+    } ELSE {/* entity tags match, no If-Modified-Since */
+      /* 14.26 says MUST NOT perform method */
+      IF req_method == "GET" OR req_method == "HEAD" THEN {
+status_code = 304; RETURN;
+      } ELSE {
+status_code = 412; RETURN;
+      } ENDIF
+    } ENDIF 
+  } ELSE {/* no entity tag matches, ignore If-Modified-Since */
+    GOTO next_step;
+  } ENDIF
+} ELSE {
+  /* Check for vanilla If-Modified-Since */
+  IF reqhdrs_include("If-Modified-Since") THEN {
+    IF matches_lastmod(fieldval("If-Modified-Since")) THEN {
+      IF req_method == "GET" OR req_method == "HEAD" THEN {
+status_code = 304; RETURN;
+      } ELSE {
+/* WARNING: meaningless If-Modified-Since ? */
+GOTO next_step;
+      } ENDIF
+    } ELSE {/* If-Modified-Since mismatch */
+      GOTO next_step;
+    } ENDIF
+  } ELSE {
+    GOTO next_step;
+  } ENDIF
+} ENDIF
+    
+    next_step:
+/* If-Match */
+IF reqhdrs_include("If-Match") THEN {
+  IF count_match_current_etag(fieldval("If-Match")) == 0 THEN {
+    status_code = 412; RETURN;
+  } ENDIF
+} ENDIF
+    
+/* If-Unmodified-Since */
+IF reqhdrs_include("If-Unmodified-Since") THEN {
+  IF NOT matches_lastmod(fieldval("If-Unmodified-Since")) THEN {
+    status_code = 412; RETURN;
+  } ENDIF
+} ENDIF
+    
+/* continue processing the request */
+    
+
+
+

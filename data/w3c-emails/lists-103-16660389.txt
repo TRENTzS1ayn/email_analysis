@@ -1,0 +1,436 @@
+docno="lists-103-16660389"
+received="Wed Jul 11 02:12:59 2001"
+isoreceived="20010711061259"
+sent="Wed, 11 Jul 2001 01:12:55 -0500"
+isosent="20010711061255"
+name="Curt Arnold"
+email="carnold@houston.rr.com"
+subject="DOM Level 3 XPath: editorial, use case analysis, and counterproposal"
+id="001f01c109d0$86ff7260$7600a8c0@CurtMicron"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<www-dom@w3.org>
+
+I got a chance to reread the DOM XPath after the recent discussions and I think that I understand the issues better.
+
+Section 1.2.1
+
+The note mentions the new Text.wholeText attribute and retrieving the whole text corresponding to a selected node.  It would be helpful to also mention Text.replaceWholeText so that you would not think that you are only limited to retrieving the whole text.
+
+Section 1.2.3: Ranges
+
+Since XPath returns nodes and strings...
+
+XPath also returns booleans and IEEE doubles currently and anticipated support for other datatypes.
+
+Section 1.3: Interfaces
+
+XPathExcectionCode group
+
+TYPE_ERR seems awfully generic and possible result in symbol clashes, maybe XPATH_TYPE_CONVERSION_ERR or XPATH_COERSCION_ERR.  i[m]compatible should be incompatible.
+
+There seems no provision for signaling a bad XPath expression, say one with an unrecognized axis.  All methods that can throw an XPathException probably can throw this code.
+
+DOMException should have a codes added (unless an existing code is sufficient) for attempting to access an invalidated NodeSet and and for when an Node is not ready for an asychronous query.  These should be DOMException codes since they would be thrown from NodeSet.
+
+
+XPathException interface
+
+To support reporting bad XPath expressions, having a DOMString expression attribute in XPathException would be useful.
+
+XPathEvaluator interface
+
+The name seems inconsistent with the names for other Document related interfaces.  Other specs typically use Document[SpecName], DocumentEvent, DocumentRange, DocumentViews, DocumentTraversal, for their augmentation of the Document.   Though it may not be the most intuitive naming convention, naming the interface DocumentXPath would be consistent with the other DOM specs.
+
+Issue XPathEvaluator-1:
+
+I would strongly encourage adding a generic evaluate method in addition to the type-specific evaluateAs's.  I do not believe that it is necessary to specify a type argument in the call, since XPath 2.0 suggests that it would provide explicit cast operators into the primitive XML Schema types.  The two ambuities that I see would be if:
+
+Expression matching a single node could be either Node or NodeSet, should be NodeSet.
+
+Expression matching no nodes could either be Null Node, Null NodeSet, or Zero-length NodeSet.  I think zero length node set is preferrable.
+
+Earlier messages portrayed that determining the type of the result of an expression would be complicated.  I believe that is due to conceptually imposing the implicit coercsions that occur within
+XSLT to the evaluate method.  I do not believe it needs to be complicated, the result of an evaluate call for a path expression should be a NodeSet, possibly zero-length, functions should return the platform equivalent of their return type, numeric expressions should return the platform equivalent of double (java.lang.Double on Java).
+
+Object result = xeval.evaluate("@href",...);
+assertTrue(result instanceof NodeSet);
+
+result = xeval.evaluate("string(@href)",...);
+assertTrue(result instanceOf java.util.String);
+
+result = xeval.evaluate("number(@length)",...);
+assertTrue(result instanceOf java.util.Double);
+
+//   coercses to date regardless of schema type for date attribute
+result = xeval.evaluate("xs:date(@date)",...);
+assertTrue(result instanceof java.util.Date);
+
+//    always returns NodeSet regardless of schema type for date list
+//       however you might be able to interrogate future Attr interface versions to
+//           get schema datatype
+result = xeval.evaluate("@date",...);
+assertTrue(result instanceof NodeSet)
+
+//
+//   a double regardless (at least for XPath 1 queries) of types of
+//       schema types for attributes one and two since 
+//       numeric operators are strictly defined as operating on doubles.
+result = xeval.evaluate("@one + @two"...);
+assertTrue(result instanceof java.lang.Double);
+
+
+I would suggest that in anticipation of XPath 2.0 that:
+
+a) Types corresponding to the 19 primitive XML Schema data types be defined for each of the bindings.  For example, that for the Java binding, xs:dateTime be represented by java.util.Date for the Java binding, that xs:date be represented by the starting instant in a java.util.Date.  Since the identity of the 19 types are fixed since XML Schema datatypes is a recommendation, these bindings could be defined now, though it would not be possible to get a java.util.Date from evaluate without an XPath 2.0 compatible query.
+
+b) That feature strings are specified so that you can determine the version of XPath expression supported.
+
+For example, "DOMXPath" could be used to determine what level of XPath DOM interfaces are supported and "XPath" what version of expression syntax is supported (alternatively XPath for interface version and XPathExpression for XPath expression version).
+
+//   if processor supports DOM XPath 3.0
+if(impl.hasFeature("DOMXPath","3.0")) {
+    //  if XPath 2.0 expression syntax
+    if(impl.hasFeature("XPath","2.0")) {
+    }
+    else {
+        if(impl.hasFeature("XQuery","1.0")) {
+           ...
+        }
+        else {
+           if(impl.hasFeature("XPath","1.0")) {
+
+
+c) That evaluate, evaluateAs (and any other methods that take XPath expressions)
+have an additional parameter that indicates the expression language.  null, "", or "XPath"
+would indicate the highest version of XPath supported by the processor, "XPath1.0"
+would mean strict XPath 1.0, "XPath2.0" would mean the query requires XPath 2.0
+and possible "XQuery" and "XQuery1.0" if that is not premature.
+
+If this is added, XPathException should also report the query language using
+a version specific identifier.
+
+evaluateAsNode method
+
+As mentioned by others "returns the first node" should be replaced by "returns any node".   If there are multiple matches and the first node in document order is truly wanted, then the query could be expressed as "foo[1]".
+
+evaluateAsNodeSet, Active and StaticNodeSets and beyond....
+
+From my previous messages, you know that I've been perplexed by the complexity and motivation behind ActiveNodeSet and StaticNodeSet.  I think that I know understand the use cases that lead to their formation (which I'll enumerate shortly) and think that there are simpler solutions that address those use cases better than the current formulation.  If I've missed a use case let me know.  Not all processors would have to have optimal behavior for all use cases, however it would not be possible for the processor to guess the optimal behavior without some hints on the call.
+
+Use Case 1: Immediate evaluation with static result or node set
+
+Processing can not continue until the results are known and once determined the result should be available regardless of document mutation.
+
+The evaluateAsNumber(), evaluateAsString(), evaluateAsBoolean, and evaluateAsNode only address this use case.  If you do,
+
+String address = xeval.evaluateAsString("address"...);
+
+The query must be complete before the function returns and the return value is not invalidated or changed by document mutation after the function returns.
+
+evaluate and evaluateAsNodeSet should also address this use case, however they also address other use cases and the desired behavior should be specified.
+
+Use Case 2: immediate evaluation with result set invalidated on document mutation
+
+No substantial work can be done until the query is complete and
+all members of the result set are anticipated to be iterated, 
+so lazy evaluation or asynchronous evaluation would not be beneficial.
+
+The source document may be changing and the application desires the result
+set to be invalidated if there are any document mutation.
+
+This case could be accomplished by wrapping the node set from use case 1 by
+an object that implemented both NodeSet and EventListener and registered itself
+as an eventListener on the document node.  However, this use case can be
+addressed in the spec as a convienience to users and to implementations that
+don't support DOM Events.
+
+Use Case 3: lazy evaluation with static result set accessed in document order
+Use Case 4: lazy evaluation with result set accessed in document order invalidated on document mutation
+Use Case 5: lazy evaluation with static result set accessed in indeterminant order
+Use Case 6: lazy evaluation with result set accessed in indeterminant order invalidated on document mutation
+
+No substantial work can be done before at least one node of the result set is known.
+Only part of the result set may be iterated, so it may be beneficial to incrementally determine the result set.  The behavior for use case 3 should be indistinguishable (other than timing) from that for use case 1, the behavior for use case 4 should be indistinguishable from use case 2.  Calling length() would typically force the completion of the evaluation.
+
+Optimal behaviors for use case 3 and 5 may be too complex for implementation since it would require an immediate completion of the evaluation when the first mutation of the document is pending.  Basically, if an element was to be added, the outstanding node set would have to block the mutation until it determined the complete result set (or at least determined that the mutation would or would not affect the incremental determination of the result set).  However the behavior for use case 1 would be acceptible.
+
+Use cases 5 and 6 allow an optimized behavior when the order of processing is not significant, for example, if summing the line items in an order to determine the total cost.
+
+Use Case 7: asynchronous evaluation with static result set accessed in document order
+Use Case 8: asynchronous evaluation with result set accessed in document order invalidated by document mutation
+Use Case 9: asynchronous evaluation with static result set accessed in indeterminate order
+Use Case 10: asynchronous evaluation with result set accessed in indeterminant order invalidated by document mutation
+
+These cases differ from their i-4 siblings in that some substantial work could be accomplished by the caller before the first member is accessed and in the intervals between accesses.  Again other than timing issues the behavior should be indistinguishable i-4 and i-6 siblings.
+
+Different uses may want different behavior when a node access is attempted when the next node has not been determined.  In some instances, it may be preferrable to block until the next node (or null if it was determined that no additional nodes matched) becomes available, in other instances, it may be preferrable to continue to do something else until a node becomes available.
+
+Use cases 1sort, 2sort, 7sort and 8sort
+
+Same behavior as 1, 2, 7 and 8 but with the nodes sorted.  Doesn't make any sense for lazy evaluation of a sorted set.
+
+Dimensions of the use cases:
+
+The desired behavior that a caller would prefer could be indicated by combinations of and choice of NodeSet methods.
+
+XPathEvaluationCode
+
+XPATH_EVALUATE_IMMEDIATE
+XPATH_EVALUATE_LAZY
+XPATH_EVALUATE_ASYNC_BLOCK   //  block until next node available
+XPATH_EVALUATE_ASYNC_EXCEPTION  //  throw exception if node not available
+
+This code would only be a hint that the processor could ignore and
+use any behavior it wanted (except ASYNCH_EXCEPTION).
+
+
+XPathMutationCode
+
+//  result set is static, not affected by mutation, 
+//     possibly out of synch with current state of document
+XPATH_MUTATION_IGNORE          
+//
+//  result set in invalidated by any mutation of the document
+XPATH_MUTATION_INVALIDATE
+//
+//   cause attempts to change document to throw exception
+//
+//   attempts at mutations would force a garbage collect to 
+//      make sure that a unused NodeSet is not blocking them
+XPATH_MUTATION_PREVENT
+
+The implementation must support MUTATION_IGNORE, but if
+it cannot detect mutations, it needs to throw an exception
+if a query requests MUTATION_INVALIDATE. 
+
+
+Lazy evaluation [document order]:
+
+The traditional iterative loop:
+
+for(int i = 0; i < nodeset.length; i++) {
+   node = nodeset.item(i);
+}
+
+would defeat lazy evaluation (since determining the length would typically only be available after the query has been completed).  Lazy evaluation (in document order) would require a loop like:
+
+try {
+    for(int i = 0; ; i++) {
+       node = nodeset.item(i);
+    }
+}
+catch(DOMException ex) {
+    if(ex.code != INDEX_SIZE_ERR) {
+        throw ex;
+    }
+}
+
+Indeterminate order iteration:
+
+A complex query over a less traditional store (say a database or distributed query system) may be able to determine members of the result set before a document or sort order may be established.  Instead of creating a distinct interface for this, I think it would be better just add to additional method to support this type of iteration on NodeSet.  To keep the object stateless (which avoids the need to worry about cloning), I'd suggest using an integer argument to act as a key with a special value (0) indicating start of iteration and -1 indicating end of iteration (all other values are reserved for the implementation to use as it sees fit to keep track of the position.
+
+For example:
+
+NodeSet nodeset = xeval.evaluteAsNodeSet("//person[@id]"...);
+Integer iterKey = new Integer(0);
+do {
+   Node node = nodeset.iterate(iterKey);
+   if(node == null) {
+      break;
+   }
+   ...
+}
+while(iterKey.intValue != -1);
+
+Sorted iteration:
+
+A sorting capability patterned after <xsl:sort>  would be extremely useful.  What I would suggest would be a distinct XPathSortCriteria interface with a corresponding create method on the XPathEvaluator/DocumentXPath.  If an implementation doesn't support sorting, it could return null.
+
+Interface NamespaceResolver:
+
+This interface acts strictly as a map between two strings, a namespace prefix that acts as a key and namespace URI as a value.  Since most platforms will already have an abstract interface, such as java.util.Map or System.IDictionary, that performs this function and a variety of concrete implementations available.  A factory method
+should be provided that will generate a NamespaceResolver from an object implementing the appropriate platform interface.
+
+In most use cases, the mapping between prefixes in the query is independent of the prefixes in the document.  Though getting a NamespaceResolver interface that corresponds to the in-force prefixes for a certain node is desirable, I'd expect it would be a secondary use case to building the mapping within the application.
+
+------------------------------------------------
+
+
+In summary, here is a Java-esqe sketch of the interfaces as outlined in this document:
+
+package org.w3c.dom.xpath;
+
+
+public class XPathException extends RuntimeException {
+   public XPathException(short code, 
+          String queryLanguage, 
+          String query, 
+          String message) {
+          super(message);
+          this.code = code;
+          this.query = query;
+          this.queryLanguage = queryLanguage;
+    }
+    public short code;
+    public String query;
+    public String queryLanguage;
+
+    public static final short XPATH_COERSCION_ERR = 1;
+    public static final short XPATH_INVALID_QUERY_ERR = 2;
+    public static final short XPATH_UNSUPPORTED_QUERY_LANG_ERR = 3;
+    public static final short XPATH_UNSUPPORTED_SORT_DATATYPE_ERR = 4;
+    public static final short XPATH_SORT_NOTIMPL_ERR = 5;
+    public static final short XPATH_UNSUPPORTED_MUTATION_BEHAVIOR_ERR = 6;
+}
+
+    //
+    //  add values for DOMException.code for access to 
+    //    an invalidated NodeSet and an access before a member
+    //    is ready on an asynch call
+    public static final short SET_INVALID_ERR = ...;
+    public static final short NOT_READY_ERR = ...;
+
+//
+//   previously XPathEvaluator
+//
+public interface DocumentXPath {
+
+   //     evaluation codes
+   //
+   public static final short XPATH_EVALUATE_IMMEDIATE = 0;
+   public static final short XPATH_EVALUATE_LAZY = 1;
+   public static final short XPATH_EVALUATE_ASYNC_BLOCK  = 2;
+   public static final short XPATH_EVALUATE_ASYNC_EXCEPTION  = 3;
+
+   //  result set is static, not affected by mutation, 
+   //     possibly out of synch with current state of document
+  public static final short XPATH_MUTATION_IGNORE = 0;
+  //
+  //  result set in invalidated by any mutation of the document 
+  public static final short XPATH_MUTATION_INVALIDATE = 1;
+  //
+  //   cause attempts to change document to throw exception
+  //
+  //   attempts at mutations would force a garbage collect to 
+  //      make sure that a unused NodeSet is not blocking them
+  public static final short XPATH_MUTATION_PREVENT = 2;
+
+  public NodeSet evaluateAsNodeSet(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver,
+                                                       XPathSortCriteria sort, 
+                                                       short evaluationCode,
+                                                       short mutationCode)
+                                                       throws XPathException;
+
+     //
+     //  The remaining evaluate methods
+     //         evalute immediately and ignore mutation
+     //
+     public Object evaluate(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver)
+                                                       throws XPathException;
+
+     public boolean evaluateAsBoolean(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver)
+                                                       throws XPathException;
+
+     public double evaluateAsNumber(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver)
+                                                       throws XPathException;
+
+     public String evaluateAsString(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver)
+                                                       throws XPathException;
+
+     public Node evaluateAsNode(String queryLanguage,
+                                                       String expression,
+                                                       Node contextNode,
+                                                       NamespaceResolver namespaceResolver)
+                                                       throws XPathException;
+
+     //
+     //   datatype is either text, number or a QName of an XML schema datatype
+     //         throws exception if the select is bad, 
+     //           the datatype isn't recognized or not valid for sorting
+     public XPathSortCriteria createSortCriteria(String queryLanguage,
+                                                                  String select,
+                                                                  NamespaceResolver nsResolver,
+                                                                  String lang,
+                                                                  String datatype,
+                                                                  boolean ascending,
+                                                                  boolean upperFirst) 
+             throws XPathException;
+
+     public NamespaceResolver createNamespaceResolver(Map map);
+
+     //
+     //     would like this, but debatable
+     //
+    public XPathExpression createExpression(String queryLanguage,
+                                                       String expression,
+                                                       NamespaceResolver namespaceResolver,
+                                                       XPathSortCriteria sort, 
+                                                       short evaluationCode,
+                                                       short mutationCode)
+                                                       throws XPathException;
+
+}
+
+public interface XPathExpression {
+    public NodeSet evaluateAsNodeSet(Node contextNode) throws XPathException;
+    public Object evaluate(Node contextNode) throws XPathException;
+    public boolean evaluateAsBoolean(Node contextNode)
+                                                       throws XPathException;
+
+    public double evaluateAsNumber(Node contextNode)
+                                                       throws XPathException;
+
+     public String evaluateAsString(Node contextNode)
+                                                       throws XPathException;
+
+     public Node evaluateAsNode(Node contextNode)
+                                                       throws XPathException;
+
+}    
+
+public interface XPathSortCriteria {
+}    
+    
+
+public interface NodeSet {
+     //
+     //   iteration in document or sort order
+     //
+     public Node item(int index) throws DOMException;
+
+     //
+     //    executing getLength() may block until evaluation is complete
+     //       avoid for lazy or asynch evaluation
+     public int getLength() throws DOMException;
+
+
+     //
+     //   iterates set in arbitrary order
+     //
+     //    key should be initialized to zero on first call
+     //        if key.intValue == -1 then no more members
+     //            however key.intValue != -1 does not guarantee additional members
+     //    return value = null when set is exhausted
+     public Node iterate(Integer key) throws DOMException;
+}
+
+
+

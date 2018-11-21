@@ -1,0 +1,171 @@
+docno="lists-102-14492187"
+received="Fri Mar  5 14:33:50 1999"
+isoreceived="19990305193350"
+sent="Fri, 05 Mar 1999 12:33:03 -0700"
+isosent="19990305193303"
+name="Ray Whitmer"
+email="ray@imall.com"
+subject="Re: Level 2 iterators"
+id="36E0316F.488E1114@imall.com"
+charset="us-ascii"
+inreplyto="c=US%a=_%p=Cromwell_Media%l=ODIN-990305152639Z-17059&#64;odin.cromwellmedia.co.uk"
+expires="-1"
+
+
+To: Miles Sabin<msabin@cromwellmedia.co.uk>
+CC:"'DOM list'"<www-dom@w3.org>
+
+Miles Sabin wrote:
+
+> Anyhow, the upshot is that an implementation of an
+> O(log n) algorithm (no matter how efficient) will always
+> be slower than an implementation of an O(1) algorithm
+> (no matter how _inefficiently_ implemented) for some
+> suitably large value of n.
+
+To repeat myself, there are many ways of implementing live nodelists or
+live iterators.  The implementation will vary quite a bit by your
+underlying model, which the DOM does not dictate, and also by how you
+choose to implement it.
+
+> Given that, in Java at least, both NodeLists and
+> NodeIterators can hang around long after they're
+> finished with from the programmers point of view (due to
+> the vagaries of GC, Java2 weak refs notwithstanding)
+> this additional multiplier would be significant if
+> iterators were heavily used on large trees.
+
+Not necessarily true.  Let's consider the simple DOM model, which I
+don't consider "industrial strength", but it seems to be what you keep
+mentioning:
+
+First, usually there is no need to stay registered until garbage
+collection time:
+
+If a NodeList is invalidated, it can be unregistered until it is used
+again and has valid information in its cache.  So there is a single
+overhead for unregistering whether it occurs the first time.
+
+Also, once a NodeIterator has reached the end of its iteration, it has
+reached the end of any logical set it could ever be considered part of.
+Why would it need to stay registered at this point?  A NodeList can also
+intelligently unregister itself after returning the last item.  This is
+only the beginning of what can occur to eliminate registration of
+fixable objects no longer in use.
+
+Second, I find it difficult to make fix-ups so hard or inefficient as
+you portray them, certainly not O(log n).  The following is only one of
+several reasonable implementations:
+
+If you have a simple iterator or node list that lists children of a
+node, which is the kind I use most often, then only register with the
+current node being visited.  When the parent adds or removes the node,
+it checks that node's fixup registrations for iterators to fix up --
+every registered node it finds is one that must be fixed up.
+
+Ff you are iterating across a multi-level domain, the iterator stays
+registered with the parent node while it visits children with which it
+also registers.  This gives every node a precise list of iterators which
+must be fixed up if the node is removed, and insertion never requires
+fix-ups at all.
+
+If multi-level iterators get fixed up in the leaf they are currently
+visiting, this is no worse than the simple case.  If multi-level
+iterators get fixed up at a higher level, this is little worse than the
+simple case -- remember that fix-ups at a higher level only happen when
+higher level nodes are removed, not when higher-level children are
+inserted and not when children of higher-level nodes are inserted or
+removed.  Also, whenever milti-level iterators get fixed up at higher
+levels, which I just showed is less frequent to start with, they tend to
+climb the hierarchy automatically reducing their registration exposure.
+
+> 2. For each node we maintain a list of all iterators
+>    that are currently active in its subtree. When a
+>    node is inserted or deleted we run through all the
+>    iterators on that list and fix them up. On this
+>    model iterator next/prevNode are very expensive.
+
+Simply not true.  Most iterations only need a single unregister and
+register, which can be extremely efficient.  Whenever you enter or exit
+a new level, you hava an additional registration, but you never do more
+registrations than there are nodes in the tree, and with a little
+economy, you can do far less.  Registration is linear with the number of
+nodes you search over at worst and can be much more efficient.
+
+> I sat down to do an analysis of these options but (ahem)
+> it's a bit hard ;-) My guesstimate is that none of these
+> come out any better than iterators implemented in terms
+> of NodeLists, and at least one is much worse.
+
+My guestimate is very different from yours, and it wasn't so hard ;-).
+
+> > I tend to use NodeLists mostly in documents which
+> > don't mutate until after I stop using the NodeList.
+>
+> But what are you saying here? You're saying that you
+> don't mix NodeLists with tree mutation! And quite right
+> too! Do you really want NodeIterators to turn out
+> the same way?
+
+NodeList implementations, unlike NodeLists, does not involve a cache to
+be dumped, because they do not offer random access, so as I showed
+above, it is extremely efficient under mutation.  Usually when I need
+NodeList, I am not mutating the document.
+
+There are far more issues to deal with if you go processing a NodeList
+as the hierarchy mutates, because your place in the list isn't
+automatically held as it is with an iterator.
+
+NodeIterator, on the other hand, has no caching issues, because it only
+visits each node once.  This of course presumes an efficient
+implementation, which while it is not difficult, may not be obvious to
+all.
+
+> I accept that there is cost: the draft
+> would have to make slightly weaker guarantees on
+> iterator behaviour. The question is, is that cost worth
+> the gain? I maintain that it is.
+
+And I maintain that your proposed weakening of the spec is neither
+slight or acceptable.
+
+Acceptable middle ground might be to specify additional DOM APIs with
+other clearly specified alternative behavior so that the use could be
+portable, but I don't think it is necessary.  The efficient solution is
+too obvious, as I described above.
+
+> At one time or another a number of contributors to this
+> list have proposed forking a server-side DOM-style API.
+> I, like many others took the view that this was ill-
+> advised, and it saddens me to hear a contributor to the
+> current draft expressing an opinion which can only
+> encourage that.
+
+Perhaps my general statement was made out of proper context.  I believe
+that if you cannot implement the specified portable DOM behavior
+efficiently enough, the answer is NOT to destroy the portability of DOM
+APIs with unspecified in behavior and hence make them unusable.
+
+Some sacrifices are acceptable for portability.  As I said, "in extreme
+cases" where you cannot get what you require, you may need to create
+some proprietary APIs.
+
+While this issue of iterators may encourage YOU to do so, I would prefer
+to get the best of both -- portability and efficiency, which I maintain
+is very possible and likely as the draft currently exists.  Unlike your
+analysis, my analysys of how a simple DOM NodeIterator fix-up
+implementation works:
+
+1.  Impacts iteration minimally and linearly -- never significantly.
+2.  Does not impact insertion at all.
+3.  Is not at the mercy of garbage collection in many important cases.
+4.  Only impacts removal in direct immediate proportion to the number of
+iterators currently in use on the subtree being removed -- which can be
+avoided by simply not removing subtrees you are iterating with a
+multi-level iterator inside of at the time.
+5.  Is very acceptable for DOM use in either the client or the server.
+
+Ray Whitmer
+
+
+

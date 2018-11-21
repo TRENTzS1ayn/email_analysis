@@ -1,0 +1,108 @@
+docno="lists-011-13012528"
+received="Thu Dec 11 17:42:59 1997"
+isoreceived="19971211224259"
+sent="Thu, 11 Dec 97 17:39:26 PST"
+isosent="19971212013926"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: What is ContentLength?"
+id="9712120139.AA29199@acetes.pa.dec.com"
+inreplyto="Pine.LNX.3.95.971211173722.7841B100000&#64;hopf.math.nwu.edu"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+I agree with John Franks and Roy Fielding.  There seems to be no way to
+make Transfer-Encoding work, in the general case, without some
+resolution to this problem.  We went through a discussion of *why*
+Transfer-Encoding is necessary a few weeks ago, and if we are going to
+go ahead with the TE header (to make non-chunked transfer-codings
+feasible), then we really can't avoid solving the length problem as
+well.
+
+Here's a sketch of a specific proposal:
+
+   (1) The definition in 7.2.2:
+The length of an entity-body is the length of the message-body after
+any transfer codings have been removed.
+    should be retained.  At first I thought "maybe we should rename
+    this the 'entity-length'", but we already use that non-terminal (in
+    Content-Range) to mean something different.  Which maybe should be
+    changed to use "instance-length", since the "entity-length" used
+    with a Content-Range has nothing to do with the length of the
+    entity-body.  But I digress.
+   
+   (2) We add this definition (somewhere)
+The transfer-length of a message is the length of the message-body
+as it appears in the message; that is, after any transfer codings
+have been applied.
+
+   (3) We add a new message-header
+
+Transfer-Length = "Transfer-Length" ":" transfer-length
+
+   (4) We add a requirement that a non-identity transfer-coding MUST
+   either be self-delimiting or be accompanied by a Transfer-Length header.
+   
+   (5) We generalize this statement in section 4.4 (Message Length)
+       Messages MUST NOT include both a Content-Length header field and
+       the "chunked" transfer coding. If both are received, the
+       Content-Length MUST be ignored.
+   so that it reads
+       Messages MUST NOT include both a Content-Length header field and
+       a non-identity transfer coding. If both are received, the
+       Content-Length MUST be ignored.
+
+   (6) In 13.5.2 (Non-modifiable Headers), where it currently says
+A cache or non-caching proxy MUST NOT modify any of the following
+fields in a response:
+
+         .  Expires
+         .  Content-Length
+
+       but it may add any of these fields if not already present.
+   if one interprets "modify" to include "delete", then this would seem
+   to prevent a proxy from adding *any* transfer-coding that changes
+   the message length(!), including chunked!  And so this looks like a
+   potential ambiguity.  I think we need to add something like:
+
+       The Content-Length header MAY be deleted, but if so, the proxy
+       MUST provide some other means for the recipient to discover the
+       length of the entity (i.e., a self-delimiting transfer-coding
+       such as chunked, a Transfer-length header, or non-persistent
+       connection with no transfer-coding.)  A Content-Length header
+       MUST be added if the proxy provides no other means for the
+       recipient for discovering the length of the entity.
+
+   In other words, I guess Content-Length really is a hop-by-hop
+   header, but there are some rules to follow about if and how a proxy
+   regenerates it for the next hop.
+
+This all means that, in section 4.4, the statement:
+     3. If a Content-Length header field (section 14.14) is present, its
+        decimal value in OCTETs represents the length of the message-body.
+is still essentially correct.  That is, if you see a Content-Length,
+then the length of the entity-body is the same as the length of the
+message-body.  Since (if there is no Transfer-Encoding) we expect
+the recipient to use Content-Length to find the end of the body, this
+statement is true and useful.
+
+The introduction of Transfer-Length along these lines won't cause
+*any* problems for deployed implementations, since nobody should
+be sending a non-self-delimiting transfer coding unless the recipient
+has, by using the TE header, indicated that it can accept such a
+transfer coding.
+
+I'm not familiar enough with Digest Authentication to know if this
+clarification requires some debugging of the D. A. spec.
+
+-Jeff
+
+P.S.: Actually, instead of "Transfer-Length", which is 15 characters,
+I would suggest a header name such as "TLen".  After all, the obvious
+non-self-delimiting transfer codings are for the purpose of data
+compression, so why add unnecessary bytes?
+
+
+

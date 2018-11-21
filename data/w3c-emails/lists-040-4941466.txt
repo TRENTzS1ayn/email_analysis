@@ -1,0 +1,103 @@
+docno="lists-040-4941466"
+received="Fri Dec  8 00:28:47 2000"
+isoreceived="20001208052847"
+sent="Thu, 7 Dec 2000 21:31:27 -0800"
+isosent="20001208053127"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="Re: PUT and Lock"
+id="20001207213127.B27505@lyra.org"
+charset="us-ascii"
+inreplyto="NDBBIKLAGLCOPGKGADOJKEMCDOAA.ejw&#64;cse.ucsc.edu"
+expires="-1"
+
+To:w3c-dist-auth@w3.org
+
+
+On Wed, Dec 06, 2000 at 05:43:00PM -0800, Jim Whitehead wrote:
+> Well, in my opinion this is perfectly clear :-)  Choice #1.
+> 
+> This interpretation is the intent of the language in Section 7.5 on RFC
+> 2518:
+> 
+>    when a principal issues a PUT or POST request to create a new
+>    resource under a URI which needs to be an internal member of a write
+>    locked collection to maintain HTTP namespace consistency, or issues a
+>    DELETE to remove a resource which has a URI which is an existing
+>    internal member URI of a write locked collection, this request MUST
+>    fail if the principal does not have a write lock on the collection.
+
+I agree this is true, but I don't see how it supports choice #1. This only
+refers to needing to assert the write lock on the collection.
+
+> and
+> 
+>    If a lock owner causes the URI of a resource to be added as an
+>    internal member URI of a locked collection then the new resource MUST
+>    be automatically added to the lock.  This is the only mechanism that
+>    allows a resource to be added to a write lock.  Thus, for example, if
+>    the collection /a/b/ is write locked and the resource /c is moved to
+>    /a/b/c then resource /a/b/c will be added to the write lock.
+
+This refers to the state of the locks *after* the resource has been added.
+
+> It is possible to specify the lock token using either a no-tag-list or a
+> tagged-list If header.
+
+Nope.
+
+An If: header is a *pre* condition. The resource does not exist until after
+the PUT method completes. A precondition with a no-tag-list refers to all
+URIs involved in the operation. In this case: the Request-URI and the parent
+collection. The no-tag-list is asserting a lock token on *both* resources,
+the but the Request-URI does not have any locks associated with it (it is a
+null resource).
+
+At the time the precondition is evaluated, the assertion fails: the parent
+has the lock, but the request-uri does not. Therefore, the precondition
+fails, and returns a 412.
+
+>...
+> > Interesting difference in interpretation of RFC2518 :)
+> >
+> > Assume I have a resource /foo that is locked depth infinity by a
+> > lock token <lt>
+> >
+> > No resource exists at /foo/bar
+> >
+> > A PUT is performed at /foo/bar with a No-tagged-list passing the
+> > lock token
+> > in the IF header.   What should the correct response be.  From our limited
+> > testing:
+> >
+> > 1)  Xythos -  201.  The resource /foo is locked and /foo/bar does
+> > not exist.
+> > Thus the lock token is correct for every resource that exists (/foo) and
+> > thus the creation of the file is allowed.
+> >
+> > 2)  Mod_dav - 412.  (I am assuming this is the rationale).  /foo/bar does
+> > NOT exist.  The token should be applied to the state of resource
+> > /test/foo.
+> > The resource does not exist, so the token cannot match.  Thus it
+> > fails with 412.
+
+Your rationale/assumption is correct. :-)
+
+mod_dav operates fine if you pass a tagged-list for the parent collection
+and assert the <lt> token.
+
+> > I could argue this either way.  I of course lean toward the 201, but that
+> > just might be because it is the first way I interpreted the spec.
+
+I'm leaning towards the 412: the precondition test fails because the
+assertion of a locktoken on the Request-URI fails because it is a null
+resource with no outstanding locks.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

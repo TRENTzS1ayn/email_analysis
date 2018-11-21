@@ -1,0 +1,223 @@
+docno="lists-049-6869256"
+received="Fri Aug 16 04:04:41 2002"
+isoreceived="20020816080441"
+sent="Fri, 16 Aug 2002 11:04:30 +0300"
+isosent="20020816080430"
+name="Patrick.Stickler@nokia.com"
+email="Patrick.Stickler@nokia.com"
+subject="RE: datatypes: conversation with Mark Butler, chair of cc/pp"
+id="A03E60B17132A84F9B4BB5EEDE57957B5FBA8C@trebe006.NOE.Nokia.com"
+charset="iso-8859-1"
+inreplyto="datatypes: conversation with Mark Butler, chair of cc/pp"
+expires="-1"
+
+
+To:<Mark_Butler@hplb.hpl.hp.com>,<bwm@hplb.hpl.hp.com>,<w3c-rdfcore-wg@w3.org>
+Cc:<mark_butler@otter.hpl.hp.com>,<franklin.reynolds@nokia.com>
+
+
+
+> ...
+
+Mark,
+
+Thanks for the pointers to the CC/PP and UAProf materials. I can 
+certainly appreciate legacy issues and the need for a painless and smooth
+evolution as possible. But I think things are OK, per the latest
+propsals (or at least, with one of them). See my comments below.
+
+> 4. Some of the datatype proposals you are discussing will 
+> simply not work
+> with UAProf, and based on my experience in (3) I think it 
+> will be uphill
+> task to get the WAP Forum to change UAProf to reflect the datatype
+> proposals. Therefore I would suggest you need to think 
+> carefully about how
+> you are going to maintain backward compatibility with 
+> applications like
+> this.
+> 
+> Now in your replies, you focused on the use of XML Schema and 
+> I think that
+> is a side issue. CC/PP badly needs validation but I don't 
+> particularly care
+> how it is done. As I see it the primary issue here is any 
+> datatype changes
+> in RDF shouldn't break backward compatibility with CC/PP or 
+> UAProf, or if
+> they do there needs to be a clear work-around in place to 
+> overcome this. 
+
+Backwards compatability has always been a key issue during
+the entire process of exploring the RDF datatyping problem
+and drafting various proposed solutions. I think that one
+of the current proposals will work seamlessly with CC/PP as
+presently defined and will require no modification to any
+CC/PP applications whatsoever, either syntactically or
+semantically.
+
+Let me try to outline the situation as I understand it, and
+present what I see as an optimal solution to validation of
+literals in CC/PP instances.
+
+Firstly, CC/PP has (at least at the application level) 
+datatype value semantics rather than string representation
+semantics. E.g. the BitsPerPixel property takes as its
+value "The number of bits..." not a string representing
+the number of bits. What is important to the application
+is the value, not how it is represented in the XML serialization.
+The datatype that constrains the value of BitsPerPixel to
+the set of integers is implicit in the CC/PP standard. It
+couldn't be explicit yet, because RDF doesn't provide a
+mechanism for making it explicit.
+
+One of the proposals on the table would provide that mechanism,
+by simply employing rdfs:range to assert this datatype constraint
+for the property. E.g.
+
+   <rdf:Description rdf:ID="BitsPerPixel">
+      <rdfs:range rdf:resource="&xsd;integer">
+   <rdf:Description>
+
+which simply asserts that every value of the BitsPerPixel property
+is an integer, which is of course what the CC/PP application is
+expecting. Thus, when a CC/PP application sees
+
+   <BitsPerPixel>10</BitsPerPixel> 
+
+the RDF MT clearly asserts that "10" denotes the integer value
+ten.
+
+Now, insofar as validation is concerned, taking the above
+approach, one could use either XML Schema or an RDF based
+validation tool. The key components of the validation, in any
+case, would be:
+
+1. a lexical form (e.g. "10")
+
+2. a datatype (e.g. xsd:integer) which has the following
+   characteristics (which are compatable with XML Schema):
+   (a) a value space
+   (b) a lexical space
+   (c) an N:1 mapping from the lexical to the value space
+
+3. one or mechanisms which associate the datatype with the
+   lexical form, either locally for the particular occurrence
+   of the lexical form and/or (as is done in CC/PP) by associating
+   a datatype with a property such that all values of that
+   property are constrained to be values of the datatype.
+
+4. a membership function that tests whether the lexical form
+   is a member of the lexical space of the datatype, i.e.
+
+      validLexicalForm(datatype,lexicalForm) -> {T, F}
+
+Now, there are various ways in which #4 above can be defined
+and applied.
+
+One can use XML Schema to define the datatype in question, as
+well as to associate the datatype in question with the property 
+by asserting the datatype for the element in the RDF/XML
+serialization itself. E.g.:
+
+   <xsd:element name="BitsPerPixel" type="xsd:integer"/>
+
+Then, one can run the CC/PP RDF/XML instance through an XML Schema
+validator to ensure that all values for BitsPerPixel are in fact
+lexically valid for the particular datatype.
+
+Alternately, one could define the lexical space of the datatype
+by means of a set of ordered inclusive and exclusive regular
+expressions, and perform lexical validation of literals based
+on iteration of the RDF graph for all datatype/literal pairings.
+
+C.f. http://www-nrc.nokia.com/sw/RDFL.html
+
+In either case, no change is required to CC/PP in order to
+validate the literals according to the specified datatypes.
+
+What I see as the crucial issue here is that the semantics of
+the CC/PP literal values are consistent with the validation employed,
+whether it be in XML space or RDF space -- and therefore, the
+mechanisms employed by RDF for attributing datatyping to literals
+and the semantics asserted by the RDF MT to those datatyped literals
+should mirror that of both XML Schema as well as the CC/PP application.
+
+The proposal outlined in 
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2002Aug/0114.html
+reflects the semantics embodied in XML Schema and CC/PP for
+datatyped literal values, as well as providing the missing mechanism
+for associating the datatypes with each particular property, making
+explicit in the RDF which is now implicit in the CC/PP specification.
+
+The other proposal on the table, rather, treats literals as global
+string constants, and does not mirror the semantics of CC/PP. It
+would assert that both of the following properties have
+in fact the very same value (not representation, but actual value):
+
+   <BitsPerPixel>10</BitsPerPixel>
+   <Model>10</Model>
+
+and any RDF query that asked, is the model equal to the
+bits per pixel would have to answer 'yes', because they
+have the same lexical representation, even though in reality
+the first value is an integer and the latter a string
+insofar as the CC/PP semantics is concerned, and they are
+clearly not equal values. 
+
+IMO, we will want our systems to become more modular and
+generic insofar as knowledge representation and inference
+is concerned, and to have to rely less on application specific
+interpretation, so having the above sort of fuzzyness in
+the datatyping semantics and pushing the ultimate interpretation
+out to the application layer will negatively impact scalability
+and portability of knowledge, as one will have to be concerned
+whether all applications utilizing the same RDF expressed
+knowledge employ the same actual interpretations.
+
+Cheers,
+
+Patrick
+
+
+> best regards
+> 
+> Mark H. Butler, PhD
+> W3C CC/PP Working Group Chair
+> Research Scientist                HP Labs Bristol
+> mark-h_butler@hp.com
+> Internet: http://www-uk.hpl.hp.com/people/marbut/
+> 
+> > -----Original Message-----
+> > From: Brian McBride [mailto:bwm@hplb.hpl.hp.com]
+> > Sent: 14 August 2002 18:49
+> > To: RDF Core
+> > Cc: mark_butler@otter.hpl.hp.com
+> > Subject: datatypes: conversation with Mark Butler, chair of cc/pp
+> > 
+> > 
+> > I chatted with Mark Butler yesterday, including some discussion of 
+> > datatypes in cc/pp.
+> > 
+> > One of the ideas that Mark favours is to define an XML Schema 
+> > for the cc/pp 
+> > language.  This would enable:
+> > 
+> >    o validation of incoming cc/pp profiles to a server
+> >    o the use of default attributes to insert datatype 
+> > attributes such as 
+> > xsi:type="xsd:decimal" automatically, thus providing global 
+> implicit 
+> > datatyping in the parser.
+> > 
+> > Whilst not perfect, does this technique go some way towards 
+> > meeting the 
+> > need for global implicit datatyping.
+> > 
+> > Brian
+> > 
+> 
+> 
+
+
+

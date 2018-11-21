@@ -1,0 +1,384 @@
+docno="lists-102-2921629"
+received="Fri May  1 21:45:35 1998"
+isoreceived="19980502014535"
+sent="Fri, 1 May 1998 18:45:26 -0700"
+isosent="19980502014526"
+name="David Brownell"
+email="David.Brownell@Eng.Sun.COM"
+subject="Comments, DOM 16-April-98 draft"
+id="199805020145.SAA25469@argon.eng.sun.com"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+Hi,
+
+I would like to give the following feedback and suggestions to the DOM
+working group.  I'm not sure whether to apologize for not splitting it
+into lots of little messages like most other posts here!
+
+There are some problems that one notices when trying to implement to this
+specification.  For example, the core and XML sections don't declare the
+exceptions that are thrown, and use illegal exception signature syntax.
+Module and package names are undefined (here and in the HTML section), so
+developers need to make up their own.  I hope all these get fixed soon.
+
+Iterators are quite troublesome, and evidently don't support viable
+implementations.   I notice that there's quite a lot of archived traffic
+on the iterators ... like, 50% of the April traffic!  This strongly
+indicates it's a problem spot.  My own radical solution is to delete
+iterators:  they're not necessary.  (An application writer who can't hack
+out a short filter method using Node methods is in trouble already; and
+they can surely take advantage of DTD knowledge to get better speed.)
+
+Plus, I'm concerned that the HTML section doesn't seem to take the same
+approach as the rest of the document.  I think it needs to be presented in
+the same way:  generic object model described in OMG-IDL, with the Java
+and ECMA Script bindings derived automatically from that.  That'll prevent
+mismatches like event handling stuff existing at all (it's not in scope
+until a level 2 spec happens) and NamedNodeList having no API except in
+the IDL (with no explanation).  The document will make a lot more sense
+that way, too:  it'll seem like it's really a single document.
+
+Appended, please find more detailed comments.  I've tried to organize
+these according to their location in the 16 April draft, and make specific
+suggestions for changes rather than make comments which would need more
+thought to transform to action.  I've also tried to delete those points
+which a quick scan of April's archive shows are addressed.
+
+- David Brownell
+
+
+Section 2.6.5 Range
+-------------------
+    Please delete this, or else specify it well enough to be useful in
+    a real application (with interface spec, etc).
+
+Section 2.8
+-----------
+General IDL comments:
+
+    - Define the name of the module:  "module org::w3c::dom { ... }" for
+      the core, "module org::w3c::dom::xml { ... }" for XML, etc.; I
+      forget the detailed syntax, sorry!
+
+    - Please be consistent about exposing data as attributes rather than
+      as get/set methods.  I'd prefer using attributes in all cases (also
+      including readonly attributes!) unless there's a need to report a
+      special exception.  For example, siblings and children.
+    
+    - The syntax for exception signatures uses "raises", and requires the
+      exception to be declared.
+
+DOM ...
+
+    Please delete the text about an expectation that these be static
+    methods; far better to say that language mappings of this include ways
+    to get instances of particular kinds of DOM objects.  For example, the
+    natural idiom would be to get an "HTML 3.2 DOM" object, or 4.0, or a
+    generic XML DOM object, or one constrained a given XML DTD, or "my
+    customized DOM".  Moreover, the two language mappings included don't
+    have these as static methods!!  (Is the intent that the "type" string
+    specify the DTD?  It's underspecified.)
+
+    Please delete the "hasFeature" method, or define the managed namepace
+    of  features!
+
+DocumentContext ...
+
+    Please delete; as with Range, if it's going to do so little, leave
+    it out.  This adds no value that I can discern, and if a level 2 spec
+    adds value with this notion, let it define the interface fully.
+
+    Deleting this will call for deleting this attribute from Document,
+    as well as a factory method on Document.
+
+DocumentFragment ... quite underutilized.
+
+    See the comment for Node for one possible change which will not only
+    make this more useful, but address another structural problem.  In
+    any case I think this notion is under-described.
+
+    Please make "masterDoc" a readonly attribute, or else specify where
+    in the sequence of the master document's children this new child
+    should go.
+
+Document ...
+
+    The "documentType" attribute clearly belongs in an XmlDocument
+    interface, not here where it's specified to be meaningless
+    except in the context of XML.
+
+    These factory methods don't work very cleanly:
+    
+* They don't let implementors throw exceptions like "this kind
+  of document doesn't permit that kind of element".  Such an
+  "InvalidElementException" should be defined, and be throwable
+  by createElement.
+
+* Similarly for attributes, and createAttribute:  permit the
+  factory methods to enforce validity, and throw an exception
+  such as "InvalidAttributeException".
+
+* The methods don't automatically assign a parent; suggested
+  suggested fix is on Node.
+  
+    The "createTreeIterator" method should be renamed so it doesn't
+    look like a factory method.  "getTreeIterator"?  However, see the
+    comments on NodeIterator and TreeIterator -- not needed, dangerous,
+    please delete.
+
+Node ... 
+    Parentless nodes seem to come up in several cases:  child nodes that
+    have been removed or replaced, nodes that have just been constructed
+    and not assigned a parent.  But only document objects are allowed
+    to return null as a parent.  getParentNode() should be able to report
+    a "NoParentException" for nodes without parents.
+
+    As one notices when implementing it, Node is rather odd since it's got
+    children but most of its subtypes (Text, PI, Comment) don't.  In fact,
+    the only things that need children are Document and Element.  (Plus some
+    XML attribute values, which I think should not be Node objects.)  A
+    much cleaner approach would be:
+
+- Element would extend the DocumentFragment interface;
+- DocumentFragment would have the child related methods:
+      hasChildNodes, getFirstChild,
+      insertbefore, removeChild, replacechild
+- (And to get rid of iterators, add DocumentFragment.getLastChild, 
+  and DocumentFragment.getNumberOfChildren; maybe getNthChild.
+  See NodeIterator comments.)
+
+    The kind of node that supports insert/replace/remove child methods
+    should support policies that only valid Document objects get built.
+    This means that whenever a node is added or removed, it should be
+    able to throw something like an InvalidNodeException in cases
+    where that operation would violate the DTD.
+
+    Shouldn't there be a deleteChild(in Node oldChild) method?
+
+    General comment:  I don't see specifications for how changes to 
+    parents, siblings, and children affect other nodes.  At some point
+    before this gets more stable, that should be carefully specified.
+
+    Please delete getChildNodes and the NodeIterator type.  See comments
+    on NodeIterator for more information.  
+
+    The NodeType constants (and getNodeType) are not needed, and constrain
+    things more than seems wise.  This interface would need revising to add
+    new kinds of node to the system ... strongly to be avoided!  In OMG-IDL,
+    one normally relies on the run time typing provided by the ORB as part
+    of the language mapping.  For example, it can use Java or C++ run time
+    typing; C systems add their own runtime typing (ORB runtimes, COM,
+    what have you).  Where is the spec for the ECMAScript language mapping
+    which is being used?  Seems like that's where stuff like NodeType info
+    should be showing up -- and as a generic feature, not just for nodes.
+
+NodeIterator ... broken semantics, also overly complex
+
+    The notion of "current position" being _between_ nodes is a huge
+    problem; it should instead be _on_ a specific node, if this API
+    remains in the DOM spec.  If that node is deleted, the iterator
+    might become invalid, but other edit operations have very clear
+    semantics.  The price of the current spec is high:
+
+- Tracking each iterator ever created, probably in the
+  document object);
+
+- Adding "position info" to those iterators;
+
+- Potentially, updating each iterator's "position info" whenever
+  the tree changes.
+
+- Needing to add an operation to say that the application is
+  finished with the iterator; garbage collection alone doesn't
+  work.  That violates the normal usage model for the two
+  languages whose bindings are in the spec!
+
+- It makes it very hard to describe the exact semantics of
+  iteration in the case of the tree changing.
+
+    The indexing should to be deleted ... it assumes that the set of
+    nodes is fixed.  But, it's not.  You can't save an index, modify a
+    tree, and expect things to work!  The indexing is superfluous; just
+    save the node in question, rather than the index.  (Or, put it
+    into a separate interface, that doesn't deal with "live update".)
+
+    COMMENT:  These iterators are well past the complexity line of what
+    I like to see in specifications ... they're "icing" suited for one
+    kind of cake, which isn't the kind I happen to bake.  It's simple
+    enough to do tree and child enumeration using the Node API, with
+    none of the complexity of this Iterator.  Only the "enumerate by
+    tag" functionalty merits even a helper function in most code.
+
+    Preferably, delete this from the spec and make "Node" just a bit
+    simpler to use for this sort of purpose -- add getLastChild, and
+    maybe getNumberOfChildren.  (Perhaps to DocumentFragment instead;
+    see above comments re Node.)  Most useful would be adding a method
+    to Node automating prefix inorder tree traversal, so it's about
+    two lines of code to write an in-line filter.
+
+TreeIterator ... all the NodeIterator comments apply!  Delete this.
+    
+    Given a "current node" notion, most of these methods are not
+    needed: toParent, toFirstChild, toPreviousSibling, toNextSibling.
+
+    The numPreviousSiblings and numNextSibling methods apply to the
+    dangerous notion of indexing (in live data!) which I believe
+    should be deleted.  Similarly, toNthChild.
+
+Attribute ...
+
+    No particular comments, except that I'm glad it's not a node!
+
+AttributeList ... 
+
+    I appreciate the simplicity of this interface compared to the
+    NodeIterator and TreeIterator ones!
+    
+    Rather than the numeric indexed mode implied by item(), it'd
+    be safer to just return an array of strings that identify the
+    attributes.
+
+    It might be good to have a readonly attribute giving access to
+    the element the AttributeList is tied to.
+
+Element ...
+
+    getAttributeNode, getAttributeName ... what's this "name" type?  I
+    translated it as "wstring".  Is this for namespace support?
+
+    setAttribute ... the IDL should say "wstring", not "string".
+
+    getAttributes () ... should return AttributeList, not NodeIterator
+    NodeIterator is way too complex, it's overused.  Moreover, it's
+    not possible (this way) to have 
+
+    getElementsByTagName ... returns no value.  I'd argue to delete this,
+    on the grounds that all the Iterator support should be deleted.  Also,
+    this sort of thing can be implemented easily enough in an application.
+
+    Please move the normalize method to the Text object, so apps can
+    have control over when they incur such costs.
+
+    Please delete the AttributeNode representations here; there's no
+    point in having both string and AttributeNode representations in
+    the core.  Anyway, the AttributeNode stuff can come from an
+    AttributeList object anyway (see above).
+
+    Might be good to add a boolean hasAttributes() method.
+
+Text
+
+    The editing stuff seems overly complex for most usage, and probably
+    isn't complex enough for heavy duty editor work.  I think it'd
+    be better if insert(), replace(), and splice() weren't there.
+
+    I'd like to be able to access text as something other than a string;
+    at least, I'd like to know how many characters are there, and be
+    able to copy characters out directly without converting to strings.
+    (It's been a while since I hacked the IDL; the latter may be painful
+    to express!)
+
+    I found the splice() method description confusing.  Please try something
+    more complete, perhaps like this for the brief explanation, but with
+    complete description of how all four (!!!) possible outcomes change the
+    parent, child, and sibling relationships.  Or better yet, don't put
+    this method in ... four different outcomes is troublesome:
+
+Modifies this text node by deleting characters beginning at "offset"
+and turning "element" into the next sibling.  Any characters after
+"offset + count" become a new Text object that is the next sibling
+of "element".  If nonzero "count" is specified, it identifies how
+many of characters beginning at "offset" are turned into a new Text
+object which becomes the last child of "element".
+
+    See above comment re Element.normalize ... I think that functionality
+    belongs on text nodes, offering control over how (and when) costs are
+    incurred.  (Also, which fragments get preserved!)  For example, a
+    boolean merge() method that returns true if this text node was able to
+    merge with the next one.
+
+Comment ... I'd prefer to see them unable to have children!
+
+PI ... I'd prefer to see them unable to have children!
+
+    I'm told HTML has no PIs (really??), so it's not clear to me why this
+    is in the core object model.  Particularly since one of the properties
+    of the PI is defined as meaninglist for HTML...
+
+Section 3.2
+-----------
+XMLNode
+
+    Please make this inherit from Node ... it's confusing otherwise
+
+    Please make an XMLElement interface, inheriting from both XML Node
+    and Element.  Ditto XMLText (Text + XMLNode), XMLPI (if PI is still
+    in core), etc.
+
+    See comment above re duplicating the run time type information; is
+    this not something that deserves a "NodeType" of its own, given the
+    API framework that's been set up?   (Of course, I think that duplicate
+    run time typing support should be deleted.)
+
+    Return types should be XMLNode (etc), not Node
+
+    Building on the comments earlier, the XML child operations should
+    perhaps be part of an XMLDocumentFragment interface.
+
+DocumentType
+    
+    Please change the return type to a "DTDNode" not a "Node; it's
+    a different kind of information than application data, and should
+    not be forced to be polymorphic with application data.  If some
+    implementation chooses to be polymorphic, so be it -- but that's
+    not what the spec should be requiring.
+
+    And in several cases, "Entity" matches the spec better without even
+    defining a new DTDNode interface!
+
+ElementDefinition ...  please extend "DTDNode"
+
+    Please delete inclusions and exlusions, since XML doesn't have them
+    and this isn't for HTML or SGML.
+
+AttributeDefinition ...  please extend "DTDNode"
+
+XMLText ... doesn't exist
+
+    Please remove the CDATASection and PCDATAToken empty interfaces,
+    and replace them with predicates on XMLText.  Similarly, add a
+    predicate for whether the text is ignorable whitespace.  (I just
+    hate NOP interfaces, particularly when they don't even share the
+    same naming convention!)
+
+    Hmm, would a PCDATA and a CDATA node ever merge with normalize()?
+    I suspect they shouldn't; regardless, specify the behaviour.
+
+
+Chapter 4
+---------
+Am I confused, or is the deal here that the body more or less is ECMA
+script text that needs to move to "Appendix C", and a new body must be
+created which holds (a) what's now in "Appendix A", and (b) a language
+neutral description of the semantics?  That is, I sure hope this part
+of the spec starts to look a lot more like the core and HTML parts.
+
+Event handling methods like blur(), focus(), select(), and click() should
+all get deleted (event handling is a non-goal anyway, and fights against
+general requirement #6 of not requiring a UI).  At most they should be
+in a non-normative appendix.
+
+I happened to notice that NamedNodeList is used a lot in the ECMAScript
+in the main body, but isn't defined until the IDL appendix.  I suspect
+that happens with other things, too.  Fixing this to have the IDL as the
+core of this chapter, with Java and ECMA Script bindings generatd from
+it, will help fix this problem.
+
+There seems to be no way to set attributes of a cookie other than its
+value ... such as DOMAIN, PATH, EXPIRY, and so on.
+
+
+

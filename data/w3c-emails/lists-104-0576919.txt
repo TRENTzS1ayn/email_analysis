@@ -1,0 +1,61 @@
+docno="lists-104-0576919"
+received="Wed Jul 18 12:44:36 2001"
+isoreceived="20010718164436"
+sent="Wed, 18 Jul 2001 10:40:19 -0600"
+isosent="20010718164019"
+name="Arnold, Curt"
+email="Curt.Arnold@hyprotech.com"
+subject="generating XPath expression from Node for DOM L3 XPath"
+id="70E215722F6AD511820A000103D141D40AA44F@thor.aeathtl.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+As a complement to DOM XPath allowing you to determine a NodeSet from an XPath expression, it seems like it might be useful to provide a mechanism to determine a XPath expression from a node.
+
+Of course, there can be multiple equivalent XPath expressions that select one  Node and any manufactured XPath expression may be invalidated by changes in the DOM.  The returned XPath would not have
+the consistency needed to fulfill the role of the key() method under consideration in DOM L3 Core.
+
+Though it would be left up to the individual implementor to choose the algorithm to build the XPath, I would assume most paths would be constructed by walking back up the parent nodes to the reference
+node using position values when there is a need to disambigate.  If the reference node was the document, then the implementation might use an id() specifier if it encountered an element with an
+ID-type attribute.  So you would get XPath's like:
+
+  relative to another node
+
+@name
+
+  relative to document
+/foo/bar[2]/greeting/hello/city[2]/@name
+id('IAH')/Airline[3]
+
+
+Since you might want to have a similar functionality for each query language, it would probably be best to keep it within the XPathEvaluator interface in the DOM 3 XPath spec.  Something like:
+
+interface XPathEvaluator {
+public XPathExpression generateXPath(Node node, Node referencenode);
+}
+
+Except in the cases where the node was an entity reference, CDATA section or another part of what XPath considers one text node, the following test should hold (the result set syntax is only
+conceptual):
+
+XPathExpression xpath = xpatheval.generateXPath(node,referencenode);
+ResultSet result = xpath.evaluateAsNodeSet(referencenode);
+assertEquals(1,result.getLength());
+assertSame(node,result.first());
+
+Of course, how this would behave if node was a CDATASection or EntityReference inside a XPath text() node would need to be defined.
+
+
+Effective use would also require XPathExpression to have attributes to retrieve the string representation of the XPath query and the Namespace Resolver object or string.
+
+I was originally thinking that generateXPath could return a string, however it is uncertain that the reference node or a supplied namespace resolver would have sufficient namespace bindings, it was
+just easier to have it return a fully constructed XPathExpression object.
+
+I still favor using a string for the namespace resolver function, however if it must be an object, then it would be very helpful (especially for the usage scenario I have in mind for this) that it
+have the equivalent of toString() and parse(), so that you could generate an XPath expression from an arbitrary node, get a string representations of both the XPath expression and the prefix/URI
+bindings, and place those strings in an XML message to keep a remote DOM implementation in synch.
+
+
+

@@ -1,0 +1,146 @@
+docno="lists-020-14703917"
+received="Fri Jun 11 00:21:41 2004"
+isoreceived="20040611042141"
+sent="Fri, 11 Jun 2004 13:21:50 +0900"
+isosent="20040611042150"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Re: ACTION: elaborate on 4.4"
+id="20040611042150.GC12275@w3.org"
+charset="us-ascii"
+inreplyto="20040608210620.GC15635&#64;monkeyfist.com"
+expires="-1"
+
+To: Kendall Clark<kendall@monkeyfist.com>
+Cc:public-rdf-dawg@w3.org
+
+
+
+On Tue, Jun 08, 2004 at 05:06:20PM -0400, Kendall Clark wrote:
+> 
+> On Mon, Jun 07, 2004 at 01:17:39PM -0400, Kendall Clark wrote:
+> 
+> > Open design issues (many of which I expect can be analogized to
+> > content negotiation in HTTP) include:
+> >    
+> >    - how to request one's preferred exchange serialization; 
+> >    - whether it's a request or a negotiation;
+> >    - whether to identify exchange serializations by Internet Media Type, by
+> >      URI, or by canonical short name;
+> 
+> Just to be clear, the IMT option won't really work here. IMT aren't
+> generally fine-grained enough to distinguish different XML
+> vocabularies (which sucks, really). I think, then, short-name or URI
+> are the real options.
+
+There are three tiers in the xml subtrees as specified by RFC 3023.
+It specifies (or maybe just references) a bunch of popular media types:
+[[
+   8.14 Application/xml-external-parsed-entity with UTF-16BE Charset  23
+   8.15 Application/xml-dtd  . . . . . . . . . . . . . . . . . . . .  23
+   8.16 Application/mathml+xml . . . . . . . . . . . . . . . . . . .  24
+   8.17 Application/xslt+xml . . . . . . . . . . . . . . . . . . . .  24
+   8.18 Application/rdf+xml  . . . . . . . . . . . . . . . . . . . .  24
+   8.19 Image/svg+xml  . . . . . . . . . . . . . . . . . . . . . . .  24
+]]
+
+One feature of using media type selection is that it allows us to take
+advantage of the notion that the semantic content should be consistent
+from one serialization to another. Thus, you can get the URL for a
+query and give the URL to different clients which prefer different
+result formats.
+
+For example: suppose the W3C mail search service provided results in
+different languages; you could
+
+GET 'http://www.w3.org/Search/Mail/Public/search?keywords=20040608210620.GC15635%40monkeyfist.com&hdr-1-name=subject&hdr-1-query=&index-grp=Public__FULL&index-type=t&type-index=public-rdf-dawg'
+
+and get back a bunch of HTML, 
+
+GET -H 'Accept: application/rdf+xml' 'http://www.w3.org/Search/Mail/Public/search?keywords=20040608210620.GC15635%40monkeyfist.com&hdr-1-name=subject&hdr-1-query=&index-grp=Public__FULL&index-type=t&type-index=public-rdf-dawg'
+
+and get back some RDF:
+
+<?xml version="1.0" encoding="iso-8859-1"?>
+<rdf:RDF xmlns:email="http://www.w3.org/2000/10/swap/pim/email#"
+    xmlns:log="http://www.w3.org/2000/10/swap/log#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:search="http://www.w3.org/Team/2001/09/search/search.pl#"
+    xmlns:session="http://dev.w3.org/cvsweb/perl/modules/W3C/Util/W3CDebugCGI.pm">...</rdf:RDF>
+
+GET -H 'Accept: text/x-n3' 'http://www.w3.org/Search/Mail/Public/search?keywords=20040608210620.GC15635%40monkeyfist.com&hdr-1-name=subject&hdr-1-query=&index-grp=Public__FULL&index-type=t&type-index=public-rdf-dawg'
+
+and get back some n3:
+
+@prefix email: <http://www.w3.org/2000/10/swap/pim/email#>.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+<> session:id "1086926895.725659".
+<mid:20040608210620.GC15635@monkeyfist.com> email:date "Tue, 8 Jun 2004 17:06:20 -0400 ";
+...
+
+GET -H 'Accept: application/soap-xml' 'http://www.w3.org/Search/Mail/Public/search?keywords=20040608210620.GC15635%40monkeyfist.com&hdr-1-name=subject&hdr-1-query=&index-grp=Public__FULL&index-type=t&type-index=public-rdf-dawg'
+
+and get something (who knows what) in a SOAP envelope:
+
+<?xml version="1.0" encoding="iso-8859-1"?>
+<env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"
+   xmlns:email="http://www.w3.org/2000/10/swap/pim/email#"
+   xmlns:search="http://www.w3.org/Team/2001/09/search/search.pl#"
+   xmlns:session="http://dev.w3.org/cvsweb/perl/modules/W3C/Util/W3CDebugCGI.pm">
+ <env:Header>
+  <session:id>1086926979.223690</session:id>
+ </env:Header>
+ <env:Body>
+...
+
+The Annotea server behaves similarly.
+
+I can see this working to select between N3 and RDF, even RDF and TRiX
+  application/rdf+xml vs application/trix+xml
+but not between tuple and graph responses. Those seem like they'd
+require different URLs.
+
+On the downside, whatever mime types we need have to be registered
+through IETF which puts a dependancy on another orgnanization.
+
+3023 does not deal with compound document, but I don't think we need
+that for our purposes. Even if we do, and we have to do something
+that's known only to DAWG-QL (or DAWG-TP), we'd have to do that if
+we rolled our own format selection protocol.
+
+> I'd be happy to design for 4.4 v. simply[1]:
+> 
+>     Put a bit in our doc about (1) HTTP content-negotiation and (2)
+>     come up with a set of (or a way to generate a set of) canonical
+>     names for various serialization formats.
+> 
+> I believe we'd need to do (2) because, IIRC, the con-neg spec talks
+> about IMTs. I just *assume* people are going to use con-neg if we give
+> them an HTTP binding for our protocol and don't say anything about all
+> of this. Except that then they'll have an interop nightmare because we
+> won't have done (2).
+> 
+> Best,
+> Kendall
+> 
+> [1] What I'd really like to see, vis-a-vis design, is an RDF
+> vocabulary to make assertions about the properties of DAWG origin
+> servers. The HTTP spec even gives us a very elegant (IMO) discovery
+> mechanism using OPTIONS and (slightly extending) OPTIONS *. Such a
+> vocabulary could assert which serialization types, identified by URI,
+> the server is prepared to offer, as well as other gooey bits of
+> metadata-y goodness.
+
+[2] http://www.faqs.org/rfcs/rfc3023.html
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

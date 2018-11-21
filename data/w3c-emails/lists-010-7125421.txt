@@ -1,0 +1,189 @@
+docno="lists-010-7125421"
+received="Mon Aug 12 14:36:32 1996"
+isoreceived="19960812183632"
+sent="Mon, 12 Aug 96 17:39:46 0400"
+isosent="19960812213946"
+name="hallam@etna.ai.mit.edu"
+email="hallam@etna.ai.mit.edu"
+subject="Re: Conventions for Sharing User Agent Profiles"
+id="9608122139.AA02447@Etna.ai.mit.edu"
+inreplyto="9608121752.AA03530&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+Cc:hallam@etna.ai.mit.edu
+
+
+>Anyway, I would guess that if we can come up with a standard
+>encoding for the u-a-p resource pointed to by a u-a-p URL (and
+>which would be a prerequisite for any such scheme) then with
+>a little more effort we might be able to come up with compressed
+>encoding that could be transmitted in the request headers without
+>many more bytes that it would take to transmit the u-a-p URL.  And
+>transmitting it in-band does solve the problems that might arise
+>from indirection.
+
+
+Pulling together Jeff's points of security and downloading in 
+an intranet I see the specific weakness of Jim's scheme being
+that it uses URLs when in this particular case we could use
+something that has the properties of a URN.
+
+Let us start by defining for the sake of argument an Object
+Identifier URI which has a prefix OID:. We will describe a
+specific subcategory of these OIDs, specifically the set
+of identifiers which are a deterministic function of their
+designata, in this case via an unbiased one way function
+such as SHA-1.
+
+So our "URN"-ish identifier which for the sake of avoiding
+confusion with the URI requirements doc I will call a URS
+(Universal Resource Sign) is something like :-
+
+OID:SHA-khgq234o8t6quirgq2872135
+
+Which refers to the headers h, where h = 
+
+"Accept: text/plain, text/html, image/gif, image/jpeg
+User-Agent: Linemode/64.5
+"
+
+and  BASE64(SHA(h)) =  "khgq234o8t6quirgq2872135"
+
+The typical usage of this technique would be as follows :-
+
+
+GET http://foom.com/index.html http/1.2
+Date: <whatever>
+Include: OID:SHA-khgq234o8t6quirgq2872135
+
+
+Which would be equivalent to :-
+
+GET http://foom.com/index.html http/1.2
+Date: <whatever>
+Accept: text/plain, text/html, image/gif, image/jpeg
+User-Agent: Linemode/64.5
+
+
+Now say that the server does not have the mapping for 
+OID:SHA-khgq234o8t6quirgq2872135 avaliable. In that case it might
+either:-
+
+1) Return a default value anyway 
+- especially usefull if the content is invariate wrt the
+headers included by reference.
+
+2) Ask for the expansion of the headers.
+
+3) Say that it doesn't have time to play this game and that the
+client should respond in traditional manner.
+
+In the later case we might see :-
+
+3xx Don't Follow You
+Server: frob/54.3
+
+
+And the Client would then send some message to provide the
+appropriate binding or linkage, eg :-
+
+
+POST OID:SHA-khgq234o8t6quirgq2872135 http/1.2
+Date: <whatever>
+Content-Type: application/http
+
+Accept: text/plain, text/html, image/gif, image/jpeg
+User-Agent: Linemode/64.5
+
+
+Perhaps the method in this case needs to be adjusted 
+somewhat... Its not quite a POST, more a "RETRY" type
+of affair. 
+
+
+
+Note that in all this we still need to have some way of avoiding the
+initial loosing trip problem. Unless we know that we are dealing with 
+a 1.2 server we have to start talking 1.0 and tentatively upgrade.
+
+Who is interested in a DNS modification to provide for server profiles?
+
+I see that we could do some really interesting stuff with a very
+simple scheme. Here I would suggest that we go just a little bit
+further than the current DNS hacks suggested and provide a WebX
+record analogous to the MX record which contains a mapping table
+from URIs to URIs :-
+
+[Attached to record www.w3.org]
+
+WEBX http://www.w3.org/* http://18.23.1.165 1 version=1.2
+WEBX http://www.w3.org/* http://18.23.1.120 2 interval=30sec version=1.2
+WEBX http://www.w3.org/* http://18.23.1.122 2 interval=1day version=1.2
+WEBX http://www.w3.org/* http://128.34.2.11 3 version=1.1
+
+This means that there are four sites serving http:// type URIs.
+Server 18.23.1.165 has firstness quality and uses protocol
+http/1.2, Servers 18.23.1.120 and 18.23.1.122 have secondness
+and also serve 1.2, 128.34.2.11 has thirdness and is version 1.1.
+
+The firstness, secondness and thirdness are inspired by the
+trichotemy of Pierce. Basically this divides the relationship of
+a sign to its designatum into three categories. In the first
+category there is a direct connection between the sign and the 
+thing designated by the sign. In the second category there is 
+a conventional relationship between the sign and the designata,
+in the third category the sign relates to another sign. Loosely
+interperting these abstract categories in terms of HTTP we arrive
+at three different qualities of cache scheme :-
+
+Firstness:The server is either the authoratative source
+for the resources or it is guaranteed to behave in a
+smantically equivalent manner (e.g. two servers operating
+off a mirrored filestore with exact semantics)
+[Alternatively the relationship of the resource to the
+URL is either static or otheriwse known in advance]
+
+Secondness:The server is guaranteed to behave as the 
+authoratative source would have done within a specified
+time interval. This is equivalent to a server which recieves
+change notifications from the originating host or some
+other host with quality firstness.
+
+Thirdness:There was at some time in the past a relationship
+between the two. This is CERN proxy style caching.
+
+The advantage of this division is that it maps very directly to
+three classes of server implementation with a range of implementation
+costs and functionality. It would be futile to try transaction
+control on a server with thirdness quality. On the other hand data
+from a server with secondness quality and a time constant of 30sec
+is likely to be as good as a direct connection from most people's
+point of view.
+
+
+I know that this is not the HTTP protocol per se but it is a method
+of addressing certain problems that are otherwise hard or impossible
+to avoid. I think we should think of the Web as a whole and not just
+towards small pieces that happen to fit in particular pockets.
+
+
+Phill
+
+[P.S., Yes you could call this a URN scheme if you really
+wanted but note that the scheme still defines a proceedure for
+retreiving a resource and hence is in fact a URL. The main
+concern of those asking for a naming scheme is addressed - the
+referent is insensitive to the actual server used [This could be
+improved upon by use of an "index" server offering redirections
+in response to requests".] On the other hand certain requirements
+proposed for URNs which were cited as essential are not met. 
+Indeed I suspect that no mechanism which involves a resolution
+mechanism can ever meet those requirements. A name is merely a
+sign that has a conventional assosiation with its designatum,
+the binding occurs from the fact of common usage within a 
+community ]
+
+
+

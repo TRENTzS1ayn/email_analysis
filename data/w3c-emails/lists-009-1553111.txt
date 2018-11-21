@@ -1,0 +1,89 @@
+docno="lists-009-1553111"
+received="Sun Dec 18 05:11:00 1994"
+isoreceived="19941218101100"
+sent="Sun, 18 Dec 94 14:09:27 +0100"
+isosent="19941218130927"
+name="Henrik Frystyk Nielsen"
+email="frystyk@ptsun00.cern.ch"
+subject="Re: Connection Header"
+id="9412181309.AA11132@ptsun03.cern.ch"
+inreplyto="Connection Header"
+expires="1"
+
+
+To:robm@neon.mcom.com,luotonen@neon.mcom.com
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+> >  * The MGET causes an extra roundtrip time as many servers will think:
+> >  *
+> >  * "Gee - nobody has told me about this method. I simply refuse
+> >  * to do anything about it"
+> > 
+> > It seems to me that this could be alleviated by having regular GET
+> > methods on MGET-capable servers return
+> > 
+> > Allow: MGET
+> 
+> MGET is definitely more realistic approach than the keep-connection
+> proposal.  MGET is clean and fully backword compatible.
+
+If you read my answer to Rob you will find that MGET is _not_ fully
+backward compatible.
+
+> If I'm not totally lost in space, keep-connection will not even work
+> with all TCP implementations.
+
+No need to get lost ;-)
+
+> There is no way to know beforehand that
+> the remote really supports keep-connection and that the connection
+> really will stay up, without making an assumption that it will, and
+> send the second request to try it out.  You can't even wait until the
+> entire document has been transferred and see if the connection stays
+> up, because with a congested network or loaded remote server we may
+> see the connection staying up for a while before it actually closes.
+> Same may happen also with CGI scripts that do some cleanup after the
+> document has already been fully returned.  This is a fact with current
+> servers out there, which are the ones *not* supporting MGET, and with
+> which the problems I'll now explain, would happen.
+
+This is not a problem as the server sends back a new Connection header
+in the first response, for example indicating how long the connection
+will stay open and how many requests the client can issue. If this is
+not present then the client should not send any more down the same
+pipe. This means that the client should not send multiple requests the
+first time unless it knows apriori that the server does in fact accept
+it. In my opinion a minor limitation!
+ 
+> As we are parsing the HTML doc and come accross an inlined image we
+> issue a new request to the socket.  If we do that while we are still
+> reading the data, and if the remote doesn't support keep-connection,
+> we will receive ECONNRESET (?) and all pending incoming data will be
+> discarded.  The same thing sometimes happened with HTTP0/HTTP1 (which
+> was supposed to be fully backword compatible, but wasn't really), NCSA
+> Mosaic did another connection, other clients simply failed, or
+> displayed partial data.  This was fully dynamic depending on the state
+> and speed of the network, sometimes you would end up with the entire
+> document, sometimes with a truncated one, and sometimes with an empty
+> page or client-generated error message when no data was returned.
+> This was when the HTTP1 header write was still going on while the
+> remote had actually sent all the data and closed the connection.  Data
+> was streaming in from the remote TCP kernel buffers, and when the
+> write failed on client side all pending data was lost.
+
+The problem here is simply that the TCP window fills up with
+unacknowledged bytes and hence the 0.9 server is forced to reset the
+connection. Otherwise there would be a deadlock: both client and server
+tries to write, but the client will not do a read. This is still a
+problem for proxies as there is no way of changing the status code on
+the fly when piping the response to the proxy client. If the client
+doesn't check the Content-Length it ends up with a partial document
+with a 200 OK code!
+
+-- cheers --
+
+Henrik
+
+
+

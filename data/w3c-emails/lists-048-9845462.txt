@@ -1,0 +1,255 @@
+docno="lists-048-9845462"
+received="Mon Oct 22 15:22:47 2001"
+isoreceived="20011022192247"
+sent="Mon, 22 Oct 2001 14:22:30 -0500"
+isosent="20011022192230"
+name="Pat Hayes"
+email="phayes@ai.uwf.edu"
+subject="Re: literals must be self-evident"
+id="p05101037b7fa049f934b@[205.160.76.193]"
+charset="us-ascii"
+inreplyto="3BCDC359.7B6E4AB&#64;w3.org"
+expires="-1"
+
+
+To: Dan Connolly<connolly@w3.org>
+Cc:w3c-rdfcore-wg@w3.org
+
+>I'm having trouble following the literal model theory
+>stuff in detail, and my attention is diverted by
+>stuff like preparation for the upcoming AC meeting,
+>and I'll be out next week.
+>
+>But I propose the following requirement as a constraint
+>on solutions to this literal stuff:
+>
+>[[[
+>Lack of ambiguity
+>
+>Some programming languages allow one to introduce identifiers
+>from new name spaces in such a way that it is not possible to
+>know which namespace a local identifier belongs to without
+>accessing both the module interface specifications and checking
+>which one has with the highest priority, or  most recently in the
+>document, redefined a given local identifier.
+>
+>This may have some uses in a programming language such as
+>Java[Java], but it has a serious flaw in that when one module
+>changes (without the knowledge of the designers of the other
+>module), it can unwittingly redefine a local identifier used by the
+>second module, completely changing the meaning of a previously
+>written document. Clearly, in the Web world in which modules
+>evolve but documents must have clearly defined meanings, this is
+>unacceptable.
+>]]]
+>
+>--        Web Architecture: Extensible languages
+>http://www.w3.org/TR/NOTE-webarch-extlang#Ambiguity
+>W3C Note 10 Feb 1998
+>
+>That is: it's essential that the interpretation of
+>an RDF document is a function of the document alone,
+>and doesn't vary according to the contents of other
+>documents.
+
+We can apply this criterion more or less strictly, however. Let me 
+try applying it in several cases.
+
+There are three distinct classes of proposals, seems to me. I used to 
+like the second, but have become persuaded that the first is best, 
+and maybe the only viable option in the long run, so I would like to 
+not rule it out.
+
+1. Contextual datatyping.
+
+One (class of) proposals is to allow literals to be used in a such a 
+way that the exact meaning of the literal depends on the immediate 
+context of a triple it is in, for example by using range information 
+from another triple, so that in:
+
+aaa  isSmallerThan "567881962" .
+isSmallerThan rdfs:range xsd:Integer .
+
+the literal should denote an integer, but in:
+
+http://www.coginst.uwf.edu/~phayes#TheMan hasSSnumber "567881962" .
+hasSSnumber rdfs:range govsd:SocialSecurity .
+
+the very same literal would denote a social security number (which 
+is, let us suppose, a different datatype). In other triples it might 
+denote a string, a date, whatever.
+
+This is the class of proposals ('class' because there are several 
+alternative ideas about exactly how to provide the 'contextual' 
+information that is given here by the rdfs:range information) that 
+Peter P-S and I have sorted out how to handle in an extension to the 
+current MT, with some very small tweaks.  (To emphasize, I am not 
+urging that the WG adopt these extensions, or even consider them, but 
+I would like to suggest that we take care not to lock in any 
+restrictions that would make this future extension impossible.)
+
+The consequence of this is that the meaning of a 'bare' literal 
+triple is in a sense not determined until one has enough information 
+about the 'context' to decide what literal-typing scheme to use, eg 
+if I read
+
+aaa bbb "567881962" .
+
+and I know nothing else about the range of bbb, and the literal 
+occurrence itself has no associated typing information, then I don't 
+know whether that third item is supposed to be a string, or an 
+integer or a date or whatever, so I really don't know what the triple 
+is asserting. (The MT extension would actually assign a meaning to 
+the literal, but it would be a function from an as-yet-unknown 
+datatype to a value, and we can't determine the truthvalue of the 
+triple itself until we have some way to apply the function to a 
+datatype. We could tweak the MT even further and regard such a bare 
+triple as a kind of disjunction over all possible datatypes; that 
+would essentially treat this as similar in meaning to the 'bnode' 
+proposal, below.)
+
+Notice, this does not suffer from the really drastic problem 
+mentioned in the above quote. The suggestion is not that the meaning 
+of a bare triple might change as a result of what is said about it in 
+some other module. There is no doubt that it is only the value of 
+this particular occurrence of the literal that is being determined, 
+and its interpretation depends only on information about the terms in 
+the triple in which it occurs. That information - range information, 
+in this case - might indeed be provided by another document, but it 
+cannot be overridden or altered by another document, except in the 
+general sense in which any piece of RDF might be overridden or 
+updated. (As with any other RDF, two documents might not agree about 
+the correct range information, and in that case the meaning of the 
+triple would also become doubtful. For example if we had two 
+assertions
+
+bbb rdfs:range xsd:Integer .
+bbb rdfs:range xsd:String .
+
+then as far as RDFS is concerned the range is both string and 
+integer, but I presume that this would cause some datatyping engine 
+to barf.)
+
+An extended treatment would be to invoke a 'default' datatyping 
+scheme in which (in the absence of any other type information) the 
+literal is interpreted as denoting itself, ie as a string. That has 
+the merit of locking in current RDF M&S best practice, but it has the 
+disadvantage of introducing a nonmonotonic construction in which 
+adding information (eg from another document) does indeed change the 
+interpretation of a triple (eg from being true of a string to being 
+true of, say, an SS number). However, it is a very restricted and 
+well-behaved form of nonmonotonicity, in a sense.
+
+(The new extended MT technique has as an automatic consequence that 
+the 'string' interpretation has a special status, in that it is the 
+only 'fixed' interpretation which can be composed with a later 
+datatyping scheme in a transparent way. This corresponds exactly to 
+the intuition that treating RDF literals as strings is just kind of 
+telling the parser to treat them as 'blobs' whose meaning will be 
+determined by something else; the something else can be another RDF 
+document, is all. )
+
+2. Datatype-on-the-sleeve
+
+Another class of proposals takes very seriously the idea that any 
+symbol must have a fixed meaning in any interpretation, and insists 
+that this goes for literals as well. It follows therefore that if one 
+literal  means the integer 567881962 and another literal means the SS 
+number 567-88-1962, then they must be *different* literals. So, on 
+this account, the objects in the above example triples must in fact 
+be distinct literals, and maybe they should be written differently, 
+or something; in any case, this difference has to be somehow 
+incorporated into the 'logical syntax' ie in our case, in the RDF 
+graph. Maybe they would look like this:
+
+aaa isSmallerThan xsd:Integer:"567881962" .
+
+http://www.coginst.uwf.edu/~phayes#TheMan hasSSnumber 
+govsd:SocialSecurity:"567881962" .
+
+where the datatype is somehow incorporated into the very syntactic 
+form of the literal itself. (The exact form of such inclusion I leave 
+to others to decide; this prefixing isn't intended as a serious 
+proposal for a suitable syntax.)
+
+This kind of solution trades syntactic complexity (and rigidity) for 
+conceptual simplicity. This is completely trivial for the model 
+theory, and assigns datatyping to an essentially lexical issue. 
+Notice that the 'range' information could still be given, but its 
+only purpose now would be to enable the inference engine to check 
+that the lexically assigned datatypes were consistent, ie it would be 
+a kind of integrity check rather than providing any new information. 
+Notice also in this case, the 'bare literal' case would be lexically 
+ill-formed, and one would expect that the datatyping machinery (which 
+lies outside RDF in this case) would have assigned some kind of 
+default interpretation to any 'bare' literal, eg by prefixing it with 
+xsd:string: , say.
+
+3. Literals as blank nodes
+
+(This may be regarded simply a variant on the first class of 
+proposals, but I think it is worth treating separately as it requires 
+no extension to the MT, but it does require rewriting all RDF graphs 
+which use literals.)
+
+This treats a literal an an existential assertion together with an 
+assertion about the syntactic 'literal' form, as Ron Daniel suggested 
+in
+http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2001Oct/0213.html. 
+So the above examples would be rewritten in the following ways:
+
+aaa isSmallerThan _:thing1 .
+_:thing1 rdf:value "567881962" .
+_:thing1 rdf:type xsd:Integer .
+
+http://www.coginst.uwf.edu/~phayes#TheMan hasSSnumber _:thing2 .
+_:thing2 rdf:value "567881962" .
+_:thing2 rdf:type govsd:SocialSecurity .
+
+This has the merit of keeping all the datatyping information in the 
+same document, but it suffers from triples-bloat.
+
+------
+
+>Any solution where the truth/falsehood of a document
+>(in some interpretation) depends on some range
+>contraint in another document would be a violoation
+>of what I suggest is a core RDF requirement.
+
+Well, you could say that the first class of proposals is ruled out by 
+this, but I'm not sure. What if that range constraint was included in 
+the  scope of the interpretation?
+
+Pat
+
+PS. Just for clarification: the stuff about modifying Ntriples syntax 
+to allow nodeIDs to be used on triples was to allow an slight 
+modification to number 1 above where one asserts the datatyping 
+directly as a property of the literal (which therefore has to be a 
+subject), in effect short-circuiting the blank nodes in Ron's 
+proposal by labelling the literal node itself. This maps the third 
+proposal into the first:
+
+aaa isSmallerThan _:thing1:"567881962" .
+_:thing1 rdf:type xsd:Integer .
+
+thereby removing the triples-bloat and, incidentally, integrating 
+this better into RDFS generally, since this rdf:type assertion is now 
+giving exactly the same information that one could also get from an 
+rdfs:range assertion, or maybe by some other means. The general point 
+is that if you know something is in an rdfs class *which is defined 
+by a datatype* and you also know its a literal, then you know how to 
+interpret it, independently of *how* you happen to know that it is in 
+that class. So datatypes are just a special kind of class, which is 
+what got Peter so excited :-)
+
+-- 
+---------------------------------------------------------------------
+IHMC(850)434 8903   home
+40 South Alcaniz St.(850)202 4416   office
+Pensacola,  FL 32501(850)202 4440   fax
+phayes@ai.uwf.edu 
+http://www.coginst.uwf.edu/~phayes
+
+
+

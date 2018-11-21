@@ -1,0 +1,230 @@
+docno="lists-101-1945328"
+received="Sun May 27 17:40:32 2001"
+isoreceived="20010527214032"
+sent="Sun, 27 May 2001 23:40:07 +0200"
+isosent="20010527214007"
+name="Dimitris Dimitriadis"
+email="dimitris.dimitriadis@improve.se"
+subject="Intermediate status report on updating the DOM TS ML"
+id="9F67DC27F4CCD311ABA600508B6A66A44A65E0@VXOIMP1"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:www-dom-ts@w3.org
+
+I've run into the problems of updating the DTD as far as multipe <!ATTLIST
+declarations are concerned. I've inlide comments in the source where this
+has been changed/updated. The source should be ready tomorrow.
+ 
+Also, there is a problem with ambigous names. I've spent some time cleaning
+the DTD up and will continue in the morning CET to try to extend the DTD in
+line with the previous design. If this is not doable, we should look into
+dropping them, as Curt has in his schema.
+ 
+We also have a problem with needing to state two returnTypes on some
+interfaces, for example DocumentType. If we just give returnType CDATA
+#FIXED "NamedNodeMap" we won't be able to capture entities/notations on this
+interface. Should we instead just give entities and notations as two
+separate attributes? In that case, we won't be compatible with our previous
+use of returnType.
+ 
+I'll let you know where it ends up tomorrow.
+ 
+We still need to code the DOM HTML interfaces, something which I expect to
+start doing tomorrow. Help greatly appreciated, though.
+ 
+/Dimitris
+
+-----Ursprungligt meddelande-----
+Fr?n: Curt Arnold [mailto:carnold@houston.rr.com]
+Skickat: den 27 maj 2001 09:15
+Till: www-dom-ts@w3.org
+?mne: My iteration
+
+
+I've updated http://home.houston.rr.com/curta/domtest/domtest.zip
+<http://home.houston.rr.com/curta/domtest/domtest.zip> , this file 
+contains a schema, DTD and documentation.  I haven't had a chance to double 
+check it against the DOM specs, so if I got a return type wrong or
+something,
+please forgive me.
+ 
+Here is a summary of differences between my previous schema.
+ 
+1. IDL property names instead of Java accessor/mutator names
+ 
+Read-only properties are pretty simple, both var (the variable assigned the
+returned value) 
+and obj (the invocation target) are required.
+ 
+<nodeType var="nodeType" obj="node"/>
+ 
+Read-write is more complicated.  obj is still required, var and value are
+optional.
+The question then is how do you interpret the element if both are supplied
+or neither is supplied.  When neither is supplied, I'd interpret it as a 
+a property access and discarding the value.  If both are supplied, for
+instance:
+ 
+<Attr.value var="oldValue" obj="attr" value='"New Value"'/>
+ 
+I'd interpret it as a access followed by a mutation, that is:
+ 
+oldValue = attr.getValue();
+attr.setValue("New Value");
+ 
+2. Removed interface prefix before non-ambiguous method or property names
+ 
+There were more ambiguous names that I had previously mentioned, but not
+too many.  Here is the list of names used introduced in multiple interfaces
+that
+I came up with:
+ 
+Document.getElementByTagName and Element.getElementByTagName
+Document.getElementByTagNameNS and Element.getElementByTagNameNS
+NodeList.item, NamedNodeMap.item
+NodeList.length, NamedNodeMap.length, CharacterData.length, 
+CharacterData.data, ProcessingInstruction.data
+DocumentType.name and Attr.name
+DocumentType.publicId, Notation.publicId, Entity.publicId
+DocumentType.systemId, Notation.systemId, Notation.systemId
+ProcessingInstruction.target, Event.target
+DOMException.code, EventException.code, RangeException.code
+ 
+Distinct elements are introduced for each method.  It might be possible
+to imply the intended variant from context, but I'd much prefer having
+that explicit.
+ 
+All other DOM properties and methods have had the interface name
+removed from their tag name.  
+ 
+I had anticipated using the interface name part of the tag name
+in the code generation.  To provide the information lost, 
+I've added annotation elements into the schema that will provide the
+introducing interface and expected type for use by the code generators.
+ 
+implementation and hasFeature act both as static methods and
+instance methods.  
+ 
+<implemenation var="impl"/>
+ 
+Will give you an DOMImplementation from the implementation under test
+to use in tests that build documents from scratch.  While:
+ 
+<implementation var="impl" obj="doc"/>
+ 
+will give you the implementation from the specified document.
+ 
+hasFeature is a little more complicated.
+ 
+<hasFeature feature="XML" version="1.0"/>
+ 
+is an implementation conditional that can be used to determine
+if a test is appropriate for the processor under test and can
+be used in <if> statements.
+ 
+<hasFeature var="hasEvents" feature="Events" version="2.0" obj="impl"/>
+ 
+Would be a "traditional" method invocation.
+ 
+ 
+3. Added <metadata> element to tests and asserts
+ 
+Expected to contain one rdf:RDF element.  Will continue to refine and
+possibly assert a
+required set of EARL or DC properties.
+ 
+4. Fixed a lot of instances where I had used the DOMFunction complex type
+instead 
+of the DOMSubroutine complex type
+ 
+There were a substantial number of methods that had no return value that I
+had
+inadvertantly used the wrong complex type resulting in unintentional "var"
+attributes on
+void methods.  This may have been the cause of some of the earlier 
+confusion, I was not aware of it until I started adding return types into
+the <appinfo>
+ 
+5. Changed <assert> to <assertTrue> and synchronized <assertFalse>
+ 
+JUnit 3.7 deprecated the assert method in favor of assertTrue.  Also
+allowed you to assign a conditional expression to a variable with
+the <assign/> element and introduced <isTrue> and <isFalse>
+so that variable can participate in more complicated logical
+expressions.
+ 
+6. Removed garbageCollect
+ 
+Confusing and probably unnecessary.  Was intended to be used in 
+tests that might succeed if some unreachable object had not been
+finalized, but would fail if it had.
+ 
+ 
+------------------
+Additional comments regarding schema and DTD convergence:
+ 
+In an earlier comment, I had thought that the character content of method
+and property 
+elements might be used to identify the invocation target since there was no
+obvious provision for it.  Not providing an obvious provision was
+acknowledged an oversight, but
+I forgot to follow up on the intention of the character content.
+ 
+If an invocation target attribute ("obj") was added, you could do something
+like:
+ 
+<Node><nodeValue obj="someNode" var="someVar">Some text goes
+here</nodeValue></Node>
+ 
+The obvious potential use for the character content is some type of comment
+which I had used in my earliest iterations of the schema before I made it
+public.
+However I think it is preferable for the content model to be empty for a
+couple of reasons:
+ 
+1. Leaving the content model empty allows for future enhancement.  I've
+already
+encountered a few instances where I needed to add element content to an
+element
+that originally was empty.
+ 
+2. It provides a tempting place to put information that should be specified
+in either
+the test or assertion metadata.
+ 
+3. Can complicate schema when you are trying to combine element containing
+and 
+character data containing elements into one substitution group.
+ 
+Without using character content of property and method elements, there are
+still
+three places to put descriptive text:
+ 
+a) In the metadata for an test or assert
+ 
+This is the appropriate place for any descriptive text that would be
+beneficial for a
+person running the tests.
+ 
+b) In [XML] comments in the test definition
+ 
+This is appropriate for any descriptive text that would help someone
+examining the
+test definition (for example, complaints about the test definition
+language), but
+would not add any value to someone running the tests.
+ 
+c) In a <comment> element
+ 
+This is appropriate for any descriptive text that would help someone
+examining the
+generated source code.
+ 
+Typo alert:  Multiple <!ATTLIST attributes...> where I think you intend to
+defined the
+attributes for a different tag name.
+
+
+

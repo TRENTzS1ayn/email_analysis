@@ -1,0 +1,179 @@
+docno="lists-037-10517628"
+received="Wed Feb 12 10:15:19 1997"
+isoreceived="19970212151519"
+sent="Tue, 11 Feb 1997 16:06:08 -0800"
+isosent="19970212000608"
+name="Jim Whitehead"
+email="ejw@ics.uci.edu"
+subject="Issues: Copy/Move"
+id="af26774a12021004f187@[128.195.21.209]"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-dist-auth@w3.org
+Cc:ejw@ics.uci.edu
+
+
+>NAME SPACE MANIPULATION
+>
+>(Section 7 of WebDAV specification.)
+>
+>1. Semantics of copy and move.  At the Irvine meeting there was a detailed
+>discussion of whether a copy (move) is an octet for octet copy (move), a
+>manipulation of the namespace, or both.  One suggestion was to have a copy
+>(move) be an octet for octet copy (move) of the source of a resource.
+>
+>2. Link behavior on copy/move.  At present, a copy/move will attempt to
+>keep links with the resource across a copy/move.  However, since predefined
+>links may vary across a namespace, the links on a source may vary from
+>links on the destination.  What should the specification say/proscribe
+>about link properties across a copy/move?
+
+A better approach for defining the semantics of copy and move is to specify
+what postconditions must hold after a copy/move operation, rather than
+specifying exactly what operation occurs during a copy/move.  The latter,
+operational approach is currently used in the specification.  A proposal
+for a precondition/postcondition based approach is given below:
+
+First, some definitions:
+
+Let a resource be a set of {  body, metadata }.  In the current DAV and
+HTTP specifications, metadata consists of links, and response entity
+headers.  Furthermore, metadata can be represented as a set of {
+user-metadata , system-metadata} representing the difference between
+metadata created by a user-agent, and metadata created by a non-user-agent.
+
+This makes a resource a set of { body, { user-metadata, system-metadata} }
+
+COPY:
+
+Let the interface to the copy operation be:
+
+  copy(source-URI, dest-URI, copy-meta, overwrite)
+   source-URI: URI
+   dest-URI: URI
+   copy-meta: boolean
+   overwrite: boolean
+
+The semantics of copy can be defined as:
+
+Copy is an operation which has the following preconditions and postconditions:
+
+Preconditions:
+
+1. The source-URI must map to an existing resource.
+2. If overwrite is false, the dest-URI must not map to an existing resource.
+
+Postconditions:
+
+1. Namespace: The body of the resource at the dest-URI must be octet for
+octet identical to the body of the resource at the source-URI.
+
+2. Metadata: If copy-meta is true, the user-metadata of the resource at the
+dest-URI must be octet for octet identical to the user-metadata of the
+resource at the source-URI.  If copy-meta is false, the user-metadata of
+the resource at the dest-URI is the null set.
+
+3. Independence: A modification to the resource at the dest-URI must not
+imply as a necessary accompaniment an identical modification to the
+resource at the source-URI, and vice-versa.
+
+
+MOVE
+
+Let the interface to the move operation be:
+
+  move(source-URI, dest-URI, move-meta, overwrite)
+   source-URI: URI
+   dest-URI: URI
+   move-meta: boolean
+   overwrite: boolean
+
+Move is an operation which has the following preconditions and postconditions:
+
+Preconditions:
+
+1. The source-URI must map to an existing resource.
+2. If overwrite is false, the dest-URI must not map to an existing resource.
+
+Postconditions:
+
+1. Namespace: The body of the resource at the dest-URI must be octet for
+octet identical to the body of the resource at the source-URI prior to the
+move.
+
+2. Metadata: If move-meta is true, the user-metadata of the resource at the
+dest-URI must be octet for octet identical to the user-metadata of the
+resource at the source-URI prior to the move.  If move-meta is false, the
+user-metadata of the resource at the dest-URI is the null set.
+
+3. Removal: The dest-URI does not map to an existing resource.
+
+
+How do these definitions work on existing Web content classes?
+
+1. Non-server processed resources (e.g. vanilla HTML, bitmaps, etc.).
+Since each of these resources typically only holds one location in the URL
+namespace, and since there is no distinction between source and processed
+output (as holds for server-side includes), the definitions of copy and
+move work well.
+
+2. Server-processed resources, one source resource, one or more processed
+resources (e.g., server-side includes).  In this case, there is a
+distinction between URL_proc, the set of URLs which give the locations
+where the processed output may be retrieved, and URL_src, the single URL
+where the source resource resides.  While a copy operation could work on
+any member of URL_proc (creating a snapshot copy of the results of the
+processed resource), it probably makes sense for servers not to allow this
+operation.  A move operation on any member of URL_proc would fail, because
+it would be impossible to satisfy the removal postcondition.  A copy or
+move operation on URL_src would definitely work.
+
+3. CGI processors.  Since a CGI can potentially be passed the copy or move
+operation, no guarantees can be made about the correct processing of copy
+or move as applied to CGI processor code.  Ideally, a CGI processor should
+behave like in case 2 above.
+
+4. Multiple source resources, multiple processed resources.  Similar to
+case #2, a copy on a member of URL_proc would work, but should be
+discouraged, while a move on a member of URL_proc would fail.  In this
+case, URL_src has more than one member, but a copy or move on a member of
+URL_src would still work.
+
+Notes:
+
+- These definitions of copy and move place the burden of discovering the
+source (i.e., a member of URL_src) on the client.  In most cases, this
+should be possible by following a predefined link from a member of URL_proc
+to a member(s) of URL_src.
+
+- The examples assume a single stage of processing between source and
+processed output, and it assumes this processing is taking place in the
+server.  However, the definitions of copy and move appear to be capable of
+modeling more complicated cases.
+
+- The definitions assume that the server controls a portion of the metadata
+(system-metadata) and the user-agent controls a portion of the metadata
+(user-metadata).  The user-agent has no control over the system-metadata
+during a move or copy.  It is expected that system-metadata will vary
+across a server's namespace.  The user-agent does, however, have complete
+control over the user-metadata.
+
+>3. Copyhead/Movehead.  These methods were proposed to give a client the
+>means to discover, prior to performing a copy or a move, what is likely to
+>happen when the copy/move is performed.  At the Irvine meeting, a counter
+>model of "the client requests an operation, then discovers from the
+>response and from querying the state of the server what occurred."  While
+>this model is currently supported by copy and move, the issue remains
+>whether this model is sufficient, or needs to be augmented with copyhead
+>and movehead (and if these methods are kept, what should they be called?)
+
+I propose COPYHEAD and MOVEHEAD be stricken from the specification.  Would
+anyone like to step up and defend them?  It is my belief that removing
+these methods reflects the current sentiment of the group.
+
+- Jim
+
+
+

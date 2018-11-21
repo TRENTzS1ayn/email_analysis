@@ -1,0 +1,77 @@
+docno="lists-000-3356814"
+received="Thu Sep 16 14:56:22 1999"
+isoreceived="19990916185622"
+sent="Thu, 16 Sep 1999 12:55:29 -0600"
+isosent="19990916185529"
+name="Randy Waki"
+email="rwaki@sun10.whizbanglabs.com"
+subject="Recovering from extra framesets"
+id="000001bf0075$0bb15d50$ce9946a6@whizbanglabs.com"
+charset="iso-8859-1"
+expires="-1"
+
+To:"HTML Tidy Mailing List"<html-tidy@w3.org>
+
+
+IE and Netscape seem to ignore extra framesets while 26-Jul-99 Tidy treats
+them as errors.
+
+I hope it's not rash to assume that in cases like this, we want Tidy to
+approximate what most users are likely to experience in their browsers.
+
+-------- Example input document --------
+<html>
+<head>
+<title>t</title>
+</head>
+
+<frameset cols="50%,50%">
+  <frame src="a.html">
+  <frame src="b.html">
+</frameset>
+
+<frameset>
+  <frame src="ignored-by-browsers.html">
+</frameset>
+
+</html>
+----------------------------------------
+
+The following changes should cause Tidy to discard extra framesets.  Note
+the potential problem described in the comments.  The changes are untested
+in C but they were translated from Java where they WERE tested.
+
+1. In parser.c, change:
+
+      /* flag an error if we see more than one frameset */
+
+   to:
+
+      /* parse framesets but only keep the first one */
+      /* PROBLEM: Discarded framesets might still affect the */
+      /*          global document state when they are parsed */
+
+2. Also in parser.c, change:
+
+      if (frameset != null)
+          ReportError(lexer, html, node, DUPLICATE_FRAMESET);
+      else
+          frameset = node;
+
+   to:
+
+      if (frameset != null)
+      {
+          ReportWarning(lexer, html, node, DUPLICATE_FRAMESET);
+          ParseTag(lexer, node, mode);
+          continue;
+      }
+      frameset = node;
+
+3. In localize.c, change DUPLICATE_FRAMESET from an error to a warning (be
+sure to change the string literal itself, too).
+
+Randy
+
+
+

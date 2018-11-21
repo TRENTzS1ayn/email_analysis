@@ -1,0 +1,211 @@
+docno="lists-012-1813539"
+received="Fri Apr  3 04:49:42 1998"
+isoreceived="19980403094942"
+sent="Fri, 3 Apr 1998 13:11:14 +0100 (BST)"
+isosent="19980403121114"
+name="Gisle Aas"
+email="gisle@aas.no"
+subject="More comments on draft-ietf-http-authentication01.txt"
+id="m3ogyj85o4.fsf@furu.g.aas.no"
+inreplyto="Fri, 27 Mar 98 10:45:36 PST&quot;"
+expires="1"
+
+To:http-wg@cuckoo.hpl.hp.com
+
+
+I just implemented "Digest Authentication" for the LWPng (the thing to
+replace libwww-perl at some point) based on
+<draft-ietf-http-authentication-01>.  I have only tested it against a
+server that implement the RFC 2069 spec.  I have the following
+comments to the spec (trying to avoid things already discussed on this
+list like how to format the 'nc-value').
+
+
+1) It is not perfectly clear to me if the namespace of realms are
+separate for each authentication scheme or even separate when using
+the server as a proxy and when not.  I matters to me becase I try to
+index authentication objects in the client per "server/realm".
+
+This sentence:
+
+  The realm value (case-sensitive), in combination with the canonical
+  root URL (see section 5.1.2 of [2]) of the server being accessed,
+  defines the protection space.
+
+make me believe that I can assume that it would not be possible to
+have to deal with all the following as separate "protection spaces"
+the same time:
+
+   Authorization: Basic realm="foo"
+   Authorization: Digest realm="foo"
+   Proxy-Authorization: Basic realm="foo"
+   Proxy-Authorization: Digest realm="foo"
+
+Can this be clarified?
+
+
+
+2) How to interpret the URIs in the 'domain' attribute of the Digest
+WWW-Authenticate is not clear to me either.  Are the URIs in this
+list path prefixes that define protection spaces or must there be
+an exact match.  If it is a prefix, what happens if the URI contains a
+query part.
+
+
+
+3) Section 3.6 does not seem to know about the "407 Proxy
+Authentication Required" status code.  I though that a
+"Proxy-Authenticate" header could only be present in a 407 response.
+That is at least how I read <draft-ietf-http-v11-spec-rev-03>.  I
+would like this paragraph to go away (it would complicate my
+implementation if it stays):
+
+  Note that in principle a client could be asked to authenticate
+  itself to both a proxy and an end-server. It might receive an
+  "HTTP/1.1 401 Unauthorized" header followed by both a WWW-
+  Authenticate and a Proxy-Authenticate header. However, it can
+  never receive more than one Proxy-Authenticate header since such
+  headers are only for immediate connections and must not be passed
+  on by proxies. If the client receives both headers, it must
+  respond with both the Authorization and Proxy-Authorization
+  headers as described above, which will likely involve different
+  combinations of username, password, nonce, etc.
+
+
+
+4) Are there any servers that already implemented that that knows
+about "MD5-sess" and "auth-int" I can test against?
+
+
+
+For those that can read Perl, I even include the source for my
+implementation here.  This code might even be of use to others
+implementing Digest or perhaps somebody can tell me if I misunderstood
+something in the spec by looking through the code.
+
+Regards,
+Gisle
+
+
+
+---------------------------------------------
+package LWP::Authen::digest;
+use strict;
+
+# Based on <draft-ietf-http-authentication-01>
+
+require MD5;
+
+sub new
+{
+    my $class = shift;
+    my $self = bless { @_ }, $class;
+    # All the WWW-Authenticate attributes are now available to the
+    # LWP::Authen::digest object as $self->{'<attr>'}.
+    $self;
+}
+
+sub _set_authorization
+{
+    my($self, $header, $req) = @_;
+    my $user = $self->{username};
+    return unless defined $user;
+    my $pass = $self->{password};
+
+    my $realm = $self->{realm};
+    $realm = "" unless defined $realm;
+
+    my $algorithm = lc($self->{algorithm} || "md5");
+    my %qops = map {$_ => 1} split(/\s*,\s*/, lc($self->{qop} || ""));
+    my $qop = "";
+    if ($req->has_content && $qops{'auth-int'}) {
+$qop = "auth-int";
+    } elsif ($qops{auth}) {
+$qop = "auth";
+    }
+    
+    my $uri = $req->url->full_path;
+    my $nonce = $self->{nonce};  $nonce = "" unless defined $nonce;
+    my $nc = sprintf "%08x", ++$self->{nonce_count};
+    my $cnonce = sprintf "%x", rand(0x1000000);
+
+    my $a1;
+    if ($algorithm eq "md5") {
+# A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+$a1 = MD5->hexhash("$user:$realm:$pass");
+    } elsif ($algorithm eq "md5-sess") {
+# The following A1 value should only be computed once
+$a1 = $self->{'A1'};
+unless ($a1) {
+    # A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
+    #         ":" unq(nonce-value) ":" unq(cnonce-value)
+    $a1 = MD5->hexhash("$user:$realm:$pass") . ":$nonce:$cnonce";
+    $a1 = MD5->hexhash($a1);
+    $self->{'A1'} = $a1;
+}
+    } else {
+return;
+    }
+
+    my $a2 = $req->method . ":" . $uri;
+    $a2 .= MD5->hexhash($req->content) if $qop eq "auth-int";
+    $a2 = MD5->hexhash($a2);
+
+    # at this point $a1 is really H(A1) and $a2 is H(A2)
+
+    my $response;
+    if ($qop eq "auth" || $qop eq "auth-int") {
+#  KD(H(A1), unq(nonce-value)
+#            :" nc-value
+#            ":" unq(cnonce-value)
+#            ":" unq(qop-value)
+#            ":" H(A2)
+#    )
+$response = MD5->hexhash("$a1:$nonce:$nc:$cnonce:$qop:$a2");
+    } else {
+# compatibility with RFC 2069
+# KD ( H(A1), unq(nonce-value) ":" H(A2) )
+$response = MD5->hexhash("$a1:$nonce:$a2");
+undef($cnonce);
+    }
+
+    my @h;
+    push(@h, ["username" => $user],
+     ["realm"    => $realm],
+     ["nonce"    => $nonce],
+     ["uri"      => $uri],
+             ["response" => $response]);
+    push(@h, ["_algorithm" => $self->{algorithm}]) if $self->{algorithm};
+    push(@h, ["cnonce"   => $cnonce]) if $cnonce;
+    push(@h, ["opaque"   => $self->{opaque}]) if exists $self->{opaque};
+    
+    push(@h, ["_qop"     => $qop]) if $self->{qop};
+    push(@h, ["_nc"      => $nc]);
+
+    my $h = "Digest " . join(", ",
+     map {
+ my($k,$v) = @$_;
+ unless ($k =~ s/^_//) {
+     $v =~ s/([\\\"])/\\$1/g;
+     $v = qq("$v");
+ }
+ "$k=$v";
+                             } @h);
+    
+    $req->header($header => $h);
+}
+
+
+sub set_authorization
+{
+    shift->_set_authorization("Authorization", @_);
+}
+
+
+sub set_proxy_authorization
+{
+    shift->_set_authorization("Proxy-Authorization", @_);
+}
+
+
+

@@ -1,0 +1,241 @@
+docno="lists-017-16441204"
+received="Tue May  7 14:54:16 2002"
+isoreceived="20020507185416"
+sent="Tue, 7 May 2002 06:01:50 0400 (EDT)"
+isosent="20020507100150"
+name="Jeni Tennison"
+email="jeni@jenitennison.com"
+subject="Sequence Type Checking"
+id="381294962046.20020507093342@jenitennison.com"
+charset="usascii"
+expires="1"
+
+
+To:public-qt-comments@w3.org
+CC:www-xpath-comments@w3.org
+
+Hi,
+
+Can you clarify what "AtomicType" means in the context of sequence
+type checking in Section 2.1.3.2. (SequenceType) of the XPath 2.0 WD?
+I think that you mean this to include all atomic simple types, since
+higher up, in the introduction part of Section 2.1.3 (Types), you say:
+
+  "The set of named types includes all the built-in types *and all
+  user-defined simple or complex types* for which the type declaration
+  contains a name." (my emphasis)
+
+That being the case, isn't the current set of productions for
+SequenceType ambiguous? What if I defined the following type in a
+schema with no target namespace:
+
+<xs:simpleType name="item">
+  <xs:restriction base="xs:token">
+    <xs:pattern value="item[0-9]{3}" />
+  </xs:restriction>
+</xs:simpleType>
+
+This is a user-defined atomic type whose name is 'item' (with no
+target namespace and thus no prefix). Since atomic types are simply
+named, saying:
+
+  item+
+
+could mean "one or more of the item type from the schema" or it could
+mean "one or more items of any type". Similarly, I could have types
+called "element", "attribute", "node" and so on for the other ItemType
+keywords.
+
+Or perhaps you are restricting XML Schema to that subset of XML
+Schemas in which all the components have a target namespace? If so, I
+don't *think* you've mentioned that anywhere, and it's a pretty big
+restriction. Or perhaps you mean for types that are named the same as
+the keywords to have to be prefixed with a ":" as elsewhere? In which
+case you should incorporate that into the BNF.
+
+If neither of those is the case, one method of clarifying this would
+be to make those ItemTypes that are actually node types look like
+(node) KindTests (production [31]), so you'd have node(),
+processing-instruction() and so on. This could be extended to include
+element() and attribute(), perhaps adopting the same syntax as
+processing instruction tests to provide the name of the node:
+
+  element('foo')
+
+would mean the same as:
+
+  element foo
+
+
+Another thing here is how you match elements and attributes if you use
+an ElemOrAttrType. The text says:
+
+  2. Another form of ElemOrAttrType is simply a QName, which is
+     interpreted as the required name of the element or attribute. The
+     QName must be an element or attribute name that is found in the
+     in-scope schema definitions.
+
+But earlier on, in-scope schema definitions is defined as:
+
+  In-scope schema definitions. This is a set of (QName, type
+  definition) pairs. It defines the set of types that are available
+  for reference within the expression. It includes the built-in schema
+  types and all globally-declared types in imported schemas.
+
+Perhaps you're using "type definition" in a different way from XML
+Schema, but in XML Schema, "type definitions" aren't element
+declarations. I think that you might need to add something to the
+static context -- "in-scope element declarations" and "in-scope
+attribute declarations" -- in which to search, although I notice that
+these are explicitly left out of the data model...
+
+I think that you mean that doing "element foo" will only match foo
+elements that are declared at the top level of the schema (i.e.
+{element declarations} on schema component Schema). Is that correct? I
+think it might also be helpful to be able to distinguish between
+"elements of this name, wherever they're declared" and "elements of
+this name declared at the top-level of the schema". Similarly, indeed
+particularly, for attributes. You'll commonly have the following
+within a schema (particularly those generated from DTDs):
+
+<xs:element name="foo">
+  <xs:complexType>
+    <xs:attribute name="id" type="xs:ID" />
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="bar">
+  <xs:complexType>
+    <xs:attribute name="id" type="xs:ID" />
+  </xs:complexType>
+</xs:element>
+
+And currently there's no way that I can see of referring to "id
+attributes wherever they're declared" or even "id attributes as in the
+element declaration for foo or the element declaration for bar".
+
+Furthermore, if you do mean to have "element foo" only match top-level
+element declarations, then I don't understand why you're allowed to
+specify a type when matching those kinds of elements, but aren't
+allowed to do so when matching local element declarations. A top-level
+element declaration can only have one type, just like a local element
+declaration. Perhaps you mean it to be that when the type is specified
+you match all elements, wherever their declaration?
+
+A final thing here is that the SchemaGlobalContext should include
+attribute groups and model groups, so that you can distinguish between
+foo elements with the following declarations:
+
+<xs:element name="foo" type="type1" />
+
+<xs:complexType name="bar">
+  <xs:sequence>
+    <xs:element name="foo" type="type2" />
+  </xs:sequence>
+</xs:complexType>
+
+<xs:group name="bar">
+  <xs:sequence>
+    <xs:element name="foo" type="type3" />
+  </xs:sequence>
+</xs:group>
+
+If you did allow for this kind of schema, you'd also have to add
+"in-scope group definitions" and "in-scope attribute definitions" to
+the static context.
+
+---
+
+Personally, I'd like to see the syntax used here unified with the
+syntax used in XSLT in match patterns. It strikes me that you're doing
+a similar kind of thing as match patterns here: putting together a
+test that identifies the kind of things that are allowed in a
+sequence. Perhaps an alternative, therefore, would be to use type(),
+say, to indicate a type and have things like:
+
+  type('xs:date')        refers to the built-in Schema type date
+  @*?                    refers to an optional attribute
+  *                      refers to any element
+  office:letter          refers to an element with a specific name
+  *[type('po:address')]+ refers to one or more elements of the given
+                         type
+  node()*                refers to a sequence of zero or more nodes of
+                         any type
+  item()*                refers to a sequence of zero or more nodes or
+                         atomic values
+
+I am not advocating a full pattern syntax here -- I understand that
+you want to be able to *identify* the node/type from these
+SequenceType indicators, not only match them, so that you can do
+static analysis. Ths kind of thing I'm thinking about is something
+like (forgive the BNF):
+
+SequenceType   ::=  (ItemTypes OccurrenceIndicator) | EmptyType
+EmptyType      ::=  "(" ")"
+ItemTypes      ::=  ItemType
+                    | "(" ItemType ("|" ItemType)+ ")"
+ItemType       ::=  NodeType
+                    | AtomicType
+                    | "item" "(" ")"
+NodeType       ::=  NamedNodeType
+                    | "node" "(" ")"
+                    | "document" "(" ")"  // or perhaps "/"
+                    | "text" "(" ")"
+                    | "processing-instruction" "(" ")"
+                    | "comment" "(" ")"
+NamedNodeType  ::=  ElemOrAttr SchemaType?
+                    | SchemaContext ElemOrAttr
+ElemOrAttr     ::=  "@"? ("*" | QName)
+SchemaType     ::=  "[" "type" "(" QNameLiteral ")" "]"
+QNameLiteral   ::=  ("'" QName "'") | ('"' QName '"')
+SchemaContext  ::=  SchemaGlobalContext ("/" SchemaContextStep)* "/"
+SchemaGlobalContext ::= "schema" "(" ")" "/" (TypeOrGroup | QName)
+TypeOrGroup         ::= ("type" | "group") "(" QNameLiteral ")"
+SchemaContextStep   ::= QName
+AtomicType          ::= "type" "(" (UnknownType | QNameLiteral)? ")"
+UnknownType         ::= ("'" "'") | ('"' '"')
+OccurrenceIndicator ::= ("*" | "+" | "?")
+
+So for example rather than writing:
+
+  element foo in type bar/baz +
+
+You'd write:
+
+  schema()/type('bar')/baz/foo +
+
+Rather than writing "empty", you'd write "()". Rather than writing
+"unknown", you'd write "type('')". Rather than writing "atomic value",
+you'd write "type()"
+
+You could say something like "any number of id attributes declared
+within foo or bar element declarations" with:
+
+  (schema()/foo/@id | schema()/bar/@id)*
+
+With a few adjustments, this kind of syntax would enable users to make
+the distinction between "elements declared anywhere" and "elements
+declared at the top level". The former could be matched with:
+
+  foo
+
+whereas the latter with:
+
+  schema()/foo
+
+Obviously the above would still need some work (in the above, "type()"
+means different things in different situations), but I'd hope that a
+unified syntax with XSLT match patterns will make the sequence typing
+more flexible in the long run, easier to learn for people with
+experience with XSLT, and eventually enable XSLT templates to match
+things other than nodes.
+
+Cheers,
+
+Jeni
+---
+Jeni Tennison
+http://www.jenitennison.com/
+
+
+

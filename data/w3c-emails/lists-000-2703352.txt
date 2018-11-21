@@ -1,0 +1,154 @@
+docno="lists-000-2703352"
+received="Sun Aug 15 19:19:14 1999"
+isoreceived="19990815231914"
+sent="Sun, 15 Aug 1999 18:13:09 -0500"
+isosent="19990815231309"
+name="Advocate"
+email="wotw@inebraska.com"
+subject="Re: TrimEmptyElement(): don't remove empty TR, imply required TD  instead"
+id="v04205500b3dcf04e00bd@[206.222.216.26]"
+charset="us-ascii"
+inreplyto="199908021505.KAA07753&#64;falcon.inetnebr.com"
+expires="-1"
+
+
+To:html-tidy@w3.org
+
+> Correction to last patch.  Where the variable "row" is mentioned,
+> replace with "element".  Side effect of where the patch was originially
+> applied before it was moved.  These would be in the ReportWarning and
+> InsertNode arguments.
+
+I see that a test case is preferred, even if a patch is supplied. 
+Very well.  When given the input:
+
+<HTML>
+<HEAD>
+<TITLE>Bad Elimination of Table Row</TITLE>
+</HEAD>
+<BODY>
+<TABLE BORDER=1 SUMMARY="Demonstration of HTML Tidy's erroneous 
+elimination of empty rows.">
+<TR>
+<TD ROWSPAN=2>1</TD>
+<TD ROWSPAN=2>2</TD>
+</TR>
+<TR></TR>
+<TR>
+<TD>5</TD>
+<TD>6</TD>
+</TR>
+</TABLE>
+</BODY>
+</HTML>
+
+MacTidy outputs these errors (only because it is the platform edition 
+most available to me at the moment):
+
+MacTidy (vers 26th July 1999) Parsing "EmptyTR.html"
+line 11 column 5 - Warning: trimming empty <tr>
+
+"EmptyTR.html" appears to be HTML 4.0
+1 warnings/errors were found!
+
+and this output:
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0//EN">
+<html>
+<head>
+<title>Bad Elimination of Table Row</title>
+</head>
+<body>
+<table border="1" summary="Demonstration of HTML Tidy's erroneous \
+elimination of empty rows.">
+<tr>
+<td rowspan="3">1</td>
+<td rowspan="2">2</td>
+</tr>
+
+<tr>
+<td>5</td>
+</tr>
+</table>
+</body>
+</html>
+
+which clearly is not the intended result.  The result in Netscape for 
+example is quite different between the cases.  Clearly the user's 
+intent is to let the cells "5" and "6" be below cells "1" and "2", 
+yet by eliminating the <TR></TR>, HTML Tidy puts them on the same row.
+
+Since the output should be compliant, I recommend implying an empty 
+cell in the empty row rather than eliminating the row, thus giving as 
+output:
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0//EN">
+<html>
+<head>
+<title>Bad Elimination of Table Row</title>
+</head>
+<body>
+<table border="1" summary="Demonstration of HTML Tidy's erroneous \
+elimination of empty rows.">
+<tr>
+<td rowspan="3">1</td>
+<td rowspan="2">2</td>
+</tr>
+<tr>
+<td></td>
+</tr>
+<tr>
+<td>5</td>
+<td>6</td>
+</tr>
+</table>
+</body>
+</html>
+
+Ideally, HTML Tidy should indeed eliminate the empty row, but would 
+also have to go back to previous rows and reduce any previous row's 
+cell's rowspanning into and through the eliminated row, but the 
+implication of a single cell in the row is better than elimination 
+without adjustment.  Rewriting attribute values and, in some cases, 
+eliminating attributes and their values would be required.  Also 
+either a running count of rows parsed thus far as well as how wide 
+the table is in cells, otherwise every preceding row would have to be 
+traversed in reverse to be sure all cells spanning the empty row have 
+their rowspanning reduced/removed.
+
+(Hmm, I seem to have found a bug in MacTidy 1.0b2, specifically that 
+trailing slash in the summary.  That can't be right, can it?  No, it 
+isn't being inserted by my mailer, I've double-checked that already. 
+Additionally, when output is set to an existing file, it overwrites 
+it instead of removing the old file before writing the new one; thus, 
+if the old file was bigger, you'll have residual text from it at the 
+end of the new file.)
+
+In the previous description, apparently I was incomplete in 
+describing Netscape's error.  Netscape will imply at least one empty 
+TD in an empty TR, and will imply one empty TD for every TD whose 
+spanning ends on that row (must be at least one for every set of 
+contiguous empty rows, unless there are an insufficient number of 
+rows in the table to account for the rowspanning).  If the empty rows 
+are not completely spanned, then the implied cell(s) fill the places 
+left by the unprovided cells.  It would be overkill to simulate all 
+of that; better to imply the minimum required to make the page 
+compliant, i.e. one empty TD cell only.
+
+See:
+
+     <http://lists.w3.org/Archives/Public/html-tidy/1999JulSep/0112.html>
+
+for patch and:
+
+     <http://lists.w3.org/Archives/Public/html-tidy/1999JulSep/0114.html>
+
+for correction to patch, or the quoted text above.
+-- 
+          ,=<#)-=#  <http://www.war-of-the-worlds.org/>
+     ,_--//--_,
+  _-~_-(####)-_~-_  "Did you see that Parkins boy's body in the tunnels?" "Just
+(#>_--'~--~`--_<#)  the photos.  Worst thing I've ever seen; kid had no face."
+
+
+

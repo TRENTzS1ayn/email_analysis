@@ -1,0 +1,104 @@
+docno="lists-010-4420522"
+received="Sun Jul  7 15:27:40 1996"
+isoreceived="19960707192740"
+sent="Sun, 7 Jul 1996 15:08:38 0700 (PDT)"
+isosent="19960707220838"
+name="Alexei Kosut"
+email="akosut@nueva.pvt.k12.ca.us"
+subject="Re: IfRange Question"
+id="Pine.HPP.3.93.960707145620.23661A100000@ace.nueva.pvt.k12.ca.us"
+charset="USASCII"
+inreplyto="199606071744.0720596.7&#64;hops.ag.utk.edu"
+expires="1"
+
+To: Paul Hethmon<phethmon@utk.edu>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+On Sun, 7 Jul 1996, Paul Hethmon wrote:
+
+> I have a question about the intention of If-Range behavior under
+> certain conditions.
+> 
+> Given a request of the form:
+> 
+> GET /doc.html HTTP/1.1
+> If-Match: "abc"
+> Range: 500-1000
+> If-Range: "xyz"
+> 
+> Given the If-Match fails, you would return 412 except for the If-Range
+> being present. The problem is now what is meant to happen. The If-Range
+> has used a different entity tag which *does* match. Section 14.27 says
+> that if the entity tag matches, the server should return the sub-range
+> with a 206 return code, otherwise the entire entity and a 200 return
+> code.
+
+However section 14.36 specifically states that the Range: header does
+not affect anything but a 200 response - so in this case the If-Range
+header just doesn't matter, you'd return a 412.
+
+> Since the spec allows it, is there a reason to use a different entity
+> tag in the If-Range header? Is there a reason to have a parameter for
+> If-Range instead of refering to If-Match or If-Unmodified-Since parameters?
+
+Yes. Yes. You've asked two different questions here. The first is
+easy:
+
+GET /foo HTTP/1.1
+Range: 500-1000
+If-Match: "abc, "xyz"
+If-Range: "xyz"
+
+This clearly says: if the entity is "abc", send me the whole thing, if
+it's "xyz", send me the second 500 bytes, otherwise, send me a 412.
+
+As for the second question, the reason that If-Range is a seperate
+header than If-Match/None-Match/Modified-Since/Unmodified-Since is to
+make it easy for servers to not support ranges. If the semantics of
+If-* changed when a range request was present, that would mean that
+all servers would need to at least be aware of ranges, otherwise the
+wrong behavior could result. This would include the millions of
+existing servers, if someone wanted to use a date with a Range
+request, since that would entail the use of If-Modified-Since.
+
+So If-Range is a perfect solution, since it can be ignored by
+non-range-supporting browsers along with Range:, and the correct
+result can always be obtained. (a full 200 response, if availble).
+
+> It seems putting an entity tag (or date) with the If-Range is redundant unless
+> there is a reason a client would want to retrieve a byte range of an
+> entity which doesn't match the primary entity tag sent.
+
+If-Range and the other If-* headers won't be used together 99.9% of
+the time. See, here's the intended scenario (or something like it):
+
+A server sends a browser the first 100 bytes of a 1000 byte
+document with an entity tag of "abc". But the connection gets broken
+and the browser wants to go back and get the rest of it. So it sends:
+
+GET /foo HTTP/1.1
+Range: 100-999
+If-Range: "abc"
+
+Remember that the browser wants to, eventually, have the whole
+document. If the server supports ranges, and the etag is still "abc"
+for that document, it sends the missing 900 bytes. If the server
+doesn't support ranges, or the entity tag has changed, it gets sent
+the whole document, which is what the browser wanted.
+
+With If-Match, it would have gotten a 412, and it would have had to
+retry the document - doing this for *every* single document that one
+does a range request for (which could be a lot of them) could get
+slow. So the If-Range header is provided to "short-circuit" the
+additional request.
+
+At least, that's my take on it all. I only speak for me.
+
+-- 
+________________________________________________________________________
+Alexei Kosut <akosut@nueva.pvt.k12.ca.us>      The Apache HTTP Server
+URL: http://www.nueva.pvt.k12.ca.us/~akosut/   http://www.apache.org/
+
+
+

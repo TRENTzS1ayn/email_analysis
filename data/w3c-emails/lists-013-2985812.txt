@@ -1,0 +1,88 @@
+docno="lists-013-2985812"
+received="Fri Sep 27 20:49:01 2002"
+isoreceived="20020928004901"
+sent="Fri, 27 Sep 2002 17:48:54 0700"
+isosent="20020928004854"
+name="Jeffrey Mogul"
+email="Jeff.Mogul@hp.com"
+subject="Re: 24hour old misses"
+id="200209280048.g8S0msYj028932@wera.hpl.hp.com"
+inreplyto="Pine.BSF.4.44.0209041049340.38129-100000&#64;measurementfactory.com"
+expires="1"
+
+
+To: Alex Rousskov<rousskov@measurement-factory.com>
+cc:ietf-http-wg@w3.org
+
+
+Catching up (slowly!) on old email:
+
+Alex writes:
+
+    RFC 2616, Section 13.2.4 "Expiration Calculations" contains
+    the following MUST:
+    
+       The cache MUST attach Warning
+       113 to any response whose age is more than 24 hours if such warning
+       has not already been added.
+    
+    The context of that MUST is expiration calculation and, hence, cache
+    hits. On the other hand, attaching a Warning to misses may help in
+    case there is a non-1.1-compliant cache upstream.
+    
+    Did the author(s) intend for the above MUST to apply to HIT responses
+    only?
+
+Again, I believe I wrote this part.
+
+Take a look at section 14.46 (Warning) which defines the specific
+warning-value mentioned above:
+
+   113 Heuristic expiration
+     MUST be included if the cache heuristically chose a freshness
+     lifetime greater than 24 hours and the response's age is greater
+     than 24 hours.
+
+True, it's not explicit here that this applies only to cache
+hits.  But it would only be interesting on a miss if the cache's
+heuristic choice for a freshness lifetime were to be inserted
+into the forwarded response header.  In other words, the origin
+server sent no Expires header (or something equivalent, such
+as a max-age directive) and the proxy guessed at one and then
+added an Expires header to the response.
+
+But look at section 13.5.2 (Non-modifiable Headers), which says
+that
+
+   A transparent proxy MUST NOT modify [the Expires field in
+   a response, but MAY add one] if not already present. If an
+   Expires header is added, it MUST be given a field-value identical to
+   that of the Date header in that response.
+
+so (by that MUST) the cache isn't allowed to propagate its
+heuristically-chosen freshness lifetime to anyone else.
+
+Since section 13.5.2 doesn't discuss Cache-Control, this looks
+like a loophole in the spec (e.g., the cache could perhaps
+add "Cache-control: max-age=1000000000") but I would hope that
+proxy cache implementors aren't actively looking for loopholes
+of this sort.
+
+Probably, therefore, you should read the relevant part of 14.46
+as if it said:
+
+   113 Heuristic expiration
+     MUST be included if the cache heuristically chose a freshness
+     lifetime greater than 24 hours for a cache entry, the response
+     is taken from that cache entry, and the age of the response is
+     greater than 24 hours.
+
+I can't see any reason to Warn anyone on a miss that creates
+a new cache entry with a heuristic expiration lifetime, given
+that the cache shouldn't be propagating these heuristic values
+towards the client.
+
+-Jeff
+
+
+

@@ -1,0 +1,83 @@
+docno="lists-007-0024211"
+received="Fri Apr  5 04:55:21 2002"
+isoreceived="20020405095521"
+sent="Fri, 5 Apr 2002 13:49:41 +0400"
+isosent="20020405094941"
+name="Konstantin Knizhnik"
+email="KKnizhnik@togetherlab.com"
+subject="Semantic of MOVE between working collections"
+id="68948430591.20020405134941@togetherlab.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:"'ietf-dav-versioning@w3.org'"<ietf-dav-versioning@w3.org>
+
+Let's say we have VCR /somedir/foo.txt corresponding to version history
+/repo/vh/vh1. Now consider the following sequence of requests:
+
+1. Checkout source collection (create working collection)
+Request:
+        CHECKOUT <apply-to-version> /somedir
+Response:
+         Location: /repo/wr/wr1
+
+2. Checkout target collection (create working collection)
+Request:
+        CHECKOUT <apply-to-version> /anotherdir
+Response:
+         Location: /repo/wr/wr2
+
+3. Move resource from source to target collections
+Request:
+        MOVE /repo/wr/wr1/foo.txt  /repo/wr/wr2/foo.txt
+
+4. Execute locate-by-history report for version history of this resource
+Request:
+        REPORT DAV:locate-by-history  /repo/vh/vh1
+Response:
+         ???
+        
+Which HREF will be returned by last locate-by-history report?
+/somedir/foo.txt or /anotherdir/foo.txt or /repo/wr/wr2/foo.txt?
+
+
+If answer is /somedir/foo.txt then behavior seems to be strange for
+the client which performed this move - he had moved the file but find
+it under the old path. But it is no (or minor) problems with implementing this
+behavior.
+
+If answer is /anotherdir/foo.txt, then the question is whether all
+other clients will also receive the same answer for the same
+DAV:locate-by-history request before /anotherdir collection is
+checked-in? If so, it seems to violate one of the most significant
+requirements to version control system - that uncommitted changes made
+by some user will not be visible to all other clients.
+Looks like the only consistent behavior is that the client which has
+checked out /somedir and /anotherdir collection will see foo.txt under
+path /repo/wr/wr2/foo.txt while all other clients will see it under
+path /somedir/foo.txt until first client checkout these collections.
+But how it is possible to implement it? To be able to implement such
+behavior I need to somehow verify that user which have done CHECKOUT
+of /anotherdir (or in other words owner of wr2 working resource)
+is the same as user requested locate-by-history report. So to be able
+to implement this behavior we need authentication and notion of
+resource owner. But both are not part neither of WebDAV neither of
+DeltaV specifications (DAV:owner is declared in WebDAV ACL draft, but
+this standard in turn knows nothing about versioning). In other words,
+semantic of MOVE can not be expressed in terms of the specification!
+
+If answer is /repo/wr/wr2/foo.txt then in addition to questions and
+problems described in previous section, there is one more question -
+how it is possible in this case for this client to know path of
+foo.txt resource? Lets say that client forgot that foo.txt was
+members of /somedir collection and later was moved to /anotherdir.
+So the only thing client knows is version of the resource. Can client
+somehow request server about the parent of this resource?
+
+-- 
+Best regards,
+ Konstantin                          mailto:KKnizhnik@togetherlab.com
+
+
+

@@ -1,0 +1,126 @@
+docno="lists-046-4042834"
+received="Fri Mar  8 07:55:56 2002"
+isoreceived="20020308125556"
+sent="Fri, 8 Mar 2002 07:55:13 -0500"
+isosent="20020308125513"
+name="Tom Gindin"
+email="tgindin@us.ibm.com"
+subject="Re: ordering of multiple X509Certificates"
+id="OF58E663DF.01EB4CB0-ON85256B76.0044D34B@pok.ibm.com"
+charset="us-ascii"
+inreplyto="ordering of multiple X509Certificates"
+expires="-1"
+
+To: Joel Hockey<joel.hockey@qsipayments.com>,"Donald E. Eastlake 3rd"<dee3@torque.pothole.com>
+Cc:w3c-ietf-xmldsig@w3.org
+
+
+
+      Joel:
+
+      This lack of meaningful ordering is not something XMLDSIG originated.
+RFC's 2315 and 2630 (PKCS#7 and CMS) do not even permit the message creator
+to impose any meaningful ordering of the certificates in SignedData, since
+they are defined as having ASN.1 type SET.  A standards-compliant ASN.1
+engine will sort such a set in ascending order by DER encoding, which in
+this case is equivalent to using the certificate length as a primary sort
+key.
+      Anyway, you're supposed to construct chains by lining up one
+certificate's subject field with another's issuer field.  There are
+permitted to be multiple chains, however.  A signer can even do something
+like include multiple cross-certificates of the first or second level
+issuer, with chains for each one.  The following rules may help you
+construct the structure you'll need:
+1.    If a certificate's subject field does not match the issuer field of
+any other certificate in the list, it should be an end-entity certificate.
+If it happens to be an X509v3 certificate with a key usage field containing
+"crlSign" without either nonRepudiation or digitalSignature, it is a
+CRL-signing certificate instead.
+2.    The structures of certificates you create should be trees (most
+commonly chains, but not always) of certificates whose base element is an
+end-entity certificate or a CRL-signing certificate.  Each ascending level
+consists of those certificates whose subject name matches the issuer name
+of the certificate at the level below (you can go upward from multiple
+certificates at a level).
+3.    Most commonly, all end-entity certificates in the list have the same
+public key.  Personally, I don't remember what you should do if they don't
+except try to verify the signature with each included public key and then
+ignore chains starting with any key other than the one used.
+4.    CRL-signing certificates are used to verify CRL's, not the signed XML
+document.
+5.    Once one chain through any tree verifies, the signature is accepted.
+
+      Does the group consider that it's mandatory to accept signatures with
+certificate lists which contain end-entity certificates with differing
+public keys?
+
+            Tom Gindin
+
+
+"Donald E. Eastlake 3rd" <dee3@torque.pothole.com>@w3.org on 03/07/2002
+08:39:29 PM
+
+Sent by:    w3c-ietf-xmldsig-request@w3.org
+
+
+To:    Joel Hockey <joel.hockey@qsipayments.com>
+cc:    w3c-ietf-xmldsig@w3.org
+Subject:    Re: ordering of multiple X509Certificates
+
+
+Hi,
+
+From:  Joel Hockey <joel.hockey@qsipayments.com>
+Message-ID:
+<CF2BC135FB37D51197D400508BAF5217010724C4@aubnmsx01.qsi.com.au>
+To:  w3c-ietf-xmldsig@w3.org
+Date:  Fri, 8 Mar 2002 10:57:36 +1000
+
+>Hi,
+>
+>I have a query about the case where multiple X509Certificate elements are
+>sent with a signature.  I couldn't find any information in the spec
+>concerning the order that they should be sent in, and I couldn't find any
+>mention of this in the mailing list archive.  I imagine this is
+intentional
+>left out of the spec as it does not require any KeyInfo and leaves all
+this
+>up to the application level.
+
+I guess sending certs does "not require any KeyInfo" as you say, but
+if you are not sending them inside or referred to from the Signature,
+then what format or order they are in is an application matter outside
+the scope of the standard. If you are sending them inside a
+Signature/KeyInfo/X509Data, then Section 4.4.4 gives the constraints
+and, as it says, "No ordering is implied by the above constraints."
+
+Implementations that depend on what order certs appear in a message
+strike me as brittle and non-interoperable.
+
+>I would expect that when multiple certificates are sent, they should be
+sent
+>as a chain (same as how an ssl server must send certifictes - rfc 2246),
+>with the sender's cert coming first and each following cert directly
+>certifying the one before it.
+
+Better cert handling systems of which I am aware store them all into
+some sort of cache with multiple indexes and don't care what order
+they were in or, if there are multiple messages or multiple places
+certs can appear in a message, how the certs are distributed between
+those messages and places, as long as you don't flush the cache and
+all the certificates you need are really there when you try to
+validate a key or whatever. (ditto re CRLs) In any case, the issue has
+been decided for XMLDSIG and the order is not constrained in KeyInfo.
+
+>Does the spec actually mention anything about this, or does anyone else
+have
+>any thoughts?
+>
+>Thanks,
+>
+>Joel
+
+Donald
+
+
+

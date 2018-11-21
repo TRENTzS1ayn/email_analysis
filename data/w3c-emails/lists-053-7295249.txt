@@ -1,0 +1,183 @@
+docno="lists-053-7295249"
+received="Fri May 23 07:14:38 2003"
+isoreceived="20030523111438"
+sent="Fri, 23 May 2003 14:14:26 +0300"
+isosent="20030523111426"
+name="Patrick.Stickler@nokia.com"
+email="Patrick.Stickler@nokia.com"
+subject="RE: Change in definition of RDF literals"
+id="A03E60B17132A84F9B4BB5EEDE57957B5FBBDA@trebe006.europe.nokia.com"
+charset="iso-8859-1"
+inreplyto="Change in definition of RDF literals"
+expires="-1"
+
+
+To:<gk@ninebynine.org>,<duerst@w3.org>,<jjc@hplb.hpl.hp.com>
+Cc:<w3c-rdfcore-wg@w3.org>
+
+
+  
+
+> -----Original Message-----
+> From: ext Graham Klyne [mailto:gk@ninebynine.org]
+> Sent: 23 May, 2003 13:20
+> To: Stickler Patrick (NMP/Tampere); duerst@w3.org; jjc@hplb.hpl.hp.com
+> Cc: w3c-rdfcore-wg@w3.org
+> Subject: RE: Change in definition of RDF literals
+> 
+> 
+> At 10:47 23/05/03 +0300, Patrick.Stickler@nokia.com wrote:
+> >I.e.
+> >
+> >    <foo>&lt;span xml:lang='en'&gt;blargh&lt;/span&gt;</foo>
+> >
+> >should then equal and/or entail both
+> >
+> >    <foo>&lt;span xml:lang="en"&gt;blargh&lt;/span&gt;</foo>
+> >
+> >and
+> >
+> >    <foo rdf:parseType="Literal">
+> >       <span xml:lang="en">blargh</span>
+> >    </foo>
+> >
+> >Note the difference in single and double quotes around 'en',
+> >which are subject to canonicalization.
+> 
+> [Martin, I'd be interested to hear if this is close to what you were 
+> suggesting.  In what follows it's effectively flushed out 
+> with three test 
+> cases.]
+> 
+> Well, I didn't see it quite that way, but since there's no 
+> right or wrong 
+> here all I can do is discuss possibilities.  In order to 
+> analyze this, I 
+> think we need to consider the examples in two steps:
+> 
+> (1) translation from XML to abstract syntax (graph) -- what 
+> an RDF/XML 
+> parser does
+> 
+> (2) entailment between graphs.
+> 
+> So, taking your three cases above, and making them complete 
+> RDF statements, 
+> I would anticipate:
+> 
+> 
+> Test case 1:
+> ------------
+> 
+>    <Subj>
+>     <foo>&lt;span xml:lang='en'&gt;blargh&lt;/span&gt;</foo>
+>    </Subj>
+> 
+> -->
+> 
+>    <Subj> <foo> "&lt;span xml:lang='en'&gt;blargh&lt;/span&gt;"
+> 
+> or is it this?:
+> 
+>    <Subj> <foo> "<span xml:lang='en'>blargh</span>" .
+> 
+> (I couldn't find a test case for this, but the 
+> amp-in-url/test001 [1][2] 
+> suggests to me the latter is correct.  I'll assume the latter 
+> case for the 
+> remaining examples.  I think the XML mapping to infoset replaces the 
+> character entities.)
+> 
+> [1] http://www.w3.org/2000/10/rdf-tests/rdfcore/amp-in-url/test001.rdf
+> [2] http://www.w3.org/2000/10/rdf-tests/rdfcore/amp-in-url/test001.nt
+> 
+> 
+> Test case 2:
+> ------------
+> 
+>    <Subj>
+>     <foo>&lt;span xml:lang="en"&gt;blargh&lt;/span&gt;</foo>
+>    </Subj>
+> 
+> -->
+> 
+>    <Subj> <foo> "<span xml:lang=\"en\">blargh</span>" .
+> 
+> (using \ to escape quote-in-string -- sorry can't remember 
+> correct form)
+> 
+> I see this as containing a different character sequence, and does not 
+> entail or is not entailed by the first case.
+> 
+> 
+> Test case 3:
+> ------------
+> 
+>    <Subj>
+>     <foo rdf:parseType="Literal">
+>        <span xml:lang="en">blargh</span>
+>     </foo>
+>    </Subj>
+> 
+> -->
+> 
+>    <Subj> <foo> "<span xml:lang='en'>blargh</span>" .
+> 
+> Because this is parseType="Literal", the literal content is not 
+> canonicalized by the parser, 
+
+Don't you mean *is* canonicalized by the parser?
+
+And for round tripping, we'd need the good old form
+
+    <Subj> <foo> XML"<span xml:lang='en'>blargh</span>" .
+
+> so we end up with a statement 
+> that is entailed 
+> by and entails that in test case 2, but not test case 1.
+> 
+> ---------------
+> 
+> So my take on Martin's suggestion is that all (plain) literals are 
+> character sequences, some of which might just happen to be valid XML 
+> fragments, and are compared accordingly.  When 
+> parseType="Literal" is used, 
+> the C14N is applied by the parser, so that equivalent XML thus tagged 
+> resolves to the same literal value.  Entailment, then, is 
+> based on plain 
+> literals simply denoting themselves, without any regard for 
+> whether or not 
+> they were obtained by C14N of XML.
+
+So rdf:parseType="Literal" really means rdf:parseType="CanonicalXML"...
+
+> This, to me, seems like a useful simplification of what we 
+> currently have, 
+> and I'm not aware of any practical application scenario where 
+> the small 
+> differences in entailments thus achieved are likely to be damaging.
+
+I follow your arguments, but it still makes me nervous not applying
+canonicalization to all literals, if there is only one form of
+non-typed literal in the graph -- which must be presumed by applications
+as being at least well-formed XML (otherwise, how do you differentiate
+between literal values that are not well formed XML but look like
+XML from parseType="Literal" values?
+
+I think there are lots of potential gremlins lurking about this
+proposal, and we don't have time to consider them.
+
+The current proposal is far better understood, accomplishes the same
+result, maintains a needed (IMO) distinction between XML and plain
+literals, and opens the door for later treatment of XSD complex
+types as subclasses of rdfs:XMLLiteral.
+
+But I'll shut up now and wait for Martin and others in the WG to
+express an opinion.
+
+Cheers,
+
+Patrick
+
+
+

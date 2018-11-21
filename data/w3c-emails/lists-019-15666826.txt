@@ -1,0 +1,86 @@
+docno="lists-019-15666826"
+received="Thu Feb 19 14:56:48 2004"
+isoreceived="20040219195648"
+sent="Thu, 19 Feb 2004 11:56:45 -0800"
+isosent="20040219195645"
+name="Per Bothner"
+email="per@bothner.com"
+subject="lazy or eager variable initialization?"
+id="403514FD.3010202@bothner.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+
+This is a follow-on to the thread "recursive imporged [sic]
+variable declarations":
+http://lists.w3.org/Archives/Public/public-qt-comments/2003Nov/0186.html
+http://lists.w3.org/Archives/Public/public-qt-comments/2004Jan/0075.html
+
+ From that I gather that the WG is in favor of dynamic/lazy
+initialization of variable declarations, allowing code like:
+
+M1:
+define variable $x external;
+define variable $y { if ($x) then $M2:z else 0 };
+M2:
+define variable $z { $M1:y };
+
+That implies that variable initialization is executed in an order
+as needed dynamically.  The natural implementation model is to lazily
+initialize each variable on its first reference.  E.g. $y translates
+to (using Java syntax):
+
+private int initialized$y = UNINITIALIZED;
+private Object value$y;
+public Object get$x()
+{
+   if (initialized$y == INITIALIZING)
+     throw new Error("cycle initializing $y");
+   if (initialized$y == UNINITIALIZED) {
+     initialized$y = INITIALIZING;
+     value$y = get$x() ? M2.get$z() : 0;
+     initialized$y = INITIALIZED;
+   }
+   return value$y;
+}
+
+However, 4.8 Variable Declaration in the November XQuery draft says:
+"Initializing expressions are evaluated at the beginning of the dynamic
+evaluation phase."  This means the initialization has to be done
+"semi-eagery":  all the initializing expressions have to be evaluated
+before the query expression is evaluated.   But which declarations in
+which modules.  There are the options I see:
+
+(1) All declarations in all modules that the implementation knows
+about are initialized before evaluating the query body.  This is of
+course ridiculous.
+(2) All declarations in the main module are initialized eagerly (before
+evaluating the query body); other declarations are initialized on
+first reference.
+(3) All declarations in the transitive closure of the main module and
+imported library modules are initialized eagerly in some unspecified
+order.
+(4) All declarations are initialized lazily on first reference;
+no declarations are initialized before evaluating the query body.
+
+I think (4) makes most sense, because
+(a) it is simplest, assuming we're going to require at-need
+initialization to handle cycles;
+(b) both (2) and (3) have an arbitrary feel to them;
+(c) there may be usecases where it may be useful to not initialize
+a variable if it is not needed.  I can't provide examples, but Michael
+Key says that requiring dynamic resolution of initialization "might not
+disallow some useful constructs that appear to have a cycle, but are
+unproblematic if handled dynamically."  His statement was in reference
+to initialzaing ordering, which isn't quite the same as whether a
+variable must be initialized at all.  However, intuitively it seems
+to me that the latter is tied to the former.
+-- 
+--Per Bothner
+per@bothner.com   http://per.bothner.com/
+
+
+

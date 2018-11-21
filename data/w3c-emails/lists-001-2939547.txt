@@ -1,0 +1,121 @@
+docno="lists-001-2939547"
+received="Thu Dec 21 11:40:09 2000"
+isoreceived="20001221164009"
+sent="Thu, 21 Dec 2000 11:18:59 -0500 (EST)"
+isosent="20001221161859"
+name="Matej Vela"
+email="vela@debian.org"
+subject="Fw: tidy: indents textarea contents"
+id="20001221161832.D1351@om"
+charset="us-ascii"
+inreplyto="tidy: indents textarea contents"
+expires="-1"
+
+To:html-tidy@w3.org
+Cc: Joey Hess<joey@kitenet.net>,68509-forwarded@bugs.debian.org
+
+
+On Thu, Aug 03, 2000 at 05:50:11PM -0700, Joey Hess wrote:
+> I don't think tidy should indent the contents of <textarea> tags if it is
+> in auto-indent mode, because if it does at least some browsers (netscape)
+> will include the indent in the text they display in the <textarea>.
+> For example, compare this html:
+> 
+> <form action="foo">
+> <textarea name="bar">this is a test</textarea>
+> </form>
+> 
+> With what tidy turns it into, below. If both are loaded in netscape, the text
+> will have a leading tab before it.
+> 
+> joey@kite:~/html/wiki>tidy --indent auto
+> 
+> Tidy (vers 30th April 2000) Parsing console input (stdin)
+> <form action="foo">
+> line 1 column 1 - Warning: inserting missing 'title' element
+> 
+> <textarea name="bar">this is a test</textarea>
+> line 4 column 1 - Warning: missing </form>
+> 
+> "stdin" appears to be HTML 2.0
+> 2 warnings/errors were found!
+> 
+> <!DOCTYPE html PUBLIC "-//IETF//DTD HTML 2.0//EN">
+> <html>
+>   <head>
+>     <meta name="generator" content="HTML Tidy, see www.w3.org">
+>     <title></title>
+>   </head>
+> 
+>   <body>
+>     <form action="foo">
+>       <textarea name="bar">
+>         this is a test
+>       </textarea>
+>     </form>
+>   </body>
+> </html>
+
+The patch below makes Tidy output TEXTAREA contents with zero indent,
+like this:
+
+  <!DOCTYPE html PUBLIC "-//IETF//DTD HTML 2.0//EN">
+  <html>
+    <head>
+      <meta name="generator" content="HTML Tidy, see www.w3.org">
+      <title></title>
+    </head>
+  
+    <body>
+      <form action="foo">
+  <textarea name="bar">
+  this is a test
+  </textarea>
+      </form>
+    </body>
+  </html>
+
+--- tidy4aug00.orig/pprint.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/pprint.cMon Dec 18 21:50:50 2000
+@@ -1261,6 +1261,24 @@
+             if (IndentContent == no && node->next != null)
+                 PFlushLine(fout, indent);
+         }
++        else if (node->tag == tag_textarea && IndentContent)
++        {
++            PCondFlushLine(fout, indent);
++
++            indent = 0;
++            PCondFlushLine(fout, indent);
++            PPrintTag(lexer, fout, mode, indent, node);
++            PFlushLine(fout, indent);
++
++            for (content = node->content;
++                    content != null;
++                    content = content->next)
++                PPrintTree(fout, mode, indent, lexer, content);
++
++            PCondFlushLine(fout, indent);
++            PPrintEndTag(fout, mode, indent, node);
++            PFlushLine(fout, indent);
++        }
+         else if (node->tag->model & CM_INLINE)
+         {
+             if (MakeClean)
+@@ -1290,7 +1308,7 @@
+ 
+             PPrintTag(lexer, fout, mode, indent, node);
+ 
+-            /* indent content for SELECT, TEXTAREA, MAP, OBJECT and APPLET */
++            /* indent content for SELECT, MAP, OBJECT and APPLET */
+ 
+             if (ShouldIndent(node))
+             {
+
+
+Thanks,
+
+Matej
+
+
+

@@ -1,0 +1,215 @@
+docno="lists-012-14034799"
+received="Tue Jun 20 20:09:40 2000"
+isoreceived="20000621000940"
+sent="Tue, 20 Jun 2000 14:08:30 0500"
+isosent="20000620190830"
+name="Brad Taylor"
+email="btaylor@neonsys.com"
+subject="apache source included....Re: CRLF on POST requests, where/how specified (repost from prior bad subject line)"
+id="86256904.006931C1.00@internet1.neonsys.com"
+charset="usascii"
+expires="1"
+
+To:"Life is hard, and then you die"<ronald@innovation.ch>
+cc:"Fred Bohle"<fbohle@neonsys.com>,http-wg@cuckoo.hpl.hp.com
+
+
+
+
+
+06/20/2000 02:08 PM
+Brad Taylor@NEON
+Brad Taylor@NEON
+Brad Taylor@NEON
+06/20/2000 02:08 PM
+06/20/2000 02:08 PM
+
+
+
+/*
+ * More machine-dependent networking gooo... on some systems,
+ * you've got to be *really* sure that all the packets are acknowledged
+ * before closing the connection, since the client will not be able
+ * to see the last response if their TCP buffer is flushed by a RST
+ * packet from us, which is what the server's TCP stack will send
+ * if it receives any request data after closing the connection.
+ *
+ * In an ideal world, this function would be accomplished by simply
+ * setting the socket option SO_LINGER and handling it within the
+ * server's TCP stack while the process continues on to the next request.
+ * Unfortunately, it seems that most (if not all) operating systems
+ * block the server process on close() when SO_LINGER is used.
+ * For those that don't, see USE_SO_LINGER below.  For the rest,
+ * we have created a home-brew lingering_close.
+ *
+ * Many operating systems tend to block, puke, or otherwise mishandle
+ * calls to shutdown only half of the connection.  You should define
+ * NO_LINGCLOSE in ap_config.h if such is the case for your system.
+ */
+#ifndef MAX_SECS_TO_LINGER
+#define MAX_SECS_TO_LINGER 30
+#ifndef NO_LINGCLOSE
+
+/* Special version of timeout for lingering_close */
+
+static void lingerout(int sig)
+{
+#ifdef NETWARE
+    get_tsd
+#endif
+    if (alarms_blocked) {
+     alarm_pending = 1;
+     return;
+    }
+
+    if (!current_conn) {
+     ap_longjmp(jmpbuffer, 1);
+    }
+    ap_bsetflag(current_conn->client, B_EOUT, 1);
+    current_conn->aborted = 1;
+}
+
+static void linger_timeout(void)
+{
+#ifdef NETWARE
+    get_tsd
+#endif
+    timeout_name = "lingering close";
+    ap_set_callback_and_alarm(lingerout, MAX_SECS_TO_LINGER);
+}
+
+/* Since many clients will abort a connection instead of closing it,
+ * attempting to log an error message from this routine will only
+ * confuse the webmaster.  There doesn't seem to be any portable way to
+ * distinguish between a dropped connection and something that might be
+ * worth logging.
+ */
+static void lingering_close(request_rec *r)
+{
+    char dummybuf[512];
+    struct timeval tv;
+    fd_set lfds;
+    int select_rv;
+    int lsd;
+
+    /* Prevent a slow-drip client from holding us here indefinitely */
+
+    linger_timeout();
+
+    /* Send any leftover data to the client, but never try to again */
+
+    if (ap_bflush(r->connection->client) == -1) {
+     ap_kill_timeout(r);
+     ap_bclose(r->connection->client);
+     return;
+    }
+    ap_bsetflag(r->connection->client, B_EOUT, 1);
+
+    /* Close our half of the connection --- send the client a FIN */
+
+    lsd = r->connection->client->fd;
+
+    if ((shutdown(lsd, 1) != 0) || r->connection->aborted) {
+     ap_kill_timeout(r);
+     ap_bclose(r->connection->client);
+     return;
+    }
+
+    /* Set up to wait for readable data on socket... */
+
+    FD_ZERO(&lfds);
+
+    /* Wait for readable data or error condition on socket;
+     * slurp up any data that arrives...  We exit when we go for an
+     * interval of tv length without getting any more data, get an error
+     * from select(), get an error or EOF on a read, or the timer expires.
+     */
+
+    do {
+     /* We use a 2 second timeout because current (Feb 97) browsers
+      * fail to close a connection after the server closes it.  Thus,
+      * to avoid keeping the child busy, we are only lingering long enough
+      * for a client that is actively sending data on a connection.
+      * This should be sufficient unless the connection is massively
+      * losing packets, in which case we might have missed the RST anyway.
+      * These parameters are reset on each pass, since they might be
+      * changed by select.
+      */
+#ifdef NETWARE
+        ThreadSwitch();
+#endif
+
+     FD_SET(lsd, &lfds);
+     tv.tv_sec = 2;
+     tv.tv_usec = 0;
+
+     select_rv = ap_select(lsd + 1, &lfds, NULL, NULL, &tv);
+
+    } while ((select_rv > 0) &&
+             (read(lsd, dummybuf, sizeof dummybuf) > 0));
+
+    /* Should now have seen final ack.  Safe to finally kill socket */
+
+    ap_bclose(r->connection->client);
+
+    ap_kill_timeout(r);
+}
+#endif /* ndef NO_LINGCLOSE */
+
+
+
+
+"Life is hard, and then you die" <ronald@innovation.ch> on 06/20/2000
+01:21:07 PM
+
+To:   Fred Bohle/Dev/Neon
+cc:   http-wg@cuckoo.hpl.hp.com (bcc: Brad Taylor/Neon)
+
+Subject:  Re: CRLF on POST requests, where/how specified (repost from prior
+      bad subject line)
+
+
+
+
+On Tue, Jun 20, 2000 at 12:51:11PM -0500, Fred Bohle wrote:
+>
+>      No, not the CRLF between the headers and the body.  We are asking
+>      about a CRLF that follows the body.  It does not seem to be in
+>      the 1.0 spec, and the 1.1 spec seems to specifically prohibit it.
+>      And yet, IE5 and Netscape both will send a CRLF after the body
+>      for Content-type: application/x-www-url-encoded.
+
+The spec clearly disallows this extra CRLF, i.e. it's a bug in those
+browsers. However, there is an easy workaround which many people use:
+when reading the request line, ignore all whitespace (or empty lines)
+until you hit the actual request line.
+
+>      What do other web servers do to handle this CRLF?  We find that
+>      if we decide to close the connection with the end of the response
+>      we generate, (Connection: close) and THEN the CRLF arrives from
+>      the client, the TCP layer will generate a Reset packet.  This
+>      causes (IE5 at least) the client to fail processing the response
+>      we just sent.  So the application stops, dead in the water.
+
+This is a little tricky, but not much. Basically you need to do a
+shutdown on the socket, i.e. only close for sends; then you keep
+reading from the socket (and just discard the data) until either you get
+an EOF (in which case the client did the close), or until some timeout
+(a few seconds) in case the client doesn't close the connection. Note
+that this problem is a general problem (i.e. not limited to the extra
+CRLF), because you can get the same effect when a client pipelines
+requests.
+
+
+  Cheers,
+
+  Ronald
+
+
+P.S. take a look at the Apache source: read_request_line() in
+http_protocol.c
+     for the first problem, and lingering_close() in http_main.c for
+     the second - the comments are enlightening.
+
+
+

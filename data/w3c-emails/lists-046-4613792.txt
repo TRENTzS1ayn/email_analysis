@@ -1,0 +1,224 @@
+docno="lists-046-4613792"
+received="Wed Mar 20 11:00:20 2002"
+isoreceived="20020320160020"
+sent="Wed, 20 Mar 2002 16:00:13 +0000"
+isosent="20020320160013"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: Alternative XPathFilter - a picture says more..."
+id="20020320160013.7B4504422C@yog-sothoth.ie.baltimore.com"
+inreplyto="8223174.1016628081&#64;pinkpanther"
+expires="-1"
+
+To: Christian Geuer-Pollmann<geuer-pollmann@nue.et-inf.uni-siegen.de>
+Cc:w3c-ietf-xmldsig@w3.org
+
+
+
+Hi Christian,
+
+The operation of the set intersection operations is as follows:
+
+1. Evaluate the XPath expression against the input node set; the initial
+context of the XPath expression is the root document node of the node set.
+
+2. Expand each node in the resulting XPath node set to include its entire
+subtree.
+
+3. Apply this new node set to the input node set using either set
+intersection or set subtraction.
+
+Note that step 2 may result in nodes not in the input node set, but step 3
+applies this against the input node set so the output is always a subset
+of the input.
+
+This does consider the input node set, allowing for example the input
+being the result of evaluating an XPointer or another transform.
+
+Operation is cumulative; you can usefully have multiple set-intersect
+and set-subtract transforms in a single reference.
+
+XPath can result in multiple nodes, resulting in multiple subtrees in
+a single operation.
+
+Consider:
+          X
+         /|\
+        / | \
+       /  |  \
+      /   |   \
+     /    |    \
+    A     A     A
+   / \   / \   / \
+  B   C B   C B   C
+      |     |     |
+      D     D     D
+
+Input: "/"
+Intersect: "//A"
+Subtract: "//C"
+
+Result:
+    A     A     A
+   /     /     /
+  B     B     B
+ 
+Equivalent:
+
+Input: "#xpointer(//A)"
+Subtract: "//C"
+
+Your SOAP example would be:
+
+Input: "/"
+Interesect: "here()/ancestor::SOAP-ENV:Body"
+Enveloped-signature (or Subtract: "here()/ancestor::dsig:Signature[1]")
+
+OR
+
+Input: "#xpointer(here()/ancestor::SOAP-ENV:Body)"
+Enveloped-signature (or Subtract: "here()/ancestor::dsig:Signature[1]")
+
+I'm not sure if my proposal exists clearly in a self-contained
+manner; I think I've always expressed it as a diff against the
+existing doc, but hopefully this clears it up.
+
+Merlin
+
+r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.03.20/12:41:21
+>Hi Merlin,
+>
+>can you shortly give me a hint where I can find the "tree-based set 
+>intersect/subtract" model? I only worked with [1] in the past. Maybe I 
+>missed/overread an important part of the discussion. Is your proposal in 
+>[2]?
+>
+>General question: From what I understood, the discussed transforms in [1] 
+>contain only one single XPath element which can either include or exclude? 
+>And only one of these Transform ops per Transforms sequence? Maybe that's 
+>my problem. I want to make include AND exclude operations on a given node 
+>set (include only the body but exclude the signatures in the body).
+>
+>And yes, you're right. The F/G/H sample in my illustration is very 
+>obfuscated and not the intend of my transform. I just included it to show 
+>that even such esoteric things would be possible (but should not be used).
+>
+>> Admittedly, it allows operations such as exclude an element in
+>> the middle of a tree, but include its children ("H" in your example),
+>> but I don't think that these features are compelling.
+>
+>But excluding ancestors and excluding children (node "B" in the example) 
+>which including the middle is exactly the SOAP example: I want to omit the 
+>outer Envelope, exclude inner signatures inside the body but include the 
+>body and the transaction itself.
+>
+>Christian
+>
+>
+>[1] http://www.w3.org/Signature/Drafts/xmldsig-xpath
+>[2] 
+>http://lists.w3.org/Archives/Public/w3c-ietf-xmldsig/2002JanMar/0213.html
+>
+>
+>
+>--On Dienstag, 19. M?rz 2002 23:48 +0000 merlin <merlin@baltimore.ie> wrote:
+>
+>> Hi Christian,
+>>
+>> I don't believe that your proposal does anything (matching the
+>> requirements of this particular document) that tree-based set
+>> intersect/subtract does not do, it is no faster (it is basically
+>> the same thing for the required operations), and it introduces new
+>> and (imho) confusing terminology (given that we're working with node
+>> "sets.") Admittedly, it allows operations such as exclude an element in
+>> the middle of a tree, but include its children ("H" in your example),
+>> but I don't think that these features are compelling. People can use
+>> the old XPath if they need an operation as esoteric as that.
+>>
+>> I would side with John that the operations we need are including subtrees
+>> and excluding subtrees, and that they need to be as fast as possible. I
+>> would disagree with John that "include from whole document" and "exclude
+>> from whole document" operations are the way to solve this. They are too
+>> limited and are, in (my) practice, no faster than the fully general set
+>> operational equivalents that I espouse (for the relevant cases).
+>>
+>> I believe that John's contention is that he cannot rely on all
+>> implementors to perform set operations with sufficient speed. I don't
+>> think that this is a reason to choose a technically inferior solution. In
+>> fact, I think that if we support both set operations and "whole document"
+>> operations then we are essentially giving implementors license to do the
+>> set operations poorly.
+>>
+>> I think that we should define only the set operations, and should
+>> clearly document the potential optimizations and that these operations
+>> SHOULD be optimized by an implementation (e.g., performance SHOULD
+>> be broadly linear in the size of the selected subtrees, not the input
+>> document.) Implementors must then provide explicit justification for
+>> NOT optimizing their code, so John will get a reasonable assurance
+>> of speed and I'll get my set ops!
+>>
+>> Apologies, John, if I misrepresent you.
+>>
+>> Yes Joseph, I think a teleconference might be interesting! Not Friday.
+>>
+>> Merlin
+>>
+>> r/geuer-pollmann@nue.et-inf.uni-siegen.de/2002.03.20/00:23:40
+>>> Hi Joseph,
+>>> ho John,
+>>>
+>>> maybe a picture says more than thousand words ;-)) (I renamed the
+>>> include  to include-but-search to indicate that it has to be traversed).
+>>>
+>>> Given the tree in the picture. I arbitrarily selected some nodes (single
+>>> nodes on the right side or contingous areas on the left) which are to be
+>>> selected by this xpath transform. Black nodes are to be included in the
+>>> output, white nodes are to be omitted.
+>>>
+>>> The root node A is labeled "exclude-but-search". This means that it is
+>>> not  to be outputted, but some descendants (probably) are.
+>>>
+>>> The black node B on the left side is labeled "include-but-search"
+>>> because  itself is to be outputted and it's descendants must be
+>>> traversed to copy  them to the result node set.
+>>>
+>>> The unselected child C is labeled "exclude" because itself and _all_
+>>> it's  descendants are omitted/not outputted. So we don't need the
+>>> -but-search  suffix because we won't find any selected nodes inside -
+>>> this is an  optimization.
+>>>
+>>> The unselected subtree D is in an area where no nodes are selected, but
+>>> if  we label it 'exclude', the algorithm won't traverse it and we can
+>>> save  time. But without that label, it'd work, though.
+>>>
+>>> The selected-subtree E in the middle is "include-but-search" because
+>>> itself  and all it's descendants are to be outputted.
+>>>
+>>> On the right side, we have this annoying exclude-but-search,
+>>> include-but-search, exclude-but-search alternation because here are no
+>>> nice  subtrees which are the main focus of this transform but a 'real'
+>>> nodeset  which could also be handled by our old XPath transform...
+>>>
+>>> We have 7 contingous areas or nodes and NEED 7 labels (XPath
+>>> evaluations)  for this, while we can optimize the speed with 1
+>>> additional label (the  "exclude" for node D).
+>>>
+>>> Is my idea now a little bit clearer now?
+>>>
+>>> Best regards,
+>>> Christian
+>
+
+
+-----------------------------------------------------------------------------
+Baltimore Technologies plc will not be liable for direct,  special,  indirect 
+or consequential  damages  arising  from  alteration of  the contents of this
+message by a third party or as a result of any virus being passed on.
+
+This footnote confirms that this email message has been swept by
+Baltimore MIMEsweeper for Content Security threats, including
+computer viruses.
+   http://www.baltimore.com
+
+
+

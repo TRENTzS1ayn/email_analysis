@@ -1,0 +1,104 @@
+docno="lists-098-10059188"
+received="Sat Mar  2 12:37:11 2002"
+isoreceived="20020302173711"
+sent="Sat, 2 Mar 2002 17:36:59 -0000"
+isosent="20020302173659"
+name="Sean B. Palmer"
+email="sean@mysterylights.com"
+subject="Getting Llyn To Return Lists From Builtins"
+id="005d01c1c210$edcd3b00$b1560150@localhost"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:"Tim Berners-Lee"<timbl@w3.org>,"Dan Connolly"<connolly@w3.org>
+Cc:<www-archive+n3bugs@w3.org>
+
+Hi,
+
+I managed to get Llyn to return lists from builtins successfully - the
+current code doesn't work (it doesn't seem as if it was supposed to
+work, since there's a name error). In def _fromPython, where it checks
+to see whether the type of object being returned from a builtin is a
+list, I added:-
+
+[[[
+        elif type(x) == type([]):
+            g, y = self.nil, x[:]
+            y.reverse()
+            if str(y) not in self.FPLists:
+               for e in y:
+                   g1 = self.genid(RESOURCE)
+                   self.storeQuad((context, self.forSome, context,
+g1))
+                   self.storeQuad((context, self.first, g1,
+self._fromPython(context, e)))
+                   self.storeQuad((context, self.rest, g1, g))
+                   g = g1
+               self.FPLists[str(y)] = g
+               return g
+            else: return self.FPLists[str(y)]
+]]]
+
+self.FPLists is just a blank dictionary, for interning the list
+GenIDs. That's... a bit hacky, but I'm sure you'll come up with
+something better. In any case, it works well enough for now.
+
+Here's a sample builtin that returns a list (I just threw it in the
+cwm_string module):-
+
+[[[
+class BI_split(LightBuiltIn, Function):
+    def evaluateObject(self, store, context, subj, subj_py):
+        if thing.verbosity() > 80: progress("split
+input:"+str(subj_py))
+        str, schar = subj_py
+        res = str.split(schar)
+        return store._fromPython(context, res)
+]]]
+
+and a test:-
+
+[[[
+     @prefix : <http://www.w3.org/2000/10/swap/log#> .
+     @prefix string: <http://www.w3.org/2000/10/swap/string#> .
+
+    this     :forAll <#x> .
+    {
+
+          ( "http://example.org/#blargh"
+            "#"  )
+             string:split <#x> .
+
+        }     :implies {<#x>     a <#Result> .
+        } .
+      ( "http://example.org/"
+        "blargh"  )
+         a <#Result> .
+
+#ENDS
+
+]]]
+
+Which paves the way for some great future builtins.
+
+Whilst I'm at it, I have a mild request too: could you allow loading
+of builtins modules from a separate configuration file? It would be
+nice to let people add their own modules easily without having to have
+them incorporated in the SWAP stuff, and although it *is* possible to
+add your own module by editing the llyn.py source code, I think it
+would be neater to have a separate file that people can mess around
+with, so you don't end up with nasty CVS checkout conflicts etc.
+Hmm... then you could allow people to dynamically load the modules
+from the Web as well, I guess.
+
+Cheers,
+
+--
+Kindest Regards,
+Sean B. Palmer
+@prefix : <http://purl.org/net/swn#> .
+:Sean :homepage <http://purl.org/net/sbp/> .
+
+
+

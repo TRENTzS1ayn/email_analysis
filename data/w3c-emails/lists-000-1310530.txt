@@ -1,0 +1,83 @@
+docno="lists-000-1310530"
+received="Sun Jun 13 18:33:02 1999"
+isoreceived="19990613223302"
+sent="Sun, 13 Jun 1999 18:31:56 -0400"
+isosent="19990613223156"
+name="Andy Quick"
+email="ac.quick@sympatico.ca"
+subject="Empty inline stack referenced"
+id="001301beb5ec$8f93f3e0$5e42acce@quick"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+Dave,
+
+I found this problem when I got an array index exception in the Java version.  The attached test case shows the problem.  You will see that it has out of order </font> and </li> tags.  If you put the debug message in the function InsertedToken as shown below, you will see the message printed out when tidy is given the test case as input.  It seems to indicate that istack references an element that has been popped from the inline stack.
+
+Andy Quick
+
+------------------------------------------
+Node *InsertedToken(Lexer *lexer)
+{
+    Node *node;
+    IStack *istack;
+    uint n;
+
+    /* this will only be null if inode != null */
+    if (lexer->insert == null)
+    {
+        node = lexer->inode;
+        lexer->inode = null;
+        return node;
+    }
+
+    /*
+    
+      is this is the "latest" node then update
+      the position, otherwise use current values
+    */
+
+    if (lexer->inode == null)
+    {
+        lexer->lines = lexer->in->curline;
+        lexer->columns = lexer->in->curcol;
+    }
+
+    node = NewNode();
+    node->type = StartTag;
+    node->implicit = yes;
+    node->start = lexer->txtstart;
+    node->end = lexer->txtstart;
+    istack = lexer->insert;
+    /* AQ: the following debug message shows that istack references an empty stack */
+    if (lexer->istacksize == 0)
+        tidy_out(lexer->errout, "0-size istack!\n");
+    node->element = wstrdup(istack->element);
+    node->tag = istack->tag;
+    node->attributes = DupAttrs(istack->attributes);
+
+    /* advance lexer to next item on the stack */
+    n = lexer->insert - &(lexer->istack[0]);
+
+    /* and recover state if we have reached the end */
+    if (++n < lexer->istacksize)
+        lexer->insert = &(lexer->istack[n]);
+    else
+        lexer->insert = null;
+
+    return node;
+}
+
+
+
+
+
+
+text/html attachment: test5.html
+
+
+
+

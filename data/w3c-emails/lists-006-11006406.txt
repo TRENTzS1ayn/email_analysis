@@ -1,0 +1,140 @@
+docno="lists-006-11006406"
+received="Tue Jul 24 01:16:05 2001"
+isoreceived="20010724051605"
+sent="Tue, 24 Jul 2001 01:15:27 -0400"
+isosent="20010724051527"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: How Clients find out if they can perform a checkout"
+id="3906C56A7BD1F54593344C05BD1374B103B61AF6@SUS-MA1IT01"
+charset="iso-8859-1"
+inreplyto="How Clients find out if they can perform a checkout"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+   From: Lisa Dusseault [mailto:lisa@xythos.com]
+
+   So if a client wants to find out if they can check out a resource,
+   they must ...
+
+You can use the Allow header to indicate whether a particular method
+could succeed, but this won't tell you whether it will succeed with
+a particular argument list (e.g. with DAV:fork-ok).
+
+In general, WebDAV does not provide for "will this
+request succeed" functionality, because the state of the server will
+change between any query and the actual request, so there is little
+point in trying to be overly precise about whether a particular
+request would have succeeded at some earlier time.  Your client can check
+to see if the CHECKOUT method is supported (or Allow'ed), and if it
+is, you allow a user to request it.  If the request fails, the error
+token will tell the client why, and it can report this to the user.
+
+   1. If the server supports working-resource, gather information
+   about whether there exists one or more working-resources.  Finding
+   out if the resource is checked out to a working resource is tricky,
+   because the DAV:checked-out property won't tell you this.  To
+   discover if the resource is checked out to a working resource,
+   clients must query all versions.
+
+A client has to checkout a particular version (which is the version
+whose content defines the initial editor state of that client).  That
+is the version whose DAV:checkout-set and DAV:checkout-fork properties
+are relevant.
+
+     a) get the DAV:version-tree report (REPORT VCR for DAV:version-tree).
+     b) If the DAV:version-tree report is not supported, get the URL to the
+VHR
+   (PROPFIND VCR) and then get the list of versions from the VHR (PROPFIND
+VHR)
+
+The DAV:version-tree report MUST be supported, so (b) is never needed.
+
+     c) If DAV:expand-property report is supported, get the values of
+   checkout-fork and checkout-set for ALL versions (REPORT VCR for
+   expand-property)
+     d) If DAV:expand-property report is not supported, client must PROPFIND
+   each version to see what the value of DAV:checkout-fork and
+DAV:checkout-set
+   are.  This will result in N PROPFIND requests.
+
+Only a PROPFIND of the version that is being checked out is required.
+
+     e) Probably the safest way to treat checkout-fork forbidden is for the
+   client to say that if it's forbidden anywhere, on any version, treat
+forks
+   as forbidden overall.  I say this because I can't figure out what a
+server
+   could mean by having different values for checkout-forbidden, or what
+   version the client must check the value on.
+
+You always checkout a particular version (which becomes the
+DAV:checked-out version), and that is the version whose
+DAV:checkout-fork property indicates whether that version can be
+checked out when its DAV:checkout-set or DAV:successor-set is
+non-empty.
+
+   3.  Now use the following logic:
+
+[algorithm omitted]
+
+   I don't think this logic will completely work because I'm afraid
+   servers that support both in-place checkout and working-resource
+   may be inconsistent about whether they allow both kinds of
+   checkouts at the same time.   I don't know how to discover whether
+   that's allowed, and I don't think it's necessarily covered by
+   checkout-fork being forbidden.
+
+You'd also have to discover whether things were locked and whether
+there was enough disk space on the server, and whether the ACL's
+permitted the operation, and probably a variety of other things.
+And all these things can change by the time the user actually tries
+the checkout.  Using just DAV:supported-method-set and the Allow
+header is much simpler and sufficiently accurate.
+
+   Digression: If supported-method-set only shows CHECKOUT if a checkout is
+in
+   theory possible, then this might make things a lot easier for the client.
+I
+   had thought that supported-method-set should show the methods that may be
+   allowed on a resource depending on the server's functionality and the
+   resource's type.  However, it occurs to me that it's also reasonable to
+say
+   that the supported-method-set should depend on the resource's state.
+This
+   amounts to the question:  if a resource is unlocked, should
+   supported-method-set show UNLOCK or not?  I've brought this up before and
+   haven't seen an answer.
+
+It's deliberately vague to give the server some leeway, but in
+general "supported" means that the method might succeed on some
+state of the resource, while the Allow set indicates whether
+the method might succeed on the current state of the resource.
+I agree this is worth stating in the protocol (if people agree
+with this characterization).
+
+   Another solution to this problem would be to introduce another protocol
+   element (vast groans from the audience) for CHECKOUT that says
+   DO-NOT-CHECKOUT, just tell me if I COULD have checked it out.  Therefore,
+if
+   the checkout without the <do-not-checkout> would have succeeded, you get
+a
+   OK.  If it wouldn't, you get the error that would have been generated on
+the
+   CHECKOUT.
+
+Yes, that would result in a vast groan from this member of the
+audience, since it is virtually impossible to predict
+without actually trying the request whether or not access control
+violations or server resource constraints will make the method fail,
+and even if it would fail at the time of the query, it does not mean
+it will fail a second later when some of these conditions may have
+changed.
+
+Cheers,
+Geoff
+
+
+

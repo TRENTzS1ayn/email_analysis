@@ -1,0 +1,245 @@
+docno="lists-018-12836463"
+received="Tue Jun 10 11:49:45 2003"
+isoreceived="20030610154945"
+sent="Tue, 10 Jun 2003 17:49:30 +0200"
+isosent="20030610154930"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="SAG-FO02: Dates, times, and durations"
+id="DFF2AC9E3583D511A21F0008C7E62106073DCEF4@daemsg02.softwareag.de"
+expires="1"
+
+
+To:public-qt-comments@w3.org
+
+
+
+Software AG believes that the number of functions and operators currently
+proposed is far larger than it should be, and that the repertoire of
+functions and operators for handling dates, times, and durations is the
+major culprit. The coverage of calendar arithmetic in the function library
+is completely disproportionate to its importance.
+
+This note therefore proposes a radical reduction of the complexity of the
+specifications in this area.
+
+I start by observing that we have no functions and operators to handle
+distances, weights, or monetary amounts. Applications deal with these
+quantities by treating them as numbers. I believe that the vast majority of
+calendrical computations can be handled in the same way - indeed, my own
+experience as an application developer is that I far prefer the
+predictability of numeric arithmetic to the complexities of
+date/time/duration arithmetic.
+
+Paradoxically, the new data types xdt:yearMonthDuration and
+xdt:dayTimeDuration have been introduced to make arithmetic easier; and this
+has been achieved by ensuring that the value space of these types is in
+effect numeric (a number of months or seconds). In fact, all uses of these
+data types can be achieved just as easily using numeric data types, so the
+new types are redundant. We don't have special data types for handling
+spatial data or monetary values - why should durations be any different,
+once we have reduced them to well-behaved numeric form?
+
+Here is a detailed proposal.
+
+1. DURATIONS
+
+Durations can be reduced to a pair of numbers, representing the length of
+the duration in months and seconds. So 
+
+1a. we provide three functions:
+
+    months(duration) => integer   (Example: P1Y6M => 18)
+    seconds(duration) => decimal   (Example: P1Y6M3DT12H => 302400.0)
+    make-duration(months, seconds) => duration
+
+1b. We define that two durations are equal if the months and seconds
+components are both equal. (example: P1Y6M5DT1H = P18MT25H)
+
+1c. We eliminate the two "xdt" subtypes of duration.
+
+1d. We eliminate the ability to perform arithmetic and ordering between two
+durations (including subtypes of duration). This means we can no longer add
+two durations, we can no longer multiply or divide a duration by a number,
+we can no longer use min(), max(), sum(), or avg() on a set of durations, we
+can no longer compare durations using "<" and associated operators. If the
+user wants to to any of these things, they can do it by converting the
+duration to a number using the functions described in (1a) above.
+
+1e. We remove the ability to extract the components of a duration. Users
+wanting to do computation on durations can use the months() and seconds()
+functions above. Other manipulation can be done using regular expressions on
+the string value. This side-steps problems about whether durations are
+normalized or not, for example whether P12M is the same as P1Y.
+
+The following functions disappear:
+        9.3.1 op:yearMonthDuration-equal
+        9.3.2 op:yearMonthDuration-less-than
+        9.3.3 op:yearMonthDuration-greater-than
+        9.3.4 op:dayTimeDuration-equal
+        9.3.5 op:dayTimeDuration-less-than
+        9.3.6 op:dayTimeDuration-greater-than
+        9.4.1 fn:get-years-from-yearMonthDuration
+        9.4.2 fn:get-months-from-yearMonthDuration
+        9.4.3 fn:get-days-from-dayTimeDuration
+        9.4.4 fn:get-hours-from-dayTimeDuration
+        9.4.5 fn:get-minutes-from-dayTimeDuration
+        9.4.6 fn:get-seconds-from-dayTimeDuration
+        9.5.1 op:add-yearMonthDurations
+        9.5.2 op:subtract-yearMonthDurations
+        9.5.3 op:multiply-yearMonthDuration
+        9.5.4 op:divide-yearMonthDuration
+        9.5.5 op:add-dayTimeDurations
+        9.5.6 op:subtract-dayTimeDurations
+        9.5.7 op:multiply-dayTimeDuration
+        9.5.8 op:divide-dayTimeDuration
+
+These are replaced by numeric arithmetic. For example, to add two durations
+which are known to have no year/month component, use
+
+        make-duration(0, seconds($d1)+seconds($d2))
+
+
+2. DURATION +- DATE/TIME
+
+There are a number of functions and operators designed to combine
+dates/times with durations.    
+
+2a. Dates, times, and dateTimes are really just measures of elapsed time
+since some arbitrary origin. I propose that we eliminate the functions that
+add a date/time to a duration or that form a duration as the difference
+between two date/times, replacing them with the ability to determine the
+interval in seconds between the start of the specified date/time and
+2000-01-01T00:00:00Z.
+
+2b. Many functions on dates and times are provided in three variants, one
+for each of the three types Date, Time, and DateTime. In the case of
+numerics, we deal with this problem by defining an abstract superclass
+"numeric". It is not clear why we have not adopted the same solution for
+operations on the calendar data types. I propose that we adopt the same
+solution for these three types, referring to the abstract superclass as
+"temporal". We could also consider including gDay and its friends under this
+abstract superclass.
+
+So the function proposed in 2a becomes:
+
+   seconds-since-origin(temporal) => decimal
+
+2c. To convert the resulting number back to a date/time, the following is
+provided:
+
+   dateTime-from-seconds(decimal) => dateTime
+   
+If a date or time is required, this can be extracted from the dateTime by
+casting.
+
+2d. The following functions are deleted:
+
+        9.7.1 fn:subtract-dateTimes-yielding-yearMonthDuration
+        9.7.2 fn:subtract-dateTimes-yielding-dayTimeDuration
+        9.7.3 op:subtract-dates
+        9.7.4 op:subtract-times
+        9.7.5 op:add-yearMonthDuration-to-dateTime
+        9.7.6 op:add-dayTimeDuration-to-dateTime
+        9.7.7 op:subtract-yearMonthDuration-from-dateTime
+        9.7.8 op:subtract-dayTimeDuration-from-dateTime
+        9.7.9 op:add-yearMonthDuration-to-date
+        9.7.10 op:add-dayTimeDuration-to-date
+        9.7.11 op:subtract-yearMonthDuration-from-date
+        9.7.12 op:subtract-dayTimeDuration-from-date
+        9.7.13 op:add-dayTimeDuration-to-time
+        9.7.14 op:subtract-dayTimeDuration-from-time
+
+Again, these functions are replaced by numeric arithmetic. For example, to
+find the date that is one week after the current date, do:
+
+    xs:date(dateTime-from-seconds(
+             seconds-from-origin(current-dateTime()) +
+             seconds(xs:duration("P7D")))
+
+3. COMPONENTS OF DATE/TIME
+
+We have a range of functions to extract components of dates and times. The
+main use case for these is to allow formatting of the date and time. Yet
+there is no function in the core library to format a date and time.
+
+I propose that the format-date/time/dateTime functions be moved from XSLT
+into the core, and that we rely on these for applications that need to
+extract the components. The functions should be redesigned to remove the
+dependency on the <xsl:date-format> element, which is most easily done by
+replacing the third argument (which identifies such an element) with an
+argument that identifies the calendar and language, eg. "ISO/en-US". Using
+the ISO calendar guarantees that numeric values of days of the month, etc,
+are predictable. This also provides other useful information such as the day
+of the week.
+
+3a. A new function [format-date(temporal, picture) => string] is added to
+the core, based on the functions currently defined in XSLT. 
+
+3b. The following functions are deleted:
+
+        9.4.7 fn:get-year-from-dateTime
+        9.4.8 fn:get-month-from-dateTime
+        9.4.9 fn:get-day-from-dateTime
+        9.4.10 fn:get-hours-from-dateTime
+        9.4.11 fn:get-minutes-from-dateTime
+        9.4.12 fn:get-seconds-from-dateTime
+        9.4.13 fn:get-timezone-from-dateTime
+        9.4.14 fn:get-year-from-date
+        9.4.15 fn:get-month-from-date
+        9.4.16 fn:get-day-from-date
+        9.4.17 fn:get-timezone-from-date
+        9.4.18 fn:get-hours-from-time
+        9.4.19 fn:get-minutes-from-time
+        9.4.20 fn:get-seconds-from-time
+        9.4.21 fn:get-timezone-from-time
+
+3c. Functions that perform equality and ordering comparison between
+dates/times are retained.
+
+4. TIMEZONES
+
+We have a range of functions designed to convert between dates/times with a
+timezone and dates/times without, or to convert a date/time to the
+equivalent in another timezone. 
+
+I propose that the current six "adjust" functions be reduced to one:
+
+4a. The second argument of adjust-X-to-timeZone becomes mandatory; the
+effect currently achieved by omitting the argument can be achieved by
+supplying fn:implicit-timeZone() as the argument, with an improvement in
+clarity.
+
+4a. The remaining three functions can be collpsed to one generic function:
+
+    adjust-to-timezone(temporal, timezone) => temporal
+
+which returns the same type as its first argument. (We can discuss how it is
+best to represent timezone. For the moment, assume it is a Duration).
+
+SUMMARY
+
+The net effect of this proposal is to remove 55 functions/operators,
+replacing them with 7 new ones, without any loss in actual functionality.
+All the functions and operators that are deleted could be provided as
+user-written functions, or in a third-party function library.
+
+What is left is:
+
+* conversion from a duration to a number of months or seconds
+* calculation of the numeric duration between a date/time and some arbitrary
+origin
+* inverse functions to the above
+* ordering of dates/times
+* formatting of dates/times, giving the ability to extract components as a
+by-product
+* timezone adjustment
+
+This is still more than we have for weights, distances, or monetary amounts,
+but a much better balance overall.
+
+
+Michael Kay 
+
+
+

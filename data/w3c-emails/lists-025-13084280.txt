@@ -1,0 +1,246 @@
+docno="lists-025-13084280"
+received="Fri Jun 20 14:38:41 2003"
+isoreceived="20030620183841"
+sent="Fri, 20 Jun 2003 14:37:56 -0400"
+isosent="20030620183756"
+name="Jean-Jacques Dubray"
+email="jjd@eigner.com"
+subject="choreography protocol"
+id="002501c3375b$12575210$2278050a@JJD"
+charset="us-ascii"
+inreplyto="EDDE2977F3D216428E903370E3EBDDC9081204&#64;MAIL01.stc.com"
+expires="-1"
+
+To:"'Ugo Corda'"<UCorda@SeeBeyond.com>,"'Jean-Jacques Dubray'"<jjd@eigner.com>,<public-ws-chor@w3.org>
+
+
+
+I don't have much time to follow the latest developments of WSDL and MEP
+might have well solved that problem. In WSDL 1.1, an operation can only
+be a request with an optional response and any number of faults. So if
+you wanted to describe something like 
+request ->          / request processed signal <- 
+              / response <- / 
+response processed signal ->
+
+you would need at least two operations. If would be really great if WSDL
+1.2 could support such protocol natively via MEPs for instance?
+
+Actually making the protocol abstract is a really good idea, provided
+that we could also provide default message format, but if people feel
+that they have to invent new formats for these signals they can.
+
+You may not want to have the process engine really being involved in
+managing these signals. For instance if you implement a 2 signal
+protocol like BPSS (message structure valid, message processed), the
+message structure validation should be done by the service interface and
+not below by the process engine for instance. The same could be true for
+the "message processed" signal, you could have the application sending
+it to the service interface via a call back. That would offload the
+process engine. This is more questionable as you could say that the
+application should really not know anything about the outside world, or
+"message processed" could mean that 3 applications get to see the
+message, in which case the process engine is certainly much better
+position to compute and return that signal.
+
+A choreography layer independent of the process engine is a better
+architecture. This simplifies the process definition at least by a
+factor of 2. The process definition should be really dealing with
+business messages (request / response) not signals. This layer acts as
+both an inbound/outbound gatekeeper to make sure that messages are
+exchanges as specified by the choreography definition. 
+
+In any case, the choreography should not assume that there is a BPEL
+process engine inside, it should work with any service including the
+ones with BPEL inside.
+
+I don't really think that we need a separate spec. As I said, I think I
+built the case for which a choreography protocol is almost mandatory for
+any choreography spec that we could up with, it should be part of the
+spec, if we decide it is in scope. This protocol layer should be common
+to all services. 
+
+Jean-Jacques 
+ 
+ 
+
+>>-----Original Message-----
+>>From: Ugo Corda [mailto:UCorda@SeeBeyond.com]
+>>Sent: Freitag, 20. Juni 2003 13:15
+>>To: Jean-Jacques Dubray; public-ws-chor@w3.org
+>>Subject: RE: BPSS_f2f_june03.ppt
+>>
+>>JJ,
+>>
+>>Let me see if I understand your concept of choreography protocol by
+asking
+>>some concrete questions.
+>>
+>>I imagine you are proposing to define such a protocol at the abstract
+>>level (i.e. part of the choreography abstract language we have been
+>>talking about). So at the time we need to develop an executable
+process we
+>>would have to map that abstract protocol to the specific executable
+>>language/protocols we plan to use.
+>>
+>>In the case of executable BPEL, would the abstract choreography
+protocol
+>>map to specific BPEL messages (i.e. your choreography protocol would
+have
+>>corresponding parts in the  WSDL descriptions of related messages)? Or
+>>would it map to other BPEL features other than message contents?
+>>
+>>If it maps to message contents and the WSDL interfaces happen to be
+bound
+>>to SOAP, would that choreography protocol be mapped to a SOAP module
+(i.e.
+>>SOAP headers)? Do you envision a new spec that defines a SOAP-based
+>>choreography protocol?
+>>
+>>Thank you,
+>>Ugo
+>>
+>>> -----Original Message-----
+>>> From: Jean-Jacques Dubray [mailto:jjd@eigner.com]
+>>> Sent: Friday, June 20, 2003 4:30 AM
+>>> To: Ugo Corda; 'Jean-Jacques Dubray'; public-ws-chor@w3.org
+>>> Subject: RE: BPSS_f2f_june03.ppt
+>>>
+>>>
+>>> Ugo:
+>>>
+>>> Basically a choreography protocol is needed to ensure that
+>>> each peer in
+>>> the choreography has the same view of the state in which the
+>>> choreography instance is. Imagine a situation, where you send me a
+PO
+>>> and I am not supposed to respond until the goods are shipped
+>>> and I will
+>>> respond by sending you an invoice. So you send me a PO and
+>>> the RM tells
+>>> you "I got it" (just like a fax). The next thing that should
+>>> happen then
+>>> is you receive the goods and later on an invoice. If there was a
+human
+>>> behind a fax machine, and the order was garbled he could call
+>>> and figure
+>>> out the right information. In this case, the sender things the
+>>> choreography is going ok. The responder on the contrary
+>>> thinks that the
+>>> collaboration is terminated on an error. This is why you need a
+>>> protocol: to tell you that no exception occurred, each party has the
+>>> same view of the state of the choreography.
+>>>
+>>> If you take a "highly-connected" system that has several hundred /
+>>> thousands participants (not all participating in the same
+choreography
+>>> instance but rather having 2 by 2 conversations). You cannot
+>>> expect that
+>>> every message that will be exchanged in this setting would be of
+high
+>>> quality (the structure may be old or wrong, the content may be
+>>> incoherent making the processing of the message impossible, i.e. a
+>>> response cannot be created because the message could not get into
+the
+>>> system that was supposed to create the response).
+>>>
+>>> At this point, you can say I don't need/want a protocol. That
+>>> means that
+>>> when a choreography is designed, the designers must account for
+these
+>>> possible (yet common) errors. They will create specific
+>>> messages to say
+>>> "could not process your orders, it contains errors", and make these
+>>> messages part of the choreography.
+>>>
+>>> On the other hand if you had a protocol, you would have a standard
+set
+>>> of exceptions (common to all message exchanges) and
+>>> materialized with a
+>>> set of standard messages. You could then express the
+>>> choreography paths
+>>> based on these error conditions (if success ... if failure ... if
+>>> timeout ... if structure invalid ... if content invalid ...) with an
+>>> implicit message exchange. The simplest set of exception for me are:
+>>> message did not get there on time, message could not be processed by
+>>> system/service of record.
+>>>
+>>> Again, all this has nothing to do with RM. The problem here
+>>> is not that
+>>> your message did not get to the recipient, it is rather that the
+>>> recipient got a message that he could not process, hence
+interrupting
+>>> the choreography instance. A protocol would help you cover
+>>> 80/90% of the
+>>> common exceptions. Others can be dealt with at the design level.
+>>>
+>>> Cheers,
+>>>
+>>> Jean-Jacques Dubray____________________
+>>> Chief Architect
+>>> Eigner  Precision Lifecycle Management
+>>> 200 Fifth Avenue
+>>> Waltham, MA 02451
+>>> 781-472-6317
+>>> jjd@eigner.com
+>>> www.eigner.com
+>>>
+>>>
+>>>
+>>> >>-----Original Message-----
+>>> >>From: Ugo Corda [mailto:UCorda@SeeBeyond.com]
+>>> >>Sent: Donnerstag, 19. Juni 2003 22:14
+>>> >>To: Jean-Jacques Dubray; public-ws-chor@w3.org
+>>> >>Subject: RE: BPSS_f2f_june03.ppt
+>>> >>
+>>> >>Jean-Jacques,
+>>> >>
+>>> >>I did not have a chance to listen to your presentation, so you
+might
+>>> have
+>>> >>already explained this. In your slides you talk about a
+>>> "choreography
+>>> >>protocol", and I am not sure whether it is just regular
+>>> messages plus
+>>> an
+>>> >>instance ID (as you mentioned in a previous message to the
+>>> list) or it
+>>> is
+>>> >>more than that.
+>>> >>
+>>> >>Thank you,
+>>> >>Ugo
+>>> >>
+>>> >>> -----Original Message-----
+>>> >>> From: Martin Chapman [mailto:martin.chapman@oracle.com]
+>>> >>> Sent: Thursday, June 19, 2003 12:18 PM
+>>> >>> To: public-ws-chor@w3.org
+>>> >>> Subject: FW: BPSS_f2f_june03.ppt
+>>> >>>
+>>> >>>
+>>> >>>
+>>> >>>
+>>> >>> -----Original Message-----
+>>> >>> From: Jean-Jacques Dubray [mailto:jjd@eigner.com]
+>>> >>> Sent: Thursday, June 19, 2003 10:23 AM
+>>> >>> To: 'Martin Chapman'; 'Steve Ross-Talbot';
+>>> Daniel_Austin@grainger.com
+>>> >>> Subject: BPSS_f2f_june03.ppt
+>>> >>>
+>>> >>>
+>>> >>> Martin et al:
+>>> >>>
+>>> >>> This is my presentation for this afternoon. Please let me
+>>> >>> know what time
+>>> >>> and which number to call.
+>>> >>>
+>>> >>> Best regards,
+>>> >>>
+>>> >>> JJ-
+>>> >>> 781-472-6317
+>>> >>>
+>>>
+>>>
+
+
+

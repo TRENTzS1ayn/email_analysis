@@ -1,0 +1,178 @@
+docno="lists-102-3969711"
+received="Fri May 29 18:12:45 1998"
+isoreceived="19980529221245"
+sent="Fri, 29 May 1998 15:13:01 -0700"
+isosent="19980529221301"
+name="David Brownell"
+email="David.Brownell@Eng.Sun.COM"
+subject="RE: Alternative to the Live NodeIterator"
+id="199805292213.PAA18325@argon.eng.sun.com"
+inreplyto="Alternative to the Live NodeIterator"
+expires="-1"
+
+
+To:amarshal@usc.edu
+Cc:www-dom@w3.org
+
+[ Still finishing digging out from a few weeks worth of e-mail ... ]
+
+> From: "Andrew n marshall" <amarshal@usc.edu>
+> Date: Sun, 3 May 1998 10:45:02 -0700
+>
+>[
+>  Re problems with iterator liveness; David was saying that
+>  liveness is less of a problem than "between nodes" semantics
+>]
+> 
+> > > 2) The current node is undefined if it is deleted. The spec could
+> > > define it in some way or another, but as I recall the discussion
+> > > none of the options were without problems.  Plus, this STILL
+> > > requires that iterators update
+> > > their state whenever a delete occurs ...
+> >
+> > Hmm, my reading says that there are no nodes in a "deleted" state;
+> > they're just detached from some other node.  So there's no need
+> > to have iterators interacting with Node.remove!  (I just persuaded
+> > myself of that ...)
+> 
+> Unfortunately it isn't that easy.  If the iterator was acting as
+> a filtered snapshot, you would be correct.
+
+Actually, in all cases -- think about the null filter!  And I was
+not assuming snapshot semantics at all; see later.
+
+
+>However, the iterator is currently defined to be live, with
+> a filter relative to the to either an element or the Document
+> (obviously this should be managed by your proposed revision to
+> the document fragment).  Therefore removed nodes are also removed
+> form the context of the filter and should not be returned by
+> the iterator.
+
+Right, but since it's live they _won't_ be returned!
+
+
+> > That is, one would define iterators as encompasing a "current node" and
+> > a "traversal algorithm" (such as "siblings", "children", "preorder
+> > depth first"; perhaps filtering out some kinds of nodes).  Then there
+> > would be two cases in node removal, ones that are familiar to anyone
+> > who's ever edited a linked list:
+> 
+> I'm not sure I understand you.
+
+Consider a tree of nodes navigable with primitives like nextSibling,
+firstChild, parent.  (Like DOM.Node!)  Use any node as iterator state.
+The iterator itself has a "next" primitive (and maybe others).
+
+If it's doing filtering ("only nodes with tag 'P'") the "next" primitive
+just uses those node navigation primitives to find the next node,
+skipping all that don't meet the filter criteria.  For example, if this
+iterator was just for the parent's children, it only uses the node's
+nextSibling primitive ... perhaps skipping those without a "P" tag.
+
+    class Iterator {
+private Node current;
+
+public Iterator (Node start) { current = start; }
+
+public Node getCurrent () { return current; }
+
+public Node getNext () {
+    Node temp = current;
+
+    do {
+temp = internalGetNext (temp);
+    } while (temp != null && !isInteresting (temp));
+    current = temp;// or, could save previous
+    return current;
+}
+
+// default traversal: preorder depth first ... "TreeIterator"
+// subclasses could override to show just siblings, etc
+protected Node internalGetNext (Node start) {
+    Nodetemp;
+    if (start == null)
+return start;
+    if ((temp = start.getFirstChild ()) != null)
+return temp;
+    do {
+if ((temp = start.getNextSibling ()) != null)
+    return temp;
+start = start.Parent ();
+    } while (start != null);// stop at document root
+    return null;
+}
+
+// default does no filtering
+// subclasses could insist on particular tags, types, etc
+protected boolean isInteresting (Node n) { return true; }
+    }
+
+And of course, filtering out tags of some sort could look like:
+
+    class TagIterator extends NodeIterator {
+private String tag;
+public TagIterator (Node n, String tag) {
+    super (n);
+    this.tag = tag;
+}
+protected boolean isInteresting (Node n) {
+    return (n instanceof Element)
+&& (((Element)n).getTag ().equals (tag));
+}
+    }
+
+If one deletes any Node except the current one, it doesn't show up
+from the iterator, regardless of filtering.  And if it's the current
+node that's deleted, the two cases are:
+
+
+> >     - You removed the node since it's the one you're interested in.
+> >       Don't touch the iterator; remove the current node from its
+> >       parent, and that iterator just shows the good parts.
+> 
+> What are 'the good parts'?  And if you you don't touch the iterator,
+> isn't it still pointing to the removed node?
+
+For example:  After an iterative search, you concluded that THIS
+paragraph is the one you wanted; it's the "good parts".  Remove
+that node, you have the result of your search.  Put it someplace
+else if you like, same document or another.
+
+Yes, the iterator is still pointing inside of it -- that's what
+you wanted, by definition of this scenario.  Continue to use it
+to look at what's inside this paragraph, or perhaps what follows
+it after you've relocated the paragraph elsewhere.
+
+
+> >     - You removed the node since it's the one you're NOT interested in.
+> >       Before you remove it, move the iterator to some other node.
+> 
+> Why would the iterator ever point to a node it is not interested in?
+
+For example, you might want to delete all sections that don't talk
+about some particular topic.  The iterator scans sections, and you
+found that the "current" one doesn't talk about that topic.  So it
+gets nuked ... after the iterator's relocated, since you haven't
+finished looking at all the sections.
+
+
+> > Completely natural for single threaded code, and it's got relatively
+> > nice behaviour for concurrent mutating/traversing threads (assuming
+> > they coordinate somehow).
+> 
+> Could you please re-explain how you intend to implement iterators/node
+> removal without interaction between the two.
+
+See above.  "Without interaction" is meant in the sense of "no special
+lines of code or specification need to be written".  That's because the
+iterator has a very clear semantic:  It's (a) a current node, coupled
+with (b) some traversal algorithm (depth-first preorder, siblings,
+children, etc), and optionally (c) a predicate used to filter out any
+nodes that aren't desired (e.g. by tag or type).  Given that, it's
+got clear and natural semantics when any node is removed.
+
+- Dave
+
+
+

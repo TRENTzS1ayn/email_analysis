@@ -1,0 +1,100 @@
+docno="lists-010-3211888"
+received="Thu Apr 25 16:13:47 1996"
+isoreceived="19960425201347"
+sent="Thu, 25 Apr 96 16:04:00 MDT"
+isosent="19960425220400"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: 3.17.2 Byte Ranges"
+id="9604252304.AA17641@acetes.pa.dec.com"
+inreplyto="199604252242.PAA11322&#64;merlot.arc.nasa.gov"
+expires="1"
+
+
+To:hardie@nasa.gov
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    That is consistent with my reading, but it isn't really the case
+    I was worried about.  Consider the case where a client sends
+    
+    GET /foo.gif HTTP/1.1
+    Range: bytes = 1500-2047
+    
+    and foo.gif is only 1800 bytes long.  My reading is that right
+    now the returned response would have a 
+    
+    Content-Range: bytes 1500-1799/1800
+    
+    And the client would end up with the last 300 bytes, just as if a
+    
+    Range bytes = 1500- had been sent.  
+    
+    It seems that we agree that isn't what we want,
+
+No, I think this is acceptable behavior.
+
+    and that if the byte
+    range specified is out of bounds, the robustness prinicipal implies
+    returning the *whole* entity.
+
+I'm not sure about that last implication.  I think we really have
+two choices:
+(1) the server returns a straightforward interpretation
+of what the client asked for, and if the client doesn't
+like it, the client can ask for something different.
+(2) the server tries to protect the client from receiving
+something that might or might not be what the client
+wants.
+
+Choice #2 seems to be unnecessarily restrictive.  Since the responses
+are always unambiguously marked with a Content-Range header, there
+is no danger (if we adopt choice #1) of confusing a properly implemented
+client.  However, #2 runs the risk of requiring an extra round-trip
+in a case where the client might actually be happy with the 1500-1799
+range.
+
+If the client really does not want to receive a smaller range than
+it asked for, it could do something like
+
+GET /foo.gif HTTP/1.1
+Range: bytes =1500-2047
+If-Valid: "xyzzy"
+
+knowing that if there is any change in the size of /foo.gif, this
+will change the validator and make this conditional request return
+412 (Precondition Failed).
+
+Using persistent-connection and pipelining, the client might even
+send something like
+
+GET /foo.gif HTTP/1.1
+Range: bytes =1500-2047
+If-Valid: "xyzzy"
+
+HEAD /foo.gif HTTP/1.1
+If-Invalid: "xyzzy"
+
+so that within one RTT it knows the current size of the object,
+if it has changed (at the cost of a few more bytes on the wire).
+
+      If the last-byte-pos value is present, it must be greater than or equal
+      to the first-byte-pos in that byte-range-spec, or the byte-range-spec is
+      invalid.  The recipient of an invalid byte-range-spec must ignore it.
+ 
+    That the recipient of an invalid byte-range-spec ignored it by treating
+    the request as if it did not contain a Range: header (once again, returning
+    the whole entity on a GET request).  Am I misreading that?
+
+I believe the intention behind this rule is to say that if a server
+receives something obviously bogus like
+
+GET /foo.gif HTTP/1.1
+Range: 4-3
+
+then it should return the whole entity rather than an error.   But
+maybe the server should return 400 (Bad Request) in this case.
+
+-Jeff
+
+
+

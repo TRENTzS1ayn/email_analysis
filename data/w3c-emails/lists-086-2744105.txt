@@ -1,0 +1,165 @@
+docno="lists-086-2744105"
+received="Thu Mar 28 15:29:42 2002"
+isoreceived="20020328202942"
+sent="Thu, 28 Mar 2002 12:29:06 -0800"
+isosent="20020328202906"
+name="Aaron Leventhal"
+email="aaronl@netscape.com"
+subject="Mozilla/Gecko/Netscape's COM interface for DOM info"
+id="3CA37D12.9010104@netscape.com"
+charset="us-ascii"
+expires="-1"
+
+
+To:w3c-wai-ua@w3.org
+
+Hello,
+
+We have several accessibility interfaces that we support via COM on Windows:
+IAccessible, ISimpleDOMNode, ISimpleDOMDocument.
+
+
+      Overview
+
+They can all be used cross-process, and you can use QueryInterface to 
+move between them, to the same place in the tree.
+
+Here are links to the .idl:
+http://lxr.mozilla.org/seamonkey/source/widget/src/windows/expose/ISimpleDOMNode/ISimpleDOMNode.idl
+http://lxr.mozilla.org/seamonkey/source/widget/src/windows/expose/ISimpleDOMDocument/ISimpleDOMDocument.idl
+
+More docs here, describing how to use them all:
+http://www.mozilla.org/projects/ui/accessibility/vendors-win.html
+
+
+      ISimpleDOMNode
+
+To get to the ISimpleDOMNode interface for an object, you start with an 
+IAccessible*, and then you QueryInterface to the ISimpleDOMNode*:
+
+ISimpleDOMNode *pSimpleDOMNode;
+hresult = pAccessible->QueryInterface(IID_ISimpleDOMNode, (void**) 
+&pSimpleDOMNode);
+if (SUCCEEDED( hresult ) && pSimpleDOMNode != NULL) {
+/* This is a Mozilla node! Use special ISimpleDOMNode methods described 
+in ISimpleDOMNode.idl. */
+}
+
+The get_nodeInfo method is used to get basic information about a node 
+such as the tag name and namespace ID, node type (see ISimpleDOMNode.idl 
+for definitions), node value (text held in the node), a unique ID for 
+use in tracking where events occur, and the number of children. The 
+namespace ID is meaningless until you get the namespace URI for it, 
+through the ISimpleDOMDocument interface (see below).
+
+HRESULT get_nodeInfo(
+  /* [out] */ BSTR  *nodeName,    // For elements, this is the tag name
+  /* [out] */ short  *nameSpaceID,
+  /* [out] */ BSTR  *nodeValue,
+  /* [out] */ unsigned int  *numChildren,
+  /* [out] */ unsigned int  *uniqueID, // see description of unique ID's 
+in above section on events
+  /* [out] */ unsigned short  *nodeType);
+
+The get_attributes method returns the set of attribute, value pairs for 
+a given node, as well as the namespace ID for each attribute. The return 
+value numAttribs specifies the number of attributes for this node, and 
+the last 3 parameters return 3 arrays corresponding to attribute name, 
+namespace ID, and attribute value.
+
+HRESULT get_attributes(
+  /* [in]  */ unsigned short maxAttribs,
+  /* [out] */ BSTR  *attribNames,
+  /* [out] */ short  *nameSpaceID,
+  /* [out] */ BSTR  *attribValues,
+  /* [out] */ unsigned short  *numAttribs);
+
+A variation on this method is get_attributesForNames , which lets turns 
+the attribNames array into an [in] parameter, letting you specify only 
+those attributes you're interested in. This helps minimize the cost of 
+marshalling for those times in which you're interested in only a few 
+attributes per node.
+
+HRESULT get_attributesForNames(
+  /* [in]  */ unsigned short numAttribs,
+  /* [in]  */ BSTR __RPC_FAR *attribNames,
+  /* [in]  */ short __RPC_FAR *nameSpaceID,
+  /* [out] */ BSTR __RPC_FAR *attribValues);
+
+The get_computedStyle method is used to find out the cumulative, 
+computed results for all style rules applied to a node. The return value 
+numStyleProperties specifies the number of style properties for this 
+node, and the last 2 parameters return 2 arrays corresponding to style 
+property name and style property value. Another [in] parameter, 
+useAlternativeMediaProperties, indicates whether you want style 
+information for the default media type (usually screen), or a set of 
+alternative media types specified in 
+nsISimpleDOMDocument::set_alternateViewMediaType(mediaTypeString) . See 
+the W3C's website for a list of official media type name 
+<http://www.w3.org/TR/REC-CSS2/media.html#media-types> . Unfortunately, 
+at this time the argument useAlternateView is ignored.
+
+HRESULT get_computedStyle(
+  /* [in]  */ unsigned short maxStyleProperties,
+  /* [in]  */ boolean useAlternateView,  // If TRUE, returns properites 
+for media as set in nsIDOMDocument::set_alternateViewMediaTypes
+  /* [out] */ BSTR *styleProperties,
+  /* [out] */ BSTR *styleValues,
+  /* [out] */ unsigned short *numStyleProperties);
+
+A variation on this method is get_computedStyleForProperties , which 
+lets turns the styleProperties array into an [in] parameter, letting you 
+specify only those style properties you're interested in. This helps 
+minimize the cost of marshalling for those times in which you're 
+interested in only a few style properties per node.
+
+HRESULT get_computedStyleForProperties(
+  /* [in] */  unsigned short numStyleProperties,
+  /* [in] */  boolean useAlternateView,  // If TRUE, returns properites 
+for media as set in nsIDOMDocument::set_alternateViewMediaTypes
+  /* [in] */  BSTR *styleProperties,
+  /* [out] */ BSTR *styleValues);
+
+You can also get to any other node by traversing the ISimpleDOMNode 
+structure. The DOM content tree is a superset of the MSAA tree. In other 
+words, you can always QueryInterface from an IAccessible to an 
+ISimpleDOMNode, but often not the other way around.
+
+HRESULT get_parentNode     (/* [in] */ ISimpleDOMNode *newNodePtr);
+HRESULT get_firstChild     (/* [in] */ ISimpleDOMNode *newNodePtr);
+HRESULT get_lastChild      (/* [in] */ ISimpleDOMNode *newNodePtr);
+HRESULT get_previousSibling(/* [in] */ ISimpleDOMNode *newNodePtr);
+HRESULT get_nextSibling    (/* [in] */ ISimpleDOMNode *newNodePtr);
+
+Please look at the ISimpleDOMNode.idl file for parameter types and the 
+definitions of the node type constants.
+
+
+      ISimpleDOMDocument
+
+There is one ISimpleDOMDocument interface for each XML or HTML document 
+in Gecko, which you can use to get important information global to the 
+document. If a given node's get_nodeType method returns 
+NODETYPE_DOCUMENT, then you know you can QueryInterface to an 
+ISimpleDOMDocument. The root accessible can also always be 
+QueryInterface'd to an ISimpleDOMDocument.
+
+Here are the methods for ISimpleDomDocument:
+
+HRESULT get_URL    (/* [out] */ BSTR *url);      // Location of document
+HRESULT get_title  (/* [out] */ BSTR *title);    // From the <TITLE>
+HRESULT get_mimeType(/* [out] */ BSTR *mimeType); // For example 
+text/html or text/plain
+HRESULT get_docType (/* [out] */ BSTR *docType);  // From the <!DOCTYPE ..>
+HRESULT get_nameSpaceURIForID(            // Translate namespace ID's 
+from ISimpleDOMNode
+  /* [in] */ unsigned short nameSpaceID,  //  calls into the actual 
+namespace URI's
+  /* [out] */ BSTR  *nameSpaceURI);
+HRESULT put_alternateViewMediaTypes(/* [in] */ BSTR * 
+commaSeparatedMediaTypes);  // For example "aural, braille"
+
+- Aaron
+
+
+

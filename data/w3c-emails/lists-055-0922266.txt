@@ -1,0 +1,248 @@
+docno="lists-055-0922266"
+received="Tue Sep 24 19:33:37 1996"
+isoreceived="19960924233337"
+sent="Tue, 24 Sep 96 18:27:21 CDT"
+isosent="19960924232721"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.CC.UIC.EDU"
+subject="revised restatement of the RE rules"
+id="199609242333.TAA07136@www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+Here is my restatement of the RE rules, as revised after consultation
+with Charles Goldfarb, James Clark, sgmls, and nsgmls.  It must be
+admitted that these four sources did not agree on all points as regards
+the proper treatment and interpretation of the extended examples at the
+end of the discussion.  In view of our agreed need for explicit, well
+documented, and well understood rules for RE handling, the diversity of
+views seemed to me suggestive of a need for simplification, both in XML
+and in the revision of 8879.
+
+-C. M. Sperberg-McQueen
+
+-------
+
+RS is significant only if it's markup -- since it can be markup only in
+a shortref, it's of no interest to XML.  For our purposes, RS is always
+ignored, period.
+
+SGML documents consist of data interspersed with markup.  If an RE
+occurs in an SGML document, it's either in markup or outside it; there's
+no place else for it to be.
+
+In markup, RE is easy; an RE can occur only:
+  - as a separator (in declarations or tags), in which case it's
+    ignored
+  - within a PI, in which case it's passed through to the application
+  - within a literal in an attribute value specification (in a tag or
+    entity declaration or attlist declaration), in which case it's
+    replaced by a SPACE before the attribute value is passed
+    to the application
+  - within a literal in an entity declaration, in which case its
+    treatment is determined when the entity is expanded
+  - as the refc delimiter on a reference, in which case it's eaten by
+    the parser
+  - within a comment, in which case it's part of the comment
+
+
+Outside of markup, RE can occur:
+
+  - in element content, between subelements, in which case it's ignored
+because it's a separator, not data
+  - in mixed content or (replaceable) character data; it is here
+that 8879 treats some REs as data and others as having been caused by
+markup and thus insignificant (the standard uses the term 'ignored' for
+insignificant REs).
+
+Clause 7.6.1 a says "the first RE in an element is ignored if no RS,
+data, or proper subelement preceded it."  Phrased the other way around,
+and working from the list in clause 7.6 of all the things that can occur
+in mixed or character data content, this means that when the pattern
+
+  starttag nondata* RE
+
+is encountered, the RE is insignificant, where 'nondata' is defined as
+
+  nondata ::= comment declaration
+             | shortref use declaration
+             | link set use declaration
+             | processing instruction
+             | character reference
+             | entity reference
+             | marked section declaration
+             | included subelement
+             | short reference
+             | entity-end
+
+Rule (b) in the same clause says, in effect, that the same applies at
+the end of an element:  "The last RE in an element is ignored if no data
+or proper subelement follows it."  So if the end of an element matches
+the pattern
+
+  RE nondata* end-tag
+
+the RE is ignored.
+
+Rule (c) in the same clause says, that if a record (i.e. the space
+between an &#RS; and the next &#RE;) is not empty, but contains no data,
+then the RE is ignored.  "An RE that does not immediately follow an RS
+or RE is ignored if no data or proper subelement intervened."  I think
+this means that if any record containing nothing other than nondata,
+then its RE is ignored.  I.e., in
+
+  RS nondata+ RE
+
+the RE is ignored.
+
+The final paragraph of the clause adds another complication:  "An RE is
+deemed to occur immediately prior to the first data or proper subelement
+that follows it (that is, after any intervening markup declaration,
+processing instruction, or included subelement)."  This allows a parser
+to handle cases like <p>data ... &#RE;<!-- ... --></p> without having
+to look ahead past the comment to see whether the comment is followed
+by an end-tag or by more data:  the parser can wait until after the
+comment to decide what to do with the RE.  This has the drawback,
+however, of making REs wander around migrating past comments and
+processing instructions in ways not all users are likely to find
+intuitive.  Such migration will generally be invisible in processing
+from SGML into some other format, unless the processing instructions
+are affected by the RE; it will generally be visible after SGML-to-SGML
+transformations.
+
+In summary:  RE is ignored in data when the data matches any of the
+following patterns:
+
+  starttag nondata* RE
+  RS nondata+ RE
+  RE nondata* end-tag
+
+-------
+
+Examples:
+
+The element Q contains no REs in any of the following cases:
+
+  <q>
+  Listen to my heart beat.
+  </q>
+
+This is the simple case:  RE adjacent to a start-tag or end-tag.  Many
+of the most persuasive examples of 8879's RE rules involve REs adjacent
+to the tags.
+
+  <q>
+  <!-- sound track is silent -->
+  Listen to my heart beat <!-- --
+  ><?DIRECTOR begin: audio>
+  and beat and beat and beat.
+  </q>
+
+Here rule (a) takes care of line 1, rule (c) of line 2, the comment of
+line 3, rule (c) again of line 4, and rule (b) of line 5.
+
+  <q><!-- sound track is silent -->
+  Listen to my heart beat.
+  </q>
+
+This is the one case I can think of where the first RE is not
+actually adjacent to the start-tag.
+
+RE migration is illustrated by this element:
+
+  <q>
+  Listen.
+  <!-- silence. -->
+  <!-- The clock ticks. -->
+  <!-- The wind sighs. -->
+  <!-- The clock chimes. -->
+  <?DIRECTOR:  start audio-track 1 >  Listen to my heart beat.
+  </q>
+
+The RE after "Listen." is "deemed to occur" after the processing
+instruction, so the element above is identical in effect to this one:
+
+  <q>
+  Listen. <!-- silence. -->
+  <!-- The clock ticks. -->
+  <!-- The wind sighs. -->
+  <!-- The clock chimes. -->
+  <?DIRECTOR:  start audio-track 1 >
+    Listen to my heart beat.
+  </q>
+
+The RE originally situated after "Listen." has migrated five
+lines down, past four comments and a processing instruction.
+
+The application of rule (c) is illustrated by the following example:
+
+<!DOCTYPE p [
+<!ELEMENT p - - (q+) >
+<!ELEMENT q - - ANY>
+]>
+<p>
+<q>
+Look! this element --<!--
+-->has it any visible <!--
+-->record boundaries?
+<!--
+   - Not Basho
+-->
+</q>
+
+<q>Listen. <!-- half-line comment -->
+<!-- full line comment -->
+Listen hard.  (Two-comment-decl version.)</q>
+
+<q>Listen. <!-- comment line 1
+comment line 2 -->
+Listen hard.  (One-comment version.)</q>
+
+<q>Listen. <!-- comment 1 -->
+<!-- comment 2 --> Listen!
+Listen hard.  (Two-comment-decl version.)</q>
+
+<q>Listen. <!-- comment line 1
+comment line 2 --> Listen!
+Listen hard.  (One-comment version.)</q>
+</p>
+
+When parsed by nsgmls, this document produces the following output:
+
+(P
+(Q
+-Look! this element --has it any visible record boundaries?
+)Q
+(Q
+-Listen. \nListen hard.  (Two-comment-decl version.)
+)Q
+(Q
+-Listen. \nListen hard.  (One-comment version.)
+)Q
+(Q
+-Listen. \n Listen!\nListen hard.  (Two-comment-decl version.)
+)Q
+(Q
+-Listen.  Listen!\nListen hard.  (One-comment version.)
+)Q
+)P
+C
+
+This illustrates the following salient points:
+
+  - the REs preceded by "<!--" in the first Q element are
+    not passed to the application.  I interpret this as meaning they
+    are not data, but part of the comment.
+  - the RE after "Listen. <!-- comment 1 -->" is significant.
+  - the RE after "<!-- full line comment -->" is not significant.
+  - the RE after "Listen. <!-- comment line 1" is not data (it's part
+    of the comment)
+  - the RE after "comment line 2 -->" is significant, because the
+    most recent RS in the data was followed by "Listen.  "  The RS
+    at the start of the second line of the comment is not considered,
+    because it is not data (it's part of the comment).
+
+
+

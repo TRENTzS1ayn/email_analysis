@@ -1,0 +1,113 @@
+docno="lists-020-14758784"
+received="Fri Jun 11 03:43:09 2004"
+isoreceived="20040611074309"
+sent="Fri, 11 Jun 2004 16:43:17 +0900"
+isosent="20040611074317"
+name="Eric Prud'hommeaux"
+email="eric@w3.org"
+subject="Indulgent SQL diversion"
+id="20040611074317.GA15900@w3.org"
+charset="us-ascii"
+inreplyto="p06110490bced57454506&#64;[10.0.1.2]"
+expires="-1"
+
+To: Jim Hendler<hendler@cs.umd.edu>
+Cc: Rob Shearer<Rob.Shearer@networkinference.com>, RDF Data Access Working Group<public-rdf-dawg@w3.org>
+
+
+
+On Wed, Jun 09, 2004 at 08:27:12PM -0400, Jim Hendler wrote:
+> 
+> At 16:59 -0700 6/9/04, Rob Shearer wrote:
+> >> In my experience most query languages don't actually handle
+> >> disjunctive queries very well (SQL, for example, only allows the OR
+> >> in the conditional of a return, which is a very limited kind of OR).
+> >
+> >I don't entirely understand this, and I'm curious. I had always rather
+> >assumed that WHERE clauses could contain arbitrary boolean combinations
+> >of predicates. Am I misunderstanding you, or am I misunderstanding SQL?
+> 
+> the definition of "conditional of a return" is in a WHERE clause. 
+> But my understanding of SQL is that you cannot make arbitrary query 
+> clauses -- you get the binding list and then you process the results 
+> against the WHERE clause -- i.e. you can say
+>  Fetch (complex expression, but no disjunction includign A, B, C, etc)
+>    WHERE
+>      A = "foo" OR B = "bar" ...
+
+I think this is called "underconstrained disjunction" by SQL folks.
+
+You can ask the question that I suspect you mean, but you have to
+teach the server how to do that kind of "OR" in terms of relational
+calculus. Starting with the explicit form of JOINs:
+
+SELECT stuff
+FROM table1
+     INNER JOIN table2 ON table1.A=table2.foo
+     INNER JOIN table2 ON table1.B=table3.bar
+
+you get A=foo AND B=bar. When you want to change that to OR, the
+tempation is:
+
+SELECT stuff
+FROM table1
+     INNER JOIN table2 ON table1.A=table2.foo OR 1
+     INNER JOIN table2 ON table1.B=table3.bar OR 1
+
+which gives you the AND results plus table1 X table2 X table3. The
+issue is that you don't want to eliminate a row from table1 just
+because it doesn't line up with table2 (it may match the other
+side of the disjunction). So:
+
+SELECT *
+FROM table1
+     LEFT OUTER JOIN table2 ON A=foo
+     LEFT OUTER JOIN table3 ON B=bar
+WHERE A=foo OR B=bar;
+
+works. If the server executes the query recursively, you won't incur
+any more cost with the OUTER JOINs than you would with any other query
+engine handling the A=foo OR B=bar constriant.
+
+
+BTW, I checked these examples. see below:
+
+CREATE TABLE table1 (A CHAR(20), B CHAR(20));
+CREATE TABLE table2 (foo CHAR(20));
+CREATE TABLE table3 (bar CHAR(20));
+INSERT INTO table1 (A,B) VALUES ('A0', 'B0');
+INSERT INTO table1 (A,B) VALUES ('A1', 'B1');
+INSERT INTO table1 (A,B) VALUES ('A2', 'B2');
+INSERT INTO table1 (A,B) VALUES ('A3', 'B3');
+INSERT INTO table1 (A,B) VALUES ('A6', 'B6');
+INSERT INTO table2 (foo) VALUES ('A0');
+INSERT INTO table2 (foo) VALUES ('A2');
+INSERT INTO table2 (foo) VALUES ('A4');
+INSERT INTO table2 (foo) VALUES ('A6');
+INSERT INTO table3 (bar) VALUES ('B0');
+INSERT INTO table3 (bar) VALUES ('B3');
+INSERT INTO table3 (bar) VALUES ('B6');
+
+SELECT *
+FROM table1
+     INNER JOIN table2 ON A=foo
+     INNER JOIN table3 ON B=bar;
+
+SELECT *
+FROM table1
+     LEFT OUTER JOIN table2 ON A=foo
+     LEFT OUTER JOIN table3 ON B=bar
+WHERE A=foo OR B=bar;
+
+-- 
+-eric
+
+office: +1.617.258.5741 NE43-344, MIT, Cambridge, MA 02144 USA
+cell:   +1.857.222.5741
+
+(eric@w3.org)
+Feel free to forward this message to any list for any purpose other than
+email address distribution.
+
+
+

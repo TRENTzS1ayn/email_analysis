@@ -1,0 +1,147 @@
+docno="lists-010-13733023"
+received="Thu Dec 19 16:49:11 1996"
+isoreceived="19961219214911"
+sent="Thu, 19 Dec 96 16:36:14 PST"
+isosent="19961220003614"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="The problem with proxyrevalidate, and a proposed solution"
+id="9612200036.AA18024@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+In the HTTP-WG session at the IETF meeting last week, we briefly
+discussed the problem proxy-revalidate.  Paul Leach and I volunteered
+to take this as an action item.
+
+Here are two excerpts from the current HTTP/1.1 spec:
+    When the must-revalidate directive is present in a response
+    received by a cache, that cache MUST NOT use the entry after it
+    becomes stale to respond to a subsequent request without first
+    revalidating it with the origin server. (I.e., the cache must do an
+    end- to-end revalidation every time, if, based solely on the origin
+    server's Expires or max-age value, the cached response is stale.)
+
+    [...]
+
+    The proxy-revalidate directive has the same meaning as the must-
+    revalidate directive, except that it does not apply to non-shared
+    user agent caches. It can be used on a response to an authenticated
+    request to permit the user's cache to store and later return the
+    response without needing to revalidate it (since it has already
+    been authenticated once by that user), while still requiring
+    proxies that service many users to revalidate each time (in order
+    to make sure that each user has been authenticated).
+
+Note that the only reasonable reading of this definition of
+proxy-revalidate is that
+
+if (acting as as shared cache) then
+    if (proxy-revalidate) and (entry age < max-age) then
+revalidate before using this entry
+    else
+use this entry without revalidating
+    end
+end
+
+However, the rest of the second paragraph doesn't make sense
+with this reading, if one assumes that most end-client caches will
+obey the max-age directive.  That's because if the origin server
+wants such a client to be able to use an authenticated response
+from its cache without revalidating it, but wants a shared proxy
+cache to revalidate the response (to make sure that the new client
+has been authenticated), then there is no way to express this.
+I.e., the origin server would like to set max-age > 0 to allow
+the end-client to cache without revalidating, but would have to set
+max-age=0 to force the proxy to revalidate.
+
+This is my fault, I suspect, because I wrote this part of the
+spec.  I was trying to solve two problems with one feature, and
+I don't think that was possible.  The first problem was the
+one described above, which was described to me by the authentication
+people (primarily Paul Leach), and which Paul has now made me
+understand again.  The second problem was that we introduced
+"must-revalidate" to deal with caches that might be loose about
+observing max-age, and several people observed that this is somewhat
+too strict for many applications, where it's OK for the end-client
+cache to be "loose", but it might not be OK for a proxy cache to be
+"loose".  So the current specification of proxy-revalidate actually
+does solve that problem.
+
+Note that "Cache-control: private" is very inefficient, because
+it forces a proxy to fully reload the entity body each time; it
+cannot do a conditional GET in this case.  So that's not really
+a solution.
+
+The problem with proxy-revalidate also makes it much harder to
+do efficient hit-counting, *with or without* our proposed hit-metering
+extensions.
+
+After thinking about it for a while, and making up a table of all
+the possible combinations, I've come to the conclusion that there
+is no way to express all of the possibly desirable policies with
+the current set of cache-control directives, even if we tried to
+redefine the meaning of proxy-revalidate.  In order to make
+authentication work without defeating caching entirely, we either
+need to add at least one cache-control directive, or we would have
+to redefine proxy-revalidate in a way that would make it much
+less efficient.
+
+Paul and I believe that adding one more directive is the right
+solution.  There are several possibilities that would work.
+One would be something like
+Cache-control: proxy-mustcheck
+which would be ignored by non-shared caches, but would mean that
+a shared cache would have to revalidate entry regardless of its
+age (i.e., even if apparently "fresh").  In typical use, one might
+see
+Cache-control: max-age=30, proxy-mustcheck
+which allows all caches to store the response, and an end-client
+to use its cache entry for ages up to 30 seconds, but requires
+a proxy to always revalidate.
+
+The other approach, which Paul favors (and I think I do, too) is
+define something like
+Cache-control: proxy-maxage=NNN
+which supplies a separate age limit that applies only to shared
+caches.  For example, a server doing authentication or hit-metering
+might send:
+Cache-control: max-age=30, proxy-maxage=0
+which means the same thing as the previous example (but actually
+takes one less byte to encode!).
+
+It probably makes sense to define proxy-maxage as implying
+"proxy-revalidate", since otherwise one would have to send both
+directives, and it's likely that this would be the normal case.
+
+The nice thing about proxy-maxage is that it allows other things,
+too, such as
+Cache-control: max-age=30, proxy-maxage=10
+or even
+Cache-control: max-age=10, proxy-maxage=30
+to provide finer control over the action of caches.  It's not
+immediately clear to me that this is useful, but it seems to
+be no more expensive to implement than "proxy-mustcheck", and
+it might turn out to be useful later on.
+
+I believe that Larry wants us to issue an Internet-Draft on
+this topic, and not to discuss it to death on the mailing list.
+But because there are several possible choices, I wanted to
+see what people think before getting started on the Internet-Draft.
+
+-Jeff
+
+P.S.: Regarding IETF process: we discussed this at the meeting
+in San Jose, with the Area Director present.  If the consensus
+of the working group is that (1) this is truly a bug, and (2)
+that the proposed fix is both small and not controversial, then
+the IESG will probably allow us to make this kind of change
+without restarting at Proposed Standard.  So please don't get
+started now on a discussion about process; we can have that
+later on, if there is still disagreement on the technical issues
+once specific proposal(s) have been documented.
+
+
+

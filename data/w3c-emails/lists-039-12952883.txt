@@ -1,0 +1,222 @@
+docno="lists-039-12952883"
+received="Tue Dec 28 21:06:32 1999"
+isoreceived="19991229020632"
+sent="Tue, 28 Dec 1999 16:43:33 -0800"
+isosent="19991229004333"
+name="Yaron Goland (Exchange)"
+email="yarong@Exchange.Microsoft.com"
+subject="Why are WebDAV's XML namespace rules different than the W3C's?"
+id="7DE119D3D0E15543874F7561EECBDBED02619DDE@BEG.platinum.corp.microsoft.com"
+charset="iso-8859-1"
+expires="-1"
+
+
+To: WebDAV WG<w3c-dist-auth@w3.org>
+
+I was cleaning up my mail box when I found a letter I had written explaining
+the differences between the W3C's rules for handling namespaces and
+WebDAV's. In the end I believe that everyone adopted the W3C's rules but
+this does introduce a very serious interoperability issue that implementers
+need to be aware of. Anyone who actually is supporting section 23.4.2
+(which, in so far as I know, nobody does) is well advised to re-write their
+code to maintain the separation between namespace and element name.
+
+BTW, this is both an old and a very well known issue. I am not posting this
+as an alert. Rather this post is yet another entry in the now 50 page or so
+WebDAV Book of Why explaining how we got ourselves into this fine mess.
+
+Yaron
+
+<Introduction>
+This letter discusses how WebDAV's rule for combining namespaces came about.
+It examines the cultural and technical issues that lead WebDAV to provide
+for a namespace unification that is not supported by any other XML community
+that we are aware of.
+</Introduction>
+
+<Culture Clash>
+Having now spent some time reflecting back on our reasoning I suspect the
+prime motivator was a culture class. In the world of HTTP in general and
+WebDAV in particular things are named with URIs. The idea of a "namespace"
+with member "names" is foreign to the general thinking of the culture.
+Separation of namespaces and elements is something that is handled by the
+person issuing the URI but is not relevant to how one actually handles URIs.
+That is, I can create a namespace of the form yaron:namespace/element. When
+I handle this URI I do not know, nor do I generally care, that the thing
+before the "/" is a namespace name and the thing after the "/" is an element
+name. All I see is a single, flat, formless string that I throw to my URI
+resolver who then resolves it. Thus the instinct of the group was to reduce
+the situation to a known solved problem, in this case, a single URI.
+</Culture Clash>
+
+<Technical Reasons>
+There were also technical reasons for wanting to just glue the names
+together. The primary one was the desire to keep name/value property tables
+as simple as possible. Had we not glued together the namespace and name then
+property tables would have to have three rows, namespace, element name and
+value. This wouldn't work for many existing property systems that only
+supported simple name/value pairs. Given that one of the group's major goals
+was to be able to layer WebDAV over existing systems it was important that
+we be able to use these existing name/value property systems. That is why
+WebDAV has such primitive property support. These systems had no hope of
+being able to support partial property value replacement and property query.
+All they could do was name/value pairs. The value could be a chunk of XML
+but that was about it. So we needed a name that was a single string so we
+could work with these systems.
+</Technical Reasons>
+
+<Some History>
+WebDAV had adopted XML before namespaces existed. The assumption of the
+WebDAV WG was that elements would be named with URIs but that the SGML
+inherited namespace rules didn't allow for element names to include
+characters like ":", therefore a hack was needed to work around the
+character limitations. When the W3C introduced namespaces we assumed we had
+our hack. The only issue was, how to glue the namespace and element name
+back together to form the URI?
+
+The WebDAV WG approached the W3C namespace WG with the question of how to do
+the gluing but we couldn't get a straight answer. The argument from the W3C
+had nothing to do with some theoretical separation between the namespace and
+element names. Rather they argued about which magic character one should use
+in gluing together the namespace and the name, there were four contenders:
+"?", "#", "/" or just simply gluing the elements together. The W3C namespace
+WG's interest in this problem was rooted in their desire to be able to take
+a namespace and a name and resolve it to some URI they could use to retrieve
+the definition of the element, say a DTD.
+
+One faction wanted to use "?" so you would have
+http://namespace?elementname. This would be read as a query by the server.
+The problem with this solution is that there was no standard for what a
+query should look like and one might want to be able to use a more powerful
+query format. For example, one might want to ask for a group of element
+names instead of just one element name.
+
+Another faction wanted to use "#" so you would have
+http://namespace#elementname. This would mean that there was one document
+which provided the definition for every element in the namespace and the "#"
+would tell you which anchor to navigate to for the element you were
+interested in. The problem with this solution was that the definition
+document could potentially be huge since it would have to contain every
+element in the entire namespace.
+
+Another faction wanted to use "/" so you would have
+http://namespace/elementname. This would mean that there was a controlled
+namespace that was structured into directories and that one would ask for a
+particular file in a particular directory in order to get a name. The
+problem with this solution was that it mandated a particular directory
+structure that one had to keep to, forever.
+
+As discussed in section 17.7 of RFC 2518, the WebDAV WG didn't believe that
+the property names were ever going to be resolved in the real world, can you
+imagine everyone, everywhere actually trying to resolve the same single URI
+to get the definition of a popular element? This clearly wouldn't work so we
+weren't worried about the same problem the W3C guys were worried about. We
+couldn't care less about RESOLVING the namespace/element name pair; we just
+wanted to somehow get a single string that we could store. As such we were
+open to whatever rule the W3C wanted to create. The problem was, the W3C
+wasn't willing to pick any of them and WebDAV needed a solution.
+
+At the same time the W3C namespace WG kept missing deadlines for when their
+spec was supposed to move forward. They were so far off schedule that it
+looked like they would hold up WebDAV's standardization. Having already gone
+through so many problems and schedule slips with XML, WebDAV was not going
+to wait for the W3C to get namespaces out the door. Therefore the WebDAV WG
+decided to copy the namespace spec by value instead of by reference. That
+is, the WG copied the entire W3C XML namespace specification into section
+23.4 of the WebDAV spec. This freed us up from any W3C dependencies at the
+cost of possibly having some differences between the WebDAV namespace
+implementation and the officially blessed W3C namespace implementation.
+However the W3C swore up and down at the time that there would be no further
+changes so our action was fine with them.
+
+Sensing that it wasn't going to get a solution to its property naming
+problem from the W3C the WebDAV WG decided to add a new section to 23.4
+(23.4.2) which would talk about how to solve the property naming problem.
+The simplest solution was "all of the above." That is, just glue the
+namespace and the element name together. If you wanted to use "?" then
+simply structure your namespace with a "?" in it, the same logic applied to
+"#" and "/". By using the glue rule WebDAV was able to support all possible
+namespace structure rules. 
+
+Unfortunately the application WG of the IETF got completely slammed and
+WebDAV was delayed for six months due to purely administrative reasons.
+However the W3C was able to finally get the namespace spec finalized. As
+promised, it didn't contain any changes. Unfortunately Tim Berners-Lee
+decided he didn't like the syntax and ordered it completely re-written. The
+WebDAV WG, thoroughly sick and tired of dealing with the W3C (remind me to
+write out the story of XML, from the WebDAV perspective, some time...) was
+ready to just say "to hell with it" and ship with our syntax. However cooler
+heads prevailed when TBL got his new syntax to recommendation status in
+record time (it's good to be the king). So at the very end, WebDAV changed
+over to the new syntax and pulled out our copy of namespaces and just
+referenced the W3C spec. However this still left section 23.4.2.
+Unfortunately the W3C namespace spec still failed to address the issue of
+how to combine the names so WebDAV decided to keep the section.
+</Some History>
+
+<So, is this an interoperability issue?>
+In practice absolutely nobody seems to actually pay attention to 23.4.2.
+This means that eventually 23.4.2 will have to be removed when WebDAV moves
+on to draft status. However it is important to understand that 23.4.2 does
+introduce an interoperability issue when used in conjunction with systems
+that don't support 23.4.2.
+
+For example, A client makes a PROPFIND request and gets back the following
+property:
+
+<D:prop xmlns:R="z3950:majorschema-originalform-">
+<R:author>
+Alex Hopmann
+</R:author>
+</D:prop>
+               
+The client records the property in the local property table:
+
+Property Name                                       | Value              |
+------------------------------------------------------------------------ |
+z3950:majorschema-originalform-author               | Alex Hopmann       |
+
+The client then goes off-line and comes back on-line. The client tries to
+resynchronize their cache and so makes a PROPFIND request to retrieve the
+property value:
+
+<D:prop xmlns:R="z3950:">
+<R:majorschema-originalform-author/>
+</D:prop>
+
+RFC 2518 section 23.4.2 specifies that both of these PROPFIND data
+structures refer to the same property,
+z3950:majorschema-originalform-author. To quote from RFC 2518 section
+23.4.2:
+
+WebDAV compliant XML processors MUST interpret a qualified name as a
+URI constructed by appending the LocalPart to the namespace name
+URI.
+   
+However let's imagine (as is the common case) that the WebDAV server does
+not support 23.4.2. In the server's mind it sees the PROPFIND request as
+containing a request for Namespace = z3950, Name =
+majorschema-originalform-author. Since this obviously doesn't match
+Namespace=z3950:majorschema-originalform-, Name=author, the server will not
+return the client the property the client was looking for.
+
+The same scenario can be played out in different forms. One client does a
+PROPPATCH using the namespace z3950: and the element name
+majorschema-originalform-author and another client does a PROPFIND using the
+namespace z3950:majorschema- and the element name originalform-author. Using
+a WebDAV server that doesn't support 23.4.2 and the client and server will
+never be able to talk to each other since the server will treat the requests
+as pointing to two unrelated properties.
+
+The problem gets worse and worse as you start to try to push data between
+different systems and the namespaces and element names get mangled beyond
+all hope as you move from 23.4.2 compliant to 23.4.2 non-compliant clients
+and servers. 
+
+Therefore the only solution is for everyone to ignore 23.4.2 and pray really
+hard that you never come up against a client or server that actually
+supports it.
+<So, is this an interoperability issue?>
+
+
+

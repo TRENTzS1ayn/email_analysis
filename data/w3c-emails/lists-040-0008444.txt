@@ -1,0 +1,115 @@
+docno="lists-040-0008444"
+received="Thu Jan 27 21:27:31 2000"
+isoreceived="20000128022731"
+sent="Thu, 27 Jan 2000 18:27:35 -0800 (PST)"
+isosent="20000128022735"
+name="Greg Stein"
+email="gstein@lyra.org"
+subject="RE: WebDAV Bindings - Issue Yaron.AtomicDelete"
+id="Pine.LNX.4.10.10001271804210.9267-100000@nebula.lyra.org"
+charset="US-ASCII"
+inreplyto="8E3CFBC709A8D21191A400805F15E0DBD2457D&#64;crte147.wc.eso.mc.xerox.com"
+expires="-1"
+
+To:"Slein, Judith A"<JSlein@crt.xerox.com>
+cc:w3c-dist-auth@w3.org
+
+
+On Thu, 27 Jan 2000, Slein, Judith A wrote:
+> I think maybe we haven't made it clear what we are trying to accomplish by
+> saying that DELETE must be atomic.  And maybe expressing it that way is
+> confusing.  Here are the results we want (I think):
+
+In the sense that "atomic delete" meant "integrity is retained during the
+delete", then mod_dav has a problem.
+
+It appears that you are removing the word "atomic" and replacing it with
+more specific language on what "delete" means. This seems fine...
+
+> 1. DELETE removes a single binding.  It does not remove all the bindings to
+> a resource, only the one identified by the Request-URI.  If it happens to be
+> the last binding, then what happens about garbage collection of either
+> content or properties is outside the scope of the spec.  DELETE is just
+> about removing the binding.
+
+Not a problem *if* the server does not support bindings. As long as it is
+understood there can be a race condition during the processing of the
+DELETE operation.
+
+> 2. In the case where the binding is to a collection, DELETE still means only
+> remove the binding to that collection.
+
+Again, not a problem.
+
+> It is not acceptable to walk the
+> tree deleting bindings to descendents of that collection.  This would have
+> disastrous consequences in an environment with multiple bindings to
+> resources.
+
+And this is the problem for both of the cases above. When bindings are
+present, we've got problems. In a standard Unix file system, I can
+implement bindings in one of three ways:
+
+1) symbolic (soft) links
+2) hard links
+3) binding database plus custom URL translation
+
+Note that hard links cannot operate across a "devices" and cannot be used
+on directories (collections). These two restrictions pretty well obviate
+(2), so we are left with (1) and (3). 
+
+With symbolic links, there is no way to know if another resource is
+referring to my "real" resource. If somebody deletes a resource and it is
+just a symlink -- no problem. If the resource is an actual file or
+directory, then how do I know if another resource is using it? For
+scenario (1), I would have to retain a database of backpointers. If a
+backpointer exists, then what do I do with the "real" resource? I must
+then decide to move/rename the thing (or something).
+
+(3) is simply a pain in the butt. It is essentially implementing a symlink
+in the web server. It essentially records the backpointers mentioned in
+the previous paragraph, but still doesn't solve the "what happens when the
+'real' resource is deleted?"
+
+A final option is to make *all* resources symlinks and put the actual
+content somewhere else. This would require a database of reference-counts,
+however. Maybe mixing with (3) to do the symlinking and refcounts might
+work.
+
+>...
+> Does either of these restrictions cause problems for mod_dav?
+
+Only in the presence of bindings. There would be a LOT of work to
+correctly handle bindings and deletes.
+
+To make it more easily implementable, I would need one of two items:
+
+1) binding between collections is not allowed (this would allow hard
+   links; I could live with the device restriction)
+
+2) it is allowable to leave dangling references (a symlink to a "real"
+   resource that has been deleted)
+
+
+Neither of these are very appealing. As it stands, it appears that the
+binding specification *requires* a database that maps URLs to resources
+(outside of a standard web server's URL translation system).
+
+If a database was required, then I simply wouldn't implement bindings all
+that soon. But it *would* be possible.
+
+[ I'm not suggesting that we punt/restrict features such as binding simply
+  because particular filesystems cannot support the feature in question;
+  I'm just saying that it will take longer to code... ]
+
+The impossible part is guaranteeing that no race conditions exist during
+the processing of the DELETE.
+
+Cheers,
+-g
+
+-- 
+Greg Stein, http://www.lyra.org/
+
+
+

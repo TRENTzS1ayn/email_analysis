@@ -1,0 +1,237 @@
+docno="lists-006-4083072"
+received="Tue Jun 26 13:11:58 2001"
+isoreceived="20010626171158"
+sent="Tue, 26 Jun 2001 13:18:22 -0400"
+isosent="20010626171822"
+name="Clemm, Geoff"
+email="gclemm@rational.com"
+subject="RE: Versioning collections question"
+id="3906C56A7BD1F54593344C05BD1374B1018E24E6@SUS-MA1IT01"
+inreplyto="Versioning collections question"
+expires="-1"
+
+
+To: DeltaV<ietf-dav-versioning@w3.org>
+
+I agree with Tim's responses ... just adding a few details.
+
+   From: Alan Kent [mailto:ajk@mds.rmit.edu.au]
+
+   My understanding is DeltaV supports versioning of all resources,
+   including collections. So if a MOVE is performed to change
+   /foo/a to /foo/b where /foo is a versioned resource, it is
+   possible to check in the new collection resource bound to /foo
+   and have /foo/b present in it instead of /foo/a.
+
+Yes.  As a minor terminology point, we would call /foo a
+version-controlled resource (we have found the term "versioned
+resource" to be often misunderstood).  As a more significant
+terminology point, a collection resource is not bound to
+/foo, but rather a new collection version is created that
+identifies in its DAV:version-controlled-binding-set property
+the current bindings of the version-controlled collection
+at /foo.
+
+   Or put another way, the URI bindings to members of a collection are
+   a part of the parent collection and so are versioned with the member
+   collection.
+
+To be precise, it is better to not describe them as "URI bindings",
+since that is easily confused with a "URI mapping" (i.e. a mapping
+from a URI to a resource).  A binding maps a URI segment (not a URI)
+to a resource.  In particular, a binding in /foo is the pair
+<"b", some_resource>.  Calling them just "bindings" should be fine.
+Also, note that bindings only define the internal members,
+not all the members of a collection.
+ 
+   The member itself (the resource identified by /foo/a)
+   does not need to be versioned at all since it is not changed.
+
+Yes. (When you say "does not need to be versioned", I assume you mean
+"does not need to have a new version created for it".)
+
+   The reason I ask is I am looking at how to relate the DMA concept
+   of 'containers' to WebDAV/DeltaV 'collections'. In DMA, there is a
+   'relationship' object that is created to link a member of a
+   container (that is, a 'containee') to the parent container. The
+   'relationship' objet is therefore like a binding in WebDAV. I think
+   there is however a difference in that in DMA the parent container
+   does not hold the bindings (relationships). The binding objects
+   (changing over to DeltaV terminology) are independent to both the
+   container and member.  The binding object holds the name, a pointer
+   to the parent collection, and a pointer to the member resource.
+
+In WebDAV, you need to be able to map a URL to a particular resource.
+The URL gives you the names of a sequence of nested collections in
+addition to the name of the resource, i.e. /x/y/z identifies 4
+resources: /, /x, /x/y, and /x/y/z.  So when resources are put under
+version control, the "bindings" information needs to be stored in
+these resources (i.e. the binding information needs to be bundled
+in with these resources, since those are the only resources identified
+by the URL).
+
+   The impact of this is that to rename /foo/a to /foo/b does not require
+   the collection /foo to be versioned. Instead, the binding can be
+   versioned instead.
+
+As indicated above, in WebDAV the binding information has to be modeled
+in either the child resource, the parent resource, or both.
+Storing it in both is the worst ... you would have to check out
+both the parent and the child to do a move.  The reason DeltaV
+chose to model the bindings as part of the state of the collection
+is that this allows you to "reuse" a resource (i.e. create a
+binding to it) without changing the state of that resource.
+
+   The parent collection remains unchanged. The resource
+   also remains unchanged. I believe this is not the DeltaV model.
+
+Correct.  WebDAV requires that the binding information be
+modeled either in the child or the parent, since there is no
+way to annotate the URL to identify which of the independent
+"binding" objects are to be used when a URL is being mapped
+to a resource.
+
+   I
+   believe that it is required to version the collection because bindings
+   are a part of the parent collection.
+
+Correct.
+
+   A picture might help. In WebDAV/DeltaV I think bindings are stored in
+   the parent collection object as follows. This means to change a binding
+   means the collection must be versioned.
+
+Or more precisely, in order to change the binding in a version-controlled
+collection to a version-controlled member, the version-controlled
+collection must be checked out.  If either the collection or the member
+is not under version control, no checkout is required.
+
+   In DMA, bindings are stored as separate additional objects. Collections
+   are pretty boring really. They main exist to be pointed at. The pointers
+   are in the binding objects which point at the parent collection and the
+   member.
+
+   The nice thing about the DMA approach is that /foo/a can be moved to
+   /bar/baz/other/a with the versioning of only one binding object.
+
+So with a URL like /foo/a, how do you know which of the many possible
+bindings named "a" between /foo and some other resource are to be used?
+Unfortunately, the "independent binding" model breaks down in the
+presence of versioning.
+
+   The DeltaV approach in my understanding would require the /foo
+   collection and the /bar/baz/other collection both having new versions
+   created.
+
+But note that /foo would have to be checked out only if both /foo and
+/foo/a are under version control.  /bar/baz/other would have to be
+checked out only if /foo/a and /bar/baz/other are under version
+control.  (I used "checked out" instead of "versioned", because the
+protocol doesn't require you to "version" things to change them, only
+that you "check them out").
+
+   My question is have I understood things correctly above in terms of
+   DeltaV? Since bindings are not resources in DeltaV I could see no
+   way to associate things like version numbers to them.
+
+That is correct.  We could have made bindings independent resources,
+but that would have required allocating a URL space for them, and
+defining their functionality under MOVE's and DELETE's of the parents
+and children they refer to.  And we would have had to bundle them
+into either the parent or child anyway, so the benefit of modeling
+them as separate resources was felt to be outweighed by the
+resulting complexity.
+
+   ps: Another model we had played around with was to represent the
+   entire directory tree as effectively a single 'configuration
+   resource'. We could represent this as a single XML document. Then
+   for every change to the directory structure, we would create a
+   complete new version of the XML document. There were problems with
+   this in terms of merging different people's changes, but it saved
+   creating lots of little persistent objects all over the place.
+
+That is certainly a reasonable approach, and is why the "baseline"
+feature is defined independently of the "version-controlled collection"
+feature.
+
+   From: Alan Kent [mailto:ajk@mds.rmit.edu.au]
+
+   An interesting follow on is that to check out a collection, I always
+   get out all the members. I cannot get partial subtrees.
+
+I'm not sure what you mean by "get out" here.  A collection has
+members.  When that collection is under version control, you have to
+check the collection out in order to change the membership of that
+collection.  The membership of the collection is not changed by
+checking it out (or checking it in), it is changed by MOVE, COPY,
+UPDATE, etc.
+
+   ("I want to check out /foo and /foo/a/..., but not /foo/b" is not
+   possible since the container /foo will contain the "b" binding
+   so "b" will be visible).
+
+Visibility is independent of whether or not something is checked out.
+When you check out /foo and /foo/a, then those two resources are
+checked out, and no others.
+
+   I guess "b" does not have to be in the
+   "checked-out" mode or something - ie, read only (??).
+   I don't know if this is important.
+
+Yes, it is important (it tells you what is currently checked out
+and therefore what is modifiable.
+
+   Hmmm, another question. What do bindings identify? A particular version
+   of a collection? The latest version of a collection?
+
+No, the bindings of a version-controlled collection are
+to other version-controlled (and non-version-controlled) resources.
+The version of a collection member is identified by the URL in the
+DAV:checked-in or DAV:checked-out property of that member.
+
+Note that a collection version is not itself a collection, but rather 
+captures the bindings to version-controlled members in its
+DAV:version-controlled-binding-set property.
+
+So the protocol defines no collection whose bindings identify
+particular versions.
+
+   If I check in
+   a new version of a collection, does the parent collection need to be
+   modified to point to the new version?
+
+No, the version-controlled collection keeps track of what was
+the last version checked in (in its DAV:checked-in property).
+The parent collection is not affected by changing the DAV:checked-in
+property of its members.
+
+   Does checking in the parent
+   collection in turn require the check in of its parent, all the way
+   up to the root of the configuration? Does this mean adding a new
+   file to a configuration always results in a versioning riple from
+   that resource's parent collection up to the root collection?
+
+No, because each version-controlled resource keeps track of its
+current version (i.e. a collection does not track what versions
+its members select).
+
+   Ok, I think this means I don't understand how collection versioning
+   works because I don't know how a binding in a collection identifies
+   the member. Does it identify a version history, a particular version,
+   or what? 
+
+Neither.  A binding in a version-controlled collection is to
+another version-controlled resource, or to a non-version-controlled
+resource, but not to a version history or to a particular version.
+
+   What semantic information does a version of a collection hold?
+
+Look at section 14.2.  It has a DAV:version-controlled-binding-set
+property, identifying the names and version histories of the resources
+at the time the collection version was created.
+
+Cheers,
+Geoff
+
+
+

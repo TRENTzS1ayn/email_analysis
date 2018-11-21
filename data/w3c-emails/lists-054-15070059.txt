@@ -1,0 +1,222 @@
+docno="lists-054-15070059"
+received="Fri Sep 13 17:35:22 1996"
+isoreceived="19960913213522"
+sent="Fri, 13 Sep 96 14:51:31 CDT"
+isosent="19960913195131"
+name="Michael Sperberg-McQueen"
+email="U35395@UICVM.CC.UIC.EDU"
+subject="marked sections"
+id="199609132135.RAA27062@www10.w3.org"
+expires="-1"
+
+
+To: W3C SGML Working Group<w3c-sgml-wg@w3.org>
+
+I'm trying to get a grasp of the group's sentiment on marked sections,
+and am not sure what all the options and positions are.  This morning,
+Charles Goldfarb suggested that there are really two cases:
+
+  a) conditional marked sections are needed in DTDs, for version
+control and tweaking
+  b) (R)CDATA marked sections are needed in instances, for non-SGML
+notations (and, for that matter, for SGML notation -- CDATA
+marked sections are the simplest way I know to do SGML examples
+in documentation of a DTD
+
+But there appears to be another position:
+
+  c) some argue that marked sections just complicate life too much
+for the parser, and can *always* be done away with, possibly by
+improving the tools we use
+
+Have I left out any major positions?
+
+It seems to me we are close to consensus on some things, but not all.
+
+   - We seem to agree that instances don't need conditional sections.
+   - There is some sentiment, not unanimous, that instances don't
+     *have* to have CDATA or RCDATA marked sections, either; there
+     are other ways to get the job done.
+   - Some of us think DTDs don't need marked sections at all.
+   - Some of us think DTDs need marked sections at all.
+   - Some of us think XML must provide support for versioning in DTDs,
+     through marked sections or by some other means.
+
+More detailed discussion follows.
+
+
+A.  Conditional Sections and DTD Customization
+
+I think everyone agrees that conditional sections don't do much for
+us in instances -- if you have multiple versions, quite often you want
+to switch back and forth, as Eve Maler and others have described,
+which needs version-control elements or effectivity attributes,
+not marked sections.
+
+In DTDs, however, conditional inclusion is a major building block
+allowing for customization and version control.  In HTML 2.0, it's
+used to allow a choice between lax and strict content models; in
+the TEI, it's used to allow the users to choose, at parse time, which
+of the many possible views of the TEI main DTD should be applied.
+I'm sure any reader of this list can supply further examples.
+
+By means of marked sections and parameter entities, it's possible
+to provide multiple views (multiple effective DTDs) from a single
+set of DTD source files, using technology that every SGML user is
+guaranteed to have available (i.e. an SGML parser).  Without marked
+sections controlled by parameter entities, it would be necessary to
+write a DTD pre-processor as a stand-alone process, which accepts
+a view specification and provides a parseable form of the effective
+DTD.  That might allow more subtle control of the process, but it
+would also
+
+   - require users of complex DTDs to install special-purpose DTD
+preprocessors
+   - require DTD subsets / views to be pre-generated before
+parse time
+   - complicate maintenance and update immensely
+
+It seems to me that XML needs to offer some support for this kind of
+parse-time selection, because restricting XML to the world of monolithic
+DTDs just shuts too many people out.  Conditional sections do complicate
+the lexical scanner a bit, but it *is* doable.  (I.e. I managed to
+figure it out, our mythical CS grad ought to be able to figure it
+out much more easily.)
+
+
+B.  (R)CDATA Marked Sections
+
+It seems essential that we have ways of representing delimiter
+strings in XML without having them parsed as delimiters.  Off the top
+of my head, I can think of several ways to do this in SGML, for a
+paragraph like this one:
+
+  The <q> tag marks a quotation:
+
+      <q lang='fra'>L'&eacute;tat, c'est moi!</q>
+
+  The e with an acute accent ( ) is coded &eacute;.
+
+1 In the TEI, we tag generic identifiers, and would tag entity names if
+we were more consistent, and we use CDATA marked sections for examples:
+
+  The <gi>q</gi> tag marks a quotation:
+  <eg><![ CDATA [
+     <q lang='fra'>L'&eacute;tat, c'est moi!</q>
+  ]]></eg>
+  The e with an acute accent (&eacute;) is coded <ent>eacute</ent>.
+
+2 Entity references:
+
+  The &lt;q> tag marks a quotation:
+  <eg>
+     &lt;q lang='fra'>L'&amp;eacute;tat, c'est moi!&lt;q>
+  </eg>
+  The e with an acute accent (&eacute;) is coded &amp;eacute;.
+
+3 Empty comments:
+
+  The <<!>q> tag marks a quotation:
+  <eg>
+     <<!>q lang='fra'>L'&<!>eacute;tat, c'est moi!<<!>q>
+  </eg>
+  The e with an acute accent (&eacute;) is coded &<!>eacute;.
+
+This technique can also be used, substituting processing instructions
+or a &nil; entity (defined as '') or -- gulp -- marked sections:
+<<!>p> = <<?>p> = <&nil;p> = <<![[]]>p>.
+
+4 CDATA or RCDATA elements:  if EG is an RCDATA element, then
+the start-tag for Q can be given literally, the entity references
+still need to be escaped, and the end-tag for Q needs to be escaped.
+If EG is a CDATA element, I am not sure it's possible to give this
+example in this form -- which is why I gave up on CDATA elements in
+favor of CDATA marked sections.
+
+5 External CDATA, SDATA, or NDATA entities (I assume CDATA is the
+correct choice here, but I am always a bit unsure)
+
+  <!NOTATION ASCII PUBLIC
+    'ISO 646:1991//NOTATION Internation Reference Version//EN' >
+  <!-- ISO 646 is Ascii at last!  Hurrah. -->
+
+  <!ENTITY etat SYSTEM 'etat.eg' CDATA ASCII >
+   ...
+
+  The <gi>q</gi> tag marks a quotation:
+  <eg>
+     &etat;
+  </eg>
+  The e with an acute accent (&eacute;) is coded <ent>eacute</ent>.
+
+6 Shortrefs:  define shortrefs of \< and \& for lt and amp.  I've
+seen this suggested; has anyone seen it used?
+
+Are there other techniques people have seen?
+
+I began this note intending to argue for CDATA marked sections as
+harmless, useful, and not all that hard to parse (backsliding already
+from the ascetic position James Clark talked me into yesterday).  Having
+reviewed these options, though, I think I have to admit that (R)CDATA
+marked sections really are *not* absolutely essential, and thus should
+(by James Clark's proposed rule) be omitted from XML.
+
+By another test (would I go to the effort to write a pre-processor for
+this feature?), they might belong in XML -- some will insist on editing
+using CDATA sections, and export to XML the way people currently export
+to HTML.  If XML has CDATA marked sections, we might be able to publish
+on the Web *without* an extra export-to-dumb-markup-language step.
+But perhaps James is right:  I just need better tools.  An editor macro
+to escape the currently selected region, or to de-escape it while I edit
+an SGML example, would probably do the trick.
+
+If, in cases of doubt, the rule is to omit the construct, than I
+seem to have talked myself into saying:  Junk CDATA marked sections.
+
+
+C.  Possible Approaches
+
+What are our options for XML?
+
+We could keep marked sections on the grounds that they are useful and
+not too hard to parse.  We could simplify the parsing a bit, e.g. by
+insisting that CDATA and RCDATA be literals, not entity references,
+-- or do people switch between CDATA and IGNORE?!
+
+If we want to lose marked sections, we need to say how to get the
+required function.  For CDATA sections, I think either of techniques
+2 or 3 above would work, though I suspect someone will want to drop
+the empty comment from the language, leaving us with technique 2 (sigh).
+For conditional sections, it's harder:
+
+  - we can revise the declaration rules to provide for customization
+by other means.  For example "Multiple element declarations are legal;
+the first one wins" etc.
+  - we can reinvent the C preprocessor, and say that conditional
+sections (and perhaps selective expansion of entity references)
+is handled by a simple pre-processor.  Dividing up the functionality
+this way helps keep it manageable; it also allows us to imagine a
+situation in which the server (normally a Big machine) does the
+preprocessing, to keep parsing simple for the client (often a Little
+machine).  If our motive for keeping XML as light-weight as possible
+is to ensure that we can write light-weight processors for low-end
+machines, then this would allow us to have an XML Extra-Lite for those
+of us with 8086s still on our desks.  The pre-processor can be
+pretty light-weight, too, if we make it easy to detect the relevant
+parameter-entity declarations and ensure that the DTD can otherwise
+be skipped.
+
+Drawback:  separating some function into a pre-processor could be
+the thin end of a wedge leading to an XML with optional features,
+which would lead to interoperability problems.  We do *not* want
+optional features:  any XML processor handling any XML document is
+a much more attractive model.
+
+
+-C. M. Sperberg-McQueen
+ ACH / ACL / ALLC Text Encoding Initiative
+ University of Illinois at Chicago
+ tei@uic.edu
+
+
+

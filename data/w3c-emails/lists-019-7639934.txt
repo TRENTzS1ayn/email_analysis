@@ -1,0 +1,119 @@
+docno="lists-019-7639934"
+received="Wed Oct 15 12:53:18 2003"
+isoreceived="20031015165318"
+sent="Wed, 15 Oct 2003 09:53:15 -0700"
+isosent="20031015165315"
+name="Michael Rys"
+email="mrys@microsoft.com"
+subject="RE: XQuery"
+id="EB0A327048144442AFB15FCE18DC96C701022342@RED-MSG-31.redmond.corp.microsoft.com"
+charset="us-ascii"
+inreplyto="XQuery"
+expires="-1"
+
+
+To:"Guido Moerkotte"<moerkotte@informatik.uni-mannheim.de>,"Kay, Michael"<Michael.Kay@softwareag.com>,<public-qt-comments@w3.org>
+Cc:<moer@pi3.informatik.uni-mannheim.de>
+
+
+Dear Guido
+
+First thanks a lot for sending your comments.
+
+> Hello,
+> 
+> I'm quite impressed by your response time.
+> I also tend to agree on most of your arguments at the level of
+abstraction
+> of the discussion.
+
+[Michael Rys] I agree, Mike is amazing in formulating very precise
+responses in a short amount of time...
+
+> Nevertheless, I'd like to pick out a tiny point.
+> 
+> consider the following document (p.xml)
+> <?xml version = "1.0"?>
+> <persons>
+>  <person name="anton" age="two and a half"/>
+>  <person name="anna"  age = "3"/>
+> </persons>
+> 
+> Your argument for not needing null values is that if information is
+absent
+> you can represent this as a the empty sequence. well that's true.
+> Your next argument is that you don't need null values since if there
+is a
+> bug in the query or the data is not correct, the query processor
+should 
+> signal an exception. I Agree.
+> 
+> The remaining question is when is data correct or incorrect.
+> If there is a schema (XSchema,DTD) against which it is to be
+validated,
+> then I would tend to define data as correct if and only if it
+validates
+> correctly.
+> If there is no schema, data is correct if it is well-formed.
+> 
+> The above document is well-formed and (if you agree) correct data.
+> 
+> I don't see anything wrong with the following query:
+> 
+> for $p in document("p.xml")//person
+> where $p/@age = 3
+> return $p/@name
+> 
+> Why should it fail?
+
+[Michael Rys] With the current rules you would compare values of type
+xdt:untypedAtomic with the integer 3 which will cast the values to
+integer in order to get the comparison. This means that the string "two
+and a half" will fail the cast. Note to Michael B.: This is not a type
+error but a dynamic cast error.
+
+Now the spec allows implementations to not raise the runtime error since
+you don't have to find the runtime error if your implementation strategy
+finds the result without stumbling across the error.
+
+Making the expression to fail with false would be nice, but the problem
+is that the cast raises the error before we get to the comparison.
+
+Another, related, and in my opinion worse problem, is that the current
+semantics is defined top-down, whereas many efficient evaluation
+strategies work bottom-up and may raise such cast errors on data that
+has been taken from the index that the top-down strategy would have
+filtered out.
+
+For example, let's change the above example to and make the document the
+implicit context item:
+
+<persons>
+  <father name="anton" age="two and a half"/>
+  <mother name="anna"  age = "3"/>
+</persons>
+
+if the query is
+
+for $p in /persons/mother
+where $p/@age = 3
+return $p/@name
+
+it seems clear that this cannot raise an error. However, an
+implementation may chose to use a bottom up plan that first filters all
+age attributes to be equal to 3, then to find the parent nodes that are
+mother elements. In that case, we unfortunately still find the cast
+error. And since we do not know whether the cast error is indeed a
+correct error (as in your example) or not (as in my example) without
+some elaborate error flow and pruning model that no query processor I
+know actually implements, we now get spurious errors (allowed according
+to the W3C spec).
+
+Best regards
+Michael
+
+> Regards
+>  Guido
+
+
+

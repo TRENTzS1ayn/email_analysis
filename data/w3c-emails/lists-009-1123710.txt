@@ -1,0 +1,119 @@
+docno="lists-009-1123710"
+received="Fri Dec 16 11:36:04 1994"
+isoreceived="19941216163604"
+sent="Fri, 16 Dec 94 11:11:28 PST"
+isosent="19941216191128"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: HTTP  why not multiple connections?"
+id="9412161911.AA11285@acetes.pa.dec.com"
+inreplyto="9412161826.AA10950&#64;acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+In my last message, I wrote:
+    Finally, multiple connections do impose real costs at the server.
+    I'll send a separate message showing some preliminary simulation
+    results that underscore this point.
+    
+Here are those *preliminary* results.  Please do not quote/cite them
+outside this mailing list, since I haven't finished checking my
+simulations for errors.
+
+These simulations are driven by logs I made on the 1994 California
+Election server (http://www.election.ca.gov/, or if that doesn't work, try
+http://www.election.digital.com/).  This was actually a group of
+three machines, and in this message I'm only going to talk about what
+happened on one of them.  I'll be running simulations for the entire
+cluster later on.
+
+Our HTTP servers generated an extra set of log entries, with fine-grain
+timestamps and connection durations; this allows me to simulate things
+down to the millisecond.  Note that we ran a vanilla HTTP implementation;
+we were not running any kind of persistent-connection protocol.  And the
+logs obviously don't reflect connections that were attempted and
+refused; I'll have to dig out the tcpdump traces and analyze them before
+I can tell what load was actually presented.
+
+In this trace, over a period of a few days, we did 526788 connections.
+(Most of those were in a 48-hour period, Nov. 8-9).
+
+Anyway, my first simulation assumed "vanilla" HTTP and a limit of
+64 server processes.  At the peak, 27 connections were in progress
+at once.  The peak number of connections in "TIME_WAIT" state was
+2491, and the peak size of the PCB table was 2496 entries.
+
+Then I simulated persistent-connection HTTP, varying several paramters:
+the maximum number of server processes, and the "idle time limit", the
+number of seconds after which the server would close an idle connection.
+The server would also close an idle connection if it ran out of processes,
+using an LRU scheme to choose the victim.
+
+I assumed that all requests from a given client IP address could be
+grouped into one connection.  This is essentially true for workstations,
+PCs, and proxies; it isn't necessarily true for timesharing machines,
+but we probably didn't see many of those.
+
+I assumed that clients never voluntarily closed their connections; in
+real life, they probably would, and this would make my numbers generally
+much better.
+
+For example, with 64 processes and a 60-second timeout, I got this
+result:
+526788 requests
+66253 total connections opened
+726 PCB entries max
+662 TIME_WAIT entries max
+460535 requests "hit" already-open connections
+maximum number of requests on a single connection: 1712
+23133 idle connections were closed due to lack of processes
+no connections were refused due to lack of processes
+43119 idle connections were timed out
+So with these parameters, we get a factor of 4 fewer entries in
+the PCB table, and a factor of ten fewer TCP connections.
+
+With more generous parameters (a limit of 512 processes and a 10-minute
+timeout), I got this result:
+526788 requests
+maximum of 355 processes in use
+24182 total connections opened
+399 PCB entries max
+216 TIME_WAIT entries max
+502606 requests "hit" already-open connections
+maximum number of requests on a single connection: 2754
+no idle connections were closed due to lack of processes
+no connections were refused due to lack of processes
+24180 idle connections were timed out
+
+While with more miserly parameters (32 processes and a 10-second timeout),
+I got:
+526788 requests
+152238 total connections opened
+1081 PCB entries max
+1050 TIME_WAIT entries max
+374550 requests "hit" already-open connections
+maximum number of requests on a single connection: 738
+17885 idle connections were closed due to lack of processes
+no connections were refused due to lack of processes
+134352 idle connections were timed out
+So even without significantly increasing the number of active
+connections required, the persistent-HTTP model avoids most of
+the TCP connections used by current HTTP, and shrinks the required
+PCB table size significantly.
+
+We suspect that the reason why some connections were used to
+satisfy so many requests is because they came from proxy servers.
+
+I also have simulated the number of "near misses": requests from
+clients that would be received just after the server closes the
+connection.  Generally, the shorter the idle-timeout, the more
+of these I saw, and almost all came within the first second or
+so after the close.  So if you set the idle timeout to anything
+reasonable, you should see very few near misses.
+
+-Jeff
+
+
+

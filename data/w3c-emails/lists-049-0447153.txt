@@ -1,0 +1,103 @@
+docno="lists-049-0447153"
+received="Thu Apr 11 10:46:33 2002"
+isoreceived="20020411144633"
+sent="Thu, 11 Apr 2002 16:52:58 +0200"
+isosent="20020411145258"
+name="Jeremy Carroll"
+email="jjc@hplb.hpl.hp.com"
+subject="charmod-uri"
+id="MABBLGKMPIJFCKFGDBEPAEKICAAA.jjc@hplb.hpl.hp.com"
+charset="utf-8"
+expires="-1"
+
+To:<w3c-rdfcore-wg@w3.org>
+Cc:<w3c-i18n-ig@w3.org>
+
+
+I am trying to move RDF Core towards resolving this issue.
+I am copying the I18N IG in the hope that someone will check two of the technical details for me. I highlight these as I go with ***.
+
+As usual, this is an HTML e-mail in UTF-8.
+
+Since test cases worked on charmod-literal, I'll try the same on this one.
+
+
+The first cases show that we do not do % escaping as part of the RDF/XML => RDF graph mapping.
+This is by showing that URIs with unicode characters occur in the n-triples.
+I think this is also a proposed change to n-triple.
+
+RDF/XML - test001
+<rdf:RDF>   <!-- The ?? below is a single character #xE9 in NFC -->   <rdf:Description rdf:about="http://example.org/#Andr%c3%a9">      <eg:owes>2000</eg:owes>   </rdf:Description></rdf:RDF> 
+============
+N-triple
+<http://example.org/#Andr\u00E9> <owes> "2000" . *** #xE9 is the unicode for ???
+
+
+The next test shows that we are not prohibiting the use of % escaped URIs as matching the uriReference production.
+
+
+RDF/XML - test002
+<rdf:RDF>   <!-- The %C3%A9 below corresponds to ?? under the        %escaping algorithm for URIs.     -->   <rdf:Description rdf:about="http://example.org/#Andr%C3%A9">      <eg:owes>2000</eg:owes>   </rdf:Description></rdf:RDF> 
+============
+N-triple
+<http://example.org/#Andr%C3%A9> <owes> "2000" .
+
+*** %C3%A9 is the % escaped UTF-8 encoded version of ?? 
+
+Then by non-entailment tests, we show that as far as the RDF model theory goes that the %escaped URI and the non-%escaped URI are different. (just like the model theory sees http://foo and http://foo as different). 
+Non-entailment test003
+Neither test001 entails test002, nor test002 entails test001.
+i.e. the URIs are different and can in the RDF Model Theory denote different resources
+
+The next case is an error case, in which the URI is not in NFC.
+
+error001
+<rdf:RDF>   <!-- The e?? below is two characters an e followed by           #x301. It should be displayed identically to  ??. -->   <rdf:Description rdf:about="http://example.org/#Andre%cc%81">      <eg:owes>2000</eg:owes>   </rdf:Description></rdf:RDF>
+
+My view is that this is an error mainly because we are not allowing non-NFC strings, and a URI is at some level a string. I think (but I am not sure) that that view is endorsed by charmod. e.g. I think that in the XML
+
+<rdf:Description rdf:about="http://example.org/#Andr%c3%a9">
+
+that the URI is seen by charmod first as a string (an XML attribute value) and then as a URI (matching the uriReference production in RDF/XML). As we have already discussed there seems to be a good consensus around strings being NFC.
+
+I think for this reason that URIs in the RDF graph should be required to be also in NFC. I also think that the I18N issues from an RDF perspective suggest this, because of the risk of confusion and/or fraud, illustrated by this example.
+
+Finally there are no test cases about any of the more advanced issues:
+  a.. bidi (e.g. mixing arabic or hebrew with english or german) 
+  b.. components starting with combining characters 
+  c.. IRIs as such
+my sense is that there is no consensus yet around the more difficult issues to do with IRIs and it is not the place of RDF to be on the bleeding edge here. Really we need to see the IRI internet draft move forward before we can realistically even understand if there are issues to be addressed. The IRI draft appears to be further from consensus than charmod, not least because of incompatibilities between it and movement on internationalized hostnames. charmod has a SHOULD style dependency on IRIs. Given that charmod is not yet at REC I feel that the test cases already covered by this posting adequately address a SHOULD.
+
+I note that there have been recent postings on RDF interest about bidi, and that one of the major users of DAML has increasing interest in  documents in arabic. I believe that not addressing bidi is likely to cause some problems. However, I don't see any choice. As I see it these problems may come up on rdf-interest, and after they do it  will be easier for the next WG to resolve them in RDF2.
+
+We have already clarified that certain URIs are difficult to serialize in RDF/XML. It is conceivable to add to that set those URIs which have components (particular fragement IDs) starting in a combining character, but these are of a different status from the ones we've already listed, and I think the note we agreed about literals actually suffices. We may need to review this if charmod get to rec before us.
+
+Reference.
+The best text on URIs in a normative rec appears to be in XLink,
+http://www.w3.org/TR/xlink/#link-locators
+[[[
+
+The value of the href attribute must be a URI reference as defined in [IETF RFC 2396], or must result in a URI reference after the escaping procedure described below is applied. The procedure is applied when passing the URI reference to a URI resolver.
+
+Some characters are disallowed in URI references, even if they are allowed in XML; the disallowed characters include all non-ASCII characters, plus the excluded characters listed in Section 2.4 of [IETF RFC 2396], except for the number sign (#) and percent sign (%) and the square bracket characters re-allowed in [IETF RFC 2732]. Disallowed characters must be escaped as follows:
+
+  1.. Each disallowed character is converted to UTF-8 [IETF RFC 2279] as one or more bytes.
+
+  2.. Any bytes corresponding to a disallowed character are escaped with the URI escaping mechanism (that is, converted to %HH, where HH is the hexadecimal notation of the byte value).
+
+  3.. The original character is replaced by the resulting character sequence.
+
+Because it is impractical for any application to check that a value is a URI reference, this specification follows the lead of [IETF RFC 2396] in this matter and imposes no such conformance testing requirement on XLink applications.
+
+If the URI reference is relative, its absolute version must be computed by the method of [XML Base] before use.
+
+
+
+]]]
+
+Since we never have to resolve URI refs we could probably get away with a non-normative reference to this section; the last point about xml:base might be worth copying into the syntax spec - we resolve relative refs before we do % escaping, (since we don't do % escaping!)
+
+Jeremy
+
+
+

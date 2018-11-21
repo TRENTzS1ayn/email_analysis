@@ -1,0 +1,108 @@
+docno="lists-038-15355629"
+received="Thu Dec 17 17:44:59 1998"
+isoreceived="19981217224459"
+sent="Thu, 17 Dec 1998 17:49:52 -0500"
+isosent="19981217224952"
+name="Slein, Judith A"
+email="JSlein@crt.xerox.com"
+subject="RE: Versioning, Collections and Sources"
+id="201BB34B3A73D1118C1F00805F1582E8B76D38@x-wb-0128-nt8.wrc.xerox.com"
+charset="iso-8859-1"
+inreplyto="Versioning, Collections and Sources"
+expires="-1"
+
+
+To:"'Yaron Goland'"<yarong@microsoft.com>,"'Greg Stein'"<gstein@lyra.org>,w3c-dist-auth@w3.org
+
+
+> -----Original Message-----
+> From: Yaron Goland [mailto:yarong@microsoft.com]
+> Sent: Wednesday, December 16, 1998 5:13 PM
+> To: 'Greg Stein'; w3c-dist-auth@w3.org
+> Subject: Versioning, Collections and Sources
+> 
+
+> The collection folks may want to consider a
+> source like model where you have paired resources. The "redirection"
+> resource and its "control". The "redirection" resource will 
+> respond to one
+> magic method which returns a header which specifies the 
+> "control" resource.
+> The "control" resource is then the one that arbitrary methods 
+> can be applied
+> to.   This solution is VERY far from optimal since servers will have
+problems
+> managing the parallel namespaces and dealing with potential name
+conflicts.
+
+Let's see if I'm understanding your suggestion: Every reference has 2 URIs,
+one of which can be used to operate on the target and one of which can be
+used to operate on the reference.  If you do a PROPFIND on a collection, you
+get the URI that operates on the target.  If you want to operate on the
+reference, you send some new method, say GETREFURI, which returns the URI
+that operates on the reference.  Then you send your request to that URI.
+(Both of these URIs are different from the value of DAV:reftarget, which is
+a URI that locates the target resource via a collection where it is an
+internal member.)
+
+I have no strong objection to this implementation.  Compared to the
+No-Passthrough header, it results in one additional round trip for the case
+where you want to operate on the reference, but this case is probably by far
+less common than operating on the target.  I don't really see that it's such
+a big deal for the server to provide a second identifier for the reference.
+It would be selected by the server, so it's not as if the client provides a
+name that might collide with some other name.  If others share your concern
+about coming too close to URL-munging with the No-Passthrough header, we
+could certainly make this change.
+
+So if you want to get the content of the target of a *direct* reference,
+here's the sequence of messages:
+
+1. PROPFIND /collection1/
+2. Response includes /collection1/reference1, showing properties of the
+target
+3. GET /collection1/reference1
+4. Response is the content of the target resource
+
+But if you want to update the properties of the *direct* reference itself,
+you do:
+
+1. PROPFIND /collection1/
+2. Response includes /collection1/reference1, showing properties of the
+target
+3. GETREFURI /collection1/reference1
+4. Response includes the URI for operating on the reference: /collection1/r1
+5. PROPPATCH /collection1/r1
+6. OK, properties of reference were updated
+
+If you want to get the content of the target of a *redirect* reference, you
+do:
+
+1. PROPFIND /collection1/
+2. response includes an entry for /collection1/reference1, with a 302
+response code and a location element that contains DAV:reftarget
+3. GET on DAV:reftarget
+4. Response is the content of the target resource
+
+But if you want to update the properties of the *redirect* reference itself,
+you do:
+
+1. PROPFIND /collection1/
+2. Response includes an entry for /collection1/reference1, with a 302
+response code and a location element that contains DAV:reftarget
+3. GETREFURI /collection1/reference1
+4. Response includes the URI for operating on the reference: /collection1/r1
+5. PROPPATCH /collection1/r1
+6. OK, properties of reference were updated
+
+--Judy
+
+Judith A. Slein
+Xerox Corporation
+jslein@crt.xerox.com
+(716)422-5169
+800 Phillips Road 105/50C
+Webster, NY 14580
+
+
+

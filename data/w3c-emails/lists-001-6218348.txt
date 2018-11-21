@@ -1,0 +1,113 @@
+docno="lists-001-6218348"
+received="Wed Jun 20 20:52:28 2001"
+isoreceived="20010621005228"
+sent="Thu, 21 Jun 2001 02:53:24 +0200"
+isosent="20010621005324"
+name="Bjoern Hoehrmann"
+email="derhoermi@gmx.net"
+subject="Re: Html-Tidy BUG ???"
+id="8gg2jtop4drm7208m4objnoh4mcf851deg@4ax.com"
+charset="ISO-8859-1"
+inreplyto="B5C79DDBC655D311B6BD0008C7E64D76013C161A&#64;exchange.arrakisplanet.com"
+expires="-1"
+
+To:"Reitzel, Charlie"<CReitzel@arrakisplanet.com>
+Cc:"'Gary L Peskin'"<garyp@firstech.com>,html-tidy@w3.org
+
+
+* Reitzel, Charlie wrote:
+>DOM compatibility is an issue for the C version of Tidy as well.
+
+In my first HTML::Parser::Tidy hack, I had something like
+
+void _process_tree(CHANDLER* hdl, Lexer *lexer, Node *node) {
+Node *content;
+
+if (node == null)
+return;
+
+if (node->type == TextNode)
+_fire_characters_e(hdl->handlers[E_CHARACTERS], lexer,
+                    node);
+
+else if (node->type == RootNode) {
+for (content = node->content;
+content != null;
+content = content->next)
+_process_tree(hdl, lexer, content);
+}
+
+else if (node->type == StartTag) {
+_fire_start_element_e(hdl->handlers[E_START_ELEMENT],
+                    node);
+
+for (content = node->content;
+content != null;
+content = content->next)
+_process_tree(hdl, lexer, content);
+
+_fire_end_element_e(hdl->handlers[E_END_ELEMENT], node);
+}
+else {
+printf("uups, type: %d\n", node->type);
+}
+}
+
+This traverses the given Tidy Node* and fires the appropriate SAX events
+to the given Perl SAX handler e.g. to rebuild a DOM structure with
+XML::Handler::BuildDOM or XML::XPath::Builder, see the
+XML::Parser::PerlSAX for more informations.
+
+Something that drove me nuts was this:
+
+void _fire_characters_e(SV* handler, Lexer *lexer, Node *node) {
+HV* hash;
+STRLEN len = 0;
+uint i, count, bytes, c = 0, pos = 0;
+char *p;
+
+New(42, p, (node->end - node->start + 6), char);
+
+for (i = node->start; i < node->end;)
+{
+bytes = 1;
+
+c = (unsigned char)lexer->lexbuf[i];
+
+if (c > 0x7F) {
+bytes += GetUTF8((unsigned char *)lexer->lexbuf
+                                   + i, &c);
+}
+
+for (count = 0; count < bytes; count++) {
+p[pos+count] = lexer->lexbuf[i+count];
+}
+
+i += bytes;
+pos += bytes;
+}
+p[pos] = '\0';
+
+hash = newHV();
+hv_store(hash, "Data", 4, newSVpv(p, len), 0);
+
+_fire_event(handler, hash);
+
+Safefree(p);
+}
+
+Since node->end isn't the real end but the start of the last UTF-8
+sequence...
+
+Anyway, as you can see, adding SAX support is quite easy. I don't think
+it's a good idea (since it would mean a lot of work with small use) to
+add DOM support to Tidy. If someone is likely to do so anyway, we could
+have another dom.c that provides this functionality. Nearly all
+information required for DOM Level 1 support is stored in the Node*.
+-- 
+Bj?rn H?hrmann { mailto:bjoern@hoehrmann.de } http://www.bjoernsworld.de
+am Badedeich 7 } Telefon: +49(0)4667/981028 { http://bjoern.hoehrmann.de
+25899 Dageb?ll { PGP Pub. KeyID: 0xA4357E78 } http://www.learn.to/quote/
+
+
+

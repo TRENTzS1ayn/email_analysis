@@ -1,0 +1,171 @@
+docno="lists-012-16304064"
+received="Fri Feb 16 06:41:07 2001"
+isoreceived="20010216114107"
+sent="Thu, 15 Feb 2001 22:39:42 0800 (PST)"
+isosent="20010216063942"
+name="Koen Holtman"
+email="koen@hep.caltech.edu"
+subject="Comments on `Common User Agent Problems' document"
+id="Pine.A41.4.10.10102152237480.33242100000@hep505.cithep.caltech.edu"
+charset="USASCII"
+expires="1"
+
+To:www-talk@w3.org
+cc: Koen Holtman<koen@hep.caltech.edu>,http-wg@cuckoo.hpl.hp.com
+
+
+
+First off, thanks to the authors and the W3C for writing documents
+like this!
+
+I have some comments on the current version of
+http://www.w3.org/TR/2001/NOTE-cuap-20010206 , mainly about the HTTP and  
+negotiation parts.  Quoted text below is from this current version of the 
+note.
+
+
+>1.11 Allow the user to bookmark negotiated resources.
+
+This text makes content negotiation in HTTP sound straightforward,
+which it is not.  Some more info for browser implementers who want to
+support this would be nice.
+
+The text fails to mention that bookmarking a particular version of a
+negotiated resource is not always possible under HTTP semantics, because     
+a) the particular version may not have its own URI and b) even if it does,
+HTTP does not guarantee that the user agent will be informed of this.
+
+HTTP/1.1 defines the Content-Location header field as the way for the
+server to indicate the URI of the variant, and some servers do supply
+this Content-Location when negotiation took place most of the time.
+However, Content-Location is also used for some other things, and its
+inclusion in a response does not necessarily mean that content
+negotiation took place.  Under plain HTTP/1.x the user agent will have
+to use heuristics to guess if negotiation took place.  RFC 2295
+defines the `TCN' and `Alternates' header fields, the inclusion of
+these in a response is a sure sign that content negotiation did take
+place.
+
+RFC 2295 also specifies (section 11.2) that if a browser knows both
+the generic URI and the variant URI, the defaults for showing the URI
+and bookmarking the URI should be that the generic, not the variant,
+URI is used.
+
+
+>1.12 Allow the user to choose among supported transfer encodings. 
+
+I think that what you _want_ to say here is that user agents should
+try to support as many time-saving transfer encoding mechanisms
+(compression, delta-encoding) as possible, and send out TE headers
+announcing their support.
+
+User control over this is unnecessary.  The HTTP/1.1 transfer encoding
+negotiation mechanism was designed to avoid the need for the end user
+to get involved.  Using the HTTP protocol, the server, proxy, and
+client implementations among themselves will be able to choose and use
+the most efficient transfer encoding.  Some power users might have
+enough knowledge to fine-tune this process beyond what can be done
+automatically, if their browsers provide an interface for this, but
+that would be a very small group of users indeed.
+
+
+>1.13 Use the user interface language as the default value for language
+      negotiation. 
+
+>In case the user does not specify any language, the user agent may use
+>the language of its user interface as the value sent out.
+
+This is wrong: a user agent should never automatically configure
+itself to send out a single language value without asking for user
+approval, because in HTTP semantics sending a single language value
+only may very easily block convenient access to content in all other
+languages.
+
+Case in point: On the Apache mailing list someone recently reported
+seeing problems due to user agents being preconfigured to send out
+
+ Accept-language: xy
+
+(for some language xy).  In requests for a page with many language
+variants, but not including xy, this (currently) causes Apache to drop
+into a `pick a language' 406 error response.  This is the best option
+under HTTP semantics but it confuses the user, who is not aware that
+the user agent is preconfigured to send out this very restricted
+accept-language, who will therefore not have a clue on how to correct
+this, and was just expecting to see the English variant if xy were not
+available.
+
+So, I propose that the document be changed to read:
+
+In case the user does not specify any language, the user agent may
+specify the language of its user interface as the preferred language,
+while allowing other languages with a lower preference, for example by
+sending
+
+ Accept-Language: dk, *;q=0.5
+
+
+>3.4 Do not treat HTTP temporary redirects as permanent redirects. 
+
+>The user should be able to bookmark, copy, or link to the original
+>(persistent) URI or the result of a temporary redirect.
+>
+>Wrong: User agents usually show the user (in the user interface) the
+>URI that is the result of a temporary (302 or 307) redirect, as they
+>would do for a permanent (301) redirect.
+
+I do not like this advice to depart from current practice in showing
+the target URI of a 302 redirect.  Changing current practice creates
+usability problems for existing web content.  Here is why: server-side
+image maps, the maps with HTML like this:
+
+ <A HREF="http://x.com/cgi-bin/imagemap/worldmap">
+ <IMG SRC="worldmap.gif" ISMAP></A>
+
+generate URLs like
+http://your.server.name/cgi-bin/imagemap/worldmap?444,33 when clicked
+(if I recall the syntax correctly).  With an image map the server side
+there is a CGI script (or other component) that takes the coordinates
+and translates them to the correct URL (say http://x.com/canada/)
+corresponding to the part of the image clicked.  In all
+implementations I have ever seen, the script uses a *302 code*
+redirect (usually created through the Location: mechanism in the CGI
+interface) to direct the user agent to http://x.com/canada/!!!
+Following your proposal would mean that the ?444,33 URL, not the
+Canada URL, is shown and bookmarked, whereas the Canada URL is both
+more informative and generally more permanent!
+
+So at least I would like the document to make an exception to the
+above rule for 302 redirection where imagemaps are the source.  But
+actually I'd rather see the whole rule dropped and current common
+behavior declared correct.  Based on experience with clarifying and
+evolving the redirection codes in the http-wg, I take the view that a
+departure from existing practice should only be done by adding fresh
+codes, not by `fixing' the semantics of existing ones.
+
+
+>3.6 List only supported media types in an HTTP Accept header. 
+
+See also my comments to 1.13.  There is a similar problem here: in
+non-inline image requests the user agent should generally *not* block
+the receipt of unsupported types by specifying an overly restrictive
+Accept header.
+
+According to HTTP semantics, if the user agent is willing to process
+any type (e.g. by saving it, see your point 1.3) then the Accept
+header should either be omitted entirely or include */*;q=X for some
+low value X.  Omitting this */*;q=X if you are willing to save to disk
+as last resort is simply bad HTTP, though most server implementations
+will usually let you get away with it.
+
+In Apache the negotiation module has enough workarounds for bad Accept
+headers already, so I would not like to to see new classes of bad
+Accept headers introduced.  Point 3.6 should be rewritten to talk
+about inline image requests only, or extended to also cover the
+necessary subtleties in non-image requests.
+
+
+Koen.
+
+
+

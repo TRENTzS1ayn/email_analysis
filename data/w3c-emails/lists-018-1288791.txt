@@ -1,0 +1,124 @@
+docno="lists-018-1288791"
+received="Tue Nov 19 08:49:47 2002"
+isoreceived="20021119134947"
+sent="Tue, 19 Nov 2002 04:14:24 0500 (EST)"
+isosent="20021119091424"
+name="Bas de Bakker"
+email="bas@xhive.com"
+subject="RE: New &quot;order by&quot; clause"
+id="41D11F414A26E942912B7E7696DC8E22155ABA@JAKARTA.xhive.archipel"
+charset="usascii"
+inreplyto="New &quot;order by&quot; clause"
+expires="1"
+
+
+To:"Jonathan Robie"<jonathan.robie@datadirect-technologies.com>,<public-qt-comments@w3.org>
+
+
+
+
+
+Hi Jonathan,
+
+> A more compelling reason for 'order by' involves sorting of elements 
+> constructed by a FLWOR expression. In most environments, indexes are 
+> related to the input of a query, not to the output. The 
+> 'order by' clause 
+> makes optimization easier because it relates the order of the output 
+> directly to the order of the input sequences of a FLWOR expression.
+> sort by (), on the other hand, requires an XQuery 
+> implementation to look at 
+> an element constructor in a return clause and determine the 
+> source of each 
+> piece of information before it can leverage indexes in the 
+> input source. I 
+> have not found a general algorithm to do this.
+
+You seem to assume that the "sort by" is applied to the whole FLWR
+expression.  While this is allowed, I usually use it on the "for" input
+as in my examples in my previous message (or even without a FLWR
+expression at all):
+
+for $x in ... sort by (...)
+return ...
+
+I realize this may be because I'm aware that it is easier to optimize.
+Of course, I can do this with "order by", too.  But "sort by" is easier
+to use in other contexts.  Instead of 
+
+Expr1 sort by (Expr2)
+
+I now have to write
+
+for $x in Expr1
+order by $x/Expr2
+return $x
+
+But in the end, I'm not really opposed to "order by".  If feedback had
+not been explicitly invited, I may not have written the comment at all.
+I just don't see its benefits and wonder why you (the XQuery WG) spent
+your time on this feature.  And you will have to spend more time,
+because there is no formal semantics for "order by" yet, which will
+require doing something with tuples and prohibits normalizing FLWR
+expressions to one "for" clause each.  (And, in my experience, if the
+formal semantics are more difficult, rewriting for optimization purposes
+is usually more difficult, too.)
+
+> I'm still not at all sure what a 'group' is or should be in 
+> the XQuery data model,
+
+I never said I liked the data model.  On the contrary, I think it
+severely limits the expressiveness of the language.  The difficulty of
+defining "group by" is the most obvious example of this.
+
+> or what class of problems your users want solved under 
+> the concept 
+> of 'group by'. Could you fill me in on how you see this?
+
+I don't know whether I can add much to other public comments on this
+topic.  The problem is that a query like
+
+for $author in distinct-values(/items/books/book/author)
+let $books := /items/books/book[author = $author]
+return <author name="{$author}">
+{ for $b in $books
+  return <title>{$b/name}</title>
+}</author>
+
+is awkward (though admittedly possible) to write, because you need to
+repeat information, in this case the "/items/books/book/author" path.
+This would be easier to write and optimize with a grouping construct
+like
+
+group $books in /items/books/book
+by value $author := ./author
+return ...
+
+where the return clause is evaluated once per distinct author, with
+$books set to a sequence of all books with that author.  Another
+question that occurred a few times is grouping by document, which could
+similarly be done with
+
+group $x in Expr
+by node $document := fn:root(.)
+return ...
+
+instead of
+
+let $nodes := Expr
+for $document in distinct-nodes(
+  for $x in $nodes return fn:root($x)
+)
+let $x := $nodes[fn:root(.) is $document]
+return ...
+
+I think that, unlike "order by", such a feature would be very useful for
+query authors.  And, considering previous public comments I have seen on
+this topic, I do not seem to be the only one with this opinion.
+
+Regards,
+Bas de Bakker
+X-Hive Corporation
+
+
+

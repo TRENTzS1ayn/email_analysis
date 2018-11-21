@@ -1,0 +1,215 @@
+docno="lists-009-0854720"
+received="Thu Dec 15 14:54:49 1994"
+isoreceived="19941215195449"
+sent="Thu, 15 Dec 1994 14:52:35 0800"
+isosent="19941215225235"
+name="Marc Salomon"
+email="marc@library.ucsf.edu"
+subject="HTTP: T-T-TTalking about MIME Generation"
+id="199412152252.AA10276@library.ucsf.edu "
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+
+HTTP: T-T-T-Talking about MIME Generation
+
+1.Much has been mentioned about the cumulative terror of the round trip time 
+(RTT) penalty paid for many small HTTP requests, each of which requires its own 
+TCP connection (and resultant RTTs) required to fetch and render an HTML 
+document and its component objects.  Compounding the problem, some anti-social 
+network clients initiate multiple concurrent TCP connections in an attempt to 
+create the illusion of a speed up by distracting from boredom by rendering all 
+objects as they arrive simultaneously.  Should the user choose to abort a 
+document load conducted in this way, it aborts all in-progress TCP connections 
+as well.  The network is then then saddled with what others have observed as
+the substantial overhead of all the silent screams of those aborted connections.  
+2.  Packing all or part of an HTML document and its components into a multipart 
+MIME message in response to an HTTP GET would increase the number of bytes sent 
+along a single TCP socket connection.  This will avoid some of the network 
+congestion observed with the multiple and/or simultaneous low content-length 
+TCP sessions when clients build the document.  While valuable work is underway 
+to provide binary-encoded and multiplexed transport-level solutions to the 
+multiple connect problem [ Spero, Raggett, HTTP-ng ], We need to look 
+concurrently at exploiting the transport encoding scheme upon which HTTP 
+theoretically rests to address this problem--MIME.  I do not believe that this 
+approach conflicts with any of the work on HTTP-ng, and could envision a case 
+where they could be used together transfer multiple HTML documents and their 
+components quite rapidly.  Most of all, we need to provide many options 
+allowing for maximum tuning and customization on all sides.
+
+3.Operating under the assumption that at this time in the life cycle of the
+web, most HTML documents contain components that reside on the same server as 
+the document itself, why not trade the multiple network connections from the 
+client to the same server for some up-front packaging by the server.  Instead 
+of a server having to clone itself into as many instances as sub-objects it 
+serves, it could perform a rudimentary (cached) parsing of the document
+to determine the appropriate sub-objects that it served as well, package 
+them up into MIME body parts sent along with the HTML document.  Accesses by 
+the server on which the components reside usually requires merely a simple 
+secondary storage access measured in terms of milliseconds which in the vast 
+majority of cases is significantly less than that of a TCP RTT which can run 
+into perceptable fractions of whole seconds.  As an option, the server could 
+resolve any object references resident on other servers (caching the results 
+in shared memory), and include them in the multipart data stream.  What follows
+is a draft protocol for encoding an HTML document and its components in
+multupart MIME.
+
+4.The client would need to include multipart/mixed*  in its Accept: headers 
+if it chose to accept this encoding.  A terminal-based browser such as lynx 
+or LineMode would not send this in its Accept: headers and could thus opt out.
+If a browser had the flushed the HTML document from its cache but had not 
+flushed some of its inline images you would not want to include this header 
+unless you wanted the larger, complete data stream.  The server builds a 
+multipart/mixed* message consisting of the HTML document and whatever 
+components were resolved.  The server could be configured either to resolve 
+and cache or leave to the client any components that resided elsewhere.  
+
+* multipart/mixed might be better as application/http or multipart/http.
+I defer to the MIME dieties for a ruling.
+
+6. Interoperating efficiently with client cache management brings up some
+interesting issues.  The ability to check the HTML document's requirements
+against the client-side cache before issuing a precisely tailored HTTP MGET 
+request (which would be returned as multipart/mixed*).
+
+6. The HTML document is included as a body part of Content-Type:  text/html.
+The outermost MIME headers (or the header associated with multipart/mixed*) 
+contain a Message-ID: field in the form:
+
+Message-ID:  <URI>
+
+Each component object is identified by a Content-ID: field 
+
+that is in the form:
+
+Content-ID: <URI>
+
+In this manner, each body part can be unpacked by the client, inserted into
+its cache data structure, any missing body parts could be acquired, and the
+multipart images would be pulled out of the cache struture to render.  The
+master HTML document can be recognized as main body part by the URI common
+to both the Message-ID: field and that of the Content-ID: field in one of the 
+Content-Type: text/html body parts.
+
+7.An instance of the proposed MIME encoding scheme for HTTP follows.  This 
+is currently in the process of a feasibility study in METHADONE (Mime Encoding 
+THreAded Daemon Optimized for Network Efficiency), a caching, lightweight
+threaded, MIME multipart encoding HTTP server for solaris 2.x (exploiting the 
+rich base functionality of NCSA's httpd) currently under beta development at 
+the UCSF Library and Center for Knowedge Management.
+
+Client makes HTTP connection to host.domain:
+___
+GET /http_mime.html HTTP/1.0
+...
+Language: en
+Accept:  multipart/mixed, application/http
+...
+___
+Server responds:
+___
+HTTP/1.0 200 OK
+Title: A Proposed MIME Encoding of an HTML Document and its Components 
+Date: Thursday, 15-Dec-94 03:19:05 GMT
+Server: METHADONE 0.1
+Cost: free!
+Content-Language: en
+Allowed: GET HEAD PUT
+Allowed: GET HEAD 
+Date: Thu Dec 15 19:48:54 PST 1994
+Last-Modified: Wed Dec  7 14:54:48 1994
+MIME-version: 1.0
+Message-ID: <http://host.domain/http_mime.html>
+Version: beta
+Content-Type: multipart/mixed; 
+boundary=__http__boundary__
+
+
+
+--__http__boundary__
+
+Content-type: text/html
+Content-Language: en
+Content-ID: <http://host.domain/path/http_mime.html>
+Content-Length:  193
+
+<HTML>
+<HEAD><TITLE>A Compound HTML Document</TITLE></HEAD>
+<BODY>
+<H1>Compound HTML Document</H1>
+<IMG SRC="http://host.domain/path/image.gif">
+...
+<INC SRC="http://host.domain/path/frag.html">
+...
+<IMG SRC="http://host.domain/path/image.xbm">
+...
+</BODY></HTML>
+
+--__http__boundary__
+
+Content-Type: image/gif
+Content-ID: <http://host.domain/image.gif>
+Content-Transfer-Encoding: 8bit
+Content-Length: 1234
+
+<1234 bytes of GIF>
+
+--__http__boundary__
+
+Content-Type: text/html
+Content-ID: <http://host.domain/path/frag.html>
+Content-Transfer-Encoding: 7bit
+Content-Length:  799
+
+<HR>
+<UL>
+<LI>Client issues GET on HTML document.
+<LI>Server scans HTML document for any component objects (SRC=%URI;) upon 
+reciept of GET.
+<LI>In most cases, the components are resident on the same server, so any
+GET's are to secondary storage instead of the network.  
+<LI>The server can perform GET on components resident elsewhere and cache or
+defer that to the client.
+<LI>The server packs up the document with its components into a multipart MIME
+message.
+<LI>The data can be sent over an 8-bit HTTP socket, no content-transfer-encoding required.
+<LI>Content-ID: MIME Header contains URL of component.  
+<LI>Client parses multipart MIME message.
+<LI>Client adds components to image cache.
+<LI>Client performs GET on remaining images if not resolved by server.
+<LI>Client renders HTML.
+</UL>
+<HR>
+
+--__http__boundary__
+ 
+Content-Type: image/xbm
+Content-ID: <http://host.domain/path/image.xbm>
+Content-Transfer-Encoding: 8bit
+Content-Length: 2345
+
+<2345 bytes of XBM>
+
+--__http__boundary__
+
+--__http__boundary__
+
+
+Two consecutive boundary strings indicate an EOF.
+
+8.  I plan to bring this up on the sgml-internet list as well, for a broader,
+more general perspective.
+
+-marc
+--/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\
+// Marc Salomon    Software Engineer             e-mail: marc@ckm.ucsf.edu  // 
+\\ Innovative Software Systems Group                                        \\
+// Center for Knowledge Management               phone :  415.476.9541      //
+\\ The University of California, San Fransisco                              \\
+// 530 Parnassus SF, CA 94143-0840               fax:    415.476.4653       //
+ \/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/
+
+
+

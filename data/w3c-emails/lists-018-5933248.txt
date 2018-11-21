@@ -1,0 +1,140 @@
+docno="lists-018-5933248"
+received="Wed Aug 27 12:37:18 2003"
+isoreceived="20030827163718"
+sent="Wed, 27 Aug 2003 18:37:12 +0200"
+isosent="20030827163712"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="RE: namespace nodes"
+id="DFF2AC9E3583D511A21F0008C7E62106073DD0B7@daemsg02.softwareag.de"
+inreplyto="namespace nodes"
+expires="1"
+
+
+To: Per Bothner<per@bothner.com>,"Kay, Michael"<Michael.Kay@softwareag.com>
+Cc:public-qt-comments@w3.org
+
+> > The terms "active" and "passive" only refer to namespaces 
+> declared in
+> > the query. They are properties of namespaces in the static 
+> context, not 
+> > properties of namespace nodes in the data model.
+> 
+> The section seems very "specialized".  What if you have an 
+> existing element node (either from an input document or a 
+> previously-constructed
+> element) that needs to be copied because it is in a content 
+> expression? It would need to get namespace nodes from both 
+> the enclosed constructor (active namespaces), as well as any 
+> previously existing namespace nodes. But the section doesn't 
+> cover this, even though it seems like the same 
+> issue, and that's what is weird to me.
+
+The issue is related, but not the same. The rule for what happens when you
+copy an element from a source document is given in section 3.7.1.3, list
+item 1(d): the element is copied together with all its namespace nodes. It
+doesn't lose any, and it doesn't gain any.
+
+This means that if you do:
+
+let $a := <A/>
+let $b := <B xmlns:boo="boo.uri">{$a}</B>
+
+then you will end up with a tree in which B has a namespace node for
+boo=boo.uri, but its child A does not have a corresponding namespace node.
+The data model explicitly permits this. This anticipates the change in XML
+Namespaces 1.1, whereby a namespace that is in-scope for one element can be
+"undeclared" on its child elements. A serializer that produces XML 1.0 from
+this data model will not round-trip correctly, because it cannot undeclare
+the namespace on the child element, but this is unlikely to be a problem in
+practice.
+> 
+> > Is your problem with the section as a whole, or with
+> > the non-normative note that you are quoting?
+> 
+> The section as a whole.
+> 
+> > Or would you like to see more variation allowed between 
+> > implementations
+>  > in the outcome (the observable result of the query)?
+> 
+> No, I don't think so, though I am concern taht it only 
+> discusses immediately construcxted nodes, not copied nodes, 
+> or nodes in source documents.
+> 
+> It's like if a specification for printf explained in detail 
+> how to format even integers but completely ignored odd integers.
+
+We actually decided that the question of what namespaces were attached to a
+newly constructed element were pretty well orthogonal to the question of
+what namespaces were attached to a copied element. It was actually by
+breaking up these questions and deciding them independently of each other
+that we managed to make progress on this. I agree that the result is that
+the text is somewhat fragmented (there's nothing that gives the total
+picture in one place), but I think the pieces are all there. 
+> 
+> > One feature of the rules we have defined is that the decisions about
+> > which namespaces to add to a constructed element can all be made at 
+> > compile time.
+> 
+> You know their existence, but not their prefix or namespace 
+> at compile time.  You have to check for duplications are 
+> run-time. You don't know which prefixes are shadowed by other 
+> prefixes.
+
+Actually, 3.7.4 says that a new element gets namespace nodes from two
+sources:
+
+(a) the active in-scope namespaces from the static context. These are known
+at compile-time (once we've fixed the problem with dynamic namespace
+constructors).
+
+(b) namespace nodes are created corresponding to the name of the element and
+of its attributes (XSLT calls this process "namespace fixup"). These are not
+necessarily known at compile time, and yes, this requires run-time
+evaluation. (I think that most XSLT processors don't actually store these
+namespace nodes as separate objects: their existence can be represented by
+holding the assigned namespace prefix within the element or attribute node).
+
+Checking for duplication and shadowing (between an element and its
+ancestors) is not part of the tree construction process, it is part of
+serialization. It doesn't affect the namespace nodes present on the result
+tree, it only affects the namespace declarations in the serialized output.
+Of course, an implementation may merge these phases and do them together.
+
+Michael Kay
+
+> 
+>  > So I think it is possible to implement it efficiently. The
+> > area where implementations have scope to be clever is in optimizing 
+> > the
+> > two stage process (create namespace nodes for each element, then 
+> > eliminate duplicates while serializing) so that unneeded 
+> namespace nodes 
+> > are never created. As with other aspects of query 
+> optimization, I don't 
+> > think the spec should discuss that.
+> 
+> Fair enough, though I'd add a "Note: Namespace nodes are part 
+> of the data model only; XQuery does not provide any way to 
+> get at a namespace node".
+> 
+> > I think we should probably restrict the term "in-scope 
+> namespaces" to
+> > the case where we are talking about the static context in 
+> > XPath/XQuery/XSLT, and speak in terms of the namespace nodes of an 
+> > element when we are discussing the data model. Although the InfoSet 
+> > speaks of the "in-scope namespaces" of an element, we don't 
+> use this 
+> > term in describing our data model, and therefore we probably should 
+> > avoid using it in F&O.
+> 
+> Seems reasonable.
+> -- 
+> --Per Bothner
+> per@bothner.com   http://per.bothner.com/
+> 
+> 
+
+
+

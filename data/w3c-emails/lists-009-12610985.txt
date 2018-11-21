@@ -1,0 +1,89 @@
+docno="lists-009-12610985"
+received="Mon Nov 27 11:37:01 1995"
+isoreceived="19951127163701"
+sent="Mon, 27 Nov 95 11:26:28 PST"
+isosent="19951127192628"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Proxies and loops"
+id="9511271926.AA02951@acetes.pa.dec.com"
+inreplyto="199511260026.BAA00496&#64;labinfo.iet.unipi.it"
+expires="1"
+
+
+To: Luigi Rizzo<luigi@labinfo.iet.unipi.it>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+    The Forwarded: header can actually be used to detect loops. However,
+    
+    * it is not compulsory (although a node willing to avoid loops will
+      certainly insert it and detect the loop);
+    * in principle, it does not prevent the occurrence of arbitrarily
+      long paths (although a node can decide not to pass a request which
+      has been "Forwarded:" too many times);
+    
+    and these reasons make me like better the use of a *compulsory*
+    TTL field as a loop detector (which is also simpler to manage).
+
+When I first read your proposal for a TTL field, I had the same
+reaction that Roy seems to have had: this isn't really necessary.
+The Forwarded: header allows any proxy to detect loops through
+itself, and can support that task without being mandatory.
+
+And do we have any evidence that forwarding loops are a real problem?
+Routing loops occur because our routing protocols are automatic and
+dynamic, and so can do stupid things rapidly and for transient periods.
+HTTP forwarding loops, on the other hand, would be created by humans
+and should thus be both less frequent and less transient.
+
+I'm also not that worried about arbitrarily long forwarding paths
+(what's the harm?), and I would be worried about
+    o   the danger that some browser would set the TTL too short,
+thus causing hard-to-debug service problems
+    othe overhead of managing yet another mandatory header field on
+        every request, just to avoid a very rare problem.
+
+However: after I thought about this some more, I realized that there
+is an entirely different reason to include a TTL header in HTTP.
+
+There are two main uses for the TTL field in IP headers: first,
+to avoid routing loops and long-delayed packets.  Second, to make
+"traceroute" work.  I would bet that most TTL "failures" in today's
+Internet are from traceroute users, not routing loops.
+
+Traceroute has proved to be an essential tool in debugging IP-level
+problems.  We ought to be thinking about providing analogous debugging
+tools at the HTTP level.  For example, "how come the users on my
+LAN are having trouble reaching server www.xxx.com?"  It would be
+really nice to have a "trace-http-path" program, like traceroute
+but displaying the HTTP-level forwarding path instead of the IP-level
+routing path.
+
+A TTL header in HTTP would make that quite easy.  I would NOT make
+this a mandatory header; that is, it would not be set on most requests.
+Thus we would avoid imposing additional overhead on normal requests.
+However, I would make it mandatory for proxies and servers to
+honor and process it.  (Since HTTP 1.0 proxies would not understand it,
+they would not appear in trace-http-path displays, but HTTP 1.0 servers
+would respond to the attached GET method and so one could see the end
+point of any path.)
+
+trace-http-path would work like traceroute: send a series of requests
+with TTLs starting at 1 and increasing.  A proxy seeing a TTL header
+would be required to decrement it by 1 before forwarding.  If the
+TTL reaches zero, the proxy would be required to NOT forward the
+request, and to return a distinctive status code meaning "TTL expired".
+(Should this be 5xx status code, or should we invent a 6xx series
+for proxy-specific errors?)  Along with the error code, the proxy
+would return a short text message that includes the URI of the
+proxy (as in the Forwarded: header) and perhaps optional information
+about the proxy's configuration and/or status (such as load average
+or cache hit rate).
+
+Note that trace-http-path need not be a separate program; it could
+be a function built into a browser client.
+
+-Jeff
+
+
+

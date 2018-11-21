@@ -1,0 +1,86 @@
+docno="lists-001-2929642"
+received="Thu Dec 21 11:39:58 2000"
+isoreceived="20001221163958"
+sent="Thu, 21 Dec 2000 11:18:22 -0500 (EST)"
+isosent="20001221161822"
+name="Matej Vela"
+email="vela@debian.org"
+subject="Fw: tidy: tidy add doctype declaration in wrong order."
+id="20001221162138.E1351@om"
+charset="us-ascii"
+inreplyto="tidy: tidy add doctype declaration in wrong order."
+expires="-1"
+
+To:html-tidy@w3.org
+Cc: Frederic Seraphine<Frederic.Seraphine@inrialpes.fr>,75554-forwarded@bugs.debian.org
+
+
+On Wed, Oct 25, 2000 at 04:04:26PM +0200, Frederic Seraphine wrote:
+> When tidy adds a doctype declaration it adds it BEFORE the
+> <?xml version="1.0" ?> declaration, failing conformance to
+> the xml specification.
+
+Here's an example of the bug:
+
+  $ tidy -quiet --output-xhtml yes
+  <?xml version="1.0">
+  <p>Some bad XHTML code...
+  line 2 column 1 - Warning: inserting missing 'title' element
+  
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+  <?xml version="1.0"?>
+  <html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+  <meta name="generator" content="HTML Tidy, see www.w3.org" />
+  <title></title>
+  </head>
+  <body>
+  <p>Some bad XHTML code...</p>
+  </body>
+  </html>
+  
+  HTML & CSS specifications are available from http://www.w3.org/
+  To learn more about Tidy see http://www.w3.org/People/Raggett/tidy/
+  Please send bug reports to Dave Raggett care of <html-tidy@w3.org>
+  Lobby your company to join W3C, see http://www.w3.org/Consortium
+
+The problem is in SetXHTMLDocType() in lexer.c; it should check for
+the XML declaration:
+
+--- tidy4aug00.orig/lexer.cFri Aug  4 18:21:05 2000
++++ tidy4aug00/lexer.cTue Dec 19 02:49:02 2000
+@@ -1019,10 +1019,22 @@
+     {
+         doctype = NewNode();
+         doctype->type = DocTypeTag;
+-        doctype->next = root->content;
+         doctype->parent = root;
+-        doctype->prev = null;
+-        root->content = doctype;
++        if (root->content && root->content->type == ProcInsTag &&
++            strncmp(&lexer->lexbuf[root->content->start], "xml", 3) == 0)
++        {
++            doctype->next = root->content->next;
++            doctype->prev = root->content;
++            root->content->next = doctype;
++            doctype->next->prev = doctype;
++        }
++        else
++        {
++            doctype->next = root->content;
++            doctype->prev = null;
++            doctype->next->prev = doctype;
++            root->content = doctype;
++        }
+     }
+ 
+     if (doctype_mode == doctype_user && doctype_str)
+
+
+Thanks,
+
+Matej
+
+
+

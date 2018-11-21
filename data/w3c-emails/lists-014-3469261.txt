@@ -1,0 +1,105 @@
+docno="lists-014-3469261"
+received="Mon Dec 16 19:00:06 1996"
+isoreceived="19961217000006"
+sent="Mon, 16 Dec 1996 15:57:39 0800"
+isosent="19961216235739"
+name="Dan Simon"
+email="dansimon@microsoft.com"
+subject="Additional suggested cleanups for TLS"
+id="c=US%a=_%p=msft%l=RED-92-MSG-961216235739Z-59768@INET-03IMC.itg.microsoft.com"
+expires="1"
+
+
+To:"'ietf-tls@w3.org'"<ietf-tls@w3.org>
+
+After some contemplation of events in San Jose, I would like to suggest
+a couple more cleanups that should really be incorporated into TLS
+before it becomes a proposed standard.  I am thinking particularly of
+the places in the protocol where specific hash functions are hard-coded
+into the spec, namely the signature block in the CertificateVerify
+message and the master secret, key block, export write key and export IV
+derivations.
+
+Standard signatures in the Certificate Verify message
+
+In my opinion, the client authentication signature format should
+definitely be changed to allow conventional one-hash signatures, so that
+standard implementations (including hardware-based ones) can be used.
+One possibility is simply to alter the Certificate Verify message to
+require that the signature response consist of a standard
+(single-)hash-and-sign signature in which the hash function used is the
+one specified by the pending cipher suite.  Alternatively, two new
+certificate types could be added, the specifying of which in the
+Certificate Request message would indicate that the client should
+respond with a standard (single-hash-and-sign) signature using the hash
+function specified by the cipher suite.  (The current certificate types
+would then be used to request an SSL 3.0-style two-hash signature
+response; that way, full backward compatibility is maintained, and more
+standard signature implementations can still be used.)
+
+Standardized key generation using PRFs
+
+Hugo Krawczyk recently suggested to the WG on this list that an explicit
+PRF primitive be introduced into the spec, so that the protocol could be
+based on an easily replaceable function whose assumed properties would
+be clearly defined and well understood.  Currently, there's an
+implicitly defined PRF in the spec, used for master secret and key block
+generation.  It has the following structure:
+
+f(k,x) =
+MD5(k + SHA('A' + k + x)) + 
+MD5(k + SHA('BB' + k + x)) +
+MD5(k + SHA('CCC' + k + x)) + [...];
+
+This function (with the pre-master secret as k and x derived from the
+client's and server's random challenges) is used to generate the master
+secret; the same thing is done (with the master secret as k) to generate
+the key block from which encryption and MAC keys are taken.  The
+exception is the export case:  export write keys and IVs are derived
+using an extra step:
+
+final_client_write_key(k1,r1) = MD5(k1 + r1);
+final_server_write_key(k2,r2) = MD5(k2 + r2);
+
+client_write_IV(r1) = MD5(r1);
+server_write_IV(r2) = MD5(r2);
+
+k1 and k2 are 40-bit keys extracted from the key block, and r1 and r2
+are values derived from the (public, unencrypted) client's and server's
+random challenges.
+
+Since the master secret and key block generations both use the same PRF,
+I'd like to propose using it as well for final export key and IV
+generation--something like the following:
+
+final_client_write_key(k1,r1) = PRF(k1,r1);
+final_server_write_key(k2,r2) = PRF(k2,r2);
+
+client_write_IV(r1) = PRF("client fixed constant string", r1);
+server_write_IV(r2) = PRF("server fixed constant string", r2);
+
+As well as standardizing the key derivation process, this change to a
+uniform PRF-based method would encourage implementers to make the PRF
+pluggable, allowing more secure or more efficient functions to replace
+the current one in the future as needed.  (In fact, we might consider
+switching to a better PRF immediately, if we are already breaking
+backward compatibility by changing HMAC.)  Ideally the current cipher
+suites would either implicitly or explicitly specify the current default
+PRF, so that additional PRF options could be added, if necessary, simply
+by adding new cipher suites.
+
+Comments on these proposals (especially from Hugo!) are welcomed.
+
+Daniel Simon
+Cryptographer, Microsoft Corp.
+(dansimon@microsoft.com) 
+
+
+
+
+
+
+>
+
+
+

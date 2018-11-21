@@ -1,0 +1,213 @@
+docno="lists-001-14343124"
+received="Wed Dec 12 19:28:31 2001"
+isoreceived="20011213002831"
+sent="Wed, 12 Dec 2001 19:28:00 -0500"
+isosent="20011213002800"
+name="Ken Klose"
+email="ken.klose@imedium.com"
+subject="JTidy output to DOM handling Entities badly"
+id="00a401c1836d$057e9420$0a00a8c0@optonline.net"
+charset="iso-8859-1"
+expires="-1"
+
+
+To:<html-tidy@w3.org>
+
+First let me apologize for the length of the example below, it was the
+shortest one I could think of to adequately demonstrate my problem.
+
+I am having a problem with how JTidy handles entities in the DOM it
+generates with it's parseDOM() method.  Rather than treating them as
+EntityReference objects, it expands them into their character value and
+inserts them into their adjoining text nodes.  When I later go to serialize
+the DOM back to HTML the entites get written out as their one character
+values, not as entity strings.  This is particularly troubling for
+non-breaking spaces which become an A with a weird accent over them.
+
+My eventual goal is to use DOM as intermediate step between JTidy and JDOM.
+I wish to parse HTML with JTidy, manipulate it with JDOM and serialize it
+back to HTML (or XHTML).
+
+This is an example that illustrates the problem.  A simple HTML page with
+two entities is hard-coded.  I made it XHTML to get it to parse with Xerces
+DOMParser for this example, but in the end I need to be able to handle HTML.
+I parse the sample HTML with both Xerces DOMParser and JTidy then walk the
+resulting DOM tree outputting its structure.  You can see DOMParser creates
+two text nodes for "Foo" and "bar" respectively and two EntityReference
+nodes for &nbsp; and &copy; while JTidy creates only a single text node with
+the two entities expanded to their ISO 8859-1 characters as per section
+24.2.1 of the HTML spec (http://www.w3.org/TR/html4/sgml/entities.html).
+
+Source code and console output are below.
+Classpath=E:\src\Offline2\classes;E:\lib\xerces-1_4_4\xerces.jar;E:\java\mis
+c\jtidy-04aug2000r7-dev\build\Tidy.jar)
+
+Any thoughts would be most appreciated.
+
+<sourceCode>
+import java.io.StringBufferInputStream;
+
+import org.apache.xerces.parsers.DOMParser;
+
+import org.xml.sax.InputSource;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import org.w3c.tidy.Tidy;
+
+public class TidyTest {
+    public static void domWalker(NodeList nodes, String indent) {
+        if(null == nodes) {
+            return;
+        }
+        indent += "    ";
+        for(int i = 0; i < nodes.getLength(); i++) {
+            System.out.print(indent);
+            Node node = nodes.item(i);
+            switch(node.getNodeType()) {
+                case Node.ELEMENT_NODE:
+                    System.out.println("Element: " + node.getNodeName());
+
+                    domWalker(node.getChildNodes(), indent);
+                    break;
+                case Node.TEXT_NODE:
+                    System.out.println("Text: [" + node.getNodeValue() +
+"]");
+                    String text = node.getNodeValue();
+
+                    if(node.getParentNode().getNodeName().equals("body")) {
+                        // Print each character of body
+                        for(int j = 0; j < text.length(); j++) {
+                            System.out.println(indent + "    " +
+text.charAt(j)
+                                               + " = " + (int)
+text.charAt(j));
+                        }
+                    }
+                    break;
+                case Node.ENTITY_REFERENCE_NODE:
+                    System.out.println("Entity ref: name='"
+                                       + node.getNodeName() + "' value='"
+                                       + node.getNodeValue() + "'");
+                    break;
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            // XHTML so that it can be parsed by DOMParser
+            // Eventual goal in using JTidy is to handle HTML, not require
+XHTML
+            StringBufferInputStream htmlIn = new StringBufferInputStream(
+                "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0
+Transitional//EN\"\n" +
+
+"\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n" +
+                "<html>\n" +
+                "   <head>\n" +
+                "      <title></title>\n" +
+                "   </head>\n" +
+                "   <body>\n" +
+                "      Foo&nbsp;bar&copy;\n" +
+                "   </body>\n" +
+                "</html>\n"
+            );
+
+            // Parse with Xerces
+            DOMParser domParser = new DOMParser();
+            InputSource inputSource = new InputSource(htmlIn);
+            domParser.parse(inputSource);
+            Document xercesDoc = domParser.getDocument();
+
+            System.out.println("XERCES DOC:");
+            domWalker(xercesDoc.getChildNodes(), "");
+
+            // Parse with JTidy
+            htmlIn.reset();    // Start reading from the beginning again
+            Tidy tidy = new Tidy();
+            Document tidyDoc = tidy.parseDOM(htmlIn, null);
+
+            System.out.println("\n\nJTIDY DOC:");
+            domWalker(tidyDoc.getChildNodes(), "");
+        }
+        catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+</sourceCode>
+
+<output>
+XERCES DOC:
+        Element: html
+        Text: [
+   ]
+        Element: head
+            Text: [
+      ]
+            Element: title
+            Text: [
+   ]
+        Text: [
+   ]
+        Element: body
+            Text: [
+      Foo]
+ = 10
+                  = 32
+                  = 32
+                  = 32
+                  = 32
+                  = 32
+                  = 32
+                F = 70
+                o = 111
+                o = 111
+            Entity ref: name='nbsp' value='null'
+            Text: [bar]
+                b = 98
+                a = 97
+                r = 114
+            Entity ref: name='copy' value='null'
+            Text: [
+   ]
+ = 10
+                  = 32
+                  = 32
+                  = 32
+        Text: [
+]
+
+
+JTIDY DOC:
+Tidy (vers 4th August 2000) Parsing "InputStream"
+
+
+InputStream: Doctype given is "-//W3C//DTD XHTML 1.0 Transitional//EN"
+InputStream: Document content looks like HTML 3.2
+
+no warnings or errors were found
+
+
+        Element: html
+        Element: head
+            Element: meta
+            Element: title
+        Element: body
+            Text: [Foo bar?]
+                F = 70
+                o = 111
+                o = 111
+                  = 160
+                b = 98
+                a = 97
+                r = 114
+                ? = 169
+</output>
+
+
+

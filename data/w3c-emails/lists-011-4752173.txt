@@ -1,0 +1,112 @@
+docno="lists-011-4752173"
+received="Mon Jul 21 11:36:57 1997"
+isoreceived="19970721153657"
+sent="Mon, 21 Jul 97 11:26:29 MDT"
+isosent="19970721172629"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="RANGEERROR: proposed solution"
+id="9707211826.AA27553@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Reference:
+http://www.w3.org/pub/WWW/Protocols/HTTP/Issues/#RANGE-ERROR
+
+Summary of proposed solution:
+Add 416 error with Content-Range showing the total content length.
+Slight modifications to specification of Content-Range.
+
+The editorial group seems to agree that there should be a new 
+status code for this purpose.  There is somewhat less consensus
+over whether it's important to tell the client the current
+length of the requested entity, and (if so) how to do so.
+This proposal incorporates the simplest way I could think
+of to provide that information.
+
+Proposed solution:
+
+(1) New status code:
+
+10.4.17 416 Requested range not valid
+
+A server SHOULD return a response with this status code if a
+request included a Range request-header field (section 14.36),
+and none of the range-specifier values in this field overlap
+the current extent of the selected resource, and the request
+did not include an If-Range request-header field.  (For
+byte-ranges, this means that the first-byte-pos of all of the
+byte-range-spec values was greater than the current length of
+the selected resource.)
+
+When this status code is returned for a byte-range request, the
+response MUST include a Content-Range entity-header field
+specifying the current length of the selected resource (see
+section 14.17).  This response MUST NOT use the
+multipart/byteranges content-type.
+
+[Note to editor: verify that status code 416 is not multiply assigned.]
+
+(2) Changes to 14.17 Content-Range:
+
+(a) Replace:
+
+          content-range-spec      = byte-content-range-spec
+
+with
+
+          content-range-spec      = byte-content-range-spec | "*"
+
+(b) After this paragraph:
+
+   A byte-content-range-spec whose last-byte-pos value is less than its
+   first-byte-pos value, or whose entity-length value is less than or
+   equal to its last-byte-pos value, is invalid. The recipient of an
+   invalid byte-content-range-spec MUST ignore it and any content
+   transferred along with it.
+
+Add this new paragraph:
+
+   A server sending a response with status code 416 (Requested range
+   not valid) SHOULD include a Content-range field with a
+   content-range-spec of "*".  The entity-length specifies the current
+   length of the selected resource.  A response with status code 206
+   (Partial Content) MUST NOT include a Content-range field with a
+   content-range-spec of "*".
+
+(c) Replace
+
+   If the server ignores a byte-range-spec because it is invalid, the
+   server should treat the request as if the invalid Range header field
+   did not exist. (Normally, this means return a 200 response containing
+   the full entity). The reason is that the only time a client will make
+   such an invalid request is when the entity is smaller than the entity
+   retrieved by a prior request.
+
+with
+
+   If the server ignores a byte-range-spec because it is syntactically
+   invalid, the server should treat the request as if the invalid Range
+   header field did not exist.  (Normally, this means returning a 200
+   response containing the full entity.)
+   
+   If the server receives a request (other than one including an
+   If-Range request-header field) with an unsatisfiable Range
+   request-header field (that is, all of whose byte-range-spec values
+   have a first-byte-pos value greater than the current length of the
+   selected resource), it SHOULD return a response code of 416
+   (Requested range not valid) (section 10.4.17).
+
+      Note: clients cannot depend on servers to send a 416 (Requested
+      range not valid) response instead of a 200 (OK) response for
+      an unsatisfiable Range request-header, since not all servers
+      implement this request-header.
+
+[End of changes]
+
+-Jeff
+
+
+

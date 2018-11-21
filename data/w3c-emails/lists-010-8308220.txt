@@ -1,0 +1,168 @@
+docno="lists-010-8308220"
+received="Tue Aug 20 17:53:32 1996"
+isoreceived="19960820215332"
+sent="Tue, 20 Aug 96 17:46:55 MDT"
+isosent="19960820234655"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Re: Confusion about Age: accuracy vs. safety"
+id="9608210046.AA21591@acetes.pa.dec.com"
+inreplyto="9607120701.aa19679&#64;paris.ics.uci.edu"
+expires="1"
+
+
+To:"Roy T. Fielding"<fielding@liege.ICS.UCI.EDU>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Roy and I were having a debate about the proper specification
+of the Age header, about 6 weeks ago.  I dropped the ball on
+this for various reasons, but Larry Masinter has asked us to
+settle this issue.
+
+Roy argues that the current language in section 14.6,
+  If a cache receives a value larger than the largest positive integer it
+  can represent, or if any of its age calculations overflows, it MUST
+  transmit an Age header with a value of 2147483648 (2^31). HTTP/1.1
+  caches MUST send an Age header in every response. [...]
+
+should be changed so that the last sentence there says:
+  [An] HTTP/1.1
+  [cache] MUST send an Age header field in any response obtained from
+  its own cache.
+
+He argues that this is simply removing an ambiguity, because we
+can't possibly mean that a cache must include the Age header when
+it is simply passing along a response that it has just received
+from an inbound server, because that would lead to an overestimation
+of the Age value:
+
+    What you are saying is that every step along the way should add the amount
+    of time it took to satisfy the request EVEN IF THE REQUEST CAME DIRECTLY
+    FROM THE ORIGIN.  That means that if the request passes through three
+    caches (A, B, C) with each segment taking (a, b, c, d) amount of time to
+    satisfy the request
+    
+ UA  ------->  A  ------->  B  --------->  C  ------->  OS
+a           b              c             d
+    
+    then the Age will be calculated as follows:
+    
+ At  C:  age=d
+     B:  age=d+(c+d)
+     A:  age=d+(c+d)+(b+c+d)
+    UA:  age=d+(c+d)+(b+c+d)+(a+b+c+d)
+    
+    when we all know that the REAL age at UA must be less than (a+b+c+d).
+    Note that (a+b+c+d) will always be added by UA.
+
+    The wording that I submitted would have corrected that error in the
+    specification.  Fortunately, the existing wording of the spec is only
+    ambiguous -- we'll just have to interpret "cache" to mean that it only
+    takes effect on retrieval from the caching mechanism.
+
+Roy is wrong; this is not an ambiguity: the current spec language
+means what it says, and this is the right thing for it to say.
+
+Roy is right that, as written, the spec causes the reported Age
+value to be larger than the actual time since the response was
+generated at the origin server.  THIS IS GOOD.  THIS IS INTENTIONAL.
+Moreover, because we are not relying on mandatory clock synchronization,
+THIS IS THE ONLY SAFE APPROACH.  The alternative is a specification
+which would increase the chances of underestimating the Age of a
+response.  Underestimation is SERIOUSLY BAD, because it will lead
+to a cache believing that a response is fresh when it is, in fact,
+stale.
+
+Overestimation of the Age can lead to a cache treating a fresh
+response as stale, which can cause extra revalidation messages.
+This is somewhat inefficient, but will never lead to a client
+inadvertently seeing an expired cache entry.  Underestimation
+is thus a much worse error than overestimation, and so the 
+spec is designed to avoid underestimation as assiduously as
+possible.
+
+Now let's look at how badly the specified behavior can overestimate
+Age.  The algorithm in 13.2.3 allows (implicitly) the receiving
+cache to calculate the retrieval delay based on when the beginning
+of the response is received; it doesn't have to wait for the entire
+response.  Therefore, the magnitude of this delay is several RTTs
+through each hop of the network.  (It would be just one RTT if the
+connections are already open.)  Roy's formulas:
+
+ At  C:  age=d
+     B:  age=d+(c+d)
+     A:  age=d+(c+d)+(b+c+d)
+    UA:  age=d+(c+d)+(b+c+d)+(a+b+c+d)
+
+generalize to
+Age = Mean_RTT * N * (N + 1)/2
+for N hops (N - 1 proxies)
+
+The "correct" Age would be Mean_RTT * N, so the size of the overestimate
+(the "error) is
+Excess_age = Mean_RTT * N * (N - 1)/2
+
+Here are some sample values for a Mean_RTT of 1 second (which
+is a relatively high value):
+
+Number of proxiesNExcess_age (seconds)
+
+010
+121
+233
+346
+4510
+5615
+6721
+
+OK, so if the request chain includes 6 or more proxies, the overestimate
+just might start to change the caching behavior for responses with
+unusually short maximum ages.  (I'd be surprised if people sent
+max-age values under 1 minute, but perhaps someone can provide a
+counterexample).  Bottom line: this "error" is not really worth
+getting excited about.
+
+Let's now look at what kinds of errors (underestimations of Age)
+could arise if we followed Roy's proposal: a proxy only sends an
+Age header if the response comes from its own cache.
+
+Consider this not-very-contrived request-chain:
+
+   client C => HTTP/1.1 proxy P1 => HTTP/1.0 proxy P0 => Origin server S
+
+Now let us suppose that client C makes a request for resource
+http://S/foo.html, and that proxy P0 has had a copy of this
+resource in its cache for, say, 30 minutes.  Let's also suppose
+that the clock on C (perhaps someone's PC) was set accidentally
+to the wrong time zone, and it's an hour slow.
+
+So when the response arrives at C, under Roy's proposal, there
+is no Age header attached and so the client starts the Age
+ticker running at that point.  I.e., the client will underestimate
+the Age by the 30 minutes that the response was sitting in the
+cache at P0.  This might well exceed the max-age value sent by
+the origin server, but C would be ignorant of the expiration
+of its cache entry for perhaps a significant amount of time.
+
+Under the specification as it currently exists, P1 (the first
+HTTP/1.1 cache to see the response) would construct an Age
+value.  If its own clock is set wrong, we are no better off.
+But if its clock is correct, then it will observe the discrepancy
+between its current clock and the Date value on the response,
+and will set the Age accordingly (to 30 minutes).
+
+Thus, the specification as written will prevent Age underestimation
+resulting from end-client clock skew as long as at least one of
+the HTTP/1.1 proxies in the chain has a nearly-correct clock.
+
+Summary: the specification, as written, does somewhat overestimate
+the Age, but not by a tremendous amount, and is intended to reduce
+as much as possible the probability of inadvertently delivering a
+stale response to a user.  Roy's proposed change would give slightly
+more accurate Age estimates, but could cause the undected delivery
+of stale responses in the presence of clock skew.
+
+-Jeff
+
+
+

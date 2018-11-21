@@ -1,0 +1,187 @@
+docno="lists-030-12910299"
+received="Mon Sep 16 10:07:41 2002"
+isoreceived="20020916140741"
+sent="Mon, 16 Sep 2002 16:07:14 +0200"
+isosent="20020916140714"
+name="Kay, Michael"
+email="Michael.Kay@softwareag.com"
+subject="RE: New release of XML Spec DTD/Stylesheets"
+id="DFF2AC9E3583D511A21F0008C7E621060453DB73@daemsg02.software-ag.de"
+charset="iso-8859-1"
+inreplyto="New release of XML Spec DTD/Stylesheets"
+expires="-1"
+
+
+To:"'Norman Walsh'"<Norman.Walsh@Sun.COM>,spec-prod@w3.org
+
+
+Trying to convert the XSLT WD to the new xmlspec.xsl.
+
+(1) I get the error message: 
+no template matches edtext.
+
+This simply seems to be a missing template rule? Perhaps the template rule
+should conditionally expand or suppress the edtext depending on a stylesheet
+parameter.
+
+(2) I get a few dozen messages of the form:
+
+Unsupported specref to  [initiating]  (Contact stylesheet maintainer).
+
+These are caused by the fact that my "specref" element is in a different XML
+document from the element that's the target of the reference. I obviously
+need to do some customizing of the stylesheet here.
+
+I suggest splitting the template rule for match="specref" into two, a
+template rule with match="specref" that calls a named template with a
+parameter, as shown below: (in the named template, all calls on key() are
+replaced by use of $target, otherwise the code is unchanged):
+
+  <!-- specref: reference to another part of the current specification -->
+  <xsl:template match="specref">
+    <xsl:variable name="target" select="key('ids', @ref)[1]"/>
+    <xsl:call-template name="output-specref">
+      <xsl:with param name="target" select="key('ids', @ref)[1]"/>
+    </xsl:call-template>
+  </xsl:template>
+
+  <!-- output a cross-reference to the element supplied in the $target
+parameter -->
+
+  <xsl:template name="output-specref">
+    <xsl:param name="target"/>
+    <xsl:if test="count($target) != 1">
+      <xsl:message>
+        <xsl:text>Bad call to template output-specref: target contains
+</xsl:text>
+        <xsl:value-of select="count($target)"/>
+        <xsl:text> nodes</xsl:text>
+      </xsl:message>
+    </xsl:if>
+    <xsl:choose>
+      <xsl:when test="local-name($target)='issue'">
+        <xsl:text>[</xsl:text>
+        <a>
+          <xsl:attribute name="href">
+            <xsl:call-template name="href.target">
+              <xsl:with-param name="target" select="$target"/>
+            </xsl:call-template>
+          </xsl:attribute>
+          <b>
+            <xsl:text>Issue </xsl:text>
+            <xsl:apply-templates select="$target" mode="number"/>
+            <xsl:text>: </xsl:text>
+            <xsl:for-each select="$target/head">
+              <xsl:apply-templates/>
+            </xsl:for-each>
+          </b>
+        </a>
+        <xsl:text>]</xsl:text>
+      </xsl:when>
+      <xsl:when test="starts-with(local-name($target), 'div')">
+        <a>
+          <xsl:attribute name="href">
+            <xsl:call-template name="href.target">
+              <xsl:with-param name="target" select="$target"/>
+            </xsl:call-template>
+          </xsl:attribute>
+          <b>
+            <xsl:apply-templates select="$target" mode="divnum"/>
+            <xsl:apply-templates select="$target/head" mode="text"/>
+          </b>
+        </a>
+      </xsl:when>
+      <xsl:when test="starts-with(local-name($target), 'inform-div')">
+        <a>
+          <xsl:attribute name="href">
+            <xsl:call-template name="href.target">
+              <xsl:with-param name="target" select="$target"/>
+            </xsl:call-template>
+          </xsl:attribute>
+          <b>
+            <xsl:apply-templates select="$target" mode="divnum"/>
+            <xsl:apply-templates select="$target/head" mode="text"/>
+          </b>
+        </a>
+      </xsl:when>
+      <xsl:when test="local-name($target) = 'vcnote'">
+        <b>
+          <xsl:text>[VC: </xsl:text>
+          <a>
+            <xsl:attribute name="href">
+              <xsl:call-template name="href.target">
+                <xsl:with-param name="target" select="$target"/>
+              </xsl:call-template>
+            </xsl:attribute>
+            <xsl:apply-templates select="$target/head" mode="text"/>
+          </a>
+          <xsl:text>]</xsl:text>
+        </b>
+      </xsl:when>
+      <xsl:when test="local-name($target) = 'prod'">
+        <b>
+          <xsl:text>[PROD: </xsl:text>
+          <a>
+            <xsl:attribute name="href">
+              <xsl:call-template name="href.target">
+                <xsl:with-param name="target" select="$target"/>
+              </xsl:call-template>
+            </xsl:attribute>
+            <xsl:apply-templates select="$target" mode="number-simple"/>
+          </a>
+          <xsl:text>]</xsl:text>
+        </b>
+      </xsl:when>
+      <xsl:when test="local-name($target) = 'label'">
+        <b>
+          <xsl:text>[</xsl:text>
+          <a>
+            <xsl:attribute name="href">
+              <xsl:call-template name="href.target">
+                <xsl:with-param name="target" select="$target"/>
+              </xsl:call-template>
+            </xsl:attribute>
+            <xsl:value-of select="$target"/>
+          </a>
+          <xsl:text>]</xsl:text>
+        </b>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:message>
+          <xsl:text>Unsupported specref to </xsl:text>
+          <xsl:value-of select="local-name($target)"/>
+          <xsl:text> [</xsl:text>
+          <xsl:value-of select="@ref"/>
+          <xsl:text>] </xsl:text>
+          <xsl:text> (Contact stylesheet maintainer).</xsl:text>
+        </xsl:message>
+        <b>
+          <a>
+            <xsl:attribute name="href">
+              <xsl:call-template name="href.target">
+                <xsl:with-param name="target" select="$target"/>
+              </xsl:call-template>
+            </xsl:attribute>
+            <xsl:text>???</xsl:text>
+          </a>
+        </b>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
+I can then override the template rule for match="specref" while being able
+to reuse the rest of the logic.
+
+(3) The message:
+Unsupported specref to bibl [FANDO]  (Contact stylesheet maintainer).
+
+was caused by a <specref> element that pointed to a <bibl> entry; it should
+have been a <bibref>. Since this is my error and not yours, you might like
+to change the error message!
+
+Cheers,
+
+Michael Kay
+
+
+

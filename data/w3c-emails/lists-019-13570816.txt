@@ -1,0 +1,135 @@
+docno="lists-019-13570816"
+received="Tue Feb 17 11:41:06 2004"
+isoreceived="20040217164106"
+sent="Tue, 17 Feb 2004 16:40:46 GMT"
+isosent="20040217164046"
+name="David Carlisle"
+email="davidc@nag.co.uk"
+subject="[XSLT20] Backward Compatibility"
+id="200402171640.QAA00722@penguin.nag.co.uk"
+expires="-1"
+
+
+To:public-qt-comments@w3.org
+
+
+
+Mike Kay wrote over on xsl-list
+
+  My own experience of migrating real stylesheets has been that there have
+  been very few problems, and that they have generally related to use of
+  extensions rather than to facilities in the W3C specs. If anyone does
+  have any negative experiences of migration, I will be very interested to
+  hear them (ideally, send them direct to the public-qt-comments@w3.org
+  list).
+
+
+I just tried running a (set of) XSLT transformation (around 13000 lines
+of xslt 1.0) over a sample document using saxon 7.8, which implements
+most of the current draft. I have not yet compared the results to see if
+they are the same or equivalent (which is hard and would require visual
+checking) I am here just concentrating on cases where errors are raised
+where previously there were none.
+
+XSLT2 "backward compatibility"  failed to produce a compatible result
+(or in fact, any result at all) due to a dozen or so instances of the
+same error.
+
+It is now an error to pass parameters to named templates if they are not
+declared in the template.
+
+I strongly believe that this should _not_ be an error in BC mode.
+
+Reviewing the cases that required change:
+
+one or two were "dead" parameters that had been used in earlier
+versions, but no longer appeared to be used. So their presence
+did no harm, but did no good either. Being warned of this might be seen
+as a good thing, but since it was a fatal error that stopped compliation
+of the stylesheet this would have been rather an expensive thing to
+test/debug and basically would mean that a production system using xsl1
+will probably need to stay using xslt1 as long as possible. It might seem
+that this is a trivial change to make run on xslt2 (just remove the
+offending xsl:with-param) but in fact the hard part is distinguishing
+this class (which is a minority in my case) from the other class of
+constructs that triggered this error described below.
+
+The majority case was due to the fact that we produce two sets of
+documents (describing C and Fortran interfaces, as it happens) from the
+same source. The set up is the usual one, two top level stylesheets each
+importing a common one.
+
+However there are many parts of the transformation that are different in
+the two cases and need to be paramaterised diferently. The common code
+calls a named template with any parameters that might be useful in
+either interface. This now generates an error.
+
+A typical case is the named template
+
+<xsl:template name="optparam-test">
+ <xsl:param name="id"/>
+ ....
+
+which does something in the C interface but this is a no-op in the
+Fortran interface so that has (had)
+
+<xsl:template name="optparam-test"/>
+
+In XSLT2 this will have to be defined to take the same parameters (just
+id in this case) as the C interface.
+
+It is not clear to me that this requirement is necessarily a good thing
+(even in native xslt 2 mode) however I don't strongly object to it in
+2.0 mode. As I say above, it did catch a couple of cases of dubious
+coding. However there is a real temptation to respond to the error
+message by commenting out the xsl:with-param only to find later that you
+have broken some other stylesheet that was expecting that parameter to
+be passed.
+
+
+This change is too much for backward compatibility mode.
+
+
+
+Having resolved all these parameter passing problems the stylesheeet
+then compiled and produced just one warning (twice).
+
+Warning: at xsl:for-each on line 3403 of file:/c:/engine-cvs/doc/xsl/libdoc-c-xml.xsl:
+  Less-than and greater-than comparisons between strings have changed since XPath 1.0
+
+ <xsl:variable name="a" select="mn[1]/text()"/>
+ <xsl:variable name="b" select="mn[2]/text()"/>
+ <xsl:for-each select="$enum[@fname=$fpname]/v[$a &lt;= @f and @f &lt;= $b]">
+
+which is checking that three "numbers" obtained from the source files
+satisfy a constraint that one lies between the other two.
+
+Is it really necessary for this to break in BC mode?
+Is it not possible for the mapping of &lt;= to the underlying F&O
+operators is changed in BC mode to more closely match the behaviour in
+1.0? While this is annoying it is actually less trouble to fix than the
+previous error, especially in this case, where the node sets such as @f
+in the expression really are only going to return one node  so I would
+just need to add a couple of instances of number() (I hope:-)
+However if tehre are cases where the implicit existential quantification
+are used, it will be tricky for an end user to get right (easier for the
+system, I would have thought).
+
+While I do appreciate the facility to switch between native and BC mode
+on specific elements within the stylesheet,  I believe that verion="1.0"
+on an xsl:stylesheet (or outer most element of a simplified stylesheet)
+should be treated differently: the stylesheet should be processed by an
+XSLT 1.0 processor, or an error raised if the processor does not support
+1.0. 
+
+David
+
+________________________________________________________________________
+This e-mail has been scanned for all viruses by Star Internet. The
+service is powered by MessageLabs. For more information on a proactive
+anti-virus service working around the clock, around the globe, visit:
+http://www.star.net.uk
+________________________________________________________________________
+
+
+

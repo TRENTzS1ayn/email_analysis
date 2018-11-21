@@ -1,0 +1,159 @@
+docno="lists-042-9189049"
+received="Mon Oct 13 17:44:32 2003"
+isoreceived="20031013214432"
+sent="Mon, 13 Oct 2003 14:41:11 -0700"
+isosent="20031013214111"
+name="Dennis E. Hamilton"
+email="dennis.hamilton@acm.org"
+subject="rfc2518bis DAV DTD (was Re: How to use DTDs, or not ...)"
+id="FFEPLLNFAHGBKNENFGPAGEEPDDAA.dennis.hamilton@acm.org"
+charset="us-ascii"
+inreplyto="JIEGINCHMLABHJBIGKBCCEILIMAA.julian.reschke&#64;gmx.de"
+expires="-1"
+
+To:"Julian Reschke"<julian.reschke@gmx.de>,<w3c-dist-auth@w3.org>
+
+
+
+A.RECOMMENDATION
+
+I have the following recommendations with regard to the DAV DTD in section 24.2 of 2518bis-04.
+
+1.It is possible to provide a DTD and account for use of the DAV namespace and namespace prefixes.  There will need to be some special way to account for the occurrence of ad hoc elements in the specific cases where elements and attributes from other namespaces may be introduced.  My thoughts on this are incomplete, so it would be necessary to try some things first to make the DTD one that can actually be used and confirmed with a validating processor in the presence of ad hoc elements.  (See note at the end.)
+
+2.The form of the DTD should be changed to be an external DTD. (The form illustrated in 24.2 and in rfc2518 is of an internal DTD given as part of a <!DOCTYPE ...> declaration).  An external DTD is one that has a URL and can be invoked by reference from a <!DOCTYPE ...> declaration.  At the same time, an internal DTD can also be provided.  The internal DTD is used to provide supplemental information to be used for validating a given XML document instance.  It is even possible to issue a PUBLIC identifier for such an external DTD so that it can be cached by validators without having to always be fetched through the URL (which is taken as a hint).  
+
+3.The DTD can be parameterized such that documents can use a different prefix (or the default prefix) value for occurrence of DAV namespace elements and attributes.  Since all of the work is in the DTD, and the technique is simple, I suggest that it be applied.  (More about that below).
+
+4.This recommendation does not alter my suggestion that <!DOCTYPE ...> declarations be forbidden as part of the DAV profile for acceptable XML in DAV request bodies and response bodies.  It is valuable to have a way to validate these elements as part of creation, processing, and trouble-shooting in specific settings, even when one does not want to imply validity or validation as a condition of their occurrence as DAV protocol elements.  The material in 24.2 can be useful for those ancillary purposes as well as for clarifying the DAV reliance on XML.
+
+5.There are many different XML documents (that is, having different root elements) that arise as DAV protocol elements.  There can continue to be covered a single DTD, since under validation conditions the particular root to use is named in the <!DOCTYPE ...> declaration, one way or another.
+
+B.PARAMETERIZING A DTD
+
+I would suggest that the same parameterization scheme that is used for the XML Schema Definition DTD.
+(See <http://www.w3.org/TR/xmlschema-1/#nonnormative-schemaDTD>.)  The paragraph preceding the schema itself would also apply for rfc2518bis.) The technique (for the DAV namespace only, here) is to define two parameter entities:
+
+<!ENTITY % dp "dav:">  
+<!-- the prefix that is used on 
+     DAV-namespaced local names -->
+<!ENTITY % ds ":dav">   
+<!-- the suffix that is used on 
+     xmlns attributes that specify
+     the prefix for DAV-namespaced
+     local names -->
+
+(I chose prefix "dav:" arbitrarily.  Any other default, such as "D:" could be used.)
+
+These are internal to the external DTD to be defined.   They are used everywhere in the DTD where DAV
+namespace element types and DAV namespace attribute types are declared.  (There might not be any such attribute types -- most attribute types are local to an element type and their names do not require a
+prefix.  It is only when an attribute from a different namespace is used that this comes up.)
+
+The entity declarations above establish default parameter values for the parameter entity references %dp and %ds.  These references occur only in the DTD, not in the XML document proper.
+
+If the document to be assessed for validity uses a different prefix, the parameter declarations can be over-ridden.  For example, to use the default namespace for a DAV document, one could assess validity using a validating parser and 
+
+<?xml version="1.0" encoding="ASCII" ?>
+<!DOCTYPE error SYSTEM "url-of-the-DTD"
+[ <!ENTITY %dp "">
+              <!ENTITY %ds ""> 
+              ] >
+<error xmlns="DAV:">
+<!-- the rest of an actual DAV error element.  
+                 The DTD can check that the correct xmlns
+     is present and also have it not defaulted.
+     -->
+<forbid-external-entities>
+</error>
+
+
+To use the prefix without overriding, it can work like this:
+
+<?xml version="1.0" encoding="iso8859-1" ?>
+<!DOCTYPE dav:propfind SYSTEM "url-of-the-DTD" >
+
+<dav:propfind xmlns:dav="DAV:">
+<dav:prop>
+<dav:creationdate/>
+<dav:getlastmodified/>
+</dav:prop>
+<dav:deadprops/>
+</dav:propfind>
+ 
+This case is so simple because only DAV namespace elements are used.  (To a DTD validator, a ":" is just another name character.)
+
+This form of schema parameterization cannot be normative because there will be valid documents that are excluded.  However, every acceptable DAV XML will have a form that is valid under this DTD, and that will be good enough for most situations where some assessment of validity is desired.  It can also support establishment of recommended practice.
+
+C.DEALING WITH AD HOC ELEMENTS
+
+In order to have an ad hoc element, there needs to be some approach, in the external DTD, that allows for the internal DTD to provide additional element and attribute definitions so that the ad hoc material can be confirmed as valid.  
+
+For example, the section 24.2 external DTD can easily provide definitions for DAV-defined properties.  However, there needs to be a way to define the acceptance of additional property elements under <%dp;prop>.  Suppose for now there is a parameter % op for "other properties" that effectively defaults to an empty set of choices.
+
+The following example, however clumsy, illustrates what it takes to do the job with a valid XML document:
+
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE dav:propertyupdate SYSTEM "url-of-the-DTD"
+   [ <!ENTITY %op "dc:creator">
+               <!-- Add dc:creator to acceptable 
+        prop elements -->
+     <!ELEMENT dc:creator (#PCDATA)>
+     <!ATTLIST dc:creator
+               xmlns:dc   CDATA #FIXED 
+                    "http://purl.org/dc/elements/1.1/"
+            >
+         <!-- Unfortunately, this will default xmlns:dc 
+                    if we don't show it explicitly,
+                    but this is the best we can do. -->
+              ] >
+
+<dav:propertyupdate xmlns:dav="DAV:">
+    <dav:set>
+        <dav:prop>
+            <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">
+Dennis E. Hamilton
+</dc:creator>
+<dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">
+Orcmid, junior nymph of the Orcan Conclave
+</dc:creator>
+        </dav:prop>
+          </dav:set>
+</dav:propertyupdate>
+
+-- Dennis
+
+
+-----Original Message-----
+From: Julian Reschke [mailto:julian.reschke@gmx.de]
+Sent: Saturday, October 11, 2003 04:04
+To: dennis.hamilton@acm.org; w3c-dist-auth@w3.org
+Subject: RE: How to use DTDs, or not to (was: RE: ACL and lockdiscovery)
+
+
+Comments inline...
+
+> From: w3c-dist-auth-request@w3.org
+> [mailto:w3c-dist-auth-request@w3.org]On Behalf Of Dennis E. Hamilton
+> Sent: Friday, October 10, 2003 10:45 PM
+> To: Julian Reschke; Lisa Dusseault; 'Geoffrey M Clemm';
+> w3c-dist-auth@w3.org
+> Subject: RE: How to use DTDs, or not to (was: RE: ACL and lockdiscovery)
+>
+[ ... ]
+
+> 1.2In the context of this discussion, the DAV namespace is not
+> a barrier to having a DTD.  It is prefixes (that is QNames) that
+> must be dealt with carefully when a DTD is used.  However, this
+> is completely possible, as the XML Schema folk demonstrated.
+
+Is it worth the effort? Can you supply (a link to) an example?
+
+[ ... ]
+
+Regards, Julian
+
+--
+<green/>bytes GmbH -- http://www.greenbytes.de -- tel:+492512807760
+
+
+

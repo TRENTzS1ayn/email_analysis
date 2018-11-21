@@ -1,0 +1,148 @@
+docno="lists-044-8373242"
+received="Mon Jan 24 19:57:57 2000"
+isoreceived="20000125005757"
+sent="Mon, 24 Jan 2000 16:57:41 -0800"
+isosent="20000125005741"
+name="John Boyer"
+email="jboyer@uwi.com"
+subject="Yes, RE: [Moderator Action] Should alg spec be included in hashed data?"
+id="NDBBLAOMJKOFPMBCHJOIOECDCDAA.jboyer@uwi.com"
+charset="iso-8859-1"
+inreplyto="3.0.5.32.20000124180003.00bdfcd0&#64;localhost"
+expires="-1"
+
+To:"lcs Mixmaster Remailer (by way of \"Joseph M. Reagle Jr.\"<reagle@w3.org>)"<mix@anon.lcs.mit.edu>,"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+
+
+Hi LCS Mixmaster Remailer,
+
+In short, your argument is that sha1(M_real+sha1) ==
+junkhash(M_fake1+junkhash) and sha1(M_real) == junkhash(M_fake2) are equally
+conceivable.  I agree with that.
+
+As you stated, i the case of RSA algorithms, the data D encrypted with the
+signer's private key is sha1+sha1(M), so SignatureMethod is already secured
+by the underlying algorithms.  Presumably, other algorithms have accounted
+for this in their own way since your argument above is irrefutable.
+
+However, given that the SignatureMethod is protected by the cryptographic
+algorithm, it is still at least useful that SignatureMethod is part of what
+got hashed because it is then a cleartext version of the signature method
+that is accessible to XML API's, and it cannot be changed without breaking
+the SignatureValue (because SignatureValue does not rely on
+SignatureMethod's value but rather on the internally stored copy of the
+signature method in D).  Note that I think it is reasonable to assume that
+the content of SignatureMethod and the value of DigestAlgorithmIdentifier
+will identify the same algorithm at the time of signing.
+
+Moreover, given that the SignatureMethod is appropriately secured by the
+cryptography, the method described in the spec is indeed useful for
+preventing substitution attacks on the DigestMethod.  The DigestMethod
+cannot be changed without breaking the SignatureValue.
+
+John Boyer
+Software Development Manager
+UWI.Com -- The Internet Forms Company
+
+
+-----Original Message-----
+From: w3c-ietf-xmldsig-request@w3.org
+[mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of lcs Mixmaster
+Remailer (by way of "Joseph M. Reagle Jr." <reagle@w3.org>)
+Sent: Monday, January 24, 2000 3:00 PM
+To: IETF/W3C XML-DSig WG
+Subject: [Moderator Action] Should alg spec be included in hashed data?
+
+
+When computing a signature, does it add security to include the sig and
+hash algorithm in the data which is hashed?
+
+Some writers seem to suggest that it does.  For example, in the XML
+Digital Signatures working group,
+http://www.ietf.org/internet-drafts/draft-ietf-xmldsig-core-03.txt says:
+
+   The SignatureMethod is the algorithm used to convert the canonicalized
+   SignedInfo into the SignatureValue. It is a combination of a digest
+   algorithm and a key dependent algorithm and possibly other algorithms
+   such as padding, for example RSA-SHA1 or HMAC-SHA1. The algorithm
+   names are signed to resist attacks based on substituting a weaker
+   algorithm.
+
+The idea is that some data is signed, and included in the data is a
+description of the signature algorithm itself (public key and hash
+algorithm, for PK sigs).  This, it is said, resists attacks based on
+substituting a weaker algorithms.
+
+The alternative would be to specify the signature and hash algorithm
+*outside* the signed portion.  Of course the verifier needs to know
+these algorithms to verify the signature, but the question is whether
+it adds security to include this information in what is hashed.
+
+Consider attacks based on substituting weaker algortihms.  For example,
+DSS always uses SHA1.  Suppose someone proposes an alternative form of
+DSS that uses a different hash but still the same signing algorithm,
+DSA.  Suppose further that this hash eventually is found to be weak.
+Call it JUNKHASH.
+
+Now, using DSA + JUNKHASH allows one to forge signatures, because it
+is easy to create a fake message M_fake which, hashed with JUNKHASH,
+creates the same hash as a legitimate message M_real hashed with SHA1.
+The attacker takes an existing legitimate DSS signature on M_real,
+and substitutes M_fake, saying to use hash algorithm JUNKHASH.  The DSA
+signature value is left alone, and the new signature will verify correctly
+since the hash is the same.
+
+This is the basic idea of the attack.  Now, the question is, does
+including the algorithm specification (DSS vs DSA+JUNKHASH) in the
+material that is hashed make the attack harder to execute?
+
+To some limited extent, the answer is probably yes.  In order to create
+M_fake the attacker is going to need some freedom of action.  He will have
+to adjust some parts of the message in order to make the hash come out
+to what he wants.  Including the alg spec in the hashed data forces him
+to leave that part of the message as "DSA+JUNKHASH".  He can't play with
+this, he must leave it that way or else the message can't be verified.
+So his freedom of action is reduced somewhat, and he can only make
+alterations to other parts of the message in order to achieve his goal.
+
+But really, this is a very minor restriction.  And in fact it could be
+met equally well by putting a fixed string in the algorithm specification
+field, like "THIS SPACE INTENTIONALLY LEFT BLANK".  If the spec required
+that such a field exist, the attacker's flexibility and freedom to adjust
+the message would be just as constrained as if he were forced to put
+his algorithm there.
+
+Including the algorithm spec in the hashed data really does not play
+a significant role in adding security.  In particular it does not in
+any way force the attacker to use the same algorithm specification, or
+prevent him from changing it to the specification of the weak algorithm.
+And given that the algorithm is weak, making him include the algorithm
+spec in the hash is not likely to add significantly to the difficulty
+of the attack.
+
+As a general principal, it does not strengthen protocols against algorithm
+substitution attacks to include the algorithm specification as an INPUT
+to the potentially weakened stage.  It must go outside that channel in
+order to add security.  We see this in PKCS-1, where the hash algorithm
+spec is input to the RSA signature stage.  It does not go through the
+hash algorithm itself; the designers presumably recognized that that
+would be weak.  It bypasses the hash stage, and feeds directly into the
+signature stage.  This adds strength.  The present proposal, although
+it bears some resemblance to that, fails because it sends the alg spec
+through the very stage it purports to protect.
+
+Of course, it may turn out that requiring the algorithm spec in that place
+does happen to make the attacker's job more difficult, due to the specific
+nature of the weakness he is exploiting.  But on the other hand, it could
+conceivably make his job easier, if the exploit happened to work well
+with the particular encoding of the alg spec in the specified location.
+
+Overall, it doesn't seem appropriate to conclude that requiring the
+algorithm specification to be included in the hashed data will add
+resistance to attacks based on substituting a weaker algorithm.  In the
+interests of including only cryptographically justified security features,
+it would be more appropriate to move the algorithm specification out of
+the hashed data region.
+
+
+

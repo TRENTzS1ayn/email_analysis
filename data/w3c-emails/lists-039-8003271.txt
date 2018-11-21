@@ -1,0 +1,386 @@
+docno="lists-039-8003271"
+received="Fri Sep 10 13:52:13 1999"
+isoreceived="19990910175213"
+sent="Fri, 10 Sep 1999 10:51:46 -0700"
+isosent="19990910175146"
+name="Yaron Goland (Exchange)"
+email="yarong@Exchange.Microsoft.com"
+subject="RE: Bindings, Locks, and MOVE"
+id="078292D50C98D2118D090008C7E9C6A603C965CE@STAY.platinum.corp.microsoft.com"
+inreplyto="Bindings, Locks, and MOVE"
+expires="-1"
+
+
+To:"'jamsden@us.ibm.com'"<jamsden@us.ibm.com>
+Cc:w3c-dist-auth@w3.org
+
+To quote from section 8.9 of RFC 2518:
+
+   The MOVE operation on a non-collection resource is the logical
+   equivalent of a copy (COPY), followed by consistency maintenance
+   processing, followed by a delete of the source, where all three
+   actions are performed atomically.  
+
+
+MOVE is not a best effort operation. It is an atomic operation which can
+conceptually be broken into several steps. However the user is guaranteed
+that all the steps occur or none of them occur. An example may help here:
+
+T0 - User sends in a MOVE from server a to server b
+T1 - Server a issues a PUT onto server b
+T2 - Server a issues a PROPPATCH onto server b
+T3 - Network connection between a & b goes down
+T4 - User accesses server a and b and finds both servers contain a copy of
+the resource!
+
+There are also a lot of implicit state in a resource that a PUT/PROPPATCH
+won't necessarily copy over. For example, I would expect the creation date
+at the destination to be the same as at the source.
+
+If you use a PUT/PROPPATCH/DELETE to implement MOVE then you are almost
+certainly not compliant with WebDAV. In practice this may not matter. I can
+imagine any number of systems where this hack may be useful. But it has no
+place in a standard.
+
+Yaron
+
+> -----Original Message-----
+> From: jamsden@us.ibm.com [mailto:jamsden@us.ibm.com]
+> Sent: Thursday, September 09, 1999 6:26 AM
+> To: Yaron Goland (Exchange)
+> Cc: w3c-dist-auth@w3.org
+> Subject: RE: Bindings, Locks, and MOVE
+> 
+> 
+> 
+> 
+> Yaron,
+> I guess I don't see the issue. See comments below.
+> 
+> 
+> 
+> 
+> 
+> "Yaron Goland (Exchange)" <yarong@Exchange.Microsoft.com> on 
+> 09/08/99 08:41:47
+> PM
+> 
+> To:   Jim Amsden/Raleigh/IBM@IBMUS, w3c-dist-auth@w3.org
+> cc:
+> 
+> Subject:  RE: Bindings, Locks, and MOVE
+> 
+> 
+> 
+> 
+> Sigh... every day, in every way, I wish like hell I had never 
+> written that
+> damn "COPY followed by a DELETE" language.
+> 
+> A server CAN NOT implement a cross server MOVE as a WebDAV COPY method
+> followed by a WebDAV DELETE method. The reason that this 
+> isn't possible is
+> that the MOVE requires atomic behavior and it requires that 
+> the resource at
+> the destination be the exact same resource (within reason) as 
+> at the source.
+> Therefore, for a cross server MOVE to be possible between two 
+> unrelated
+> servers a new protocol would have to be invented which could 
+> guarantee the
+> WebDAV semantics.
+> <jra>
+> A WebDAV MOVE is a best effort operation, so it would seem 
+> that this is
+> consistent with non-atomic operation (which might miss 
+> resources that were added
+> or changed after the move began). DAV4J does the MOVE as an 
+> atomic operation
+> whether its from a client of another server acting as a 
+> client, so it wouldn't
+> have this problem anyway. As far as having the destination be 
+> exactly the same
+> as the source, I don't know what "within reason" means. If it 
+> means has the same
+> GUID, or is effectively a new reference to the same resource in some
+> server-dependent way, then no, I can't probably do that. 
+> DAV4J makes a new
+> resource at the destination that has the same contents as the 
+> source, but not
+> necessarily the same character encoding, and the same 
+> properties if possible.
+> The only issue is conversion between live and dead properties 
+> when the servers
+> involved support different sets (a potential interoperability 
+> problem).
+> 
+> It seems this is at least a useful interpretation of the spec.
+> </jra>
+> In the WebDAV charter you will find the following entry in the list of
+> things not in scope for WebDAV:
+> 
+> *HTTP server to server communication protocols
+> 
+> The reason this line was put in the charter was that in the 
+> beginning a lot
+> of folks wanted to enable server to server communication so 
+> it would be
+> possible to do things like cross-server MOVEs. WebDAV decided to focus
+> solely on the issue of client/server communication and thus ruled
+> server/server communication out of scope. If you wish to do 
+> cross-server
+> MOVEs you will need a new protocol because WebDAV can't do it.
+> 
+>           Yaron
+> 
+> P.S. Stop laughing Jeff! =)
+> 
+> > -----Original Message-----
+> > From: jamsden@us.ibm.com [mailto:jamsden@us.ibm.com]
+> > Sent: Wednesday, September 08, 1999 8:12 AM
+> > To: w3c-dist-auth@w3.org
+> > Subject: RE: Bindings, Locks, and MOVE
+> >
+> >
+> >
+> >
+> > The WebDAV spec says that locks are lost on MOVE. So if the
+> > source resource is
+> > locked, then the MOVE request must include the lock token,
+> > and the lock must be
+> > owned by the requesting principal. Otherwise the delete
+> > portion of the move will
+> > fail. Since MOVE is a best effort method, the copy to the
+> > destination will work,
+> > even if the source can't be deleted. As is the case with
+> > COPY, the lock on the
+> > destination resource is determined by its new parent
+> > collection, not by any lock
+> > state it may have had. This could be taken to mean that the
+> > new resource is not
+> > the same resource moved to a new location, but a different resource.
+> >
+> >
+> >
+> >
+> >
+> > "Slein, Judith A" <JSlein@crt.xerox.com> on 09/08/99 09:34:03 AM
+> >
+> > To:   "'Yaron Goland (Exchange)'" <yarong@Exchange.Microsoft.com>,
+> >       w3c-dist-auth@w3.org
+> > cc:
+> >
+> > Subject:  RE: Bindings, Locks, and MOVE
+> >
+> >
+> >
+> >
+> > The intention is that if a resource is copied or moved into a
+> > tree that is
+> > locked, the lock on the tree remains in force.
+> >
+> > We didn't discuss the case where you are doing a MOVE, and
+> > the resource
+> > being moved is locked, and it is being moved into a 
+> collection that is
+> > locked.  The lock on the collection will certainly stay in
+> > force, but we
+> > need to decide whether the lock on the resource being MOVEd
+> > will be lost or
+> > whether the MOVE will fail.  I guess my own opinion is that
+> > the MOVE should
+> > fail, since that maintains a consistent position that the
+> > state of a MOVEd
+> > resource should be unaffected by the move; if its lock state
+> > would have to
+> > be changed, the move should fail.
+> >
+> > Judith A. Slein
+> > XR&T/Xerox Architecture Center
+> > jslein@crt.xerox.com
+> > 8*222-5169
+> >
+> >
+> > > -----Original Message-----
+> > > From: Yaron Goland (Exchange) 
+> [mailto:yarong@Exchange.Microsoft.com]
+> > > Sent: Tuesday, September 07, 1999 8:49 PM
+> > > To: 'Slein, Judith A'; 'Greg Stein'; w3c-dist-auth@w3.org
+> > > Subject: RE: Bindings, Locks, and MOVE
+> > >
+> > >
+> > > Phew!!! I couldn't believe what I was reading regarding write
+> > > locks. What
+> > > use is a write lock that only sometimes is a write lock?
+> > > Yikes. I'm glad
+> > > that is dead.
+> > >
+> > > However there is still a point in the original post that
+> > > concerns me. Let's
+> > > see if I understand the proposal:
+> > >
+> > > When copying a resource into a tree that is currently locked
+> > > then the lock
+> > > on that tree is lost?
+> > >
+> > > Is that the proposal for how to handle locks at the
+> > > destination of a copied
+> > > resource? That is my reading of the paragraph Judy provided.
+> > >
+> > >         Yaron
+> > >
+> > > > -----Original Message-----
+> > > > From: Slein, Judith A [mailto:JSlein@crt.xerox.com]
+> > > > Sent: Tue, September 07, 1999 7:19 AM
+> > > > To: 'Greg Stein'; w3c-dist-auth@w3.org
+> > > > Subject: RE: Bindings, Locks, and MOVE
+> > > >
+> > > >
+> > > > Thanks for bringing the discussion back to earth.
+> > > >
+> > > > I agree with you that the compromise of saying that servers
+> > > > SHOULD protect
+> > > > the path of the Request-URI used in locking a resource is a
+> > > > poor one.  It
+> > > > doesn't respond to the issue that was raised, and it
+> > > > needlessly muddies the
+> > > > waters for clients, which now don't know whether the path
+> > > > will be protected
+> > > > or not.
+> > > >
+> > > > I like your suggestion that we keep the MUST language, but
+> > > > state that it
+> > > > applies only to write locks.
+> > > >
+> > > > --Judy
+> > > >
+> > > >
+> > > > > -----Original Message-----
+> > > > > From: Greg Stein [mailto:gstein@lyra.org]
+> > > > > Sent: Friday, September 03, 1999 3:24 AM
+> > > > > To: w3c-dist-auth@w3.org
+> > > > > Subject: Re: Bindings, Locks, and MOVE
+> > > > >
+> > > > >
+> > > > > This whole thread (post-Judy's message) seems to be picking
+> > > > out a very
+> > > > > minor detail of her post. Personally, I find this nit-picking
+> > > > > of detail
+> > > > > counter to the goal of her original post: "test its
+> > > > > conclusions with the
+> > > > > mailing list members."
+> > > > >
+> > > > > For myself (and mod_dav), the first "AGREED" portion
+> > > makes complete
+> > > > > sense, and I do agree with it.
+> > > > > [btw, is *anybody* going to be implementing cross-server
+> > > > MOVE/COPY? is
+> > > > > it necessary to have that feature in the spec at all? of the
+> > > > > umpteen DAV
+> > > > > servers out there now, I don't know any that do this or plan
+> > > > > to do this.
+> > > > > It would be nice to cut the thing and not worry about it.]
+> > > > >
+> > > > > The second "AGREED" portion does not make a whole lot of
+> > > sense. The
+> > > > > commentary states that the position is too strong [because it
+> > > > > might not
+> > > > > make sense with other types of locks]. Are there other locks
+> > > > > out there?
+> > > > > Do people have concrete, useful examples? I haven't heard
+> > > > of anything
+> > > > > besides a write-lock yet. Regardless, I think it should be
+> > > > enforced in
+> > > > > the spec that a write-lock MUST have guaranteed
+> > protection of the
+> > > > > Request-URI. Put in some language that says other locks can
+> > > > define the
+> > > > > MUST/SHOULD nature of protection. Otherwise, leave it in
+> > > > the intuitive
+> > > > > state: a write lock says that others cannot monkey with
+> > your URI.
+> > > > >
+> > > > > Cheers,
+> > > > > -g
+> > > > >
+> > > > > Edgar Schwarz wrote:
+> > > > > >
+> > > > > > On Thu, 2 Sep 1999, Geoffrey M. Clemm wrote:
+> > > > > >
+> > > > > > >    From: ccjason@us.ibm.com
+> > > > > > >
+> > > > > > >    <JS>
+> > > > > > >    This discussion began with Yaron's comment that saying
+> > > > > that "it MUST NOT be
+> > > > > > >    possible for a principal other than the lock owner to
+> > > > > make a locked resource
+> > > > > > >    inaccessible via the URI mapping used to lock the
+> > > > > resource" is too strong.
+> > > > > > >    It may make sense for write locks as defined in RFC
+> > > > > 2518, but may not make
+> > > > > > >    sense for other sorts of locks that don't restrict
+> > > > > MOVE and DELETE.
+> > > > > > >    </JS>
+> > > > > > >
+> > > > > > >    I believe that this is not specific to any particular
+> > > > > type of locks.  All
+> > > > > > >    clients need to insure that they have at the very
+> > > > > least a way to unlock
+> > > > > > >    the the locks they have created.  I assume that to
+> > > > > unlock (a resource), we
+> > > > > > >    have to provide a URI of a (the?) resource locked by
+> > > > > that lock... so if
+> > > > > > >    someone else changes the URI, it's
+> > > > > > >    very likely that we're not going to be able to figure
+> > > > > out what the new
+> > > > > > >    URI is... and will have to leave the lock around until
+> > > > > it times out.
+> > > > > > >
+> > > > > > > <gmc> Since the server needs to deal with this in case
+> > > > > the client just
+> > > > > > > neglects to remove the lock, and if having another client
+> > > > > MOVE your
+> > > > > > > locked resource is a rare occurrence (which I believe
+> > > > it is), then
+> > > > > > > this does not seem to be especially problematical.
+> > > > > > Would it be possible to say:
+> > > > > >   If a locked resource is moved the server SHOULD create
+> > > > a indirect
+> > > > > >   reference resource which should exist for some
+> > sensible time.
+> > > > > >
+> > > > > > Yes I know, it's complicating the server :-)
+> > > > > > I imagine the above happening perhaps when somebody is
+> > > > reorganizing
+> > > > > > a directory structure and deep in the collections
+> > there are some
+> > > > > > locked resources.
+> > > > > > So the lock owner at least has a decent chance to find
+> > > > out where his
+> > > > > > resource has gone to.
+> > > > > >
+> > > > > > Regards, Edgar
+> > > > > >
+> > > > > > --
+> > > > > > Edgar.Schwarz@de.bosch.com ON/EMS1, 07191/13-3382
+> > > > > Niklaus Wirth:
+> > > > > > Privat kann jeder soviel C programmieren oder Videos
+> > > > > ansehen wie er mag.
+> > > > > > Albert Einstein:  Mach es so einfach wie moeglich, aber
+> > > > > nicht einfacher.
+> > > > >
+> > > > > --
+> > > > > Greg Stein, http://www.lyra.org/
+> > > > >
+> > > >
+> > >
+> >
+> >
+> >
+> >
+> 
+> 
+> 
+
+
+

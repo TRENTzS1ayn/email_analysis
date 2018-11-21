@@ -1,0 +1,345 @@
+docno="lists-011-5554450"
+received="Thu Jul 24 19:21:57 1997"
+isoreceived="19970724232157"
+sent="Thu, 24 Jul 97 19:10:36 MDT"
+isosent="19970725011036"
+name="Jeffrey Mogul"
+email="mogul@pa.dec.com"
+subject="Updated proposal for OPTIONS issue"
+id="9707250210.AA17298@acetes.pa.dec.com"
+expires="1"
+
+
+To:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+[incorporates various changes since the last message, including
+ the Non-Compliance header, removal of the GET example, changes
+ to Allow and Public, and allows Max-Forwards to be used with
+ OPTIONS.]
+
+****** Note: two possible options for item (8) ******
+
+Reference:
+http://www.w3.org/pub/WWW/Protocols/HTTP/Issues/#OPTIONS</a>
+
+Problem statement:
+RFC2068 doesn't really say how to use OPTIONS to discover
+what an implementation supports.
+
+It's essential to have a simple and reliable mechanism for
+detecting support for extensions as a part of the core HTTP/1.1
+protocol.
+
+Outline of proposed solution:
+ 
+    the URI '*' refers to the server, independent of any specific URI.
+   
+    The Host: header may be used to specify a named proxy or origin 
+    server in a chained environment
+   
+    The Max-forwards: header may be used to specify a maximum number
+    of hops the request may be forwarded in a chained environment
+   
+    The Compliance: header may be used on requests to ask about
+    compliance, and on responses to assert compliance.
+
+    The Non-Compliance header allows proxies to indicate when
+    they fail to comply with something that the origin server
+    complies with.
+
+    We define a new IANA-registered namespace for compliance
+    assertions.
+
+Proposed Solution:
+
+(1) In section 5.1.2, remove this:
+
+   If a proxy receives a request without any path in the Request-URI and
+   the method specified is capable of supporting the asterisk form of
+   request, then the last proxy on the request chain MUST forward the
+   request with "*" as the final Request-URI. For example, the request
+
+          OPTIONS <a href="http://www.ics.uci.edu:8001">http://www.ics.uci.edu:8001</a> HTTP/1.1
+
+   would be forwarded by the proxy as
+
+          OPTIONS * HTTP/1.1
+          Host: www.ics.uci.edu:8001
+
+   after connecting to port 8001 of host "www.ics.uci.edu".
+
+(2) In section 9.2 (OPTIONS), replace:
+
+   Unless the server's response is an error, the response MUST NOT
+   include entity information other than what can be considered as
+   communication options (e.g., Allow is appropriate, but Content-Type
+   is not). Responses to this method are not cachable.
+
+with
+
+   An OPTIONS request MAY include Compliance headers (see section 14.ZZZ)
+   that indicate the set of options the sender wants information
+   about.
+
+   Responses to OPTIONS are not cachable, unless caching is explicitly
+   allowed by the originating sender (see section 13.4).
+
+(3) In section 9.2 (OPTIONS), replace:
+
+   If the Request-URI is an asterisk ("*"), the OPTIONS request is
+   intended to apply to the server as a whole. A 200 response SHOULD
+   include any header fields which indicate optional features
+   implemented by the server (e.g., Public), including any extensions
+   not defined by this specification, in addition to any applicable
+   general or response-header fields. As described in section 5.1.2, an
+   "OPTIONS *" request can be applied through a proxy by specifying the
+   destination server in the Request-URI without any path information.
+
+with
+
+   If the Request-URI is an asterisk ("*"), the OPTIONS request is
+   intended to apply to the server as a whole.  A 200 response SHOULD
+   include a Public header field (see section 14.35).  If the request
+   includes a Compliance header field, a 200 response SHOULD include a
+   Compliance header field, indicating the subset of the requested
+   Compliance options supported by the server as a whole.  The response
+   SHOULD include any other applicable general or response-header
+   fields.
+
+   If an OPTIONS request includes a Host header (see section 14.23),
+   this is the intended destination of the OPTIONS method.
+   Proxy servers MUST forward such a message until it reaches
+   the specified host.  If the specified host has more than
+   one `virtual server', the OPTIONS request applies to the
+   specified virtual server.
+   
+       Note: An OPTIONS request may also include a Max-Forwards header,
+       as described in section 14.31.  This allows the sender to select
+       the Nth proxy on a path, without knowing its hostname.
+
+(4) In section 9.2 (OPTIONS), replace:
+
+   If the Request-URI is not an asterisk, the OPTIONS request applies
+   only to the options that are available when communicating with that
+   resource.  A 200 response SHOULD include any header fields which
+   indicate optional features implemented by the server and applicable
+   to that resource (e.g., Allow), including any extensions not defined
+   by this specification, in addition to any applicable general or
+   response-header fields. If the OPTIONS request passes through a
+   proxy, the proxy MUST edit the response to exclude those options
+   which apply to a proxy's capabilities and which are known to be
+   unavailable through that proxy.
+
+with
+
+   If the Request-URI is not an asterisk, the OPTIONS request applies
+   only to the options that are available when communicating with that
+   resource.  A 200 response SHOULD include an Allow header field (see
+   section 14.7).  If the request includes a Compliance header field, a
+   200 response SHOULD include a Compliance header field, indicating
+   the subset of the requested Compliance options supported by the
+   server as a whole.  If the subset is empty, the response SHOULD
+   include a Compliance header with an empty field-value.  The response
+   SHOULD include any other applicable general or response-header
+   fields.
+
+      Note: if an OPTION request contains a Compliance header, and the
+      response does not, the response may have been generated by
+      RFC2068-compliant implementation, which would not support
+      Compliance.  In this case, it is not possible to infer that the
+      sender fails to support all of the options listed in the
+      Compliance header of the request.
+
+   If the OPTIONS request passes through a
+   proxy, the proxy SHOULD add a Non-Compliance header field (see
+   section 14.QQQ) to the response, to list those options that apply to
+   a proxy's capabilities and that are known to be unavailable through
+   that proxy.
+
+(5) In 14.31 (Max-Forwards), replace:
+
+   Each proxy or gateway recipient of a TRACE request containing a Max-
+   Forwards header field SHOULD check and update its value prior to
+   forwarding the request.
+
+with
+
+   Each proxy or gateway recipient of a TRACE or OPTIONS request
+   containing a Max-Forwards header field SHOULD check and update its
+   value prior to forwarding the request.
+
+(6) New section
+
+14.ZZZ Compliance
+
+    The Compliance general header field lists a set of options
+    that may or may not be supported by a server.  In a request
+    message, this header lists the set of options that a client
+    wishes to know about.  In a response message, this header
+    lists the set of options that the server complies with.
+    
+    A compliance header MAY appear on any message, but is
+    normally used with the OPTIONS request (see section 9.2).
+    
+    Compliance = "Compliance" ":" ("*" | *(compliance-option))
+
+compliance-option = compliance-namespace "="
+option-item [ option-params ]
+
+compliance-namespace = token
+
+option-item = token | quoted-string
+
+option-params = 1#( ";" option-param)
+
+option-param = "cond" | "uncond" | token | quoted-string
+
+    A Compliance header field with the field-value of "*" MAY
+    be used in a request, to ask about all options complied
+    with by the recipient.  This field-value MUST NOT be used
+    in a response.
+
+    The compliance-namespace is used to select from one of several
+    namespaces for compliance options.  The option-item is used
+    to specify one or more options within a namespace.  
+
+    The Internet Assigned Numbers Authority (IANA) acts as a registry
+    for compliance-namespace tokens. Initially, the registry contains
+    the following tokens:
+
+"RFC"Compliance is with an RFC, specified by an RFC number.
+For example, "rfc=1945".
+
+"HDR"Compliance is with a named HTTP header.  For example,
+"HDR=Authorization".  There is no IANA registry for
+HTTP header names, but to avoid potential namespace
+confusion, only those HTTP headers listed in an
+IETF standards-track document should be used in
+this namespace.
+
+"PEP"Compliance is with a PEP-specified extension, identified
+using a quoted-string containing the PEP extension
+declaration.
+
+    The option-param is used to provide additional parameters.
+    Unconditional compliance with a compliance-option is indicated
+    using the "uncond" option-param; for example, "rfc=1945;uncond".
+    Conditional compliance is indicated using the "cond" option-param;
+    for example, "HDR=Authorization;uncond".  Additional option-param
+    values might be defined as part of another specification.
+
+    Examples:
+
+Compliance: rfc=2068;uncond
+Compliance: rfc=1945;uncond, rfc=2068;cond
+Compliance: rfc=2068, hdr=PEP, hdr=SetCookie2
+Compliance: rfc=9999999;uncond;"onlyOn=Tuesdays"
+
+
+(7) New section:
+
+14.QQQ Non-Compliance
+
+   A proxy server SHOULD add this response-header to a response
+   containing a Compliance header if the proxy does not implement one
+   or more of the options described in the Compliance header.
+
+        Non-Compliance =  "Non-Compliance" ":" 1#non-compliance-option
+
+        proxy-host = host [ ":" port ]
+
+        non-compliance-option = compliance-option "@" proxy-host
+
+   A non-compliance-option listed in a Non-Compliance response-header
+   field indicates that the proxy server named by the proxy-host value
+   does not support the listed compliance-option.  The set of
+   non-compliance options SHOULD be a subset of the compliance-options
+   listed in a Compliance header field of the forwarded message.
+
+      Note: because the proxy-host value is not authenticated,
+      this is only for advisory purposes (e.g., for debugging).
+
+   A proxy MUST NOT delete a Non-Compliance header that it has
+   received from another server.
+
+(8) [For the moment, two possible alternatives here!]
+
+(8a) In section 14.35 (Public), replace
+
+   This header field applies only to the server directly connected to
+   the client (i.e., the nearest neighbor in a chain of connections). If
+   the response passes through a proxy, the proxy MUST either remove the
+   Public header field or replace it with one applicable to its own
+   capabilities.
+
+with
+
+   A proxy MUST NOT modify the Public header field even if it does not
+   understand all the methods specified, since the user agent might have
+   other means of communicating with the origin server.
+
+(8b) In section 14.7 (Allow) replace:
+
+   A proxy MUST NOT modify the Allow header field even if it does not
+   understand all the methods specified, since the user agent MAY have
+   other means of communicating with the origin server.
+
+with
+
+   A proxy MUST remove methods from an Allow header field if it
+   does not support the use of those methods for the resource
+   identified by the Request-URI.
+
+and in section 14.35 (Public), replace this paragraph:
+
+   This header field applies only to the server directly connected to
+   the client (i.e., the nearest neighbor in a chain of connections). If
+   the response passes through a proxy, the proxy MUST either remove the
+   Public header field or replace it with one applicable to its own
+   capabilities.
+
+with
+
+   A proxy MUST remove methods from a Public header field if it
+   does not support the use of those methods.
+
+(9) Examples (put this in 9.2.1?):
+
+  To list all extensions supported by proxy "proxy4.microscape.com"
+
+    Client sends:
+OPTIONS * HTTP/1.1
+Host: proxy4.microscape.com
+Compliance: *
+
+    proxy4.microscape.com responds:
+HTTP/1.1 200 OK
+Date: Tue, 22 Jul 1997 20:21:51 GMT
+Server: SuperProxy/1.0
+Public: OPTIONS, GET, HEAD, PUT, POST, TRACE
+Compliance: rfc=1543, rfc=2068, hdr=set-proxy
+Compliance: hdr=wonder-bar-http-widget-set
+Compliance: PEP="<a href="http://foobar.pep.org/pepmeister/">http://foobar.pep.org/pepmeister/</a>"
+Content-Length: 0
+
+[Editorial note: check syntax of PEP extensions]
+       
+  Probing for a feature which is not supported by "proxy4.microscape.com"
+
+    Client sends:
+OPTIONS * HTTP/1.1
+Host: proxy4.microscape.com
+Compliance: PEP="<a href="http://foobar.pep.org/evil-not-implemented">http://foobar.pep.org/evil-not-implemented</a>"
+
+    proxy4.microscape.com responds:
+HTTP/1.1 200 OK
+Date: Tue, 22 Jul 1997 20:21:52 GMT
+Server: SuperProxy/1.0
+Public: OPTIONS, GET, HEAD, PUT, POST, TRACE
+Compliance:
+Content-Length: 0
+
+[End of proposed changes]
+
+
+

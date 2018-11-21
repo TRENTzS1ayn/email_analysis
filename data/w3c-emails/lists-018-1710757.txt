@@ -1,0 +1,318 @@
+docno="lists-018-1710757"
+received="Thu Nov 28 04:05:11 2002"
+isoreceived="20021128090511"
+sent="Thu, 28 Nov 2002 03:31:48 0500 (EST)"
+isosent="20021128083148"
+name="Michael Dyck"
+email="jmdyck@ibiblio.org"
+subject="XQuery: A.1.2 Lexical Rules"
+id="3DE5D405.BBCC5AF7@ibiblio.org"
+charset="usascii"
+expires="1"
+
+To:public-qt-comments@w3.org
+
+
+
+
+
+
+XQuery 1.0: An XML Query Language
+W3C Working Draft 13 November 2002
+
+A.1.2 Lexical Rules
+
+The title "Lexical Rules" doesn't descibe this section very well. "Lexical
+State Machine" or "Lexical Automaton" would be more accurate.
+
+---------------------------------------------------------------------------
+para 1
+
+"[contexts and transitions] is described"
+    Change "is" to "are".
+
+"series of states"
+    There's no particular ordering on the states, so "set of states" would
+    be more accurate.
+
+---------------------------------------------------------------------------
+para 2
+
+"there are various strategies that can be used by an implementation to
+disambiguate token symbol choices"
+    Disambiguation is something done by the language specification, not
+    implementations. Change "disambiguate token symbol choices" to "perform
+    lexical analysis".
+
+"lexical evaluation" (twice)
+    The word "evaluation" here may lead to confusion. Again, you could say
+    "lexical analysis".
+
+"An implementation need not follow this approach in implementing lexer
+rules, but does need to conform to the results."
+    I have twice before ([1] and [2]) argued against this lexical push-down
+    automaton (PDA), and particularly against it being made normative.  I'm
+    still waiting to see a counter-argument.  I believe the only thing 
+    that's been posted in its defense was this:
+        "The reason the PDA is valuable is because it works with tools like
+        JavaCC and Lex."
+    This may well be true, but doesn't justify making it normative.
+
+[1]http://lists.w3.org/Archives/Public/www-xml-query-comments/2002Jan/0002.html
+[2]http://lists.w3.org/Archives/Public/public-qt-comments/2002Aug/0021.html
+
+    Instead of repeating my arguments here, I'll ask two questions:
+
+    (1) The PDA has appeared 4 times, each time with mistakes, sometimes
+        blatant, sometimes subtle. How confident are you that the final
+        version will be bug-free?
+
+    (2) Do you think that the PDA imposes requirements (on implementations)
+        that aren't imposed elsewhere in the spec?  If so, what are they?
+        And if not, why make it normative?
+
+"For instance, instead of using ..."
+    This sentence seems to be saying the same kind of things as the "Among
+    the choices" sentence earlier in the paragraph.  Why not combine them?
+
+"a more ambiguous token strategy"
+    Ambiguity is a property of grammars, so it's probably misleading to
+    use it to describe an implementation strategy.
+
+---------------------------------------------------------------------------
+para 3
+
+"the tokens listed are recognized only in that state"
+    Implies that they're not recognized in any other state, which is not
+    the case. For example, "+" is recognized in both DEFAULT and OPERATOR
+    states.  This is a misplaced "only". What you mean is that only the
+    tokens listed are recognized in that state.
+
+'a transition will "push" [a state] and will later restore that state by a
+"pop" ...'
+    You're saying that a transition will both push a state and later
+    restore it, which is not true. One transition pushes it, and another
+    pops it. So you could say something like:
+        This state is restored (i.e., made the current state) by a
+        subsequent "popState" transition.
+
+---------------------------------------------------------------------------
+para 4
+
+"the parser productions"
+    This phrase conflates the parser and the grammar. Instead, say "the
+    productions of A.2".
+
+---------------------------------------------------------------------------
+
+In what follows, lines beginning with ";" give example queries that conform
+to the BNF of A.2 but are not accepted by the PDA. Usually I give a simple
+change to the PDA that will fix the problem, but some of the problems
+appear to be harder to fix.
+
+[AB] indicates problems that were pointed out by Andre Blavier in
+http://lists.w3.org/Archives/Public/public-qt-comments/2002Nov/0093.html
+
+[MS] indicates problems that were pointed out by Mike Sample in
+http://lists.w3.org/Archives/Public/public-qt-comments/2002Nov/0100.html
+
+---------------------------------------------------------------------------
+
+#ANY
+
+"This state is for patterns that can be recognized in any state."
+    This is ridiculous. For instance, consider Digits. What's the point of
+    saying that Digits can be recognized in (say) the NAMESPACEDECL or
+    VARNAME states? Even in the states where digits do make sense, the
+    state presumably already recognizes IntegerLiteral, and any input that
+    matches one will match the other, with the same length, so the lexer
+    won't be able to decide which it has recognized. (And since HexDigits
+    is also supposedly recognized in every state, it will often add to the
+    confusion.)
+
+    Similarly, any state for which a WhitespaceChar is valid presumably
+    already recognizes S. If the input is a multi-character whitespace,
+    S will always win the longest-match rule, and if the input is a
+    single-character whitespace, then the lexer is again confused.
+
+    Similarly for Nmstart (vs NCName or QName).
+
+    And why would *any* state want to recognize Nmchar? Most of those
+    characters aren't even allowed at the start of a lexeme.
+
+    Delete this state!
+
+---------------------------------------------------------------------------
+
+DEFAULT
+
+    ; validate { . } | .
+    ; element A { } | .
+    The two transitions with "pushState(DEFAULT)" should have
+    "pushState(OPERATOR)" instead.
+
+    ; typeswitch ( A ) case B return C default return D
+    The transition on <"typeswitch" "("> to OPERATOR should be to DEFAULT.
+
+    I'm pretty sure this state doesn't need to recognize <"stable" "order"
+    "by">. And if it did, it would presumably need to recognize <"order"
+    "by"> as well.
+
+    ; A
+    Needs to recognize QName! (with a transition to OPERATOR)
+    [AB]
+
+    ; / + /
+    The transition on "/" to QNAME ignores that / is itself an expression,
+    which would imply a transition to OPERATOR. I suspect the solution is
+    complicated.
+
+    The pattern that causes the transition to START_TAG is blank.
+    It should be "<".
+    [AB]
+
+    ; <!-- --> | .
+    ; <?A?> | .
+    ; <![CDATA[]]> | .
+    The three "pushState()" transitions should be "pushState(OPERATOR)".
+
+    S and ExprComment cause the same transition. Why not merge them?
+    [And similarly in other states.]
+
+    In this state, is there a difference between the transitions "DEFAULT"
+    and "(maintain state)"? If so, what is it? If not, why have both?
+    [And similarly for other states.]
+
+    The transition on "," is "resetParenStateOrSwitch(DEFAULT)". This was
+    explained in the previous draft, but isn't any more. Nor are there any
+    uses of pushParenState() or popParenState(). So I think this is just
+    an unintended leftover. The transition should just be to DEFAULT.
+    [MS]
+
+---------------------------------------------------------------------------
+
+OPERATOR
+
+    ; some $A in . castable as B? satisfies C
+    The transition on "?" to DEFAULT should be to OPERATOR.
+
+    ; element { . } { } | .
+    ; validate context A { . } | .
+    The transition with "pushState(DEFAULT)" should maybe have
+    "pushState(OPERATOR)" instead, except that this causes problems for
+    function definitions.
+
+    ; let $A := . stable order by C return D
+    The transition on <"stable" "order" "by"> to OPERATOR should be to
+    DEFAULT.
+
+    The transition on "," should be to DEFAULT.
+
+---------------------------------------------------------------------------
+
+QNAME
+
+    ; //foo()
+    Needs to recognize <QName "("> (with a transition to DEFAULT)
+
+    ; /1
+    Needs to recognize Literals    (with a transition to OPERATOR)
+
+    ; @A
+    Needs to recognize QName!      (with a transition to OPERATOR)
+    [AB]
+
+    The transition on "," should be to DEFAULT.
+
+---------------------------------------------------------------------------
+
+NAMESPACEKEYWORD
+
+    ; import schema "A" B
+    The transition on StringLiteral to OPERATOR should be to DEFAULT.
+
+    ; import schema default element namespace = "A"
+    Needs to recognize <"default" "element"> and <"default" "function">,
+    with a transition to NAMESPACEKEYWORD (maintain state).
+    [MS]
+
+---------------------------------------------------------------------------
+
+XMLSPACE_DECL
+    Needs to recognize S.
+
+---------------------------------------------------------------------------
+
+ITEMTYPE
+
+    ; . instance of empty or A
+    ; let $A as node := B return C
+    ; typeswitch ( . ) case empty return A default return B
+    In the first row of the table, the transition to DEFAULT doesn't work.
+    It should maybe be a transition to OPERATOR, but I think the problem is
+    more complicated than that.
+
+    AtomicType is a non-terminal! Presumably that should be QName.
+
+---------------------------------------------------------------------------
+
+VARNAME
+    Needs to recognize S.
+
+---------------------------------------------------------------------------
+
+START_TAG
+    The pattern that causes the transition to DEFAULT is blank.
+    I don't think this transition is needed.
+
+---------------------------------------------------------------------------
+
+ELEMENT_CONTENT
+
+    The pattern that causes the transition to DEFAULT is blank.
+    It should be "{".
+    [AB]
+
+    Is this a legal Query?
+        <a>{--1}</a>
+    I think the spec says that it is: the '{--1}' is an EnclosedExpr that
+    yields the value 1.  You may be tempted to say:
+        "No, '{--1}' is a malformed ExprComment. After recognizing the
+        start-tag '<a>', the longest-match rule tells us to prefer the
+        lexeme '{--' (that starts an ExprComment) rather than the lexeme
+        '{' (that starts an EnclosedExpr)."
+    However, '{--' is not a lexeme. In the ELEMENT_CONTENT state, the
+    choice is not between '{' and '{--', but between '{' and ExprComment.
+    Since the input matches '{' and does not match ExprComment, the
+    lexer must recognize the '{' as a lexeme, and go into DEFAULT state.
+    (That is, it must start recognizing an EnclosedExpr.) Right?
+
+---------------------------------------------------------------------------
+
+END_TAG
+
+    The pattern that causes the transition to DEFAULT is blank.
+    I don't think this transition is needed.
+
+---------------------------------------------------------------------------
+
+QUOT_ATTRIBUTE_CONTENT
+
+    The pattern that causes the transition to DEFAULT is blank.
+    It should be "{".
+    [AB]
+
+---------------------------------------------------------------------------
+
+APOS_ATTRIBUTE_CONTENT
+
+    The pattern that causes the transition to DEFAULT is blank.
+    It should be "{".
+    [AB]
+
+---------------------------------------------------------------------------
+
+-Michael Dyck
+
+
+

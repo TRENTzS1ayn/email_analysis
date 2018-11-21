@@ -1,0 +1,255 @@
+docno="lists-017-2740144"
+received="Wed Apr 23 08:57:53 2003"
+isoreceived="20030423125753"
+sent="Wed, 23 Apr 2003 15:00:16 +0200"
+isosent="20030423130016"
+name="Giles Hogben"
+email="giles.hogben@jrc.it"
+subject="P3P Data Schema as XML Schema"
+id="GAEKIJGJBJOBBJEFAHMLMEANCJAA.giles.hogben@jrc.it"
+charset="iso-88591"
+inreplyto="200304221753.27329.reagle&#64;w3.org"
+expires="1"
+
+To:<public-p3p-spec@w3.org>,"Rigo Wenning"<rigo@w3.org>,"Jeremy Epling"<jepling@windows.microsoft.com>
+Cc:<marc.wilikens@jrc.it>
+
+
+Hi,
+Here are notes and files I promised on XML Schema for BSD. Rigo, perhaps you
+could post the files on a server somewhere as promised. The XSLT works with
+msxml but can easily be adapted for others (see notes below).
+
+Note that this is an investigation of how to express the existing schema as
+XSD, not an investigation of alternatives.
+I do think that we should eventually make a switch to a more interoperable
+and efficient format but I don't think this would be a good idea at present.
+
+bsd.xsd is the (formatted) result of a transformation on the P3P1.0 BSD
+bsdtransform.xml is the xml of the p3p1.0 BSD
+bsdtransform.xsl is the xslt
+bsdtransform.html is the client side code for executing the transform and
+outputting as HTML.
+
+The notes below are also attached as a word document.
+
+----------------------------------
+P3P Base Data Schema as XML Schema
+----------------------------------
+
+
+Giles Hogben JRC
+
+----
+Aims
+----
+
+The aims of this first pass solution were
+1. To allow a simple 1 to 1 transformation between policies expressed in the
+old format and policies which conform to the XML schema.
+2. To allow a simple 1 to 1 transformation between any custom built data
+schemas and the new format. For this purpose I have provided an xslt.
+
+Although I have provided an XML version of the transformed schema, it is
+necessarily complex and this document explains how it is structured.
+
+These aims led to the following
+
+------------------------------------------------
+Requirements for the base data schema XML schema:
+------------------------------------------------
+
+1. The schema must express classes of data and their allowed relationships
+in terms of sub and superclasses.
+
+In the old format this led to expressions like
+<data ref="user.home-info">
+Which I take to mean - the information the statement is about is an instance
+in the class home-info, in the class user.
+OR
+<data ref="user.home-info.online.uri">
+Which I take to mean - the information the statement is about is an instance
+in the class uri, in the class online etc?.
+
+2. These classes (called structures in the old format) are reused at
+different levels of the hierarchy and therefore must be declared by
+reference within the schema hierarchy.
+
+For example the class denoted by the structure "contact" may be used by both
+business-info and home-info.
+
+3. The XML language can assume a semantic such that nested elements imply
+subclassing.
+
+Although there is no formally defined semantics for P3P, by inspecting the
+use of elements such as purpose, one can gather that use of a sub-element in
+P3P may be equated to the semantic "is a subclass of?"
+
+For example:
+<purpose>
+<current/>
+</purpose>
+
+Means something like:
+
+"The data this statement is about has purpose of type (subclass of purpose)
+current "
+
+4. An overall set of "categories" is assumed within any DS from which are
+derived subsets of categories for any class. These categories do not have
+the same semantic as classes. They superclass any classes used but only a
+certain subset of all the categories may superclass a given class. This
+superclassing is inherited within the DS but it follows a reverse
+inheritance rule because superclasses of the standard classes inherit the
+categories of their subclasses. For this reason it has to be declared at
+each level and cannot use standard inheritance syntax using the XML tree.
+For example in the BSD,
+
+<data ref="user.home-info">
+
+May be given the additional semantic of "this data type is in the online
+category"
+
+<data ref="user.home-info"><CATEGORIES><online/></CATEGORIES></data>
+
+
+These requirements are satisfied by the following
+
+----------------------
+Informal specification
+----------------------
+
+This informal specification is formally specified in the attached XML
+Schema.
+
+Data types are expressed as subclasses of a root "Datatype" element. The
+subclass semantic is expressed by making an element a child of another
+element.
+
+For example
+
+<Datatype>
+<user>
+<home-info>
+<online/>
+</home-info>
+</user>
+</Datatype>
+
+
+Categories are defined by a <category name="xxxx"> element, which  may
+appear ONLY AS LEAVES. This mimics the previous syntax where the classes
+were specified up to a certain granularity which was then given a category.
+For example:
+
+P3P1.0:
+-------
+
+<data
+ref="user.home-info"><CATEGORIES><online/><demographic>/</CATEGORIES></data>
+
+P3P 1.1. XML Schema Compliant
+-----------------------------
+
+<Datatype>
+<user>
+<home-info>
+<category name="online"/>
+<category name="demographic"/>
+</home-info>
+</user>
+</Datatype>
+
+
+
+P3P 1.0
+-------
+
+<data
+ref="user.home-info.online.email"><CATEGORIES><online/></CATEGORIES></data>
+
+P3P 1.1. XML Schema Compliant
+
+<Datatype>
+<user>
+<home-info>
+<online>
+<email>
+<category name="online"/>
+<email/>
+</online>
+</home-info>
+</user>
+</Datatype>
+
+
+Notice that the names of the "structures" are not specified in the XSD as a
+formal naming of a group of subelements is no longer necessary. An informal
+description of the structure of the BSD should however be given within the
+specification document, allowing users to know how to use the classes
+without reading the XSD (Maybe it's even possible to write an XSLT for the
+specification document J ).
+
+--------------------------
+Notes for Transform files:
+--------------------------
+
+1. The XSLT is general and will transform any data schema, which is
+syntactically correct according to P3P 1.0.
+
+2. The files provided are everything you need to transform a data schema
+using client side transformation in MS IE.
+
+bsdtransform.xml is the xml of the p3p1.0 BSD
+bsdtransform.xsl is the xslt
+bsdtransform.html is the client side code for executing the transform and
+outputting as HTML.
+bsd.xsd is the (formatted) result of a transformation on the P3P1.0 BSD
+
+4. You can use the stylesheet with other xsl processors but you need to
+change the node-set extension. To transform a different DS, just change the
+xml input document in bsdtransform.html
+
+5. The mechanism of the transform of the old BSD to XSD is extremely complex
+but is explained in the comments of the XSLT. The transform uses a multipass
+transform which uses the node-set xslt extension so it is specific to msxml.
+It can be used with SAXON with a very minor change which is written in the
+xslt.
+
+
+----------------------------------
+Explanation of Schema Syntax Used:
+----------------------------------
+
+The schema is contained in bsd.xsd.
+
+The schema starts with a definition of all the categories from which the
+allowed categories are derived.
+
+Starting with a definition of the root <datatype> element, it then uses the
+<choice> element to specify the subelements of this recursively. For each
+subelement, there is then a further <choice> which specifies the use of
+categories. It says that <category> elements used must be a leaf by saying
+making their usage mutually exclusive wrt any subelements (using
+<xs:choice>).
+
+
+
+
+
+
+text/xml attachment: bsd.xml
+
+application/octet-stream attachment: bsd.xsd
+
+text/html attachment: bsdtransform.html
+
+text/xml attachment: bsdtransform.xsl
+
+application/msword attachment: p3p_base_data_schema_as_XML_schema.doc
+
+application/msword attachment: p3p_base_data_schema_as_XML_schema.doc
+
+
+
+

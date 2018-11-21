@@ -1,0 +1,194 @@
+docno="lists-104-15835334"
+received="Fri Aug  8 11:39:36 2003"
+isoreceived="20030808153936"
+sent="Fri, 8 Aug 2003 11:39:28 -0400 "
+isosent="20030808153928"
+name="Francois Yergeau"
+email="FYergeau@alis.com"
+subject="i18n reviews of DOM 3 Core and Load&amp;Save"
+id="F7D4BDA0E5A1D14B99D32C022AEB73660EB351@alis-2k.alis.domain"
+charset="windows-1252"
+expires="-1"
+
+
+To:"'www-dom@w3.org'"<www-dom@w3.org>
+
+
+
+These are the review comments on the last calls for DOM 3 Core and
+Load&Save, from the i18n WG.
+
+DOM 3 Core
+http://www.w3.org/TR/2003/WD-DOM-Level-3-Core-20030609/
+
+
+C1) Document interface, "actualEncoding" and "xmlEncoding" attributes: This
+is very much improved since the previous version, but unfortunately still
+not totally clear.  Since the DOM stores documents in UTF-16 exclusively,
+these attributes must necessarily refer to the encoding of a serialized
+document that is parsed to create the DOM tree; since xmlEncoding is not
+read-only, it can also be set programmatically, but that shouldn't change
+its semantics.  Semantics is precisely where some dark spots remain.
+actualEncoding is pretty clearly defined as the actual encoding of the
+parsed document, supposedly gleaned from the parser. xmlEncoding is then
+said to be taken from the XML declaration, but Appendix C.1.1 says that
+xmlEncoding is supposed to come from the infoset's [character encoding
+scheme] property.  The latter is defined as "The name of the character
+encoding scheme in which the document entity is expressed", matching the
+semantics of actualEncoding, not those of an encoding label read from the
+XML declaration.  So the meaning of xmlEncoding remains pretty murky.
+
+One wonders why there are actually 2 attributes, since there is only one
+encoding of interest: that of the document that was parsed to create the DOM
+tree.  If the intent was to enable DOM users to control encoding during
+later serialization, this is defeated by the order of priorities specified
+in DOMSerializer.write(): actualEncoding precedes xmlEncoding.  The former
+being read-only, the user has no control.
+
+
+C2) Document interface, "adoptNode()" method: the fact that this does not
+throw an INVALID_CHARACTER_ERR when a 1.0 document adopts a node containing
+names not legal in 1.0 is clarified but really bizarre. Why is this
+different from importNode()?
+
+
+C3) Document interface, "renameNode()" method: should specify, like
+createAttribute() and others, that an INVALID_CHARACTER_ERR exception can be
+thrown, depending on the "xmlVersion" attribute.
+
+
+C4) Node interface, "normalize()" method: this should also perform character
+normalization, perhaps conditional to the config of the containing Document.
+This method's business in life is to concatenate Text nodes; concatenation
+is one of the well-known cases that actually *produces* character
+denormalization.  It would be silly to have a method called normalize()
+which actually denormalizes, so any denormalizations caused by concatenation
+should be repaired as part of the method's normal functioning.  Backward
+compatibility can probably be addressed by making the repairs conditional on
+xmlVersion or the config of the containing document or both.
+
+Also, it should be specified that this method is sensitive to the value of
+the "cdata-sections" config parameter.
+
+
+C5) CharacterData interface: are the various methods  supposed to maintain
+character normalization?  Under the control of the config of the containing
+Document? Of "strictErrorChecking"?
+
+The config parameters "check-character-normalization" and
+"normalize-characters" appear to be pertinent, but neither their
+descriptions nor the descriptions of the CharacterData.* methods say that
+they have any effect for these methods. 
+
+
+C6) DOMLocator interface, "offset" attribute: there should be two
+attributes, one for byte offset and the other for character offset (or
+alternatively another attribute that says whether "offset" is byte or
+character), since the application may not be able to determine if the source
+was bytes or characters.
+
+
+C7) DOMConfiguration interface, "cdata-sections"  parameter: this should
+default to false.  CDATA sections are mere syntactic sugar with no
+structural role (hint: they do not exist in the infoset), they do not
+deserve to be preserved by default.
+
+
+C8) DOMConfiguration interface, "check-character-normalization" parameter:
+it is not clear *when* this setting has any effect (i.e. what methods of
+what interfaces it affects). Since Charmodel says that text SHOULD be
+checked, the default for this should be true, the user having the chance to
+set it to false after careful consideration of the consequences (see
+definition of SHOULD in RFC2119).
+
+
+C9) The reference to Unicode 3.0 should be updated to Unicode 4.0, ISBN
+0-321-18578-1.
+
+
+C10) Section 1.3.2 on URIs: we consider this section overly vague.  At least
+two points should be improved:
+
+- For resolution of relative URIs/IRIs, it should be clearly said that
+   RFC 2396 (or it's successor) is relevant. IRIs don't change that at
+   all, we just need to be careful that the implementations treat all
+   non-ASCII characters as payload.
+
+- It should be explicitly mentioned that DOM URIs can contain more
+   than just US-ASCII.
+
+
+DOM 3 Load&Save
+http://www.w3.org/TR/2003/WD-DOM-Level-3-LS-20030619/
+
+
+LS1) Interface DOMParser: character normalization checking is now controlled
+by the "check-character-normalization" parameter of DOMCOnfiguration defined
+in Core. The fact that the "true" value (do check) is marked as [optional]
+(not the default, not even required to implement) is not acceptable.
+Whereas Charmod says that normalization SHOULD be checked, users are not
+even able to check if the "true" value is not implemented.  Furthermore, the
+DocumentLS.load() and loadXML() methods automatically do the wrong thing and
+have no way to do the right thing if the default is false.
+
+
+LS2) Interface DOMParser: There should be an error type defined for failure
+to check normalization (sugg. "normalization-checking-failure") in addition
+to the existing "unknown-character-denormalization".
+
+
+LS3) In the discussion of interface DOMSerializer (above the IDL
+definition), it would be nice if character references were specified to be
+hexadecimal (preferred) or decimal.  One way or the other determined by the
+spec, not implementation-dependent.  Similarly (still within DOMSerializer),
+it would be better to specify serialization of attribute values to be always
+in quotes (or apostrophes, you choose), with escaping as necessary.
+
+
+LS4) In DOMSerializer, there is issue to move the definition of
+"ignore-unknown-character-denormalizations" to DOM Core.  This has already
+been done (specs out of sync) and we agree.
+
+
+LS5) In DOMSerializer, the contents of the encoding pseudo-attribute of the
+XML (or text) declaration is underspecified.  It should be specified that
+this MUST be the actual encoding that is used for output, whatever the
+source that determined that was.
+
+
+LS6) In DOMSerializer, method writeURI(): there is no way to control the
+encoding that will be used to output.  The method itself doesn't have a
+parameter, and the order of priorities is Document.actualEncoding followed
+by Document.xmlEncoding. Document.actualEncoding being read-only, the user
+has no way to specify the output encoding, except if by chance
+Document.actualEncoding is null.  There should be an additional  "encoding"
+parameter (nullable, to fall back to actualEncoding and xmlEncoding) to the
+method.
+
+
+LS7) In DOMSerializer, method writeURI(): the name writeURI is a little
+unfortunate, it seems to imply that a URI is written, not that it is written
+*to*.
+
+
+LS8) It should be specified that DOMSerializers MUST be able to serialize in
+UTF-8 and both byte-orders of UTF-16, to close the loop with XML parsers
+which are obligated to read these.
+
+
+LS9) In DocumentLS.load(), it is said that 'the parameters used in the
+DOMParser interface are assumed to have their default values with the
+exception that the parameters "entities", "normalize-characters",
+"check-character-normalization" are set to "false".', which is strange as
+the last 2 of these parameters do default to false anyway.
+"check-character-normalization" should default to true (see other comment).
+
+
+LS10) The reference to Unicode 3.0 should be updated to Unicode 4.0, ISBN
+0-321-18578-1.
+
+-- 
+Fran?ois
+
+
+

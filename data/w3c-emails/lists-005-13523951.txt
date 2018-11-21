@@ -1,0 +1,550 @@
+docno="lists-005-13523951"
+received="Tue Dec  5 14:36:39 2000"
+isoreceived="20001205193639"
+sent="Tue, 5 Dec 2000 14:35:49 -0500 (EST)"
+isosent="20001205193549"
+name="Geoffrey M. Clemm"
+email="geoffrey.clemm@rational.com"
+subject="Re: Review of draft-ietf-deltav-versioning-10.4/5"
+id="200012051935.OAA13216@tantalum.atria.com"
+inreplyto="&quot;iraun1.ira.0088601:001201.182348&quot;&#64;ira.uka.de"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+       From: Juergen Reuter [mailto:reuterj@ira.uka.de]
+
+   I am not very happy with the current structure of the document
+   which divides all features into core WebDAV versioning and optional
+   WebDAV versioning.  Currently, the core part is getting smaller and
+   smaller, while the optional part continuously grows.  The problem I
+   see is that server implementors will either implement the core part
+   only, or, in practice, they will have to implement also the full
+   optional part.
+
+Note that the options are divided 6 packages, which are identified in
+the DAV header response from an OPTIONS request.  These are "label",
+"workspace", "baseline", "activity", "merge", and
+"versioned-collection".  Clients are expected to look for these option
+packages via the OPTIONS request.
+
+We could restructure the document into one section per option package.
+What do others think? 
+
+   I think the original idea of core/optional versioning was to
+   separate core versioning semantics from advanced semantics (mostly
+   configuration management).  So, maybe you could reintroduce this
+   idea into the protocol by defining three levels:
+
+   - core versioning: minimally required features
+
+   - versioning: fully fledged versiong including labels and branches
+   (and maybe merging)
+
+   - advanced versioning: configuration management and all remaining
+   optional features
+
+What is in the "versioning" level varies widely from server to server.
+I believe the current division into orthogonal option sets is what is
+required to achieve consensus.
+
+   Section 1.3
+   - ---------
+
+   Version Selector/Working Resource:
+
+   The definition of the term "Working Resource" as opposed to that of
+   "Version Selector" seems confusing to me.  The pure fact that the
+   CHECKOUT method is defined to be applicable on both types of
+   resources, does not make them suitable for a direct comparison.
+
+Note that the things that can be checked out are version-controlled
+resources and versions.  The result of the checkout is either a
+checked-out version-controlled resource, or a working resource,
+respectively.
+
+   I think it would be better to characterize the term "working
+   resource" independently from "checking out a version selector".
+
+I agree.  I'll see what I can work up (this is connected to some
+points you make below).
+
+   Maybe when defining the term "version selector" you might want to
+   add a note about checking out version selectors.  To summarize, I
+   would like to suggest the following wording:
+
+   Version Selector:
+   When an existing resource is put under version control, it becomes a
+   "version selector" resource.  A new version history resource is
+   allocated, whose initial version contains the content and dead
+   properties of the existing resource.
+   A checkout may be applied to version selector.  This will make a copy
+   of an existing version of the version history accessible for editing.
+
+This might be a bit misleading since a checkout applied to a version
+selector does not make a copy of anything ...  it just changes the
+state of the version selector from checked-in to checked-out.
+Checking out a version does make a copy (the working resource).
+
+   A subsequent checkin will create a new version in the version history.
+   Checking out a version selector is useful for environments where only
+   a single user accesses the version selector.
+
+Note though that multiple users can access a shared checked out
+version selector by using the locking protocol.  Also, you need to be
+careful to not mislead the reader into thinking that checking out a
+version selector is useful only when a single user is doing
+development (when workspaces are supported, multiple users each check
+out their own version selector for a shared version history).
+
+   Working resource:
+   If multiple users concurrently try to check out the same version
+   selector, they will interfere each other.  To avoid this, a checkout
+   can also be directly applied to a version.  This will create a new
+   resource, called "working resource".  The working resource can be
+   modified and is automatically deleted when it is checked in.  The
+   server allocates a distinct new URL for each new working resource.
+
+Note that in general, we try not to go into this much detail in the
+"terminology" section, but rather do so in the "semantics" or
+"concepts" section.
+
+   Section 2: WebDAV Versioning Semantics
+   - ------------------------------------
+   This section discusses rather concepts than semantics, right?
+
+I'm happy with either word ... just for interest's sake, why don't you
+think "semantics" are being described in this section?
+
+   Section 3: New WebDAV XML Element Attributes
+   - ------------------------------------------
+   As both, the headline itself and the introductory statement to this
+   section suggest, this section should be moved to (a new revision of)
+   the WebDAV protocol.
+
+I agree, but unless we defer the versioning protocol until such a new
+revision is created, we are stuck with defining WebDAV extensions in
+the versioning protocol when we find they are needed.  So as soon as
+the WebDAV extension is defined, I'm happy to strip this kind of thing
+from the versioning protocol.
+
+I've recently received a suggestion from Yaron that we replace this with
+tokens for the If header.  I think he's right, so it's likely that we'll
+be killing this section anyway.
+
+   Section 4: New WebDAV Properties
+   - ------------------------------
+   Again, move this to WebDAV.  Note that 4.1.3 and 4.1.4 do *not*
+   introduce new WebDAV properties, as the headline claims.
+
+Yes, 4.1.3 and 4.1.4 just got put there because there seemed to be no
+place better to put them.
+
+   Section 4.4: DAV:supported-method-set
+   - -----------------------------------
+   > method-name type: a type in the DAV://METHODS/ namespace
+
+   In general, this does not work. ...
+   Personally, I would prefer a syntax like:
+
+     <D:supported-method-set xmlns:D="DAV:">
+       <D:method-name>GET</D:method-name>
+       </D:supported-method-set>
+
+This would be fine with me.  I'll make that change if nobody objects.
+
+   Section 4.6: DAV:supported-report-set
+   - -----------------------------------
+   Same problem as in section 4.5.  However, this is currently
+   independent from WebDAV and hence can and should be fixed, e.g.:
+
+   <D:supported-report-set xmlns:D="DAV:">
+     <D:report-name>version-tree-report</D:report-name>
+     <D:report-name>property-report</D:report-name>
+   </D:supported-report-set>
+
+One reason DeltaV (and WebDAV) use this approach is that it
+allows for consistent use of namespaces, i.e. so you can have
+your XML parser to namespace resolution of these report names.
+If one made the change you suggest, it would have to be
+something like:
+
+   <D:supported-report-set xmlns:D="DAV:">
+     <D:report-name>DAV:version-tree-report</D:report-name>
+     <D:report-name>DAV:property-report</D:report-name>
+   </D:supported-report-set>
+
+   Section 5.1.2: DAV:predecessor-set (protected),
+   Section 5.1.3: DAV:successor-set (protected)
+   - ---------------------------------------------
+   It is very important that the server really maintains the order of the
+   DAV:href elements, as noted for the predecessor set.  But the
+   successor set should also be maintained.  Think for example of
+   graphically displaying a revision graph.  You really do not want the
+   branches of the revision graph to be aligned differently each time the
+   graph is re-displayed.  Moreover, an application might want to
+   designate the first DAV:href element of the successor set to continue
+   the main development branch.
+
+Unlike the DAV:predecessor-set (which is set by the client),
+the DAV:successor-set is a query (the inverse of DAV:predecessor-set)
+computed by the server, and constraining
+the order of the results of this computation would place an (in my view)
+unacceptable constraint on server implementations.
+
+If a server wants to interoperate with multiple clients, it should
+use an activity to capture the "main branch", and not depend upon
+some server dependent predecessor set ordering.
+
+   Section 5.1.4: DAV:checkout-set (protected)
+   - -------------------------------------------
+   This should also be an ordered set maintained by the server.  For
+   example, think of a client that chooses to graphically display working
+   resources and checked-out version selectors as part of a revision
+   graph.  Or, to give another example, depending on the underlying
+   revision control system, the first element in the set may be a
+   designated candidate to continue the main development branch.
+
+Same response as for DAV:successor-set.  This is not a client specified
+property, it is a server computation/query.
+
+   Section 6: WebDAV Versioning and Existing Headers
+   - -----------------------------------------------
+   I think this headline does not express what is following.  Personally,
+   I would prefer a wording like:
+
+   "Versioning Vis-a-Vis WevDAV Headers" or
+   "Impact of Versioning on WebDAV Headers".
+
+The new versioning header is still a WebDAV header, so I personally
+prefer the current title.  Anyone else have a preference?
+
+   Section 7.1.1: Example - GET request with DAV:must-not-be-checked-out
+   response
+   -
+   ------------------------------------------------------------------------
+   ----
+   The example contains a CHECKOUT request, not a GET request.
+
+Oops!  Thanks for catching that.
+
+   > In this example, the request to CHECKOUT /foo.html fails because
+   > /foo.html is already checked out
+
+   ... and /foo.html is a version selector, or because the server chooses
+   not to branch off a new version.
+
+If it were those other things, it would have returned a different
+token in the response body.
+
+   Section 7.2: OPTIONS
+   - ------------------
+   > If the server supports checking out a version selector
+
+   i.e. checking out a version selector is an optional feature and should
+   be moved to Optional WebDAV Versioning?
+
+We're currently addressing this in a separate thread.  My proposal
+is that support for checking out a version-controlled resource be
+mandantory (since it is easy for both client-workspace and server-workspace
+servers to implement).
+
+   Section 7.3: PUT
+   - --------------
+   In the preconditions section, you use the format
+   "<DAV:some-error-tag/>: Error condition".  To be kind,
+   you should introduce the reader to this format or use a more
+   self-explanatory format.
+
+OK, what would the more self-explanatory format be?  (:-).
+
+But more seriously, I agree this needs explanation.  I'll add it to
+the "notational conventions" section.
+
+   Section 7.4: PROPPATCH
+   - --------------------
+   > <DAV:cannot-modify-protected-property/>: An attempt to use PROPPATCH
+   > to modify a property (either core or optional) defined by this
+   > document as being protected MUST fail.
+
+   > <DAV:cannot-modify-unsupported-property/>: An attempt to modify a
+   > property defined by this document (either core or optional) whose
+   > semantics are not enforced by the server MUST fail.  This helps ensure
+   > that a client will be notified when it is trying to use a property
+   > whose semantics are not supported by the server.
+
+   What about moving these features to WebDAV?  They are probably of
+   generic interest and not versioning specific (assuming that the
+   definition of the term "protected property" also could be moved to
+   WebDAV).
+
+When there is a new version of the WebDAV protocol open for editing, I
+agree we should move it there.
+
+   Section 9.1: VERSION_CONTROL
+   - --------------------------
+   The logical structure of the rules in this section seems rather weird
+   to me.
+
+   The section contains the following precondition:
+
+   > <DAV:must-be-versionable/>: The request-URL MUST identify a
+   > versionable resource, a null resource, or a version selector.
+
+   Accordingly, I would expect three paragraphs in the beginning of this
+   section:
+
+   "If the request-URL identifies a versionable resource, then ..."
+   "If the request-URL identifies a null resource, then ..."
+   "If the request-URL identifies a version selector, then ..."
+
+   A classification into disjunctive sets of cases also is probably
+   less error prone.
+
+Some of these conditions apply to more than one of these cases,
+so with a disjunctive set of cases, we would have to repeat preconditions
+appearing in other cases, which seems error prone.
+
+On the other hand, there are two preconditions that only apply to
+version controlling a null resource, and those should be grouped
+together (and currently are not).  I'll fix that.
+
+   Actually, in section 9.1 currently there is only a paragraph about
+   versionable resources.  The second paragraph talks about the case when
+   the request *body* identifies a version.
+
+   The postconditions section, on the other hand, classifies cases
+   thoroughly.  Still, I wonder which rules apply when the request-URL
+   identifies a version selector.  Section 9.1 only says that
+
+   > the DAV:version-control request
+   > body element MUST NOT contain a DAV:version element."
+   (precondition)
+
+   and:
+
+   > If the request-URL identified a version selector at the time of the
+   > request, the VERSION-CONTROL request MUST NOT change the state of that
+   > version selector.
+   (postcondition)
+
+   But then, what does a VERSION-CONTROL do at all if the request-URL is
+   a version selector?
+
+Nothing.  This is here to let a client use the same protocol sequence
+to put a resource under version control, whether or not the server
+automatically puts all new resources under version control (which a
+server is allowed to do).  I'll add a sentence to this effect, since
+I've had that question before.
+
+   Section 9.2: CHECKOUT
+   - -------------------
+   > A versioning server MUST support either version selector CHECKOUT or
+   > version CHECKOUT, and MAY support both.
+
+   These two concepts should be explained somewhere (e.g. in the terms
+   section or in the introductory section).  As far as I understand,
+   version selector CHECKOUT is appropriate only when a single user
+   accesses a versioned resource?  And as soon as two or more users want
+   to access it, you need working resources and hence have to apply
+   version CHECKOUT?  If so, this should be somewhere explained (e.g. as
+   rationale or concepts, for example in the introduction).
+
+I agree that these variants need to be better explained and contrasted.
+
+I believe that we should break this up into three categories:
+public checkouts (in place checkouts, must be supported)
+client workspaces (working resources, optional)
+server workspaces (server side workspaces, optional).
+
+   Possible you might choose leaving version selector CHECKOUT as
+   core versioning feature, but moving version CHECKOUT to optional
+   versioning (preferably as part of the fully fledged versioning as
+   proposed in the beginning of this mail).
+
+I agree.  This would give us required functionality (public checkouts)
+and the two options for private checkouts: client workspaces (working
+resources) and server workspaces
+
+   > The content and dead properties of the working resource MUST be the
+   > same as the content and dead properties of the DAV:checked-out
+   > version.
+
+   I would prefer the following wording:
+
+   "The content and dead properties of the working resource MUST be
+   initialized with the content and dead properties of the
+   DAV:checked-out version."
+
+One could phrase postconditions in the form of "this is the state
+following the successful execution of the request" or "this is what
+the server must do to successfully execute this request.  Either one
+works, but we should be consistent, and currently the postconditions
+are in the first form.  I also believe the first form is simpler.
+
+   > If DAV:apply-to-target is specified in the request body, the CHECKOUT
+   > is applied to the version identified by the DAV:target of the version
+   > selector, and not the version selector itself.
+
+   For better understanding, I would suggest the following wording:
+
+   > If the request-URL contains a version selector and DAV:apply-to-target
+   > is specified in the request body, the CHECKOUT is applied to the
+   > version identified by the DAV:target of the version selector, and not
+   > the version selector itself.
+
+Fine by me.  I'll add that in.
+
+   Section 9.3: CHECKIN
+   - ------------------
+   The meaning of DAV:keep-checked-out is not just to keep a checked out
+   resource when applying a CHECKIN, but also to perform a subsequent
+   update of the checked out resource's DAV:checked-out property.  As far
+   as I understand, this results in a behaviour that is the same as that
+   of a CHECKIN immediately followed by a CHECKOUT (except that in the
+   case of a working resource its URL is recycled).  Hence, I would
+   suggest to name this XML element e.g. "DAV:checkpoint" rather than
+   "DAV:keep-checked-out".
+
+The term "checkpoint" is used by several CM systems to mean something
+like a "baseline", so I think DAV:keep-checked-out is less likely to
+confuse people.
+
+   Section 9.4: UNCHECKOUT
+   - ---------------------
+   > An UNCHECKOUT request can be applied to a checked-out version selector
+   > to cancel the CHECKOUT.
+
+   This probably should read:
+
+   "An UNCHECKOUT request can be applied to a checked-out version selector
+   or working resource to cancel the CHECKOUT."
+
+   Or should I use DELETE to cancel a version CHECKOUT (though I
+   personally would prefer UNCHECKOUT)?  If so, an appropriate note for
+   the reader should be added.
+
+I'll add that note.  UNCHECKOUT is there primarily to reset the
+content and dead properties of a checked-out version-controlled
+resource.  For a working resource, a simple DELETE will suffice (there
+is no modified version-controlled state to reset in that case).
+
+   Section 9.5: SET_TARGET
+   - ---------------------
+   Typo: "Preconditions:" has a boldface colon.  This occurs also in some
+   other sections (e.g. 15.12, 16.1).
+
+Thanks for noticing that!  I'll get rid of those.
+
+   Section 10.1: DAV:version-tree-report
+   - -----------------------------------
+
+   > The DAV:version-tree-report describes all the versions of the version
+   > history of a version in the form of a nested tree of versions.
+
+   I would prefer the following wording:
+
+   The DAV:version-tree-report describes all the descendant versions for a
+   given version in a version history in the form of a nested tree
+   of versions.
+
+That would be a functional change, rather than a wording change.
+Currently DAV:version-tree-report gives you the full report for
+all versions in the history (i.e. a report rooted at the initial
+version rather than one at the specified version).
+
+Do folks think we want to make that change?  We could make
+this report on version selector be the whole tree, while this
+report on a version be rooted at that version.
+
+   > ANY value: zero or more property-name elements
+   >
+   > property-name type: a property type
+   >
+   > property-name value: none
+
+   This should be explained more verbosely.
+
+   > <!ELEMENT prop (see [RFC2518], section 12.11)>
+
+   Argh!  This is definitely not a valid element definition.
+
+Since the spec is being read by humans and not XML parsers,
+we should be OK (:-).  But I'm happy to replace the !ELEMENT
+with English text.
+
+   Section 10.1.1: Example - DAV:version-tree-report
+   - -----------------------------------------------
+
+   >     <D:creator-displayname/>
+   >
+   >     <D:predecessor-set>
+   >
+   >   </D:version-tree-report xmlns:D="DAV:">
+
+   Typo: should be <D:predecessor-set/>
+
+Thanks for catching that!
+
+   Section: 16.1 LABEL
+   - -----------------
+   > When comparing two label names to decide if they match or not, a
+   > server SHOULD use a case-sensitive octet-by-octet comparison of the
+   > two label names.
+
+   I propose to replace "SHOULD" with "MUST".  Otherwise, a client can
+   not be sure, what the server actually does and has to assume the worst
+   case, i.e. case-insensitive match.
+
+Yeah, I'd prefer that too, but this was the compromise after a long
+and 'vigorous' (:-) debate.  One hates to say "SHOULD" except as a
+last resort, and this was one of those cases.
+
+   > <!ELEMENT add (label-name)>
+   >
+   > <!ELEMENT set (label-name)>
+
+   I still think that the difference between these two elements and their
+   semantics does not get clear.
+
+Hmm.  Can you identify what mistake a reader could make based
+on the current definitions?
+
+   > <DAV:must-be-version-or-version-selector/>: The request-URL MUST
+   > identify a version or a version selector.
+
+   This probably should read:
+
+   "<DAV:must-be-version-or-version-selector-or-collection/>: The
+   request-URL MUST identify a version or a version selector or a
+   collection."
+
+In general, we consider a Depth:n request to be just a macro for
+a set of Depth:0 (or non-Depth) requests, whose responses appear
+separately in a 207.  If one of the collections is not a version
+selector, it MUST return this error token in the 207 response
+for this particular collection.
+
+   > <DAV:must-not-be-checked-out/>: If LABEL is being applied to a version
+   > selector, it MUST NOT be checked out.
+
+   The phrase "it MUST NOT be checked out" is ambigous
+   (noun/verb/adjective phrase or passive voice).  For clearity, what
+   about the following:
+
+   "<DAV:must-not-be-checked-out/>: Applying LABEL to a version selector
+   MUST fail, if the DAV:checked-out property appears on that version
+   selector."
+
+I have tried to consistently use "checked-out" as an adjective and
+"checked out" as a verb.  In this case, I erred (I should have said
+"checked-out").  I'll fix that.
+
+Thanks for the great detailed review!!
+
+Cheers,
+Geoff
+
+
+

@@ -1,0 +1,177 @@
+docno="lists-044-9601566"
+received="Tue Mar 14 14:42:39 2000"
+isoreceived="20000314194239"
+sent="Tue, 14 Mar 2000 14:42:38 -0500"
+isosent="20000314194238"
+name="by way of "
+email="jmarsh@microsoft.com"
+subject="XSL WG comments on XML Signatures"
+id="3.0.5.32.20000314144238.00930d90@localhost"
+charset="us-ascii"
+expires="-1"
+
+
+To:"IETF/W3C XML-DSig WG"<w3c-ietf-xmldsig@w3.org>
+Cc:w3c-xsl-wg@w3.org
+
+The XSL WG took a look at the http://www.w3.org/TR/xmldsig-core/ draft,
+especially at the XPath and XSLT transformation sections, and had some
+serious concerns.
+
+The section on XPath Filtering provides a capability that has often been
+requested - the ability to take shape a nodeset returned by the XPath query
+into an XML result.  We feel the model you provide will be a valuable
+contribution.  However, as consituted, the current formulation does not use
+XPath in a way consistent with the XPath recommendation.  We recommend a
+substantial redesign of this section.
+
+Notes on particular issues follow.
+
+
+[6.3.3 XPath Filtering] "The XPath transform output is the result of
+applying an XPath expression to an input string."
+
+Conceptually this is odd.  XPaths is designed to be applied to XML
+documents, not to strings.  Serious problems arise from this later on.
+
+
+"The XPath expression appears in a parameter element named XPath."
+
+No examples of this are shown; I assume the syntax is:
+
+  <Transform Algorithm="http://www.w3.org/TR/1999/REC-xpath-19991116">
+    <XPath>expression/goes/here</XPath>
+  </Transform>
+
+But the XPath element does not appear to be in the DTD.  An example would be
+useful.
+
+
+"The primary purpose of this transform is to omit information from the input
+document that must be allowed to vary after the signature is affixed to the
+input document."
+
+Despite this claim, the mechanism uses an XPath to describe the information
+that is to be retained, instead of the information that is to be omitted.
+Either the mechanism or this description of what is going on should be
+adjusted for consistency.
+
+
+[6.6.3.1 Evaluation Context Initialization] "A context node, initialized to
+null."
+
+Without a context node, the XPath cannot be applied against an XML tree.  We
+suggest that an XPath transform parses the document in all cases (not just
+when the parse() function is called), and the context node be set to the
+root of the parsed XML document.  The context size and position can then be
+initialized to 1, consistent with XPointer and XSLT.
+
+
+"(Typically, $input is passed directly to parse(), but if $input does not
+contain a well-formed XML document, XPath functions such as concat() can be
+used before passing the result to parse())."
+
+The need for this functionality is unclear, but seems to be a motivating
+factor in XPath abuse throughout this section.  If indeed this need must be
+fulfilled, it should be accomplished by a separate mechanism prior to
+application of XPath to the parsed (thus guaranteed well-formed) document.
+
+
+"An empty set of namespace declarations. (Note: It is possible to address a
+node by its qualified name, even though the evaluation context has not been
+initialized with a declaration of the namespace. The XPath language provides
+the functions namespace-uri() and local-name() for this purpose)."
+
+It appears quite easy in this syntax (being XML) to allow the user to
+declare namespaces for use within XPaths.  XSLT and XLink both provide this
+capability.  Using namespace-uri() and local-name() hinders readability and
+impacts performance significantly.  This workaround should only be used as a
+last resort, and even then many feel that this mechanism is too unwieldy.
+We strongly recommend that a syntax for passing author-declared namespace
+bindnigs to the XPath evaluation context be developed.
+
+
+[6.6.3.3 Function Library Additions] "Function: node-set parse (stringInput,
+boolean LexOrder)"
+
+This function will not work as intended.  The XPath BNF prevents functions
+from being used as a location step - they can only appear within predicates.
+Thus parse()/x (which appears to be fundamental to your design) is an
+illegal use of a function.  We recommend that the parsed XML be provided to
+an XPath processor through the context node instead, with any necessary
+parsing controls specified on the XPath element (for example) and applied
+prior to XPath execution.
+
+
+"Function:string serialize(node-set); This function converts a node-set into
+a string by generating the representative text for each node in the
+node-set."
+
+Under what circumstances would the serialize function NOT be called on a
+node-set return?  Since it appears that the vast majority (if not the
+entirety) of XPath Filtering operations will need to call this function,
+this capability should probably be built in instead of requiring the author
+to call it explicitly.
+
+Are the serialization constraints consistent with canonicalization?  Is it
+inappropriate simply to say that the output is canonicalized instead of
+defining the exact representation here?
+
+
+[6.6.3.4 XPath Transform Output] "serialize(parse($input,
+"true")/descendant-or-self::node()[
+     not(self::SignatureValue and parent::Signature[@id="S1"]) and
+     not(self::KeyInfo and parent::Signature[@id="S1"]) and
+     not(self::DigestValue and ancestor::*[3 and @id="S1"])]"
+
+If this is the intended usage scenario (omitting descendants), perhaps a
+mechanism based on XSLT match patterns (a subset of XPath) should be
+pursued.  Combined with an omission semantic instead of a retention
+semantic, the above might be simplified to:
+
+  Signature[@id="S1"]/SignatureValue | Signature[@id="S1"]/KeyInfo |
+*[3][@id="S1"]//DigestValue
+
+
+[6.6.4 XSLT Transform] "Identifier:
+http://www.w3.org/TR/1999/REC-xslt-19991116"
+
+Why is this identifier used instead of the XSLT namespace?  All XSLT
+stylesheets contain version info already.
+
+
+"The Transform element contains a single parameter child element called
+XSLT, whose content MUST conform to the XSL Transforms [XSLT] language
+syntax. The processing rules for the XSLT transform are stated in the XSLT
+specification [XSLT]."
+
+This seems quite underspecified after the XPath Filtering section.  For
+instance, are similar parsing controls needed?  If not, why are they
+necessary in the XPath case?  Are similar serialization constraints needed?
+If not, why are they necessary in the XPath case?  Are certain output
+methods required (they are optional in XSLT).
+
+
+[4.3.3.1 The Transforms Element] "<!ELEMENT Transform (#PCDATA)>"
+
+The definition of the "Transform" element is #PCDATA.  This will not allow
+an XSLT stylesheet to be included.  The XML Schema defines it as "element
+only" but does not define the content.  This definition would not allow a
+naked XPath if that is your intent.
+
+In addition, the section mentions that the sequence of transformations can
+be XPath, XSLT, or some custom Java algorithm.  It seems rather
+underspecified how this sequence of transformations interact (e.g. XSLT
+and XPath operate on nodes and the Java operates on ???).
+
+
+We look forward to working with you to resolve these issues in a way that
+meets your needs and is consistent, implementable, and interoperable.
+
+- Jonathan Marsh
+  Microsoft
+
+(With contributions from Alex Milowski.)
+
+
+

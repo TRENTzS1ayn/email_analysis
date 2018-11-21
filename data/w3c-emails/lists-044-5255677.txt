@@ -1,0 +1,186 @@
+docno="lists-044-5255677"
+received="Thu May 11 19:37:20 2000"
+isoreceived="20000511233720"
+sent="Thu, 11 May 2000 16:37:15 -0700"
+isosent="20000511233715"
+name="John Boyer"
+email="jboyer@PureEdge.com"
+subject="RE: Enveloped signatures"
+id="BFEDKCINEPLBDLODCODKAELNCCAA.jboyer@PureEdge.com"
+charset="us-ascii"
+inreplyto="3.0.5.32.20000511153513.00a56860&#64;localhost"
+expires="-1"
+
+To:"Joseph M. Reagle Jr."<reagle@w3.org>,"Mariano P. Consens"<mconsens@uwaterloo.ca>
+Cc:<w3c-ietf-xmldsig@w3.org>
+
+
+Hi Joseph and Mariano,
+
+Whether the XPath transform adds a here() function or a $here variable is
+not nearly as important as whether it will actually solve the problems it is
+intended to solve.
+
+Any conformant XPath implementation MUST offer a way to add to the function
+library, so there is no problem doing it as a function.
+
+The larger issue, though, is whether here() does the trick.  Mariano, when
+we spoke at the FTF, you said you'd post an example regarding the problem
+you actually want to solve with here(), which was some way to get around the
+XML global id problem.  I would appreciate it if you would work that out and
+show it.
+
+As for enveloped signatures, here() did not at first appear to be enough.
+The problem is not to simply to identify the ancestor signature element
+containing the XPath expression.  Instead, the problem is to exclude that
+element and all of its descendants from a digest calculation.  A transform
+containing the expression you wrote would *include* only the signature and
+its descendants, which is the opposite of what we want.  At first I did not
+think it could be done, but then I got a little creative with XPath, and the
+following expression appears to suffice:
+
+/descendant-or-self::node()
+[
+  count(ancestor::Signature | here()/ancestor::Signature[1]) >
+count(ancestor::Signature)
+]
+
+The /descendant-or-self::node() means that we examine all nodes in the tree,
+accepting only those for which the square-bracketed predicate expression is
+true.
+
+Since the XPath equality operator converts node sets to string values before
+comparison, we must instead use the 'union' operator, which is |. The size
+of the union of the two node sets will be greater than the size of the
+node-set containing the Signature element ancestors of the context node if
+and only if the latter does not include the first signature element ancestor
+of here().  Thus, the predicate expression is true for every node that is
+not a descendant of the immediate Signature ancestor element of the XPath
+expression.
+
+Therefore, if we add here(), then we can provide an XPath transform
+definition for an enveloped signature.
+
+John Boyer
+Software Development Manager
+PureEdge Solutions Inc. (formerly UWI.Com)
+Creating Binding E-Commerce
+jboyer@PureEdge.com
+
+
+-----Original Message-----
+From: Joseph M. Reagle Jr. [mailto:reagle@w3.org]
+Sent: Thursday, May 11, 2000 12:35 PM
+To: Mariano P. Consens
+Cc: w3c-ietf-xmldsig@w3.org; John Boyer
+Subject: RE: Enveloped signatures
+
+
+
+Good point! But we have decided not to require XPtr... However, it still
+might provide enough 'elegance' in defining the behaviour, but I'm not sure
+if we could also reproduce that in XPath for those that plan on doing XPath
+solution. I'll defer to John on that.
+
+At 11:54 2000-05-10 -0400, Mariano P. Consens wrote:
+ >
+ >Joseph (and Donald and John, who were also part of the discussion after
+the
+ >meeting),
+ >
+ >I've found the following function defined in XPointer (Working Draft 6
+ >December 1999):
+ >
+ >FUNCTION: location-set here( )
+ >The here() function returns a location-set with a single member. That
+ >location is of type element, and locates the element that directly
+contains
+ >(as text) or bears (as an attribute value) the XPointer. This expression
+ >results in a syntax error if the containing XPointer does not appear in an
+ >XML document.
+ >
+ >Using it we can find the ancestor Signature element (without defining
+ >variable bindings) as:
+ >
+ >here()/ancestor::Signature
+ >
+ >Mariano.
+ >
+ >  --------------------------------------------------------------------
+ >  Mariano P. Consens                    Department of Computer Science
+ >  e-mail: mconsens@uwaterloo.ca         University of Waterloo
+ >  phone: (519) 888-4567 x-3023          Waterloo, Ontario, N2L 3G1
+ >  fax: (519) 885-1208                   CANADA
+ >  --------------------------------------------------------------------
+ >
+ >
+ >> -----Original Message-----
+ >> From: w3c-ietf-xmldsig-request@w3.org
+ >> [mailto:w3c-ietf-xmldsig-request@w3.org]On Behalf Of Joseph M. Reagle
+ >> Jr.
+ >> Sent: May 10, 2000 8:29 AM
+ >> To: Petteri Stenius
+ >> Cc: IETF/W3C XML-DSig WG (E-mail)
+ >> Subject: Re: Enveloped signatures
+ >>
+ >> At 11:35 2000-05-10 +0300, Petteri Stenius wrote:
+ >>  >6.6.5 Signature Exclusion
+ >>  >
+ >>  >Identifier:
+ >>  >    http://www.w3.org/2000/02/xmldsig#exclude-signature
+ >>  >
+ >>  >The transform excludes the ancestor Signature element of the
+DigestValue
+ >>  >element that is being calculated. The intention is to support
+enveloped
+ >>  >signatures where the DigestValue calculation would overlap with
+itself.
+ >>
+ >> Petteri, the idea was that it would be somewhat elegant if we
+ >> specified the
+ >> identifier and defined its behavior using an XPath expression (the
+ >> equivalent of your natural language text above). That way, people
+ >> that don't
+ >> expect to implement XPath can implement the feature rather simply; those
+ >> that already have XPath don't have to do something special, and both
+will
+ >> interoperate!
+ >>
+ >> The challenge then is to find the XPath equivalent of your description
+ >> above. This seemed to be potentially tricky in that the context
+ >> node in your
+ >> description above is "the ancestor Signature element of the DigestValue
+ >> element that is being calculated" and if you go the XPath/XML route, it
+ >> isn't going to know this (what is being calculated), you just hand it
+XML.
+ >> Then the XPath processor sets the context node at the root root, and
+then
+ >> you have to specify an expression that finds and excludes the right
+ >> Signature (if they are nested.) There might be a clever way to do this
+ >> though, and I think Boyer might've mentioned you might be able to
+achieve
+ >> this by passing arguments from a function ... ? But we concluded by
+saying
+ >> let's give it some thought and discuss it on the list.
+ >>
+ >> At the meeting, we had agreement to include this feature in the
+Candidate
+ >> REC / Proposed Draft, I'm waiting/hoping/thinking about if we can
+ >> define it
+ >> as an XPath expression as well.
+ >>
+ >> _________________________________________________________
+ >> Joseph Reagle Jr.
+ >> W3C Policy Analyst                mailto:reagle@w3.org
+ >> IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+ >>
+ >>
+ >
+
+_________________________________________________________
+Joseph Reagle Jr.
+W3C Policy Analyst                mailto:reagle@w3.org
+IETF/W3C XML-Signature Co-Chair   http://www.w3.org/People/Reagle/
+
+
+

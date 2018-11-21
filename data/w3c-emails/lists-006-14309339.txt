@@ -1,0 +1,168 @@
+docno="lists-006-14309339"
+received="Wed Oct  3 14:54:42 2001"
+isoreceived="20011003185442"
+sent="Wed, 03 Oct 2001 11:58:31 -0700"
+isosent="20011003185831"
+name="Roy Seto"
+email="Roy.Seto@oracle.com"
+subject="UPDATE with activity source"
+id="3BBB5FD7.A41ADB62@oracle.com"
+charset="UTF-8"
+inreplyto="3906C56A7BD1F54593344C05BD1374B1046532B3&#64;SUS-MA1IT01"
+expires="-1"
+
+
+To:ietf-dav-versioning@w3.org
+
+I am following up this discussion in a separate thread
+for clarity.
+
+Yesterday, I wrote:
+
+   Possible extensions
+
+   - Activity feature, update feature: Define the
+     semantics of UPDATE where the source is an
+     activity. Use case: Provide a performant standard
+     way for clients to ensure that the members of a
+     workspace select the latest version of an
+     activity. This is key to support the concept of
+     merging to an activity (by merging to a workspace
+     which selects the latest versions in that
+     activity). (Note: ideally, this extension would
+     also modify generic UPDATE marshalling so the
+     DAV:update element had a DAV:source child element,
+     like MERGE does, instead of a DAV:version
+     element. An activity resource is not a version
+     resource).
+
+Geoff replied:
+
+   I find this not very compelling.  An activity is a
+   logical change set.  Simply "setting" some of your
+   versions to those selected by some change set sounds
+   like a great way to hide parts of existing change
+   sets, and making your workspace inconsistent.  So
+   "MERGE" on an activity makes sense to me, but
+   "UPDATE" does not.  Perhaps you could develop the
+   use case in some more detail?
+
+My more detailed discussion follows below.
+
+--
+
+Change proposal
+
+  Editorial level change: Modify the marshalling of
+  UPDATE in Section 7.1 so DAV:update contains a
+  DAV:source element instead of a DAV:version
+  element. This would make the UPDATE marshalling more
+  consistent with the MERGE marshalling. More
+  importantly, it would make it simpler to extend
+  UPDATE to accept sources which were not version
+  resources if there was a consensus to do so (possibly
+  in the future).
+
+  Feature extension: In addition to the editorial level
+  change, add additional UPDATE semantics to Section 13
+  (the activity feature). Informally, UPDATE with an
+  activity source would set the DAV:checked-in version
+  of each checked-in member of the request-URL to the
+  latest version in the source activity's
+  DAV:activity-version-set, if such a version existed.
+
+Use case
+
+  My overall use case for this feature extension is the
+  same one I posted a couple days ago in
+
+ 
+http://lists.w3.org/Archives/Public/ietf-dav-versioning/2001OctDec/0011.html
+
+  As I will explain below, I would like to use UPDATE
+  with an activity source to implement step 4 in the
+  following overall use case:
+
+  My implementation has a requirement that the changes
+  in multiple activities be logically merged into a
+  shared line of descent upon completion. I would like
+  to model the shared line of descent as an activity.
+
+  Here's a summary of my overall use case:
+
+  1. Each user's client initializes a separate
+     workspace so its version-controlled members'
+     DAV:activity-set values include the shared
+     activity. I'll call this the "integration
+     activity" for the rest of this discussion.
+
+  2. Each user's client issues MKACTIVITY to create a
+     non-shared activity for making changes on a
+     separate line of descent from the integration
+     activity. I'll call this the "isolation activity"
+     for the rest of this discussion. The client then
+     PROPPATCHES the DAV:current-activity-set of its
+     workspace to the isolation activity and issues a
+     number of CHECKOUT, GET, PUT, and CHECKIN requests
+     whose request-URLs are members of the workspace.
+
+  3. At certain times while working on their isolation
+     activities, users would like to logically merge
+     the latest versions in the integration activity's
+     DAV:activity-version-set to their workspaces. (The
+     DAV:auto-activity-checkin flag to activity merge,
+     which Geoff is adding as the resolution of a
+     different discussion, makes this work cleanly.)
+
+  4. When users complete work on their isolation
+     activities, their clients issue a series of
+     requests so that the changes in the isolation
+     activities are logically merged to the integration
+     activity. This is where I think it would be useful
+     to use UPDATE with an activity source.
+
+  To implement step 4 in the use case above, my thought
+  is to have the client identify a workspace which
+  selects the latest version in the integration
+  activity, if such a version exists, for each
+  version-controlled member of that workspace. Then the
+  client would PROPPATCH the DAV:current-activity-set
+  of that workspace to the integration activity, and
+  request a MERGE where the request-URL was the
+  workspace and the source was the isolation
+  activity. Client completion of the MERGE would
+  guarantee that the latest version in the integration
+  activity was a descendant of the latest version in
+  the isolation activity at the time of the MERGE from
+  the isolation activity.
+
+  Now, how would the client ensure that each
+  version-controlled member of a workspace selected the
+  latest version in the integration activity before
+  using that workspace as the request-URL for the MERGE
+  from the isolation activity? If the workspace members
+  were under baseline control, one way would be to
+  UPDATE the workspace with baselines which selected
+  versions in the integration activity, and then MERGE
+  the integration activity into the workspace to select
+  the latest version. Another way would be to UPDATE
+  each version-controlled member of the workspace so it
+  selected the DAV:root-version of its
+  DAV:version-history, and then MERGE the integration
+  activity into the workspace - this would be simplest
+  if the client knew that all root versions of the
+  version-controlled collection members of the
+  workspace had no bindings. (Thanks to my colleague
+  Alison Macmillan for pointing out this option.)
+
+  I feel the fastest and most straightforward solution
+  would be if the client could issue an UPDATE whose
+  request-URL was the workspace and whose source was
+  the integration activity. Is there an equally fast
+  and straightforward solution already available in
+  draft-18 which I have overlooked?
+
+Roy
+
+
+

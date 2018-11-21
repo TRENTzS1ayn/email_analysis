@@ -1,0 +1,101 @@
+docno="lists-046-1285076"
+received="Thu Jun  6 08:42:17 2002"
+isoreceived="20020606124217"
+sent="Thu, 06 Jun 2002 13:41:44 +0100"
+isosent="20020606124144"
+name="merlin"
+email="merlin@baltimore.ie"
+subject="Re: exc c14n bugs"
+id="20020606124144.18E0A4432D@yog-sothoth.ie.baltimore.com"
+inreplyto="7874BFCCD289A645B5CE3935769F0B523287CE&#64;tigger.PureEdge.com"
+expires="-1"
+
+To:"John Boyer"<JBoyer@pureedge.com>
+Cc:w3c-ietf-xmldsig@w3.org
+
+
+
+r/JBoyer@pureedge.com/2002.06.05/11:03:20
+><jb>
+>Well, we are already overriding the c14n handling of xmlns="", so it doesn't s
+>eem a justifiable defense. Also, your conclusion that the xmlns="" is unnecess
+>ary is based only on the specific implementation method of transferring E from
+> one envelope to another by reparenting a node-set.  The developer cannot writ
+>e a new envelope by writing "<envelope xmlns='http://mynamespace'>" + Exclusiv
+>e canonicalization + "</envelope>", and it seems odd that such a simplistic th
+>ing is broken.  Finally, why would we handle:
+>
+><Foo xmlns="http://example.org"/>
+>
+>differently from 
+>
+><Foo xmlns=""/>
+></jb>
+
+We treat it differently because, in general, we omit redundant
+namespace nodes; and, parsed in isolation, xmlns="" on a
+top-level element is redundant.
+
+I agree that omitting this definition does cause problems with
+(non-pejoratively) na?ve textual wrapping. In particular; pure
+c14n (as recommended by the spec) is not a good serializer
+for XML encryption because the wrapping and parsing language
+will cause problems.
+
+However; I don't think that patching exc-c14n, in isolation,
+is the solution. The fact is, the problem will remain for
+c14n, for exc-c14n with #default in the prefix list, and
+for most standard serializers.
+
+I would rather characterize this as a common fault of
+canonicalization algorithms derived from c14n and many standard
+serializers, and describe a general solution for systems that
+serialize XML for subsequent na?ve wrapping:
+
+  When serializing XML for subsequent wrapping and parsing,
+  serialization of the namespace axis should be changed as
+  follows: The declaration xmlns="" SHOULD be emitted where it
+  would normally be suppressed because no ancestor element in
+  the node set has a namespace node in the node set declaring
+  a value for the default namespace.
+
+  The result may, therefore, not be in pure canonical form,
+  even if a canonicalization algorithm was used. The resulting
+  octet stream will not be used directly in a signature
+  computation, so an exact specification is not necessary.
+
+  This can be retroactively applied to an existing c14n
+  implementation by canonicalizing each apex node and its
+  descendants from the node set, inserting ' xmlns=""' at
+  the appopriate points, and concatenating the resulting
+  ctet streams.
+
+As I say; I'm not disagreeing that this behaviour causes
+problems. I just think that a partial fix is potentially
+worse than no fix. I think that we will need language of
+the above form in, at least, the encryption spec; and, if we
+correct exc-c14n-without-#default then we will need further
+language to disable this patch when that particular variant
+of exc-c14n is used as a serializer.
+
+If you think that this fix must go in exc-c14n then I will not
+argue further, just point out that, unlike the current text
+revisions which clarify exc-c14n, you will be breaking exc-c14n
+so we will need a new namespace and consequent recycling, and
+request that we also put xmlns="" in apex nodes if #default
+is in the prefix list and the apex node is an element node
+with no default namespace node in the node set. The encryption
+spec can then provide a patch just for non-exc-c14n.
+
+My preference would be not to patch exc-c14n, but instead
+to provide text in XML encryption. The problem extends
+beyond the use of canonicalization algorithms. If people
+simply encrypt a serialized document from the filesystem,
+which will probably omit xmlns="", na?vely expecting things
+to work in decrypt-and-replace mode, they won't. This is a
+general problem and needs a general fix.
+
+Merlin
+
+
+

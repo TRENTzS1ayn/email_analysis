@@ -1,0 +1,129 @@
+docno="lists-047-6443100"
+received="Wed Jul 18 15:26:51 2001"
+isoreceived="20010718192651"
+sent="Wed, 18 Jul 2001 20:26:49 +0100"
+isosent="20010718192649"
+name="Dave Beckett"
+email="dave.beckett@bristol.ac.uk"
+subject="Re: N-triples (1.4)"
+id="13738.995484409@tatooine.ilrt.bris.ac.uk"
+inreplyto="GK&#64;NineByNine.org"
+expires="-1"
+
+To: RDF core WG<w3c-rdfcore-wg@w3.org>
+cc: Graham Klyne<GK@NineByNine.org>
+
+
+>>>Graham Klyne said:
+> Re: http://www.w3.org/2001/sw/RDFCore/ntriples/
+
+The file may have moved there but I cannot edit it at present.
+
+> 1. Is it intended that a name can start with a digit?
+>    name ::= [A-Za-z0-9]+
+> 
+> As far as I can tell, it's used only in anonNode
+
+I changed this to match N3 tools but I see now that while
+n-triples2kif.pl uses the above, the main cwm code uses
+xmllib.py which has:
+  _Name = '[a-zA-Z_:][-a-zA-Z0-9._:]*'    # valid XML name
+
+so I guess another change to:
+  name ::= [A-Za-z][A-Za-z0-9]*
+seems in order.  We probably shouldn't allow _ or : since we use
+those in other ways (e.g. would make things like _:_: legal).
+I have no opinion about allowing - or .
+
+
+> 2. I think this violates the syntax notation:
+>    absoluteURI ::= [^ < > space]+
+> 
+> As far as I can tell, http://www.w3.org/TR/REC-xml#sec-notation allows only 
+> literal characters or #xN character codes within the [...] construct.  I 
+> suggest:
+>    absoluteURI ::= ( [^<>] - space )+
+
+Yes.
+
+I haven't been able to update the document since adding the pointer
+to the use of the XML notation, and need to amend the character classes
+and references to characters amongst other things.
+
+
+> 3. Outstanding issue 1
+> 
+> N-Triples is a text/plain MIME type format - consider character and 
+> encoding issues with requirement to be able to express all Unicode chars.
+> 
+> That much is easy, I think.  Use:
+>    Content-type: text/plain;charset=utf-8
+
+That out-of-band information cannot be picked up by the parser just
+reading the bytes.  I would prefer the format to be self-contained if
+possible, not depending on charset, so all unicode chars can be
+handled inside US-ASCII.  Asking N-Triples parsers to have to add an
+entire UTF-8 decoding step seems rather an large step, when \u
+etc. below could do the work when required.
+
+
+> 4. Outstanding issue 2
+> 
+> Consider adding \#xHEX escaping to allow N-Triples to encode Unicode 
+> characters in text/plain.  Or after Python: \uxxxx and \Uxxxxxxxx
+> 
+> I suppose that, for completeness, we must.  Escaping is a topic that can be 
+> far trickier than it seems it should be for such a "simple" 
+> purpose.  Following your Python reference, I see they've tightened up the 
+> Python spec.  I think these are probably the right choices for us:
+>    \uxxxx      Character with 16-bit hex value xxxx (Unicode only)
+>    \Uxxxxxxxx  Character with 32-bit hex value xxxxxxxx (Unicode only)
+
+I would add notes such that there would only be 1 way to encode any
+character, so even escaped literals could be compared as
+strings. i.e.
+  \uxxxx for (mutter some chars below #0020) & chars #007f-#ffff
+  \UXXXXXXXX for chars #00010000 to #ffffffff
+> 
+> One might also consider allowing:
+>    \xhh        ASCII character with hex value hh
+> for 'hh' in the range '00' to '7F' (i.e. where Unicode code points match 
+> US-ASCII).
+
+Is this one escape too many?  If we do add it, I would prevent \u
+from this handling the range this covers.
+
+How about just one escape \UXXXXXXXX for all chars not made available
+by \-escapes or used in-situ - that seems more appealing for this
+little syntax.
+
+
+> 5. eoln format
+> 
+> Being a MIME text/plain format, the cr in eoln should not be optional:
+>    eoln ::= cr? lf
+> should read:
+>    eoln ::= cr lf
+
+As I commented previously, that change would make all our existing
+examples illegal and this seems awkward to impose on many people
+writing these files.  I would agree if this was a protocol such as
+HTTP, SMTP or telnet where it was never (hardly ever) typed by
+people.
+
+Most web servers will autodetect and deliver ntriples files as
+text/plain whatever line ending we use, for example your RDF Core WG
+minutes of 2001-06-15:
+  http://lists.w3.org/Archives/Public/w3c-rdfcore-wg/2001Jun/att-0471/01-Minutes-20010615.txt
+is served as text/plain but uses only \n as newlines which strictly
+isn't allowed.
+
+So what to do?
+Invent a suggested ".nt" suffix and MIME type it text/x-ntriples?
+
+I don't see that as necessary - lets not worry about it.
+
+Dave
+
+
+

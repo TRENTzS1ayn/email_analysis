@@ -1,0 +1,188 @@
+docno="lists-102-13373663"
+received="Mon Jun 14 17:25:49 1999"
+isoreceived="19990614212549"
+sent="Mon, 14 Jun 1999 16:14:08 -0400"
+isosent="19990614201408"
+name="Arthur Rother"
+email="arthur.rother@ovidius.com"
+subject="Comments to DOM"
+id="4.1.19990614154709.0093d3e0@mail.jps.net"
+charset="us-ascii"
+expires="-1"
+
+
+To:www-dom@w3.org
+
+Hi,
+
+I'm writing a DOM interface to our sgml/xml transformation engine called
+MetaMorphosis. There will be a C++ binding and a COM binding. The DOM
+interface is enriched with methods and properties that allow the usage of
+MetaMorphosis' transformation language. This allows more powerful
+navigation and node selection, as well as the possibility of transforming
+one document into another using MetaMorphosis scripts.
+
+Trying to write the DOM interface I have the following comments with
+respect to the DOM specification. 
+As far as I understood, the DOM is not intended to be the most easy to use
+interface to XML documents, but a general view reflecting the structure of
+XML documents. Nevertheless I think, from a users point of view some more
+programming friendly features would be useful.
+
+If you think about a COM binding, the underlying implementation is often in
+C++. I don't know how this is with python or perl. But calls from e.g. VB
+over COM to C++ takes a big amount of calculation time. Therefore the best
+strategy would be to have some powerful functions that do a lot of work
+with as few calls to the DOM API as 
+possible.
+
+Now DOM has been there for some time now, and this input is be a bit late.
+But I am curious about what the DOM minds say about these, or why they have
+choosen differently at the time. Probably, these things were discussed before.
+
+1. The node types 
+----------------- 
+It would have been more convenient, if the types of nodes would have been a
+2^n enumeration, instead of a n enumeration. for example:
+
+// NodeType 
+const unsigned short ELEMENT_NODE = 1; 
+const unsigned short ATTRIBUTE_NODE = 2; 
+const unsigned short TEXT_NODE = 4; 
+const unsigned short CDATA_SECTION_NODE = 8; 
+const unsigned short ENTITY_REFERENCE_NODE = 16; 
+const unsigned short ENTITY_NODE = 32; 
+const unsigned short PROCESSING_INSTRUCTION_NODE = 64; 
+const unsigned short COMMENT_NODE = 128; 
+const unsigned short DOCUMENT_NODE = 256; 
+const unsigned short DOCUMENT_TYPE_NODE = 512; 
+const unsigned short DOCUMENT_FRAGMENT_NODE = 1024; 
+const unsigned short NOTATION_NODE = 2048; 
+const unsigned short ALL_TYPES = 4095;
+
+This way, the node types can be ored bitwise. In the current DOM spec, an
+orable node type is not needed, but for many extensions on the DOM, it
+would have been very helpful. (I know there is a similar idea for the
+iterators, but not as convenient). The reason for this is that a few
+extensions to the DOM interface would make navigating much easier and more
+efficient. Consider the following case.
+
+first = myNode->nextSibling(TEXT_NODE|ELEMENT_NODE);
+
+To write something like this with the current DOM implementation one would
+need several calls to the interface which would decrease the speed of the
+program. (The default for node types would always be ALL_TYPES, to have the
+same behaviour as DOM).
+Same for 
+
+kids = myNode->childNodes(TEXT_NODE|ELEMENT_NODE);
+
+Compare DOM version
+
+if (myNode->nodeType == ELEMENT_NODE || myNode->nodeType == TEXT_NODE) {...}
+
+with my suggestion
+
+if (myNode->nodeType == ELEMENT_NODE|TEXT_NODE){...}.
+
+The latter needs one call less to the DOM API.
+
+In my extension to the DOM interface, I have many more uses for these kind
+of node type values. So I had to implement my own node type handling next
+to the one specified by the DOM (ugly). 
+I know that in the above examples, information such as childNodes or
+nextSibling are no longer properties, which in an abstract sence they are.
+This against my use of node types. But in most implementations querying for
+these properties will lead to some more or less complex commands anyway, so
+they are not going to be implemented as 
+properties (except for maybe in COM as pseudo properties). 
+
+2. Keys to nodes 
+----------------
+
+With the following comment I can also see, why it might be against some DOM
+policy. Still for my purposes, it is quite needed. What I am missing is
+some kind of key (a long value) mechanism for retrieving nodes not by their
+relationship to other nodes, but by using a key value. 
+The objects described in DOM are not the nodes, but are interfaces to
+nodes. This means, that there is some other database, in which the document
+is stored. This means, that any interface object would have a mechanism to
+point into the database. This is most likely to be some sort of key (for
+example a pointer address or offset) of type/size long. Having access to
+this key would be a great thing. I know you cannot make any assumptions on
+what the key means. So it is a dangerious thing to play with, but by this
+you can preserve handles to the nodes in the document using the key, not 
+the entire interface. 
+
+One of the main reasons for needing such a feature, is when writing a
+powerful, lets say transformation engine, using the DOM, one would have to
+recompile the application to have it work on another DOM. Using this key
+feature, it would be possible to write wrappers over other DOM
+implementations, where no recompilation is neccessary. Instead, a
+specialized document factory is implemented, with options to create
+interfaces on other DOM's. For example:
+
+(c++ snip)
+MyDOM.Document *myInterfaceOnNetscapeDom = NULL;
+myInterfaceOnNetscapeDom = MyFactory.openNetscapeDOM();
+MyProcessor.process(myInterfaceOnNetscapeDom);
+
+Is there any DOM implementation, that does not use any sort of key
+internally to refer to the actual node? 
+In for example C++ one could take the address of the interface object. But
+this of course does not work always, because in most implementations one
+can have several instances of an interface on one and the same node.
+
+otherInterface = thisInterface->firstChild->parentNode;
+
+otherInterface and thisInterface will most likely be two different objects,
+but the same node.
+
+So, to get access to the key, one might want to define:
+
+interface Node { 
+[...] 
+readonly attribute long key; 
+};
+
+In addition to this, a method like
+
+interface Document { 
+[...] 
+Node nodeFromKey(long key) const; 
+};
+
+is needed, to get an interface to an object using it's key. The key of a
+document object would enable to access a document using a key (a mechanism
+for determing, if the document is still in memory is required for this).
+Using both document and node key would also allow testing, whether two
+nodes are the same. 
+It is not required that the key values remain constant after starting an
+application again or reloading a document. 
+I miss this feature.
+
+Some more question 
+------------------
+What is actually meant with DOM compliant. Does it mean, one should be able
+to exchange a library, recompile the program and no compiler error should
+occure?
+(Excluding maybe some implemenation dependend document factories)
+
+And can I allow a document to contain a forest, i.e. more than one document
+element?
+Can I allow another pi before the Document element as in: 
+<?xml version="1.0" encoding="utf8"?> 
+<?mypi some pi text here?> 
+<DOCBOOK>....</DOCBOOK>
+?
+Can I implement attributes like nextSibling, firstChild and childNodes as
+methods and allow an optional argument, for filtering certain node types?
+
+Am I then still DOM compliant?
+
+Best regards, 
+Arthur Rother 
+Ovidius GmbH
+
+
+

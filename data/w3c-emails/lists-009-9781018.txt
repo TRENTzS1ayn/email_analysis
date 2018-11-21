@@ -1,0 +1,159 @@
+docno="lists-009-9781018"
+received="Thu Aug 31 06:49:38 1995"
+isoreceived="19950831104938"
+sent="Thu, 31 Aug 1995 15:46:27 +0200 (MET DST)"
+isosent="19950831134627"
+name="Koen Holtman"
+email="koen@win.tue.nl"
+subject="Re: Location Proposals"
+id="199508311346.PAA05641@wswiop05.win.tue.nl"
+charset="USASCII"
+inreplyto="199508310548.WAA27222&#64;bert.amazon.com"
+expires="1"
+
+
+To: Shel Kaphan<sjk@amazon.com>
+Cc:http-wg%cuckoo.hpl.hp.com@hplb.hpl.hp.com
+
+Shel Kaphan:
+[... Location: URI in responses to POST requests ...]
+>   in my model of how this ought to work, the resource enclosed
+>in the response should replace anything in the cache under that URI.
+                 ^^^^^^^^^^^^^^
+
+Wait a minute!  This requirement on caches opens up a whole new realm
+of failure modes, because it *requires* caches to always do some local
+processing on every response relayed.
+
+Currently, whenever a cache suspects that it *may* misinterpret a
+response (e.g. because it contains an unknown header), it is always
+safe to skip any local processing and pass along the response
+transparently.  Because of this, caches can be made very robust: there
+is always an easy escape from a header parsing failure.
+
+With your `should replace' requirement, this is no longer the case.
+
+Also, currently, one can safely take a proxy cache offline (either
+intentionally or unintentionally) for 10 minutes and then put it up
+again, without clearing the cache memory.  (I assume that, while the
+cache is offline, local clients will talk directly to the hosts
+normally served though the cache.)
+
+Again, with your `should replace' requirement, this is no longer the
+case.
+
+I have a different model of how Location should work in mind.  Say
+that the shopping basket URI is http://blah.com/basket.  In my scheme,
+the server *always* puts an Expires: <yesterday> in every basket
+response, forcing the client to do a (conditional) GET whenever the
+basket is requested by the user.
+
+A `Location: http://blah.com/basket' header in the POST would reduce
+IP traffic _only_ if the client (or any proxy near to the client) has
+conditional GET capability.  Here is a scenario.
+
+**** time_0:
+
+- client (user agent or proxy) cache memory has an entry
+   (Method, URI, last_verified_date, expires_on, entity_body) =
+     (GET, http://blah.com/basket, time_0, yesterday ,
+     "In your basket: apple, orange")
+
+**** time_1:
+
+- client user clicks the link to see the shopping basket contents
+
+- client issues a conditional GET on http://blah.com/basket with
+  IMS: time_0.
+
+- Server returns a 304 not modified response with and an
+  Expires: <yesterday> header.
+
+- client displays the basket page containing the text
+    In your basket: apple, orange
+  from the cache.
+
+- client cache memory entry is updated to
+   (Method, URI, last_verified_date, expires_on, entity_body) =
+     (GET, http://blah.com/basket, time_1, yesterday ,
+                                   ^^^^^^   
+     "In your basket: apple, orange")
+
+**** time_2:
+
+- client user pushes form submit button on the `buy a carrot' page.
+
+- client issues a POST on http://blah.com/addtobasket/carrot.
+
+- server returns a response
+    200 OK HTTP/1.x
+    Location: http://blah.com/basket
+    Expires: <yesterday>
+    Content-type: text/html
+
+    In your basket: apple, orange, carrot
+  to the client.
+
+- client displays basket page containing the text
+    In your basket: apple, orange, carrot.
+  to the user
+
+- client cache memory entry is updated to
+   (Method, URI, last_verified_date, expires_on, entity_body) =
+     (GET, http://blah.com/basket, time_2, yesterday ,
+                                   ^^^^^^   
+     "In your basket: apple, orange, carrot")
+                                   ^^^^^^^^
+
+- note that it makes no sense to add
+   (Method, URI, last_verified_date, expires_on, entity_body) =
+     (POST, http://blah.com/addtobasket/carrot, time_2, yesterday ,
+     "In your basket: apple, orange, carrot")
+  to the cache memory because there is no conditional POST.  If the
+  Expires header were `Expires: <tomorrow>', it would make sense.
+
+**** time_3:
+
+- client user clicks the link to see the shopping basket contents
+
+- client issues a conditional GET on http://blah.com/basket with
+  IMS: time_2.
+
+- Server returns a 304 not modified response with and an
+  Expires: <yesterday> header.
+
+- client displays basket page containing the text
+    In your basket: apple, orange, carrot
+  from the cache.
+
+Savings: If no Location were present on the POST response at time_2,
+the client would have to issue a conditional GET with IMS: time_1 to
+the server at time_3.  As the contents changed at time_2, the server
+would then be forced to return a 200 response containing the complete
+shopping basket page in the entity body.
+
+Thus, a Location in the POST response saves one retransmission of the
+shopping basket page contents.  It does not save on round-trip times
+for (conditional) GETs.
+
+
+This message has gotten a bit longer than I intended to.  Summary:
+
+1) I *never* want to omit Expires: <yesterday> or Pragma: no-cache
+   headers on dynamic responses like shopping basket pages.
+
+2) Implementing dynamic shopping basket pages by requiring that caches
+   update previously cached copies that have not expired yet is too
+   fragile
+
+3) Location: in POST responses can still save IP packets without the
+   requirement in 2) if the client (or a proxy near the client) has
+   conditional GET capability.
+
+
+>--Shel
+
+Koen.
+
+
+
